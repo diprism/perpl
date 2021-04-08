@@ -1,0 +1,90 @@
+{
+    "note": "A hidden Markov model, from Figure 2a in the FGG paper.",
+    "domains": {
+        "T": {
+            "type": "discrete",
+            "values": ["DT", "NN", "VBD", "IN", "BOS", "EOS"]
+        },
+        "W": {
+            "type": "discrete",
+            "values": ["the", "cat", "sat", "on", "mat"]
+        }
+    },
+    "factors": {
+        "transition": {
+            "type": "categorical",
+            "normalize": 1
+        },
+        "emission": {
+            "type": "categorical",
+            "normalize": 1
+        },
+        "is_bos": {
+            "type": "constant",
+            "values": [0, 0, 0, 0, 1, 0]
+        },
+        "is_eos": {
+            "type": "constant",
+            "values": [0, 0, 0, 0, 0, 1]
+        }
+    },
+    "nonterminals": ["S", "X"],
+    "start": "S",
+    "rules": [
+        {
+            "lhs": "S",
+            "rhs": {
+                "nodes": ["T"],
+                "edges": [
+                    {
+                        "endpoints": [0],
+                        "label": "is_bos"
+                    },
+                    {
+                        "endpoints": [0],
+                        "label": "X",
+                    }
+                ],
+                "ext": []
+            }
+        },
+        {
+            "lhs": "X",
+            "rhs": {
+                "nodes": ["T", "T", "W"],
+                "edges": [
+                    {
+                        "endpoints": [0, 1],
+                        "label": "transition"
+                    },
+                    {
+                        "endpoints": [1, 2],
+                        "label": "emission"
+                    },
+                    {
+                        "endpoints": [1],
+                        "label": "X"
+                    }
+                ],
+                "ext": [0]
+            }
+        },
+        {
+            "lhs": "X",
+            "rhs": {
+                "nodes": ["T", "T"],
+                "edges": [
+                    {
+                        "endpoints": [0, 1],
+                        "label": "transition"
+                    },
+                    {
+                        "endpoints": [1],
+                        "label": "is_eos"
+                    }
+                ],
+                "ext": [0]
+            }
+        }
+    ]
+}
