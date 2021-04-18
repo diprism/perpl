@@ -1,9 +1,9 @@
 
-DiprismCompiler: Main.hs Parser.hs
-	ghc Main.hs --make -o DiprismCompiler
-	./DiprismCompiler
+compiler.exe: Main.hs Parser.hs
+	ghc Main.hs --make -o compiler.exe
+	./compiler.exe
 
-all: DiprismCompiler
+all: compiler.exe
 
 clean:
-	rm *.o *.hi DiprismCompiler
+	rm -f *.o *.hi *.exe

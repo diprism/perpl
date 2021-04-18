@@ -1,6 +1,9 @@
 module Parser where
 
-data Progs = ProgNil Term | ProgCons String [Arg] Term Progs
+data Progs = ProgRun Term | ProgFun String [Arg] Term Progs | ProgData String [Ctor] Progs
+  deriving Show
+
+data Ctor = Ctor Var [Type]
   deriving Show
 
 data FnQual = FnUnr | FnAff | FnLin
@@ -33,7 +36,7 @@ data Type =
   | TpSum Type Type
   deriving Show
 
-type Arg = Bool -- TODO
+type Arg = (Var, Type)
 
 
 data Token =
@@ -48,6 +51,7 @@ data Token =
   | TkEq
   | TkSample
   | TkObserve
+  | TkAmb
   | TkFail
   | TkTrue
   | TkFalse
@@ -68,6 +72,8 @@ data Token =
   | TkColon
   | TkDot
   | TkBar
+  | TkFun
+  | TkData
   deriving (Eq, Show)
 
 
@@ -77,8 +83,8 @@ lexStrh ('\n' : s) = lexStrh s
 lexStrh ('\\' : '?' : s) = lexAdd s TkLamAff
 lexStrh ('\\' : '1' : s) = lexAdd s TkLamLin
 lexStrh ('\\' : s) = lexAdd s TkLam
-lexStrh ('-' : '?' : '>' : s) = lexAdd s TkArrAff
-lexStrh ('-' : '1' : '>' : s) = lexAdd s TkArrLin
+lexStrh ('-' : '>' : '?' : s) = lexAdd s TkArrAff
+lexStrh ('-' : '>' : '1' : s) = lexAdd s TkArrLin
 lexStrh ('-' : '>' : s) = lexAdd s TkArr
 lexStrh ('<' : '-' : s) = lexAdd s TkLeftArr
 lexStrh ('+' : s) = lexAdd s TkPlus
@@ -91,11 +97,6 @@ lexStrh (')' : s) = lexAdd s TkParenR
 lexStrh "" = Just
 lexStrh s = lexKeyword s
 
-{-
-lexVar = h "" where
-  h v (c : s) = if isVarChar c then h s (c : v) else lexAdd s (TkVar (reverse v))
-  h v "" = \ ts -> Just (TkVar (reverse v) : ts)
--}
 lexVar = h "" where
   h v (c : s) = if isVarChar c then h (c : v) s else Just (reverse v, (c : s))
   h v "" = Just (reverse v, "")
@@ -116,22 +117,14 @@ keywords = [
   ("let", TkLet),
   ("in", TkIn),
   ("sample", TkSample),
-  ("observe", TkObserve) ]
+  ("observe", TkObserve),
+  ("amb", TkAmb),
+  ("fun", TkFun),
+  ("data", TkData) ]
 
 lexKeyword s ts = lexVar s >>= \ (v, rest) -> if length v > 0 then trykw keywords v rest ts else Nothing where
   trykw ((kwstr, kwtok) : kws) v s = if kwstr == v then lexAdd s kwtok else trykw kws v s
   trykw [] v s = lexAdd s (TkVar v)
-
-{-
-lexKeyword = h keywords where
-  trykw (k : ks) (c : cs) = if k == c then trykw ks cs else Nothing
-  trykw [] (c : cs) = if isVarChar c then Nothing else Just (c : cs)
-  trykw [] [] = Just []
-  
-  h ((kwstr, kwtok) : kws) s =
-    maybe (h kws s) (\ rest -> lexAdd rest kwtok) $ trykw kwstr s
-  h [] s = lexVar s
--}
 
 
 --varChars = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['\'', '_']
@@ -156,6 +149,10 @@ parseMr = curry Just
 parseDrop t = ParseM $ \ ts -> case ts of
   (t' : ts') -> if t == t' then parseMr () ts' else Nothing
   _ -> Nothing
+
+parseDropSoft t = ParseM $ \ ts -> case ts of
+  (t' : ts') -> parseMr () (if t == t' then ts' else ts)
+  _ -> parseMr () ts
 
 instance Functor ParseM where
   fmap f (ParseM g) = ParseM $ \ ts -> g ts >>= \ p -> Just (f (fst p), snd p)
@@ -228,6 +225,25 @@ parseType3 = ParseM $ \ ts -> case ts of
   (TkParenL : ts) -> parseMt ts $ parseType1 <* parseDrop TkParenR
   _ -> Nothing
 
+parseArgs = ParseM $ \ ts -> case ts of
+  (TkParenL : ts') -> parseMt ts' $ pure (:) <*> (pure (,) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkParenR) <*> parseArgs
+  _ -> parseMr [] ts
+parseCtors = ParseM $ \ ts -> case ts of
+  (TkVar _ : _) -> parseMt (TkBar : ts) parseCtorsH
+parseCtorsH = ParseM $ \ ts -> case ts of
+  (TkBar : ts) -> parseMt ts $ pure (:) <*> (pure Ctor <*> parseVar <*> parseTypes) <*> parseCtorsH
+  _ -> parseMr [] ts
+
+parseTypes = ParseM $ \ ts ->
+  maybe
+    (parseMr [] ts)
+    (\ (tp, ts) -> parseMt ts $ fmap ((:) tp) parseTypes)
+    (parseMt ts parseType3)
+
+parseProg = ParseM $ \ ts -> case ts of
+  (TkFun : ts) -> parseMt ts $ pure ProgFun <*> parseVar <*> parseArgs <* parseDrop TkEq <*> parseTerm1 <*> parseProg
+  (TkData : ts) -> parseMt ts $ pure ProgData <*> parseVar <* parseDrop TkEq <*> parseCtors <*> parseProg
+  _ -> parseMt ts $ pure ProgRun <*> parseTerm1
 
 parseTerm ts = parseMf parseTerm1 ts >>= \ (tm, ts') -> if length ts' == 0 then Just tm else Nothing
 parseType ts = parseMf parseType1 ts >>= \ (tp, ts') -> if length ts' == 0 then Just tp else Nothing
