@@ -1,144 +1,6 @@
 module Parser where
-
-data Progs = ProgRun Term | ProgFun String [Arg] Term Progs | ProgData String [Ctor] Progs
-  deriving Show
-
-data Ctor = Ctor Var [Type]
-  deriving Show
-
-data FnQual = FnUnr | FnAff | FnLin
-  deriving Show
-
-type Var = String
-
-data InjLR = Inl | Inr
-  deriving Show
-
-data Term =
-    TmVar Var
-  | TmLam FnQual Var Type Term
-  | TmApp Term Term
-  | TmLet Var Type Term Term
-  | TmSamp Term
-  | TmObs Term Term
-  | TmFail
-  | TmBool Bool
-  | TmIf Term Term Term
-  | TmInj InjLR
-  | TmCase Term Var Term Var Term
-  | TmUnit
-  deriving Show
-
-data Type =
-    TpUnit
-  | TpBool
-  | TpArr Type FnQual Type
-  | TpSum Type Type
-  deriving Show
-
-type Arg = (Var, Type)
-
-
-data Token =
-    TkVar Var
-  | TkLam
-  | TkLamAff
-  | TkLamLin
-  | TkParenL
-  | TkParenR
-  | TkLet
-  | TkIn
-  | TkEq
-  | TkSample
-  | TkObserve
-  | TkAmb
-  | TkFail
-  | TkTrue
-  | TkFalse
-  | TkIf
-  | TkThen
-  | TkElse
-  | TkInl
-  | TkInr
-  | TkCase
-  | TkOf
-  | TkUnit
-  | TkBool
-  | TkArr
-  | TkArrAff
-  | TkArrLin
-  | TkLeftArr
-  | TkPlus
-  | TkColon
-  | TkDot
-  | TkBar
-  | TkFun
-  | TkData
-  deriving (Eq, Show)
-
-
---lexStrh :: String -> [Token] -> Maybe [Token]
-lexStrh (' ' : s) = lexStrh s
-lexStrh ('\n' : s) = lexStrh s
-lexStrh ('\\' : '?' : s) = lexAdd s TkLamAff
-lexStrh ('\\' : '1' : s) = lexAdd s TkLamLin
-lexStrh ('\\' : s) = lexAdd s TkLam
-lexStrh ('-' : '>' : '?' : s) = lexAdd s TkArrAff
-lexStrh ('-' : '>' : '1' : s) = lexAdd s TkArrLin
-lexStrh ('-' : '>' : s) = lexAdd s TkArr
-lexStrh ('<' : '-' : s) = lexAdd s TkLeftArr
-lexStrh ('+' : s) = lexAdd s TkPlus
-lexStrh (':' : s) = lexAdd s TkColon
-lexStrh ('.' : s) = lexAdd s TkDot
-lexStrh ('|' : s) = lexAdd s TkBar
-lexStrh ('=' : s) = lexAdd s TkEq
-lexStrh ('(' : s) = lexAdd s TkParenL
-lexStrh (')' : s) = lexAdd s TkParenR
-lexStrh "" = Just
-lexStrh s = lexKeyword s
-
-lexVar = h "" where
-  h v (c : s) = if isVarChar c then h (c : v) s else Just (reverse v, (c : s))
-  h v "" = Just (reverse v, "")
-
-keywords = [
-  ("fail", TkFail),
-  ("true", TkTrue),
-  ("false", TkFalse),
-  ("if", TkIf),
-  ("then", TkThen),
-  ("else", TkElse),
-  ("inl", TkInl),
-  ("inr", TkInr),
-  ("case", TkCase),
-  ("of", TkOf),
-  ("unit", TkUnit),
-  ("bool", TkBool),
-  ("let", TkLet),
-  ("in", TkIn),
-  ("sample", TkSample),
-  ("observe", TkObserve),
-  ("amb", TkAmb),
-  ("fun", TkFun),
-  ("data", TkData) ]
-
-lexKeyword s ts = lexVar s >>= \ (v, rest) -> if length v > 0 then trykw keywords v rest ts else Nothing where
-  trykw ((kwstr, kwtok) : kws) v s = if kwstr == v then lexAdd s kwtok else trykw kws v s
-  trykw [] v s = lexAdd s (TkVar v)
-
-
---varChars = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['\'', '_']
-isVarChar c =
-  (c >= 'a' && c <= 'z') ||
-  (c >= 'A' && c <= 'Z') ||
-  (c >= '0' && c <= '9') ||
-  (c == '\'') ||
-  (c == '_')
-
-
-addTk f s t ts = f s (t : ts)
-lexAdd = addTk lexStrh
-
+import Exprs
+import Lexer
 
 newtype ParseM a = ParseM ([Token] -> Maybe (a, [Token]))
 
@@ -172,16 +34,39 @@ parseVar = ParseM $ \ ts -> case ts of
   (TkVar v : ts) -> parseMr v ts
   _ -> Nothing
 
+parseVars = ParseM $ \ ts -> case ts of
+  (TkVar v : ts) -> parseMt ts $ pure ((:) v) <*> parseVars
+  _ -> parseMr [] ts
+
+parseCase = ParseM $ \ ts -> case ts of
+  (TkBar : ts) -> parseMt ts parseCase
+  (TkVar c : ts) -> parseMt ts $ pure (Case c) <*> parseVars <* parseDrop TkArr <*> parseTerm1
+
+parseCases = (*>) (parseDropSoft TkBar) $ ParseM $ \ ts -> case ts of
+  (TkVar _ : _) -> parseMt ts $ pure (:) <*> parseCase <*> parseCases
+  _ -> parseMr [] ts
+
+{-parseLams :: ParseM [Arg]
+parseLams = ParseM $ \ ts -> case ts of
+  (TkVar v : ts) -> parseMt ts $ pure ((:) . (,) v) <*> parseType1 <*>
+    ParseM (\ ts -> case ts of
+      (TkComma : ts) -> parseMt ts parseLams
+      _ -> parseMr [] ts
+    )
+
+parseLamsAux :: FnQual -> Term -> ParseM Term
+parseLamsAux fn tm = parseLams >>= \ (as, ts) -> parseMr (foldl (uncurry $ TmLam fn) tm as) ts-}
+
 -- Lam, Let, Sample, Observe, If, Case
 parseTerm1 = ParseM $ \ ts -> case ts of
-  (TkLam : ts) -> parseMt ts $ pure (TmLam FnUnr) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
+--  (TkLam : ts) -> parseMt ts $ pure (TmLam FnUnr) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
   (TkLamAff : ts) -> parseMt ts $ pure (TmLam FnAff) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
   (TkLamLin : ts) -> parseMt ts $ pure (TmLam FnLin) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
-  (TkLet : ts) -> parseMt ts $ pure TmLet <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
+--  (TkLet : ts) -> parseMt ts $ pure TmLet <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
   (TkSample : ts) -> parseMt ts $ pure TmSamp <*> parseTerm1
   (TkObserve : ts) -> parseMt ts $ pure TmObs <*> parseTerm1 <* parseDrop TkLeftArr <*> parseTerm1
-  (TkIf : ts) -> parseMt ts $ pure TmIf <*> parseTerm1 <* parseDrop TkThen <*> parseTerm1 <* parseDrop TkElse <*> parseTerm1
-  (TkCase : ts) -> parseMt ts $ pure TmCase <*> parseTerm1 <* parseDrop TkOf <* parseDrop TkInl <*> parseVar <* parseDrop TkArr <*> parseTerm1 <* parseDrop TkBar <* parseDrop TkInr <*> parseVar <* parseDrop TkArr <*> parseTerm1
+--  (TkIf : ts) -> parseMt ts $ pure TmIf <*> parseTerm1 <* parseDrop TkThen <*> parseTerm1 <* parseDrop TkElse <*> parseTerm1
+  (TkCase : ts) -> parseMt ts $ pure TmCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
   _ -> parseMt ts parseTerm2
 
 -- App
@@ -197,11 +82,11 @@ parseTermApp tm = ParseM $ \ ts ->
 parseTerm3 = ParseM $ \ ts -> case ts of
   (TkVar v : ts) -> parseMr (TmVar v) ts
   (TkFail : ts) -> parseMr TmFail ts
-  (TkUnit : ts) -> parseMr TmUnit ts
-  (TkTrue : ts) -> parseMr (TmBool True) ts
-  (TkFalse : ts) -> parseMr (TmBool False) ts
-  (TkInl : ts) -> parseMr (TmInj Inl) ts
-  (TkInr : ts) -> parseMr (TmInj Inr) ts
+--  (TkUnit : ts) -> parseMr TmUnit ts
+--  (TkTrue : ts) -> parseMr (TmBool True) ts
+--  (TkFalse : ts) -> parseMr (TmBool False) ts
+--  (TkInl : ts) -> parseMr (TmInj Inl) ts
+--  (TkInr : ts) -> parseMr (TmInj Inr) ts
   (TkParenL : ts) -> parseMt ts $ parseTerm1 <* parseDrop TkParenR
   _ -> Nothing
 
@@ -214,22 +99,28 @@ parseType1 = ParseM $ \ ts -> parseMt ts parseType2 >>= \ (tp, ts) -> case ts of
   _ -> parseMr tp ts
 
 --parseType2 :: ParseM Type
+parseType2 = parseType3
+{-
 parseType2 = ParseM $ \ ts -> parseMt ts parseType3 >>= \ (tp, ts') -> case ts' of
   (TkPlus : ts') -> parseMt ts' $ pure (TpSum tp) <*> parseType3
   _ -> parseMr tp ts'
+-}
 
 --parseType3 :: ParseM Type
 parseType3 = ParseM $ \ ts -> case ts of
-  (TkUnit : ts) -> parseMr TpUnit ts
-  (TkBool : ts) -> parseMr TpBool ts
+--  (TkUnit : ts) -> parseMr TpUnit ts
+--  (TkBool : ts) -> parseMr TpBool ts
+  (TkVar v : ts) -> parseMr (TpVar v) ts
   (TkParenL : ts) -> parseMt ts $ parseType1 <* parseDrop TkParenR
   _ -> Nothing
 
 parseArgs = ParseM $ \ ts -> case ts of
-  (TkParenL : ts') -> parseMt ts' $ pure (:) <*> (pure (,) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkParenR) <*> parseArgs
+  (TkLam : ts) -> parseMt ts $ pure (\ v tp as -> (v, tp) : as) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseArgs
+--  (TkParenL : ts') -> parseMt ts' $ pure (:) <*> (pure (,) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkParenR) <*> parseArgs
   _ -> parseMr [] ts
 parseCtors = ParseM $ \ ts -> case ts of
   (TkVar _ : _) -> parseMt (TkBar : ts) parseCtorsH
+  _ -> parseMt ts parseCtorsH
 parseCtorsH = ParseM $ \ ts -> case ts of
   (TkBar : ts) -> parseMt ts $ pure (:) <*> (pure Ctor <*> parseVar <*> parseTypes) <*> parseCtorsH
   _ -> parseMr [] ts
@@ -240,11 +131,16 @@ parseTypes = ParseM $ \ ts ->
     (\ (tp, ts) -> parseMt ts $ fmap ((:) tp) parseTypes)
     (parseMt ts parseType3)
 
+parseProg :: ParseM Progs
 parseProg = ParseM $ \ ts -> case ts of
-  (TkFun : ts) -> parseMt ts $ pure ProgFun <*> parseVar <*> parseArgs <* parseDrop TkEq <*> parseTerm1 <*> parseProg
+  (TkFun : ts) -> parseMt ts $ pure ProgFun <*> parseVar <* parseDrop TkEq <*> parseArgs <*> parseTerm1 <*> parseProg
   (TkData : ts) -> parseMt ts $ pure ProgData <*> parseVar <* parseDrop TkEq <*> parseCtors <*> parseProg
-  _ -> parseMt ts $ pure ProgRun <*> parseTerm1
+  (TkRun : ts) -> parseMt ts $ pure ProgRun <*> parseTerm1
+  _ -> Nothing
 
-parseTerm ts = parseMf parseTerm1 ts >>= \ (tm, ts') -> if length ts' == 0 then Just tm else Nothing
-parseType ts = parseMf parseType1 ts >>= \ (tp, ts') -> if length ts' == 0 then Just tp else Nothing
-lexStr = fmap reverse . flip lexStrh []
+--parseOut :: ParseM a -> [Token] -> Maybe a
+parseOut m ts = parseMf m ts >>= \ (a, ts') -> if length ts' == 0 then Just a else Nothing
+
+parseTerm = parseOut parseTerm1
+parseType = parseOut parseType1
+parseFile = parseOut parseProg
