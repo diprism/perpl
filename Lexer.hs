@@ -41,7 +41,7 @@ data Token =
   deriving (Eq, Show)
 
 
---lexStrh :: String -> [Token] -> Maybe [Token]
+lexStrh :: String -> [Token] -> Maybe [Token]
 lexStrh (' ' : s) = lexStrh s
 lexStrh ('\n' : s) = lexStrh s
 lexStrh ('\\' : '?' : s) = lexAdd s TkLamAff
@@ -65,6 +65,10 @@ lexStrh ('-' : '}' : s) = const Nothing
 lexStrh "" = Just
 lexStrh s = lexKeyword s
 
+-- Lex a comment.
+-- lexComment Nothing scans a comment from -- to the end of the line.
+-- lexComment (Just n) scans a nested comment (inside {- and -}).
+lexComment :: Maybe Integer -> String -> [Token] -> Maybe [Token]
 lexComment Nothing ('\n' : s) = lexStrh s
 lexComment (Just 0) ('-' : '}' : s) = lexStrh s
 lexComment (Just n) ('-' : '}' : s) = lexComment (Just (pred n)) s
@@ -72,6 +76,7 @@ lexComment (Just n) ('{' : '-' : s) = lexComment (Just (succ n)) s
 lexComment multiline (_ : s) = lexComment multiline s
 lexComment _ "" = Just
 
+lexVar :: String -> Maybe (String, String)
 lexVar = h "" where
   h v (c : s) = if isVarChar c then h (c : v) s else Just (reverse v, (c : s))
   h v "" = Just (reverse v, "")
@@ -99,6 +104,8 @@ keywords = [
   ("data", TkData),
   ("run", TkRun)]
 
+-- Lex a keyword or a variable name.
+lexKeyword :: String -> [Token] -> Maybe [Token]
 lexKeyword s ts = lexVar s >>= \ (v, rest) -> if length v > 0 then trykw keywords v rest ts else Nothing where
   trykw ((kwstr, kwtok) : kws) v s = if kwstr == v then lexAdd s kwtok else trykw kws v s
   trykw [] v s = lexAdd s (TkVar v)
@@ -116,4 +123,6 @@ isVarChar c =
 addTk f s t ts = f s (t : ts)
 lexAdd = addTk lexStrh
 
+-- Lex a program.
+lexStr :: String -> Maybe [Token]
 lexStr = fmap reverse . flip lexStrh []
