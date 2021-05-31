@@ -27,4 +27,6 @@ fun map = \ f : Nat -> Nat. \ l : List. case l of
   | Nil -> Nil
   | Cons x tail -> Cons (f x) (map f tail)
 
-run if True (S Z) Z
+fun sampler = sample uniform Bool
+
+exec if True (S Z) Z
