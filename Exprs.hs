@@ -1,8 +1,14 @@
 module Exprs where
 
+data UsProgs =
+    UsProgExec UsTm
+  | UsProgFun String Type UsTm UsProgs
+  | UsProgData String [Ctor] UsProgs
+  deriving Show
+
 data Progs =
-    ProgExec UsTm
-  | ProgFun String [Arg] UsTm Progs
+    ProgExec Term
+  | ProgFun String Type Term Progs
   | ProgData String [Ctor] Progs
   deriving Show
 
@@ -32,7 +38,7 @@ data Term =
     TmVar Var Type
   | TmLam Var Type Term Type
   | TmApp Term Term Type {- -> -} Type
-  | TmCase Term [Case]
+  | TmCase Term [Case] Var Type
   | TmSamp Dist Var
   deriving Show
 
@@ -43,7 +49,7 @@ data Type =
 --  | TpMeas Var
   deriving (Show, Eq)
 
-type Arg = (Var, Type)
+--type Arg = (Var, Type)
 data CaseUs = CaseUs Var [Var] UsTm
   deriving Show
 
