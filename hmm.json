@@ -2,11 +2,11 @@
     "note": "A hidden Markov model, from Figure 2a in the FGG paper.",
     "domains": {
         "T": {
-            "class": "finite",
+            "type": "finite",
             "values": ["DT", "NN", "VBD", "IN", "BOS", "EOS"]
         },
         "W": {
-            "class": "finite",
+            "type": "finite",
             "values": ["the", "cat", "sat", "on", "mat"]
         }
     },
@@ -14,30 +14,20 @@
         "transition": {
             "function": "categorical",
             "type": ["T", "T"],
-            "weights": [[0, 1, 0, 0, 0, 0],
-                        [0, 0.25, 0.25, 0.25, 0, 0.25],
-                        [0.3, 0, 0, 0.3, 0, 0.4],
-                        [1, 0, 0, 0, 0, 0],
-                        [0.8, 0, 0, 0.2, 0, 0],
-                        [0, 0, 0, 0, 0, 0]]
+            "normalize": 1
         },
         "emission": {
             "function": "categorical",
             "type": ["T", "W"],
-            "weights": [[1, 0, 0, 0, 0],
-                        [0, 0.5, 0, 0, 0.5],
-                        [0, 0, 1, 0, 0],
-                        [0, 0, 0, 1, 0],
-                        [0, 0, 0, 0, 0],
-                        [0, 0, 0, 0, 0]]
+            "normalize": 1
         },
         "is_bos": {
-            "function": "categorical",
+            "function": "constant",
             "type": ["T"],
             "weights": [0, 0, 0, 0, 1, 0]
         },
         "is_eos": {
-            "function": "categorical",
+            "function": "constant",
             "type": ["T"],
             "weights": [0, 0, 0, 0, 0, 1]
         }
@@ -47,6 +37,7 @@
         "X": { "type" : ["T"] }
     },
     "start": "S",
+    "terminals": ["is_bos", "transition", "emission", "is_eos"],
     "rules": [
         {
             "lhs": "S",
@@ -59,7 +50,7 @@
                     },
                     {
                         "attachments": [0],
-                        "label": "X"
+                        "label": "X",
                     }
                 ],
                 "externals": []
