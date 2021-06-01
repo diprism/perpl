@@ -32,7 +32,10 @@
             "weights": [0, 0, 0, 0, 0, 1]
         }
     },
-    "nonterminals": ["S", "X"],
+    "nonterminals": {
+        "S": { "type" : [] },
+        "X": { "type" : ["T"] }
+    },
     "start": "S",
     "terminals": ["is_bos", "transition", "emission", "is_eos"],
     "rules": [

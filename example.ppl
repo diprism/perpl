@@ -2,29 +2,31 @@ data Nat =
   | Z
   | S Nat
 
-fun add = \ a : Nat. \ b : Nat. case b of
+fun add : Nat -> Nat -> Nat = \ a : Nat. \ b : Nat. case b of
   | Z -> a
   | S b' -> add (S a) b'
 
-fun mult = \ a : Nat. \ b : Nat. case b of
+fun mult : Nat -> Nat -> Nat = \ a : Nat. \ b : Nat. case b of
   | Z -> Z
-  | S b' -> add a (mult a b')
+  | S b' -> add {- a -} Z (mult a b')
 
-fun pred = \ a : Nat. case a of
+fun pred : Nat -> Nat = \ a : Nat. case a of
   | Z -> Z
   | S a' -> a'
 
 data Bool = True | False
 
-fun if = \ b : Bool. \ then : Nat. \ else : Nat. case b of
+fun if : Bool -> Nat -> Nat -> Nat = \ b : Bool. \ then : Nat. \ else : Nat. case b of
   | True -> then
   | False -> else
 
 data List = Nil | Cons Nat List
 
 -- Note: won't type-check because f is unrestricted; just checking the parser
-fun map = \ f : Nat -> Nat. \ l : List. case l of
+fun map : (Nat -> Nat) -> List -> List = \ f : Nat -> Nat. \ l : List. case l of
   | Nil -> Nil
-  | Cons x tail -> Cons (f x) (map f tail)
+  | Cons x tail -> Cons ({- f -} (\ y : Nat. y) x) (map f tail)
 
-run if True (S Z) Z
+fun sampler : Bool = sample uniform Bool
+
+exec if True (S Z) Z

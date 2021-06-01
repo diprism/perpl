@@ -4,8 +4,8 @@ import Exprs
 data Token =
     TkVar Var
   | TkLam
-  | TkLamAff
-  | TkLamLin
+--  | TkLamAff
+--  | TkLamLin
   | TkParenL
   | TkParenR
 --  | TkLet
@@ -14,6 +14,9 @@ data Token =
   | TkSample
   | TkObserve
   | TkFail
+  | TkAmb
+  | TkUni
+  | TkMeas
 --  | TkTrue
 --  | TkFalse
 --  | TkIf
@@ -24,11 +27,10 @@ data Token =
   | TkCase
   | TkOf
 --  | TkUnit
-  | TkAmb
 --  | TkBool
   | TkArr
-  | TkArrAff
-  | TkArrLin
+--  | TkArrAff
+--  | TkArrLin
   | TkLeftArr
 --  | TkPlus
   | TkColon
@@ -37,18 +39,18 @@ data Token =
   | TkBar
   | TkFun
   | TkData
-  | TkRun
+  | TkExec
   deriving (Eq, Show)
 
 
 lexStrh :: String -> [Token] -> Maybe [Token]
 lexStrh (' ' : s) = lexStrh s
 lexStrh ('\n' : s) = lexStrh s
-lexStrh ('\\' : '?' : s) = lexAdd s TkLamAff
-lexStrh ('\\' : '1' : s) = lexAdd s TkLamLin
+--lexStrh ('\\' : '?' : s) = lexAdd s TkLamAff
+--lexStrh ('\\' : '1' : s) = lexAdd s TkLamLin
 lexStrh ('\\' : s) = lexAdd s TkLam
-lexStrh ('-' : '>' : '?' : s) = lexAdd s TkArrAff
-lexStrh ('-' : '>' : '1' : s) = lexAdd s TkArrLin
+--lexStrh ('-' : '>' : '?' : s) = lexAdd s TkArrAff
+--lexStrh ('-' : '>' : '1' : s) = lexAdd s TkArrLin
 lexStrh ('-' : '>' : s) = lexAdd s TkArr
 lexStrh ('<' : '-' : s) = lexAdd s TkLeftArr
 --lexStrh ('+' : s) = lexAdd s TkPlus
@@ -83,6 +85,8 @@ lexVar = h "" where
 
 keywords = [
   ("fail", TkFail),
+  ("amb", TkAmb),
+  ("uniform", TkUni),
 --  ("true", TkTrue),
 --  ("false", TkFalse),
 --  ("if", TkIf),
@@ -92,17 +96,17 @@ keywords = [
 --  ("inr", TkInr),
   ("case", TkCase),
   ("of", TkOf),
-  ("amb", TkAmb),
+  ("measure", TkMeas),
+  ("uniform", TkUni),
 --  ("unit", TkUnit),
 --  ("bool", TkBool),
 --  ("let", TkLet),
 --  ("in", TkIn),
   ("sample", TkSample),
   ("observe", TkObserve),
-  ("amb", TkAmb),
   ("fun", TkFun),
   ("data", TkData),
-  ("run", TkRun)]
+  ("exec", TkExec)]
 
 -- Lex a keyword or a variable name.
 lexKeyword :: String -> [Token] -> Maybe [Token]

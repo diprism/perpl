@@ -47,7 +47,7 @@ parseVars = ParseM $ \ ts -> case ts of
 parseCase :: ParseM Case
 parseCase = ParseM $ \ ts -> case ts of
   (TkBar : ts) -> parseMt ts parseCase
-  (TkVar c : ts) -> parseMt ts $ pure (Case c) <*> parseVars <* parseDrop TkArr <*> parseTerm1
+  (TkVar c : ts) -> parseMt ts $ pure (CaseUs c) <*> parseVars <* parseDrop TkArr <*> parseTerm1
 
 -- Parse zero or more branches of a case expression.
 parseCases :: ParseM [Case]
@@ -63,20 +63,34 @@ parseLams = ParseM $ \ ts -> case ts of
       _ -> parseMr [] ts
     )
 
-parseLamsAux :: FnQual -> Term -> ParseM Term
-parseLamsAux fn tm = parseLams >>= \ (as, ts) -> parseMr (foldl (uncurry $ TmLam fn) tm as) ts-}
+parseLamsAux :: FnQual -> UsTm -> ParseM UsTm
+parseLamsAux fn tm = parseLams >>= \ (as, ts) -> parseMr (foldl (uncurry $ UsLam fn) tm as) ts-}
+
+-- Previously part of parseTerm1
+--  (TkLamAff : ts) -> parseMt ts $ pure (UsLam FnAff) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
+--  (TkLamLin : ts) -> parseMt ts $ pure (UsLam FnLin) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
+--  (TkLet : ts) -> parseMt ts $ pure UsLet <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
+--  (TkObserve : ts) -> parseMt ts $ pure UsObs <*> parseTerm1 <* parseDrop TkLeftArr <*> parseTerm1
+--  (TkIf : ts) -> parseMt ts $ pure UsIf <*> parseTerm1 <* parseDrop TkThen <*> parseTerm1 <* parseDrop TkElse <*> parseTerm1
+
+-- Previously part of parseTerm3
+--  (TkFail : ts) -> parseMt ts $ pure UsFail <*> parseType
+--  (TkAmb : ts) -> parseMt ts $ pure UsAmb <*> parseType
+--  (TkUnit : ts) -> parseMr UsUnit ts
+--  (TkTrue : ts) -> parseMr (UsBool True) ts
+--  (TkFalse : ts) -> parseMr (UsBool False) ts
+--  (TkInl : ts) -> parseMr (UsInj Inl) ts
+--  (TkInr : ts) -> parseMr (UsInj Inr) ts
 
 -- Lam, Let, Sample, Observe, If, Case
 parseTerm1 :: ParseM Term
 parseTerm1 = ParseM $ \ ts -> case ts of
---  (TkLam : ts) -> parseMt ts $ pure (TmLam FnUnr) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
-  (TkLamAff : ts) -> parseMt ts $ pure (TmLam FnAff) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
-  (TkLamLin : ts) -> parseMt ts $ pure (TmLam FnLin) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
---  (TkLet : ts) -> parseMt ts $ pure TmLet <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
-  (TkSample : ts) -> parseMt ts $ pure TmSamp <*> parseTerm1
-  (TkObserve : ts) -> parseMt ts $ pure TmObs <*> parseTerm1 <* parseDrop TkLeftArr <*> parseTerm1
---  (TkIf : ts) -> parseMt ts $ pure TmIf <*> parseTerm1 <* parseDrop TkThen <*> parseTerm1 <* parseDrop TkElse <*> parseTerm1
-  (TkCase : ts) -> parseMt ts $ pure TmCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
+-- \ x : type -> term
+  (TkLam : ts) -> parseMt ts $ pure UsLam <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
+-- sample dist x
+  (TkSample : ts) -> parseMt ts $ pure UsSamp <*> parseDist <*> parseVar
+-- case term of cases
+  (TkCase : ts) -> parseMt ts $ pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
   _ -> parseMt ts parseTerm2
 
 -- App
@@ -86,28 +100,20 @@ parseTerm2 = ParseM $ \ ts -> parseMt ts parseTerm3 >>= uncurry (parseMf . parse
 parseTermApp tm = ParseM $ \ ts ->
   maybe
     (parseMr tm ts)
-    (uncurry $ parseMf . parseTermApp . TmApp tm)
+    (uncurry $ parseMf . parseTermApp . UsApp tm)
     (parseMt ts parseTerm3)
 
 -- Var, Fail, Unit, True, False, Inl, Inr, Parens
 parseTerm3 :: ParseM Term
 parseTerm3 = ParseM $ \ ts -> case ts of
-  (TkVar v : ts) -> parseMr (TmVar v) ts
-  (TkFail : ts) -> parseMr TmFail ts
---  (TkUnit : ts) -> parseMr TmUnit ts
---  (TkTrue : ts) -> parseMr (TmBool True) ts
---  (TkFalse : ts) -> parseMr (TmBool False) ts
---  (TkInl : ts) -> parseMr (TmInj Inl) ts
---  (TkInr : ts) -> parseMr (TmInj Inr) ts
+  (TkVar v : ts) -> parseMr (UsVar v) ts
   (TkParenL : ts) -> parseMt ts $ parseTerm1 <* parseDrop TkParenR
   _ -> Nothing
 
 
 parseType1 :: ParseM Type
 parseType1 = ParseM $ \ ts -> parseMt ts parseType2 >>= \ (tp, ts) -> case ts of
-  (TkArr    : ts) -> parseMt ts $ pure (TpArr tp FnUnr) <*> parseType1
-  (TkArrAff : ts) -> parseMt ts $ pure (TpArr tp FnAff) <*> parseType1
-  (TkArrLin : ts) -> parseMt ts $ pure (TpArr tp FnLin) <*> parseType1
+  (TkArr    : ts) -> parseMt ts $ pure (TpArr tp) <*> parseType1
   _ -> parseMr tp ts
 
 parseType2 :: ParseM Type
@@ -120,17 +126,15 @@ parseType2 = ParseM $ \ ts -> parseMt ts parseType3 >>= \ (tp, ts') -> case ts' 
 
 parseType3 :: ParseM Type
 parseType3 = ParseM $ \ ts -> case ts of
---  (TkUnit : ts) -> parseMr TpUnit ts
---  (TkBool : ts) -> parseMr TpBool ts
   (TkVar v : ts) -> parseMr (TpVar v) ts
   (TkParenL : ts) -> parseMt ts $ parseType1 <* parseDrop TkParenR
   _ -> Nothing
 
-parseArgs :: ParseM [Arg]
-parseArgs = ParseM $ \ ts -> case ts of
-  (TkLam : ts) -> parseMt ts $ pure (\ v tp as -> (v, tp) : as) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseArgs
+--parseArgs :: ParseM [Arg]
+--parseArgs = ParseM $ \ ts -> case ts of
+--  (TkLam : ts) -> parseMt ts $ pure (\ v tp as -> (v, tp) : as) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseArgs
 --  (TkParenL : ts') -> parseMt ts' $ pure (:) <*> (pure (,) <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkParenR) <*> parseArgs
-  _ -> parseMr [] ts
+--  _ -> parseMr [] ts
 
 parseCtors :: ParseM [Ctor]
 parseCtors = ParseM $ \ ts -> case ts of
@@ -140,6 +144,14 @@ parseCtorsH = ParseM $ \ ts -> case ts of
   (TkBar : ts) -> parseMt ts $ pure (:) <*> (pure Ctor <*> parseVar <*> parseTypes) <*> parseCtorsH
   _ -> parseMr [] ts
 
+
+
+parseDist :: ParseM Dist
+parseDist = ParseM $ \ ts -> case ts of
+  (TkAmb : ts) -> parseMr DistAmb ts
+  (TkFail : ts) -> parseMr DistFail ts
+  (TkUni : ts) -> parseMr DistUni ts
+
 parseTypes :: ParseM [Type]
 parseTypes = ParseM $ \ ts ->
   maybe
@@ -147,11 +159,14 @@ parseTypes = ParseM $ \ ts ->
     (\ (tp, ts) -> parseMt ts $ fmap ((:) tp) parseTypes)
     (parseMt ts parseType3)
 
-parseProg :: ParseM Progs
+parseProg :: ParseM UsProgs
 parseProg = ParseM $ \ ts -> case ts of
-  (TkFun : ts) -> parseMt ts $ pure ProgFun <*> parseVar <* parseDrop TkEq <*> parseArgs <*> parseTerm1 <*> parseProg
-  (TkData : ts) -> parseMt ts $ pure ProgData <*> parseVar <* parseDrop TkEq <*> parseCtors <*> parseProg
-  (TkRun : ts) -> parseMt ts $ pure ProgRun <*> parseTerm1
+-- fun f : type = term
+  (TkFun : ts) -> parseMt ts $ pure UsProgFun <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkEq <*> parseTerm1 <*> parseProg
+-- data T = ctors
+  (TkData : ts) -> parseMt ts $ pure UsProgData <*> parseVar <* parseDrop TkEq <*> parseCtors <*> parseProg
+-- exec term
+  (TkExec : ts) -> parseMt ts $ pure UsProgExec <*> parseTerm1
   _ -> Nothing
 
 parseOut :: ParseM a -> [Token] -> Maybe a
