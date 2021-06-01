@@ -44,13 +44,13 @@ parseVars = ParseM $ \ ts -> case ts of
   _ -> parseMr [] ts
 
 -- Parse a branch of a case expression.
-parseCase :: ParseM Case
+parseCase :: ParseM CaseUs
 parseCase = ParseM $ \ ts -> case ts of
   (TkBar : ts) -> parseMt ts parseCase
   (TkVar c : ts) -> parseMt ts $ pure (CaseUs c) <*> parseVars <* parseDrop TkArr <*> parseTerm1
 
 -- Parse zero or more branches of a case expression.
-parseCases :: ParseM [Case]
+parseCases :: ParseM [CaseUs]
 parseCases = (*>) (parseDropSoft TkBar) $ ParseM $ \ ts -> case ts of
   (TkVar _ : _) -> parseMt ts $ pure (:) <*> parseCase <*> parseCases
   _ -> parseMr [] ts
@@ -83,7 +83,7 @@ parseLamsAux fn tm = parseLams >>= \ (as, ts) -> parseMr (foldl (uncurry $ UsLam
 --  (TkInr : ts) -> parseMr (UsInj Inr) ts
 
 -- Lam, Let, Sample, Observe, If, Case
-parseTerm1 :: ParseM Term
+parseTerm1 :: ParseM UsTm
 parseTerm1 = ParseM $ \ ts -> case ts of
 -- \ x : type -> term
   (TkLam : ts) -> parseMt ts $ pure UsLam <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
@@ -94,7 +94,7 @@ parseTerm1 = ParseM $ \ ts -> case ts of
   _ -> parseMt ts parseTerm2
 
 -- App
-parseTerm2 :: ParseM Term
+parseTerm2 :: ParseM UsTm
 parseTerm2 = ParseM $ \ ts -> parseMt ts parseTerm3 >>= uncurry (parseMf . parseTermApp)
 
 parseTermApp tm = ParseM $ \ ts ->
@@ -104,7 +104,7 @@ parseTermApp tm = ParseM $ \ ts ->
     (parseMt ts parseTerm3)
 
 -- Var, Fail, Unit, True, False, Inl, Inr, Parens
-parseTerm3 :: ParseM Term
+parseTerm3 :: ParseM UsTm
 parseTerm3 = ParseM $ \ ts -> case ts of
   (TkVar v : ts) -> parseMr (UsVar v) ts
   (TkParenL : ts) -> parseMt ts $ parseTerm1 <* parseDrop TkParenR
@@ -172,12 +172,12 @@ parseProg = ParseM $ \ ts -> case ts of
 parseOut :: ParseM a -> [Token] -> Maybe a
 parseOut m ts = parseMf m ts >>= \ (a, ts') -> if length ts' == 0 then Just a else Nothing
 
-parseTerm :: [Token] -> Maybe Term
+parseTerm :: [Token] -> Maybe UsTm
 parseTerm = parseOut parseTerm1
 
 parseType :: [Token] -> Maybe Type
 parseType = parseOut parseType1
 
 -- Parse a whole program.
-parseFile :: [Token] -> Maybe Progs
+parseFile :: [Token] -> Maybe UsProgs
 parseFile = parseOut parseProg
