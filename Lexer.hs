@@ -23,6 +23,9 @@ data Token =
   | TkFun
   | TkData
   | TkExec
+  | TkFold
+  | TkUnfold
+  | TkMu
   deriving (Eq, Show)
 
 
@@ -63,6 +66,7 @@ lexVar = h "" where
   h v "" = Just (reverse v, "")
 
 --varChars = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['\'', '_']
+isVarChar :: Char -> Bool
 isVarChar c =
   (c >= 'a' && c <= 'z') ||
   (c >= 'A' && c <= 'Z') ||
@@ -81,7 +85,10 @@ keywords = [
   ("sample", TkSample),
   ("fun", TkFun),
   ("data", TkData),
-  ("exec", TkExec)]
+  ("exec", TkExec),
+  ("fold", TkFold),
+  ("unfold", TkUnfold),
+  ("mu", TkMu)]
 
 -- Lex a keyword or a variable name.
 lexKeywordOrVar :: String -> [Token] -> Maybe [Token]
@@ -89,8 +96,7 @@ lexKeywordOrVar s ts = lexVar s >>= \ (v, rest) -> if length v > 0 then trykw ke
   trykw ((kwstr, kwtok) : kws) v s = if kwstr == v then lexAdd s kwtok else trykw kws v s
   trykw [] v s = lexAdd s (TkVar v)
 
---addTk f s t ts = f s (t : ts)
---lexAdd = addTk lexStrh
+lexAdd :: String -> Token -> [Token] -> Maybe [Token]
 lexAdd s t ts = lexStrh s (t : ts)
 
 -- Lex a program.

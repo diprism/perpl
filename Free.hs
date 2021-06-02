@@ -37,43 +37,42 @@ isLin x tm = freeOccurrences x tm == 1
 
 -- Renames bound vars to avoid shadowing
 alphaRename :: Ctxt -> UsTm -> UsTm
-alphaRename (Ctxt tmc tpc) tm =
-  let xs = Map.union (Map.mapWithKey const tmc) (Map.mapWithKey const tpc) in
-    rename xs tm
-  where
-    renameVar :: Map.Map Var Var -> Var -> Var
-    renameVar xs x = Map.findWithDefault x x xs
+alphaRename g tm = rename (Map.mapWithKey const g) tm where
+  
+  renameVar :: Map.Map Var Var -> Var -> Var
+  renameVar xs x = Map.findWithDefault x x xs
 
-    newVar :: Map.Map Var Var -> Var -> Var
-    newVar xs x = if Map.member x xs then h xs x 1 else x where
-      h xs x n =
-        let x' = x ++ show n in
-          if Map.member x' xs then h xs x (succ n) else x'
+  newVar :: Map.Map Var Var -> Var -> Var
+  newVar xs x = if Map.member x xs then h xs x 1 else x where
+    h xs x n =
+      let x' = x ++ show n in
+        if Map.member x' xs then h xs x (succ n) else x'
 
-    declVar :: Map.Map Var Var -> Var -> (Map.Map Var Var, Var)
-    declVar xs x =
-      let x' = newVar xs x in
-        (Map.insert x x' (Map.insert x' x' xs), x')
+  declVar :: Map.Map Var Var -> Var -> (Map.Map Var Var, Var)
+  declVar xs x =
+    let x' = newVar xs x in
+      (Map.insert x x' (Map.insert x' x' xs), x')
+  
+  rename :: Map.Map Var Var -> UsTm -> UsTm
+  rename xs (UsVar x) = UsVar (renameVar xs x)
+  rename xs (UsLam x tp tm) =
+    let (xs', x') = declVar xs x in
+      UsLam x' (renameType xs tp) (rename xs' tm)
+  rename xs (UsApp tm1 tm2) = UsApp (rename xs tm1) (rename xs tm2)
+  rename xs (UsCase tm cs) = UsCase (rename xs tm) (map (renameCase xs) cs)
+  rename xs (UsSamp d y) = UsSamp d (renameVar xs y)
+
+  renameCase :: Map.Map Var Var -> CaseUs -> CaseUs
+  renameCase xs (CaseUs x as tm) =
+    uncurry (CaseUs (renameVar xs x)) (renameCaseh xs as tm)
     
-    rename :: Map.Map Var Var -> UsTm -> UsTm
-    rename xs (UsVar x) = UsVar (renameVar xs x)
-    rename xs (UsLam x tp tm) =
-      let (xs', x') = declVar xs x in
-        UsLam x' (renameType xs tp) (rename xs' tm)
-    rename xs (UsApp tm1 tm2) = UsApp (rename xs tm1) (rename xs tm2)
-    rename xs (UsCase tm cs) = UsCase (rename xs tm) (map (renameCase xs) cs)
-    rename xs (UsSamp d y) = UsSamp d (renameVar xs y)
+  renameCaseh :: Map.Map Var Var -> [Var] -> UsTm -> ([Var], UsTm)
+  renameCaseh xs (a : as) tm =
+    let (xs', a') = declVar xs a
+        (as', tm') = renameCaseh xs' as tm in
+      ((a' : as'), tm')
+  renameCaseh xs [] tm = ([], rename xs tm)
 
-    renameCase :: Map.Map Var Var -> CaseUs -> CaseUs
-    renameCase xs (CaseUs x as tm) =
-      uncurry (CaseUs (renameVar xs x)) (renameCaseh xs as tm)
-      
-    renameCaseh :: Map.Map Var Var -> [Var] -> UsTm -> ([Var], UsTm)
-    renameCaseh xs (a : as) tm =
-      let (xs', a') = declVar xs a
-          (as', tm') = renameCaseh xs' as tm in
-        ((a' : as'), tm')
-    renameCaseh xs [] tm = ([], rename xs tm)
-
-    renameType :: Map.Map Var Var -> Type -> Type
-    renameType xs tp = tp
+  renameType :: Map.Map Var Var -> Type -> Type
+  renameType xs (TpVar y) = TpVar (renameVar xs y)
+  renameType xs (TpArr tp1 tp2) = TpArr (renameType xs tp1) (renameType xs tp2)

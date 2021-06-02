@@ -28,6 +28,7 @@ checkTerm g (UsVar x) = maybe2 (ctxtLookupTerm g x)
 checkTerm g (UsLam x tp tm) =
   ifErr (not $ isAff x tm)
     ("Affine bound variable '" ++ x ++ "' occurs multiple times in the body") >>
+  checkType g tp >>
   checkTerm (ctxtDeclTerm g x tp) tm >>= \ (tm', tp') ->
   return (TmLam x tp tm' tp', TpArr tp tp')
 checkTerm g (UsApp tm1 tm2) =
@@ -91,13 +92,18 @@ checkCasesh g (ct : cts) (c : cs) tp =
   return (c' : cs')
 
 checkProgs :: Ctxt -> UsProgs -> Either String Progs
-checkProgs g (UsProgExec tm) = checkTerm g tm >>= \ (tm', tp') -> return (ProgExec tm')
+checkProgs g (UsProgExec tm) =
+  let tm' = alphaRename g tm in
+  checkTerm g tm' >>= \ (tm'', tp') ->
+  return (ProgExec tm'')
 checkProgs g (UsProgFun x tp tm ps) =
-  declErr x (checkTerm g tm) >>= \ (tm', tp') ->
+  checkType g tp >>
+  let tm' = alphaRename g tm in
+  declErr x (checkTerm g tm') >>= \ (tm'', tp') ->
   ifErr (tp /= tp')
     ("Expected type of function '" ++ x ++ "' does not match computed type") >>
   checkProgs g ps >>= \ ps' ->
-  return (ProgFun x tp tm' ps')
+  return (ProgFun x tp tm'' ps')
 checkProgs g (UsProgData x cs ps) =
   declErr x (foldr (\ (Ctor x tps) r -> foldr (\ tp r -> checkType g tp >> r) okay tps >> r) okay cs) >>
   checkProgs g ps >>= \ ps' ->

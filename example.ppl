@@ -29,4 +29,6 @@ fun map : (Nat -> Nat) -> List -> List = \ f : Nat -> Nat. \ l : List. case l of
 
 fun sampler : Bool = sample uniform Bool
 
+--fun shadowing : Bool -> Bool -> Bool = \ Bool : Bool. \ Bool : Bool. Bool
+
 exec if True (S Z) Z
