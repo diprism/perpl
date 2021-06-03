@@ -33,7 +33,7 @@ isAff :: Var -> UsTm -> Bool
 isAff x tm = freeOccurrences x tm <= 1
 
 isLin :: Var -> UsTm -> Bool
-isLin x (UxVar x') = x == x'
+isLin x (UsVar x') = x == x'
 isLin x (UsLam x' tp tm) = x /= x' && isLin x tm
 isLin x (UsApp tm tm') = isLin x tm /= isLin x tm'
 isLin x (UsCase tm cs) =
