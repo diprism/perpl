@@ -113,7 +113,7 @@ parseTerm3 = ParseM $ \ ts -> case ts of
 
 parseType1 :: ParseM Type
 parseType1 = ParseM $ \ ts -> parseMt ts parseType2 >>= \ (tp, ts) -> case ts of
-  (TkArr    : ts) -> parseMt ts $ pure (TpArr tp) <*> parseType1
+  (TkArr : ts) -> parseMt ts $ pure (TpArr tp) <*> parseType1
   _ -> parseMr tp ts
 
 parseType2 :: ParseM Type

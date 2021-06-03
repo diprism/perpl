@@ -23,9 +23,6 @@ data Token =
   | TkFun
   | TkData
   | TkExec
-  | TkFold
-  | TkUnfold
-  | TkMu
   deriving (Eq, Show)
 
 
@@ -85,10 +82,7 @@ keywords = [
   ("sample", TkSample),
   ("fun", TkFun),
   ("data", TkData),
-  ("exec", TkExec),
-  ("fold", TkFold),
-  ("unfold", TkUnfold),
-  ("mu", TkMu)]
+  ("exec", TkExec)]
 
 -- Lex a keyword or a variable name.
 lexKeywordOrVar :: String -> [Token] -> Maybe [Token]
