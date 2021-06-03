@@ -33,7 +33,16 @@ isAff :: Var -> UsTm -> Bool
 isAff x tm = freeOccurrences x tm <= 1
 
 isLin :: Var -> UsTm -> Bool
-isLin x tm = freeOccurrences x tm == 1
+isLin x (UxVar x') = x == x'
+isLin x (UsLam x' tp tm) = x /= x' && isLin x tm
+isLin x (UsApp tm tm') = isLin x tm /= isLin x tm'
+isLin x (UsCase tm cs) =
+  if isLin x tm
+    -- make sure x is not in any of the cases
+    then all (\ (CaseUs x' as tm') -> any ((==) x) as || not (isFree x tm')) cs
+    -- make sure x is linear in all the cases
+    else all (\ (CaseUs x' as tm') -> all ((/=) x) as && isLin x tm') cs
+isLin x (UsSamp d y) = False
 
 -- Renames bound vars to avoid shadowing
 alphaRename :: Ctxt -> UsTm -> UsTm
