@@ -1,4 +1,4 @@
-module Compiler where
+module Compile where
 import Exprs
 
 {-
