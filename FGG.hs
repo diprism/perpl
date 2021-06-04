@@ -119,7 +119,7 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
 
      ("start", JSstring s),
 
-     ("rules", JSarray $ flip map rs $
+     ("rules", JSarray $ flip map (nub rs) $
        \ (Rule lhs (HGF ns es xs)) -> JSobject [
            ("lhs", JSstring lhs),
            ("rhs", JSobject [
