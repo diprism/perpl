@@ -151,6 +151,7 @@ parseDist = ParseM $ \ ts -> case ts of
   (TkAmb : ts) -> parseMr DistAmb ts
   (TkFail : ts) -> parseMr DistFail ts
   (TkUni : ts) -> parseMr DistUni ts
+  _ -> Nothing
 
 parseTypes :: ParseM [Type]
 parseTypes = ParseM $ \ ts ->
