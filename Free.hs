@@ -32,17 +32,33 @@ isFree x tm = Map.member x (freeVars tm)
 isAff :: Var -> UsTm -> Bool
 isAff x tm = freeOccurrences x tm <= 1
 
+data Lin = LinNo | LinYes | LinErr
+  deriving Eq
+
+linIf :: Lin -> a -> a -> a -> a
+linIf LinYes y n e = y
+linIf LinNo  y n e = n
+linIf LinErr y n e = e
+
+linIf' :: Lin -> Lin -> Lin -> Lin
+linIf' i y n = linIf i y n LinErr
+
 isLin :: Var -> UsTm -> Bool
-isLin x (UsVar x') = x == x'
-isLin x (UsLam x' tp tm) = x /= x' && isLin x tm
-isLin x (UsApp tm tm') = isLin x tm /= isLin x tm'
-isLin x (UsCase tm cs) =
-  if isLin x tm
+isLin x tm = h tm == LinYes where
+  linCase :: CaseUs -> Lin
+  linCase (CaseUs x' as tm') = if any ((==) x) as then LinNo else h tm'
+  
+  h :: UsTm -> Lin
+  h (UsVar x') = if x == x' then LinYes else LinNo
+  h (UsLam x' tp tm) = if x == x' then LinNo else h tm
+  h (UsApp tm tm') = linIf' (h tm) (linIf' (h tm') LinErr LinYes) (h tm')
+  h (UsCase tm []) = h tm
+  h (UsCase tm cs) = linIf' (h tm)
     -- make sure x is not in any of the cases
-    then all (\ (CaseUs x' as tm') -> any ((==) x) as || not (isFree x tm')) cs
-    -- make sure x is linear in all the cases
-    else all (\ (CaseUs x' as tm') -> all ((/=) x) as && isLin x tm') cs
-isLin x (UsSamp d y) = False
+    (foldr (\ c -> linIf' (linCase c) LinErr) LinYes cs)
+    -- make sure x is linear in all the cases, or in none of the cases
+    (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
+  h (UsSamp d y) = LinNo
 
 -- Renames bound vars to avoid shadowing
 alphaRename :: Ctxt -> UsTm -> UsTm
