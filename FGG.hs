@@ -137,6 +137,8 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
 instance Show FGG_JSON where
   show = show . fgg_to_json
 
+emptyFGG :: String -> FGG_JSON
+emptyFGG s = FGG_JSON Map.empty Map.empty Map.empty s []
 
 {-
 example_fgg :: FGG_JSON
