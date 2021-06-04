@@ -99,17 +99,15 @@ checkCasesh g (ct : cts) (c : cs) tp =
 
 checkProgs :: Ctxt -> UsProgs -> Either String Progs
 checkProgs g (UsProgExec tm) =
-  let tm' = alphaRename g tm in
-  checkTerm g tm' >>= \ (tm'', tp') ->
-  return (ProgExec tm'')
+  checkTerm g tm >>= \ (tm', tp') ->
+  return (ProgExec tm')
 checkProgs g (UsProgFun x tp tm ps) =
   checkType g tp >>
-  let tm' = alphaRename g tm in
-  declErr x (checkTerm g tm') >>= \ (tm'', tp') ->
+  declErr x (checkTerm g tm) >>= \ (tm', tp') ->
   ifErr (tp /= tp')
     ("Expected type of function '" ++ x ++ "' does not match computed type") >>
   checkProgs g ps >>= \ ps' ->
-  return (ProgFun x tp tm'' ps')
+  return (ProgFun x tp tm' ps')
 checkProgs g (UsProgData x cs ps) =
   declErr x (foldr (\ (Ctor x tps) r -> foldr (\ tp r -> checkType g tp >> r) okay tps >> r) okay cs) >>
   checkProgs g ps >>= \ ps' ->
@@ -126,4 +124,4 @@ declProgs g (UsProgData y cs ps) =
   declProgs (ctxtDeclType g y cs) ps
 
 checkFile :: UsProgs -> Either String Progs
-checkFile ps = declProgs emptyCtxt ps >>= \ g' -> checkProgs g' ps
+checkFile ps = declProgs emptyCtxt ps >>= \ g' -> checkProgs g' (alphaRename g' ps)
