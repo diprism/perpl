@@ -1,8 +1,8 @@
 module FGG where
 import qualified Data.Map as Map
+import Data.List
 import Exprs
---import System.Posix.Escape.Unicode
-
+import Ctxt
 
 data JSON =
     JSnull
@@ -22,59 +22,25 @@ instance Show JSON where
   show (JSarray js) = '[' : (join_list js ++ "]")
   show (JSobject kvs) = '{' : (join_dict kvs ++ "}")
 
-{-
-type LV = String -- Vertex label
-type LE = String -- Hyperedge label
-type Node = Int
-type Hyperedge = Int
-newtype Hypergraph = Hypergraph {
-  hgV    :: [Node],
-  hgE    :: [Hyperedge],
-  hgatt  :: Map.Map Hyperedge [Node],
-  hgvlab :: Map.Map Node LV,
-  hgelab :: Map.Map Hyperedge LE,
-  hgext  :: [Node],
-}
-{- newtype HypergraphFrag = HypergraphFrag {
-  hgfHG  :: Hypergraph,
-  hgfext :: [Node],
-} -}
-newtype FactorGraph = FactorGraph {
-  fgHG :: Hypergraph,
-  fgOmega :: (),
-  fgF :: Real r => [] -> r
-}
-newtype HyperedgeReplacementGraph = HyperedgeRaplacementGraph {
-  hrgN :: [LE],
-  hrgT :: [LE],
-  hrgP :: [(LE -> Hypergraph)],
-  hrgS :: LE,
-}
--}
 
 type Domain = [String]
-data NodeLabel = NodeLabel { node_name :: String, node_domain :: Domain }
-data EdgeLabel = EdgeLabel { edge_name :: String, edge_is_terminal :: Bool, edge_node_labels :: [NodeLabel] }
 type Value = String
 type FType = [Value]
 type Prob = Double
-
 data WeightsH x = WeightsData x | WeightsDims (WeightsH [x])
 type Weights = WeightsH Prob
-
-
-
 data Edge = Edge { edge_atts :: [Int], edge_label :: String }
-
+  deriving Eq
 data HGF = HGF { hgf_nodes :: [String], hfg_edges :: [Edge], hfg_exts :: [Int]}
-
+  deriving Eq
 data Rule = Rule String HGF
-
+  deriving Eq
 data FGG_JSON = FGG_JSON {
   domains :: Map.Map String FType,
   factors :: Map.Map String (Domain, Weights),
   nonterminals :: Map.Map String Domain,
-  start :: String, -- NodeLabel with node_domain = []
+  terminals :: [String],
+  start :: String,
   rules :: [Rule]
 }
 
@@ -84,6 +50,11 @@ weights_to_json_h (WeightsDims ws) f = weights_to_json_h ws (JSarray . map f)
 
 weights_to_json :: Weights -> JSON
 weights_to_json ws = weights_to_json_h ws JSdouble
+
+instance Functor WeightsH where
+  fmap f (WeightsData x) = WeightsData $ f x
+  fmap f (WeightsDims x) = WeightsDims $ fmap (map f) x
+  
 
 join_list :: Show a => [a] -> String
 join_list [] = ""
@@ -95,8 +66,9 @@ join_dict [] = ""
 join_dict ((k, v) : []) = show k ++ ":" ++ show v
 join_dict ((k, v) : kvs) = show k ++ ":" ++ show v ++ "," ++ join_dict kvs
 
+
 fgg_to_json :: FGG_JSON -> JSON
-fgg_to_json (FGG_JSON ds fs nts s rs) =
+fgg_to_json (FGG_JSON ds fs nts ts s rs) =
   let mapToList = \ ds f -> JSobject $ Map.toList $ fmap f ds in
   JSobject
     [("domains", mapToList ds $
@@ -138,7 +110,55 @@ instance Show FGG_JSON where
   show = show . fgg_to_json
 
 emptyFGG :: String -> FGG_JSON
-emptyFGG s = FGG_JSON Map.empty Map.empty Map.empty s []
+emptyFGG s = FGG_JSON Map.empty Map.empty Map.empty [] s []
+
+  
+getWeights :: (Var -> Int) -> Domain -> Weights
+getWeights g tps = h g (reverse tps) (WeightsData 1) where
+  h :: (Var -> Int) -> Domain -> WeightsH x -> WeightsH x
+  h g [] ws = ws
+  h g (tp : tps) ws =
+    let num_values = g tp in
+      WeightsDims $ h g tps (fmap (replicate num_values) ws)
+
+addRule' :: (Var -> [Var]) -> Rule -> FGG_JSON -> FGG_JSON
+addRule' getValues r (FGG_JSON ds fs nts ts s rs) =
+  let (Rule lhs (HGF ns es xs)) = r
+      lookup_nodes = map $ \ i -> ns !! i
+      dom = lookup_nodes xs
+      ts' = if elem lhs ts then ts else (lhs : ts)
+      ds' = foldr (\ n -> Map.insert n (getValues n)) ds ns
+      fs' = foldr (\ (Edge atts l) -> if elem l ts' then id else Map.insert l (lookup_nodes atts, getWeights (length . getValues) (lookup_nodes atts))) fs es
+      nts' = Map.insert lhs dom nts in
+    FGG_JSON ds' fs' nts' ts' s (rs ++ [r])
+
+-- TODO: Ctxt is wrong. We should instead use addRule'
+--       with some function that maps a node (edge?)
+--       name to a list of its possible values
+--       (attached node names?)
+addRule :: Ctxt -> Rule -> FGG_JSON -> FGG_JSON
+addRule g = addRule' (maybe [] (map $ \ (Ctor x as) -> x) . ctxtLookupType g)
+
+
+
+
+example_ctxt :: Ctxt
+example_ctxt = ctxtDeclType (ctxtDeclType emptyCtxt "W" (map (\ x -> Ctor x []) ["the", "cat", "sat", "on", "mat"])) "T" (map (\ x -> Ctor x []) ["DT", "NN", "VBD", "IN", "BOS", "EOS"])
+
+example_rule1 = Rule "S"
+  (HGF ["T"] [Edge [0] "is_bos",
+              Edge [0] "X"] [])
+example_rule2 = Rule "X"
+  (HGF ["T", "T", "W"] [Edge [0, 1] "transition",
+                        Edge [1, 2] "emission",
+                        Edge [1] "X"] [0])
+example_rule3 = Rule "X"
+  (HGF ["T", "T"] [Edge [0, 1] "transition",
+                   Edge [1] "is_eos"] [0])
+
+example_fgg :: FGG_JSON
+example_fgg =
+  foldr (addRule example_ctxt) (emptyFGG "S") [example_rule1, example_rule2, example_rule3]
 
 {-
 example_fgg :: FGG_JSON
