@@ -1,0 +1,98 @@
+{
+    "domains": {
+        "Bool": {},
+        "Bool->Bool": {},
+        "measure Bool": {},
+        "Unit": {},
+    },
+    "factors": {
+        "v=(v1,v2)": {
+            "function": "constant",
+            "type": ["Bool", "Bool", "Bool*Bool"],
+            "weights": [[[0, 0, 0, 1], [0, 0, 1, 0]],
+                        [[0, 1, 0, 0], [1, 0, 0, 0]]]
+        }
+    },
+    "nonterminals": {
+        "odd":         { "type" : ["Bool"] },
+        "\q....":      { "type" : ["Bool->Bool"] },
+        "case ...":    { "type" : ["Bool", "Bool"] },
+        "sample p":    { "type" : ["Bool"] },
+        "p":           { "type" : ["measure Bool"] },
+        "_":           { "type" : ["Unit"] },
+        "odd (odd q)": { "type" : ["Bool", "Bool"] },
+        "odd q":       { "type" : ["Bool", "Bool"] },
+        "q":           { "type" : ["Bool", "Bool"] },
+        "not q":       { "type" : ["Bool", "Bool"] },
+        "odd false":   { "type" : ["Bool"] },
+        "false":       { "type" : ["Bool"] },
+    },
+    "start": "odd false",
+    "rules": [
+        {
+            "lhs": "odd false",
+            "rhs": {
+                "nodes": ["Bool->Bool", "Bool", "Bool"],
+                "edges": [
+                    { "attachments": [0], "label": "odd" },
+                    { "attachments": [1], "label": "false" },
+                    { "attachments": [1,2,0], "label": "v=(v1,v2)" },
+                ],
+                "externals": [2]
+            }
+        },
+        {
+            "lhs": "odd",
+            "rhs": {
+                "nodes": ["Bool"],
+                "edges": [
+                    { "attachments": [0], "label": "\q...." }
+                ],
+                "externals": [0]
+            }
+        },
+        {
+            "lhs": "\q....",
+            "rhs": {
+                "nodes": ["Bool", "Bool"],
+                "edges": [
+                    { "attachments": [0,1], "label": "case ..." },
+                    { "attachments": [0,1,2], "label": "v=(v1,v2)" },
+                ],
+                "externals": [2]
+            }
+        },
+        {
+            "lhs": "",
+            "rhs": {
+                "nodes": [],
+                "edges": [],
+                "externals": []
+            }
+        },
+        {
+            "lhs": "",
+            "rhs": {
+                "nodes": [],
+                "edges": [],
+                "externals": []
+            }
+        },
+        {
+            "lhs": "",
+            "rhs": {
+                "nodes": [],
+                "edges": [],
+                "externals": []
+            }
+        },
+        {
+            "lhs": "",
+            "rhs": {
+                "nodes": [],
+                "edges": [],
+                "externals": []
+            }
+        }
+    ]
+}
