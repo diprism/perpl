@@ -80,7 +80,7 @@ checkCase g (Ctor x as) (CaseUs x' as' tm) =
       msg = \ a -> "In the case " ++ x' ++ ", arg " ++ a ++ " is not linear in the body" in
   foldr (\ a r -> ifErr (not $ checkAffLin a tm) (msg a) >> r) okay as' >>
   checkTerm g' tm >>= \ (tm', tp) ->
-  return (Case x as' tm', tp)
+  return (Case x (zip as' as) tm', tp)
 
 checkCases :: Ctxt -> [Ctor] -> [CaseUs] -> Either String ([Case], Type)
 checkCases g [] [] = err "Case splitting on empty datatype"

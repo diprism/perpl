@@ -49,7 +49,7 @@ data Type =
 data CaseUs = CaseUs Var [Var] UsTm
   deriving Show
 
-data Case = Case Var [Var] Term
+data Case = Case Var [(Var, Type)] Term
 
 
 
@@ -109,7 +109,7 @@ instance Show Dist where
   show DistUni = "uniform"
 
 instance Show Case where
-  show (Case x as tm) = foldl (\ x a -> x ++ " " ++ a) x as ++ " -> " ++ show tm
+  show (Case x as tm) = foldl (\ x (a, tp) -> x ++ " " ++ a) x as ++ " -> " ++ show tm
 
 instance Show Ctor where
   show (Ctor x as) = foldl (\ x a -> x ++ " " ++ showType a ShowTypeArg) x as
