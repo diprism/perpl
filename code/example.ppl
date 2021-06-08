@@ -1,0 +1,41 @@
+data Nat =
+  | Z
+  | S Nat
+
+fun add : Nat -> Nat -> Nat = \ a : Nat. \ b : Nat. case b of
+  | Z -> a
+  | S b' -> add (S a) b'
+
+{-fun mult : Nat -> Nat -> Nat = \ a : Nat. \ b : Nat. case b of
+  | Z -> Z
+  | S b' -> add {- a -} Z (mult a b')
+-}
+
+fun pred : Nat -> Nat = \ a : Nat. case a of
+  | Z -> Z
+  | S a1 -> a1
+
+fun pred2 : Nat -> Nat = \ a : Nat. case a of
+  | Z -> Z
+  | S a1 -> a1
+
+data Bool = True | False
+
+{-fun if : Bool -> Nat -> Nat -> Nat = \ b : Bool. \ then : Nat. \ else : Nat. case b of
+  | True -> then
+  | False -> else-}
+
+data List = Nil | Cons Nat List
+
+-- Note: won't type-check because f is unrestricted; just checking the parser
+{-fun map : (Nat -> Nat) -> List -> List = \ f : Nat -> Nat. \ l : List. case l of
+  | Nil -> Nil
+  | Cons x tail -> Cons (f x) (map f tail)-}
+
+fun sampler : Bool = sample uniform Bool
+
+fun shadowing1 : Bool -> Bool = \ Bool : Bool. Bool
+fun shadowing2 : Bool -> Bool = \ Bool : Bool. Bool
+fun shadowing3 : Bool -> Bool = \ Bool : Bool. Bool
+
+exec Z

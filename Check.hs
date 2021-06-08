@@ -3,6 +3,10 @@ import Ctxt
 import Free
 import Exprs
 
+checkAffLin :: Var -> UsTm -> Bool
+checkAffLin = isLin -- isAff
+checkAffLinMsg = "linear" -- "affine"
+
 err :: String -> Either String a
 err = Left
 
@@ -26,8 +30,9 @@ checkTerm g (UsVar x) = maybe2 (ctxtLookupTerm g x)
   (err ("Variable '" ++ x ++ "' not in scope"))
   $ \ tp -> return (TmVar x tp, tp)
 checkTerm g (UsLam x tp tm) =
-  ifErr (not $ isAff x tm)
-    ("Affine bound variable '" ++ x ++ "' occurs multiple times in the body") >>
+  ifErr (not $ checkAffLin x tm)
+    ("Bound variable '" ++ x ++ "' is not " ++ checkAffLinMsg ++ " in the body") >>
+  checkType g tp >>
   checkTerm (ctxtDeclTerm g x tp) tm >>= \ (tm', tp') ->
   return (TmLam x tp tm' tp', TpArr tp tp')
 checkTerm g (UsApp tm1 tm2) =
@@ -71,7 +76,9 @@ checkCase g (Ctor x as) (CaseUs x' as' tm) =
   ifErr (length as /= length as')
     ("Expected " ++ show (length as) ++ " args for case '" ++
       x ++ "', but got " ++ show (length as')) >>
-  let g' = foldr (\ (tp, a) g -> ctxtDeclTerm g a tp) g (zip as as') in
+  let g' = foldr (\ (tp, a) g -> ctxtDeclTerm g a tp) g (zip as as')
+      msg = \ a -> "In the case " ++ x' ++ ", arg " ++ a ++ " is not linear in the body" in
+  foldr (\ a r -> ifErr (not $ checkAffLin a tm) (msg a) >> r) okay as' >>
   checkTerm g' tm >>= \ (tm', tp) ->
   return (Case x as' tm', tp)
 
@@ -91,8 +98,11 @@ checkCasesh g (ct : cts) (c : cs) tp =
   return (c' : cs')
 
 checkProgs :: Ctxt -> UsProgs -> Either String Progs
-checkProgs g (UsProgExec tm) = checkTerm g tm >>= \ (tm', tp') -> return (ProgExec tm')
+checkProgs g (UsProgExec tm) =
+  checkTerm g tm >>= \ (tm', tp') ->
+  return (ProgExec tm')
 checkProgs g (UsProgFun x tp tm ps) =
+  checkType g tp >>
   declErr x (checkTerm g tm) >>= \ (tm', tp') ->
   ifErr (tp /= tp')
     ("Expected type of function '" ++ x ++ "' does not match computed type") >>
@@ -114,4 +124,4 @@ declProgs g (UsProgData y cs ps) =
   declProgs (ctxtDeclType g y cs) ps
 
 checkFile :: UsProgs -> Either String Progs
-checkFile ps = declProgs emptyCtxt ps >>= \ g' -> checkProgs g' ps
+checkFile ps = declProgs emptyCtxt ps >>= \ g' -> checkProgs g' (alphaRename g' ps)

@@ -4,35 +4,18 @@ import Exprs
 data Token =
     TkVar Var
   | TkLam
---  | TkLamAff
---  | TkLamLin
   | TkParenL
   | TkParenR
---  | TkLet
---  | TkIn
   | TkEq
   | TkSample
-  | TkObserve
   | TkFail
   | TkAmb
   | TkUni
   | TkMeas
---  | TkTrue
---  | TkFalse
---  | TkIf
---  | TkThen
---  | TkElse
---  | TkInl
---  | TkInr
   | TkCase
   | TkOf
---  | TkUnit
---  | TkBool
   | TkArr
---  | TkArrAff
---  | TkArrLin
   | TkLeftArr
---  | TkPlus
   | TkColon
   | TkDot
   | TkComma
@@ -46,14 +29,9 @@ data Token =
 lexStrh :: String -> [Token] -> Maybe [Token]
 lexStrh (' ' : s) = lexStrh s
 lexStrh ('\n' : s) = lexStrh s
---lexStrh ('\\' : '?' : s) = lexAdd s TkLamAff
---lexStrh ('\\' : '1' : s) = lexAdd s TkLamLin
 lexStrh ('\\' : s) = lexAdd s TkLam
---lexStrh ('-' : '>' : '?' : s) = lexAdd s TkArrAff
---lexStrh ('-' : '>' : '1' : s) = lexAdd s TkArrLin
 lexStrh ('-' : '>' : s) = lexAdd s TkArr
 lexStrh ('<' : '-' : s) = lexAdd s TkLeftArr
---lexStrh ('+' : s) = lexAdd s TkPlus
 lexStrh (':' : s) = lexAdd s TkColon
 lexStrh ('.' : s) = lexAdd s TkDot
 lexStrh (',' : s) = lexAdd s TkComma
@@ -65,7 +43,7 @@ lexStrh ('-' : '-' : s) = lexComment Nothing s
 lexStrh ('{' : '-' : s) = lexComment (Just 0) s
 lexStrh ('-' : '}' : s) = const Nothing
 lexStrh "" = Just
-lexStrh s = lexKeyword s
+lexStrh s = lexKeywordOrVar s
 
 -- Lex a comment.
 -- lexComment Nothing scans a comment from -- to the end of the line.
@@ -78,44 +56,14 @@ lexComment (Just n) ('{' : '-' : s) = lexComment (Just (succ n)) s
 lexComment multiline (_ : s) = lexComment multiline s
 lexComment _ "" = Just
 
+-- Consumes characters until a non-variable character is reached
 lexVar :: String -> Maybe (String, String)
 lexVar = h "" where
   h v (c : s) = if isVarChar c then h (c : v) s else Just (reverse v, (c : s))
   h v "" = Just (reverse v, "")
 
-keywords = [
-  ("fail", TkFail),
-  ("amb", TkAmb),
-  ("uniform", TkUni),
---  ("true", TkTrue),
---  ("false", TkFalse),
---  ("if", TkIf),
---  ("then", TkThen),
---  ("else", TkElse),
---  ("inl", TkInl),
---  ("inr", TkInr),
-  ("case", TkCase),
-  ("of", TkOf),
-  ("measure", TkMeas),
-  ("uniform", TkUni),
---  ("unit", TkUnit),
---  ("bool", TkBool),
---  ("let", TkLet),
---  ("in", TkIn),
-  ("sample", TkSample),
-  ("observe", TkObserve),
-  ("fun", TkFun),
-  ("data", TkData),
-  ("exec", TkExec)]
-
--- Lex a keyword or a variable name.
-lexKeyword :: String -> [Token] -> Maybe [Token]
-lexKeyword s ts = lexVar s >>= \ (v, rest) -> if length v > 0 then trykw keywords v rest ts else Nothing where
-  trykw ((kwstr, kwtok) : kws) v s = if kwstr == v then lexAdd s kwtok else trykw kws v s
-  trykw [] v s = lexAdd s (TkVar v)
-
-
 --varChars = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['\'', '_']
+isVarChar :: Char -> Bool
 isVarChar c =
   (c >= 'a' && c <= 'z') ||
   (c >= 'A' && c <= 'Z') ||
@@ -123,9 +71,27 @@ isVarChar c =
   (c == '\'') ||
   (c == '_')
 
+keywords = [
+  ("fail", TkFail),
+  ("amb", TkAmb),
+  ("uniform", TkUni),
+  ("case", TkCase),
+  ("of", TkOf),
+  ("measure", TkMeas),
+  ("uniform", TkUni),
+  ("sample", TkSample),
+  ("fun", TkFun),
+  ("data", TkData),
+  ("exec", TkExec)]
 
-addTk f s t ts = f s (t : ts)
-lexAdd = addTk lexStrh
+-- Lex a keyword or a variable name.
+lexKeywordOrVar :: String -> [Token] -> Maybe [Token]
+lexKeywordOrVar s ts = lexVar s >>= \ (v, rest) -> if length v > 0 then trykw keywords v rest ts else Nothing where
+  trykw ((kwstr, kwtok) : kws) v s = if kwstr == v then lexAdd s kwtok else trykw kws v s
+  trykw [] v s = lexAdd s (TkVar v)
+
+lexAdd :: String -> Token -> [Token] -> Maybe [Token]
+lexAdd s t ts = lexStrh s (t : ts)
 
 -- Lex a program.
 lexStr :: String -> Maybe [Token]

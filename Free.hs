@@ -32,48 +32,112 @@ isFree x tm = Map.member x (freeVars tm)
 isAff :: Var -> UsTm -> Bool
 isAff x tm = freeOccurrences x tm <= 1
 
+data Lin = LinNo | LinYes | LinErr
+  deriving Eq
+
+linIf :: Lin -> a -> a -> a -> a
+linIf LinYes y n e = y
+linIf LinNo  y n e = n
+linIf LinErr y n e = e
+
+linIf' :: Lin -> Lin -> Lin -> Lin
+linIf' i y n = linIf i y n LinErr
+
 isLin :: Var -> UsTm -> Bool
-isLin x tm = freeOccurrences x tm == 1
+isLin x tm = h tm == LinYes where
+  linCase :: CaseUs -> Lin
+  linCase (CaseUs x' as tm') = if any ((==) x) as then LinNo else h tm'
+  
+  h :: UsTm -> Lin
+  h (UsVar x') = if x == x' then LinYes else LinNo
+  h (UsLam x' tp tm) = if x == x' then LinNo else h tm
+  h (UsApp tm tm') = linIf' (h tm) (linIf' (h tm') LinErr LinYes) (h tm')
+  h (UsCase tm []) = h tm
+  h (UsCase tm cs) = linIf' (h tm)
+    -- make sure x is not in any of the cases
+    (foldr (\ c -> linIf' (linCase c) LinErr) LinYes cs)
+    -- make sure x is linear in all the cases, or in none of the cases
+    (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
+  h (UsSamp d y) = LinNo
 
--- Renames bound vars to avoid shadowing
-alphaRename :: Ctxt -> UsTm -> UsTm
-alphaRename (Ctxt tmc tpc) tm =
-  let xs = Map.union (Map.mapWithKey const tmc) (Map.mapWithKey const tpc) in
-    rename xs tm
-  where
-    renameVar :: Map.Map Var Var -> Var -> Var
-    renameVar xs x = Map.findWithDefault x x xs
 
-    newVar :: Map.Map Var Var -> Var -> Var
-    newVar xs x = if Map.member x xs then h xs x 1 else x where
-      h xs x n =
-        let x' = x ++ show n in
-          if Map.member x' xs then h xs x (succ n) else x'
+type VarMap = Map.Map Var Var
+newtype RenameM a = RenameM (VarMap -> (a, VarMap))
+instance Functor RenameM where
+  fmap f (RenameM r) = RenameM $ \ xs -> let (a, xs') = r xs in (f a, xs')
+instance Applicative RenameM where
+  pure a = RenameM $ \ xs -> (a, xs)
+  (RenameM fab) <*> (RenameM fa) =
+    RenameM $ \ xs ->
+      let (ab, xs') = fab xs
+          (a, xs'') = fa xs' in
+      (ab a, xs'')
+instance Monad RenameM where
+  (RenameM fa) >>= g = RenameM $ \ xs ->
+    let (a, xs') = fa xs
+        (RenameM fb) = g a in
+      fb xs'
 
-    declVar :: Map.Map Var Var -> Var -> (Map.Map Var Var, Var)
-    declVar xs x =
-      let x' = newVar xs x in
-        (Map.insert x x' (Map.insert x' x' xs), x')
+getVar :: Var -> RenameM Var
+getVar x = RenameM $ \ xs -> (Map.findWithDefault x x xs, xs)
+
+bindVar :: Var -> RenameM a -> RenameM a
+bindVar x (RenameM fa) = RenameM $ \ xs ->
+  let x' = Map.findWithDefault x x xs
+      (a, xs') = fa xs in
+    (a, Map.insert x x' xs')
     
-    rename :: Map.Map Var Var -> UsTm -> UsTm
-    rename xs (UsVar x) = UsVar (renameVar xs x)
-    rename xs (UsLam x tp tm) =
-      let (xs', x') = declVar xs x in
-        UsLam x' (renameType xs tp) (rename xs' tm)
-    rename xs (UsApp tm1 tm2) = UsApp (rename xs tm1) (rename xs tm2)
-    rename xs (UsCase tm cs) = UsCase (rename xs tm) (map (renameCase xs) cs)
-    rename xs (UsSamp d y) = UsSamp d (renameVar xs y)
+bindVars :: [Var] -> RenameM a -> RenameM a
+bindVars = flip (foldr bindVar)
 
-    renameCase :: Map.Map Var Var -> CaseUs -> CaseUs
-    renameCase xs (CaseUs x as tm) =
-      uncurry (CaseUs (renameVar xs x)) (renameCaseh xs as tm)
-      
-    renameCaseh :: Map.Map Var Var -> [Var] -> UsTm -> ([Var], UsTm)
-    renameCaseh xs (a : as) tm =
-      let (xs', a') = declVar xs a
-          (as', tm') = renameCaseh xs' as tm in
-        ((a' : as'), tm')
-    renameCaseh xs [] tm = ([], rename xs tm)
+newVar :: Var -> RenameM Var
+newVar x = RenameM $ \ xs ->
+  let x' = newVarH xs x in
+    (x', Map.insert x x' (Map.insert x' x' xs))
+  where
+  h xs x n =
+    let x' = x ++ show n in
+      if Map.member x' xs
+        then h xs x (succ n)
+        else x'
+  newVarH xs x = if Map.member x xs then h xs x 1 else x
 
-    renameType :: Map.Map Var Var -> Type -> Type
-    renameType xs tp = tp
+renameTerm :: UsTm -> RenameM UsTm
+renameTerm (UsVar x) =
+  pure UsVar <*> getVar x
+renameTerm (UsLam x tp tm) =
+  bindVar x $ pure (flip UsLam) <*> renameType tp <*> newVar x <*> renameTerm tm
+renameTerm (UsApp tm1 tm2) =
+  pure UsApp <*> renameTerm tm1 <*> renameTerm tm2
+renameTerm (UsCase tm cs) =
+  pure UsCase
+    <*> renameTerm tm
+    <*> foldr (\ c cs' -> pure (:) <*> renameCase c <*> cs') (return []) cs
+renameTerm (UsSamp d y) =
+  pure (UsSamp d) <*> getVar y
+
+renameCase :: CaseUs -> RenameM CaseUs
+renameCase (CaseUs x as tm) =
+  bindVars as $
+  pure (CaseUs x)
+    <*> foldr (\ a as' -> pure (:) <*> newVar a <*> as') (return []) as
+    <*> renameTerm tm
+
+renameType :: Type -> RenameM Type
+renameType (TpVar y) = pure TpVar <*> getVar y
+renameType (TpArr tp1 tp2) = pure TpArr <*> renameType tp1 <*> renameType tp2
+
+renameCtor :: Ctor -> RenameM Ctor
+renameCtor (Ctor x tps) = pure (Ctor x) <*> foldr (\ tp tps' -> pure (:) <*> renameType tp <*> tps') (return []) tps
+
+renameProgs :: UsProgs -> RenameM UsProgs
+renameProgs (UsProgExec tm) = pure UsProgExec <*> renameTerm tm
+renameProgs (UsProgFun x tp tm ps) = pure (UsProgFun x) <*> renameType tp <*> renameTerm tm <*> renameProgs ps
+renameProgs (UsProgData y cs ps) = pure (UsProgData y) <*> foldr (\ c cs' -> pure (:) <*> renameCtor c <*> cs') (return []) cs <*> renameProgs ps
+
+alphaRename :: Ctxt -> UsProgs -> UsProgs
+alphaRename g ps =
+  let xs = Map.mapWithKey const g
+      (RenameM f) = renameProgs ps
+      (ps', xs') = f xs in
+    ps'
