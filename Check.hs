@@ -117,10 +117,10 @@ declProgs :: Ctxt -> UsProgs -> Either String Ctxt
 declProgs g (UsProgExec tm) = return g
 declProgs g (UsProgFun x tp tm ps) =
   ifBound g x >>
-  declProgs (ctxtDeclTerm g x tp) ps
+  declProgs (ctxtDefTerm g x tp) ps
 declProgs g (UsProgData y cs ps) =
   ifBound g y >>
-  foldl (\ r (Ctor x tps) -> r >>= \ g' -> ifBound g' x >> return (ctxtDeclTerm g' x (TpVar ""))) (return $ ctxtDeclType g y []) cs >>
+  foldl (\ r (Ctor x tps) -> r >>= \ g' -> ifBound g' x >> return (ctxtDefTerm g' x (TpVar ""))) (return $ ctxtDeclType g y []) cs >>
   declProgs (ctxtDeclType g y cs) ps
 
 checkFile :: UsProgs -> Either String Progs
