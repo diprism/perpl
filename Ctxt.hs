@@ -36,6 +36,12 @@ ctxtIsGlobal g x = flip (maybe False) (Map.lookup x g) $ \ vd -> case vd of
   DeclTerm tp -> False
   DefData cs -> True
 
+ctxtIsLocal :: Ctxt -> Var -> Bool
+ctxtIsLocal g x = flip (maybe False) (Map.lookup x g) $ \ vd -> case vd of
+  DefTerm tp -> False
+  DeclTerm tp -> True
+  DefData cs -> False
+
 ctxtLookupType :: Ctxt -> Var -> Maybe [Ctor]
 ctxtLookupType g x = Map.lookup x g >>= \ vd -> case vd of
   DefData cs -> Just cs
