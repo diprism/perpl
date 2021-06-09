@@ -32,7 +32,7 @@ data UsTm = -- User Term
   deriving Show
 
 data Term =
-    TmVar Var Type
+    TmVar Var Type Bool {- is local -}
   | TmLam Var Type Term Type
   | TmApp Term Term Type {- -> -} Type
   | TmCase Term [Case] Var Type
@@ -81,7 +81,7 @@ showTypeParens (TpArr _ _) ShowTypeArg = True
 showTypeParens _ _ = False
 
 showTermh :: Term -> String
-showTermh (TmVar x _) = x
+showTermh (TmVar x _ _) = x
 showTermh (TmLam x tp tm _) = "\\ " ++ x ++ " : " ++ show tp ++ ". " ++ showTerm tm ShowTermNone
 showTermh (TmApp tm1 tm2 _ _) = showTerm tm1 ShowTermAppL ++ " " ++ showTerm tm2 ShowTermAppR
 showTermh (TmCase tm cs _ _) = "case " ++ showTerm tm ShowTermCase ++ " of " ++ showCasesCtors cs
