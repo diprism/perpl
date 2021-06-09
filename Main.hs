@@ -1,8 +1,8 @@
 module Main where
 import Exprs
 import Ctxt
-import Parser
-import Lexer
+import Parse
+import Lex
 import Check
 import Compile
 import System.Exit
@@ -14,8 +14,8 @@ import System.Exit
 main :: IO ()
 main =
   getContents >>= \ s ->
-  let lexed = Lexer.lexStr s
-      parsed = lexed >>= Parser.parseFile in
+  let lexed = Lex.lexStr s
+      parsed = lexed >>= Parse.parseFile in
     --putStrLn (show lexed) >>
     --putStrLn (show parsed) >>= \ _ -> -- (>>) won't parse with ($)
     maybe2 parsed (putStrLn "Parse error") $ \ ps ->
