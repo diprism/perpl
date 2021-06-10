@@ -5,6 +5,7 @@ import Parse
 import Lex
 import Check
 import Compile
+import Util
 import System.Exit
 
 --testTerm = "\\? x : bool ->1 bool . x y (observe abc <- \\ y : unit. y y) (if true then false else true)"

@@ -39,7 +39,7 @@ data Term =
   | TmApp Term Term Type {- -> -} Type
   | TmCase Term [Case] Var Type
   | TmSamp Dist Var
-  | TmFGGBreak Term -- Just used in ppl->fgg compilation
+  | TmCtor Var [(Var, Type)]
 
 
 data Type =
@@ -68,16 +68,16 @@ data ShowTermHist = ShowTermAppL | ShowTermAppR | ShowTermCase | ShowTermNone
 data ShowTypeHist = ShowTypeArrL | ShowTypeArg | ShowTypeNone
 
 showTermParens :: Term -> ShowTermHist -> Bool
-showTermParens (TmLam _ _ _ _) ShowTermAppL = True
-showTermParens (TmLam _ _ _ _) ShowTermAppR = True
-showTermParens (TmApp _ _ _ _) ShowTermAppR = True
+showTermParens (TmLam _ _ _ _)  ShowTermAppL = True
+showTermParens (TmLam _ _ _ _)  ShowTermAppR = True
+showTermParens (TmApp _ _ _ _)  ShowTermAppR = True
+showTermParens (TmCtor _ _)     ShowTermAppR = True
 showTermParens (TmCase _ _ _ _) ShowTermAppL = True
 showTermParens (TmCase _ _ _ _) ShowTermAppR = True
 showTermParens (TmCase _ _ _ _) ShowTermCase = True
-showTermParens (TmSamp _ _) ShowTermAppL = True
-showTermParens (TmSamp _ _) ShowTermAppR = True
-showTermParens (TmFGGBreak tm) sth = showTermParens tm sth
-showTermParens _ _ = False
+showTermParens (TmSamp _ _)     ShowTermAppL = True
+showTermParens (TmSamp _ _)     ShowTermAppR = True
+showTermParens _                _            = False
 
 showTypeParens :: Type -> ShowTypeHist -> Bool
 showTypeParens (TpArr _ _) ShowTypeArrL = True
@@ -90,7 +90,7 @@ showTermh (TmLam x tp tm _) = "\\ " ++ x ++ " : " ++ show tp ++ ". " ++ showTerm
 showTermh (TmApp tm1 tm2 _ _) = showTerm tm1 ShowTermAppL ++ " " ++ showTerm tm2 ShowTermAppR
 showTermh (TmCase tm cs _ _) = "case " ++ showTerm tm ShowTermCase ++ " of " ++ showCasesCtors cs
 showTermh (TmSamp d y) = "sample " ++ show d ++ " " ++ y
-showTermh (TmFGGBreak tm) = showTermh tm
+showTermh (TmCtor x as) = foldl (\ tm (a, tp) -> tm ++ " " ++ a) x as
 
 showTypeh :: Type -> String
 showTypeh (TpVar y) = y

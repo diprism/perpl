@@ -2,6 +2,7 @@ module Check where
 import Ctxt
 import Free
 import Exprs
+import Util
 
 checkAffLin :: Var -> UsTm -> Bool
 checkAffLin = isLin -- isAff
@@ -9,9 +10,6 @@ checkAffLinMsg = "linear" -- "affine"
 
 err :: String -> Either String a
 err = Left
-
-okay :: Monad m => m ()
-okay = return ()
 
 ifErr :: Bool -> String -> Either String ()
 ifErr b e = if b then err e else okay
@@ -22,13 +20,12 @@ ifBound g x = ifErr (ctxtBinds g x) ("'" ++ x ++ "' has multiple definitions")
 declErr :: Var -> Either String a -> Either String a
 declErr x e = either (\ s -> Left ("In the definition of '" ++ x ++ "': " ++ s)) Right e
 
-maybe2 :: Maybe a -> b -> (a -> b) -> b
-maybe2 m n j = maybe n j m
-
 checkTerm :: Ctxt -> UsTm -> Either String (Term, Type)
 checkTerm g (UsVar x) = maybe2 (ctxtLookupTerm g x)
   (err ("Variable '" ++ x ++ "' not in scope"))
-  $ \ (sc, tp) -> return (TmVar x tp sc, tp)
+  $ \ (sc, tp) -> case sc of
+    ScopeCtor -> return (ctorEtaExpand x tp, tp)
+    _ -> return (TmVar x tp sc, tp)
 checkTerm g (UsLam x tp tm) =
   ifErr (not $ checkAffLin x tm)
     ("Bound variable '" ++ x ++ "' is not " ++ checkAffLinMsg ++ " in the body") >>
