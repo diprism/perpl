@@ -1,0 +1,9 @@
+extern sample_p: Bool ;
+
+define odd = \q.
+  if sample_p then
+    odd (odd q)
+  else
+    not q ;
+    
+odd false
