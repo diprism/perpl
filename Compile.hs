@@ -5,9 +5,12 @@ import FGG
 import Check
 import Util
 
+-- RuleM monad-like datatype and funcions
 type External = (Var, Type)
 data RuleM = RuleM [Rule] [External]
 
+-- RuleM instances of >>= and >= (since not
+-- technically a monad, need to pick new names)
 infixl 1 +>=, +>
 (+>=) :: RuleM -> ([External] -> RuleM) -> RuleM
 RuleM rs xs +>= f = let RuleM rs' xs' = f xs in RuleM (rs ++ rs') (xs ++ xs')
@@ -15,21 +18,27 @@ RuleM rs xs +>= f = let RuleM rs' xs' = f xs in RuleM (rs ++ rs') (xs ++ xs')
 (+>) :: RuleM -> RuleM -> RuleM
 r1 +> r2 = r1 +>= \ _ -> r2
 
+-- Add a list of external nodes
 addExts :: [(Var, Type)] -> RuleM
 addExts xs = RuleM [] xs
 
+-- Add a single external node
 addExt :: Var -> Type -> RuleM
 addExt x tp = addExts [(x, tp)]
 
+-- Add a list of rules
 addRules :: [Rule] -> RuleM
 addRules rs = RuleM rs []
 
+-- Add a single rule
 addRule :: Rule -> RuleM
 addRule r = addRules [r]
 
+-- Add a rule from the given components
 addRule' :: String -> [Type] -> [Edge] -> [Int] -> RuleM
 addRule' lhs ns es xs = addRule $ Rule lhs $ HGF (map show ns) es xs
 
+-- Do nothing new
 returnRule :: RuleM
 returnRule = RuleM [] []
 
@@ -38,17 +47,21 @@ var2fgg :: Var -> Type -> RuleM
 var2fgg x tp =
   addRule' x [tp, tp] [Edge [0, 1] ("=" ++ show tp)] [0, 1]
 
+-- Extract rules from a RuleM
 getRules :: RuleM -> [Rule]
 getRules (RuleM rs xs) = rs
 
+-- Bind a list of external nodes, and add rules for them
 bindExts :: [(Var, Type)] -> RuleM -> RuleM
 bindExts xs' (RuleM rs xs) =
   let keep = flip elem (map fst xs') . fst in
   foldr (\ (x, tp) r -> var2fgg x tp +> r) (RuleM rs (filter keep xs)) xs'
 
+-- Bind an external node, and add a rule for it
 bindExt :: Var -> Type -> RuleM -> RuleM
 bindExt x tp = bindExts [(x, tp)]
 
+-- Add rule for a term application
 tmapp2fgg :: Term -> RuleM
 tmapp2fgg (TmApp tm1 tm2 tp2 tp) =
   term2fgg tm1 +>= \ xs1 ->
@@ -61,10 +74,12 @@ tmapp2fgg (TmApp tm1 tm2 tp2 tp) =
       xs = itp : ixs1 ++ ixs2 in
     addRule' (show (TmApp tm1 tm2 tp2 tp)) ns es xs
 
+-- Split up x a0 a1 a2 ... into [(a0, ?), (a1, ?), (a2, ?), ...]
 getCtorArgs :: Term -> [(Var, Type)]
 getCtorArgs (TmVar x tp sc) = []
 getCtorArgs (TmApp tm (TmVar x tp ScopeLocal) _ _) = (x, tp) : getCtorArgs tm
 
+-- Add rule for a constructor
 ctor2fgg :: Ctor -> Var -> RuleM
 ctor2fgg (Ctor x as) y =
   let as' = map (ctorEtaName x) [0..length as - 1]
@@ -75,6 +90,7 @@ ctor2fgg (Ctor x as) y =
       xs = iy : ias1 in
     addRule' x ns es xs
 
+-- Add a rule for this particular case in a case-of statement
 case2fgg :: [(Var, Type)] -> Term -> Case -> RuleM
 case2fgg xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
   bindExts as (term2fgg xtm) +>= \ xs_xtm ->
@@ -89,13 +105,8 @@ case2fgg xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
 case2fgg xs _ (Case x as xtm) =
   error "case2fgg expected a TmCase, but got something else"
 
---stopApp :: Term -> Type -> Term
---stopApp tm tp = TmApp tm (TmVar " ___STOP___ " (TpVar " ___STOP___ ") ScopeGlobal) (TpVar " ___STOP___ ") tp
-
+-- Traverse a term and add all rules for subexpressions
 term2fgg :: Term -> RuleM
---term2fgg (TmApp tm (TmVar " ___STOP___ " (TpVar " ___STOP___ ") ScopeGlobal) (TpVar " ___STOP___ ") tp) =
---term2fgg (TmFGGBreak tm) =
---  addExts (getCtorArgs tm)
 term2fgg (TmCtor x as) =
   addExts as
 term2fgg (TmVar x tp local) =
@@ -121,11 +132,13 @@ term2fgg (TmCase tm cs y tp) =
 term2fgg (TmSamp d y) =
   returnRule -- TODO
 
+-- Extracts the start term at the end of a program
 getStartTerm :: Progs -> Term
 getStartTerm (ProgExec tm) = tm
 getStartTerm (ProgFun x tp tm ps) = getStartTerm ps
 getStartTerm (ProgData y cs ps) = getStartTerm ps
 
+-- Goes through a program and adds all the rules for it
 prog2fgg :: Progs -> RuleM
 prog2fgg (ProgExec tm) = term2fgg tm
 prog2fgg (ProgFun x tp tm ps) =
@@ -135,5 +148,6 @@ prog2fgg (ProgData y cs ps) =
   prog2fgg ps +>
   foldr (\ c r -> r +> ctor2fgg c y) returnRule cs
 
+-- Converts an elaborated program into an FGG
 file2fgg :: Progs -> FGG_JSON
 file2fgg ps = rulesToFGG (\ y -> []) (show $ getStartTerm ps) (reverse $ getRules $ prog2fgg ps)
