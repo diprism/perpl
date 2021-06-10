@@ -67,7 +67,7 @@
             "lhs": "odd",
             "rhs": {
                 "nodes": [
-                    { "label": "Bool" }
+                    { "label": "Bool->Bool" }
                 ],
                 "edges": [
                     { "attachments": [0], "label": "lambda ..." }
