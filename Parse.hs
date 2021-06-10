@@ -142,12 +142,13 @@ parseTypes = ParseM $ \ ts ->
 parseProg :: ParseM UsProgs
 parseProg = ParseM $ \ ts -> case ts of
 -- fun f : type = term
-  (TkFun : ts) -> parseMt ts $ pure UsProgFun <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkEq <*> parseTerm1 <*> parseProg
+  (TkFun : ts) -> parseMt ts $ pure UsProgFun <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkSemicolon <*> parseProg
 -- data T = ctors
-  (TkData : ts) -> parseMt ts $ pure UsProgData <*> parseVar <* parseDrop TkEq <*> parseCtors <*> parseProg
+  (TkData : ts) -> parseMt ts $ pure UsProgData <*> parseVar <* parseDrop TkEq <*> parseCtors <* parseDrop TkSemicolon <*> parseProg
 -- exec term
-  (TkExec : ts) -> parseMt ts $ pure UsProgExec <*> parseTerm1
-  _ -> Nothing
+  _ -> parseMt ts $ pure UsProgExec <*> parseTerm1
+--  (TkExec : ts) -> parseMt ts $ pure UsProgExec <*> parseTerm1
+--  _ -> Nothing
 
 -- Extract the value from a ParseM, if it consumed all tokens
 parseOut :: ParseM a -> [Token] -> Maybe a

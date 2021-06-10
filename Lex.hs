@@ -23,7 +23,8 @@ data Token =
   | TkBar
   | TkFun
   | TkData
-  | TkExec
+--  | TkExec
+  | TkSemicolon
   deriving (Eq, Show)
 
 -- Lex a string, returning a list of tokens
@@ -36,6 +37,7 @@ lexStrh ('<' : '-' : s) = lexAdd s TkLeftArr
 lexStrh (':' : s) = lexAdd s TkColon
 lexStrh ('.' : s) = lexAdd s TkDot
 lexStrh (',' : s) = lexAdd s TkComma
+lexStrh (';' : s) = lexAdd s TkSemicolon
 lexStrh ('|' : s) = lexAdd s TkBar
 lexStrh ('=' : s) = lexAdd s TkEq
 lexStrh ('(' : s) = lexAdd s TkParenL
@@ -83,9 +85,9 @@ keywords = [
   ("measure", TkMeas),
   ("uniform", TkUni),
   ("sample", TkSample),
-  ("fun", TkFun),
-  ("data", TkData),
-  ("exec", TkExec)]
+  ("define", TkFun),
+--  ("exec", TkExec),
+  ("data", TkData)]
 
 -- Lex a keyword or a variable name.
 lexKeywordOrVar :: String -> [Token] -> Maybe [Token]
