@@ -31,8 +31,10 @@ data UsTm = -- User Term
   | UsSamp Dist Var
   deriving Show
 
+data VarScope = ScopeLocal | ScopeGlobal | ScopeCtor
+
 data Term =
-    TmVar Var Type Bool {- is local -}
+    TmVar Var Type VarScope
   | TmLam Var Type Term Type
   | TmApp Term Term Type {- -> -} Type
   | TmCase Term [Case] Var Type

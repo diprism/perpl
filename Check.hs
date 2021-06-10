@@ -28,7 +28,7 @@ maybe2 m n j = maybe n j m
 checkTerm :: Ctxt -> UsTm -> Either String (Term, Type)
 checkTerm g (UsVar x) = maybe2 (ctxtLookupTerm g x)
   (err ("Variable '" ++ x ++ "' not in scope"))
-  $ \ tp -> return (TmVar x tp (ctxtIsLocal g x), tp)
+  $ \ (sc, tp) -> return (TmVar x tp sc, tp)
 checkTerm g (UsLam x tp tm) =
   ifErr (not $ checkAffLin x tm)
     ("Bound variable '" ++ x ++ "' is not " ++ checkAffLinMsg ++ " in the body") >>

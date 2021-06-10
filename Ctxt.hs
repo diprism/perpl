@@ -3,9 +3,8 @@ import qualified Data.Map as Map
 import Exprs
 
 data VarDef =
-    DefTerm Type      -- Global fun
-  | DeclTerm Type     -- Local term
-  | DefData [Ctor]    -- Data def
+    DefTerm VarScope Type
+  | DefData [Ctor]
 
 type Ctxt = Map.Map Var VarDef
 
@@ -13,34 +12,24 @@ emptyCtxt :: Ctxt
 emptyCtxt = Map.empty
 
 ctxtDeclTerm :: Ctxt -> Var -> Type -> Ctxt
-ctxtDeclTerm g x tp = Map.insert x (DeclTerm tp) g
+ctxtDeclTerm g x tp = Map.insert x (DefTerm ScopeLocal tp) g
 
 ctxtDefTerm :: Ctxt -> Var -> Type -> Ctxt
-ctxtDefTerm g x tp = Map.insert x (DefTerm tp) g
+ctxtDefTerm g x tp = Map.insert x (DefTerm ScopeGlobal tp) g
+
+ctxtDefCtor :: Ctxt -> Ctor -> Var -> Ctxt
+ctxtDefCtor g (Ctor x tps) y =
+  Map.insert x (DefTerm ScopeCtor (foldr TpArr (TpVar y) tps)) g
 
 ctxtDeclType :: Ctxt -> Var -> [Ctor] -> Ctxt
 ctxtDeclType g y ctors =
-  foldr
-    (\ (Ctor x tps) -> Map.insert x (DefTerm (foldr TpArr (TpVar y) tps)))
+  foldr (\ c g -> ctxtDefCtor g c y)
     (Map.insert y (DefData ctors) g) ctors
 
-ctxtLookupTerm :: Ctxt -> Var -> Maybe Type
+ctxtLookupTerm :: Ctxt -> Var -> Maybe (VarScope, Type)
 ctxtLookupTerm g x = Map.lookup x g >>= \ vd -> case vd of
-  DefTerm tp -> Just tp
-  DeclTerm tp -> Just tp
+  DefTerm sc tp -> Just (sc, tp)
   DefData cs -> Nothing
-
-ctxtIsGlobal :: Ctxt -> Var -> Bool
-ctxtIsGlobal g x = flip (maybe False) (Map.lookup x g) $ \ vd -> case vd of
-  DefTerm tp -> True
-  DeclTerm tp -> False
-  DefData cs -> True
-
-ctxtIsLocal :: Ctxt -> Var -> Bool
-ctxtIsLocal g x = flip (maybe False) (Map.lookup x g) $ \ vd -> case vd of
-  DefTerm tp -> False
-  DeclTerm tp -> True
-  DefData cs -> False
 
 ctxtLookupType :: Ctxt -> Var -> Maybe [Ctor]
 ctxtLookupType g x = Map.lookup x g >>= \ vd -> case vd of
