@@ -10,8 +10,8 @@ checkAffLinMsg = "linear" -- "affine"
 err :: String -> Either String a
 err = Left
 
-okay :: Either String ()
-okay = Right ()
+okay :: Monad m => m ()
+okay = return ()
 
 ifErr :: Bool -> String -> Either String ()
 ifErr b e = if b then err e else okay
@@ -28,7 +28,7 @@ maybe2 m n j = maybe n j m
 checkTerm :: Ctxt -> UsTm -> Either String (Term, Type)
 checkTerm g (UsVar x) = maybe2 (ctxtLookupTerm g x)
   (err ("Variable '" ++ x ++ "' not in scope"))
-  $ \ tp -> return (TmVar x tp, tp)
+  $ \ (sc, tp) -> return (TmVar x tp sc, tp)
 checkTerm g (UsLam x tp tm) =
   ifErr (not $ checkAffLin x tm)
     ("Bound variable '" ++ x ++ "' is not " ++ checkAffLinMsg ++ " in the body") >>
@@ -80,7 +80,7 @@ checkCase g (Ctor x as) (CaseUs x' as' tm) =
       msg = \ a -> "In the case " ++ x' ++ ", arg " ++ a ++ " is not linear in the body" in
   foldr (\ a r -> ifErr (not $ checkAffLin a tm) (msg a) >> r) okay as' >>
   checkTerm g' tm >>= \ (tm', tp) ->
-  return (Case x as' tm', tp)
+  return (Case x (zip as' as) tm', tp)
 
 checkCases :: Ctxt -> [Ctor] -> [CaseUs] -> Either String ([Case], Type)
 checkCases g [] [] = err "Case splitting on empty datatype"
@@ -117,10 +117,10 @@ declProgs :: Ctxt -> UsProgs -> Either String Ctxt
 declProgs g (UsProgExec tm) = return g
 declProgs g (UsProgFun x tp tm ps) =
   ifBound g x >>
-  declProgs (ctxtDeclTerm g x tp) ps
+  declProgs (ctxtDefTerm g x tp) ps
 declProgs g (UsProgData y cs ps) =
   ifBound g y >>
-  foldl (\ r (Ctor x tps) -> r >>= \ g' -> ifBound g' x >> return (ctxtDeclTerm g' x (TpVar ""))) (return $ ctxtDeclType g y []) cs >>
+  foldl (\ r (Ctor x tps) -> r >>= \ g' -> ifBound g' x >> return (ctxtDefTerm g' x (TpVar ""))) (return $ ctxtDeclType g y []) cs >>
   declProgs (ctxtDeclType g y cs) ps
 
 checkFile :: UsProgs -> Either String Progs

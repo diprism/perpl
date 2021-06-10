@@ -1,6 +1,6 @@
-module Parser where
+module Parse where
 import Exprs
-import Lexer
+import Lex
 
 newtype ParseM a = ParseM ([Token] -> Maybe (a, [Token]))
 

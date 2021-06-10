@@ -1,4 +1,4 @@
-module Lexer where
+module Lex where
 import Exprs
 
 data Token =

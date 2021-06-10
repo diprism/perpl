@@ -1,9 +1,10 @@
 module Main where
 import Exprs
 import Ctxt
-import Parser
-import Lexer
+import Parse
+import Lex
 import Check
+import Compile
 import System.Exit
 
 --testTerm = "\\? x : bool ->1 bool . x y (observe abc <- \\ y : unit. y y) (if true then false else true)"
@@ -13,10 +14,11 @@ import System.Exit
 main :: IO ()
 main =
   getContents >>= \ s ->
-  let lexed = Lexer.lexStr s
-      parsed = lexed >>= Parser.parseFile in
+  let lexed = Lex.lexStr s
+      parsed = lexed >>= Parse.parseFile in
     --putStrLn (show lexed) >>
     --putStrLn (show parsed) >>= \ _ -> -- (>>) won't parse with ($)
     maybe2 parsed (putStrLn "Parse error") $ \ ps ->
-    either die (const exitSuccess) (checkFile ps)
+    either die (\ a -> a >> exitSuccess) $ checkFile ps >>= \ ps' ->
+    Right $ putStrLn $ show $ file2fgg ps'
     

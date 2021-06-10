@@ -31,8 +31,10 @@ data UsTm = -- User Term
   | UsSamp Dist Var
   deriving Show
 
+data VarScope = ScopeLocal | ScopeGlobal | ScopeCtor
+
 data Term =
-    TmVar Var Type
+    TmVar Var Type VarScope
   | TmLam Var Type Term Type
   | TmApp Term Term Type {- -> -} Type
   | TmCase Term [Case] Var Type
@@ -49,7 +51,7 @@ data Type =
 data CaseUs = CaseUs Var [Var] UsTm
   deriving Show
 
-data Case = Case Var [Var] Term
+data Case = Case Var [(Var, Type)] Term
 
 
 
@@ -81,7 +83,7 @@ showTypeParens (TpArr _ _) ShowTypeArg = True
 showTypeParens _ _ = False
 
 showTermh :: Term -> String
-showTermh (TmVar x _) = x
+showTermh (TmVar x _ _) = x
 showTermh (TmLam x tp tm _) = "\\ " ++ x ++ " : " ++ show tp ++ ". " ++ showTerm tm ShowTermNone
 showTermh (TmApp tm1 tm2 _ _) = showTerm tm1 ShowTermAppL ++ " " ++ showTerm tm2 ShowTermAppR
 showTermh (TmCase tm cs _ _) = "case " ++ showTerm tm ShowTermCase ++ " of " ++ showCasesCtors cs
@@ -109,7 +111,7 @@ instance Show Dist where
   show DistUni = "uniform"
 
 instance Show Case where
-  show (Case x as tm) = foldl (\ x a -> x ++ " " ++ a) x as ++ " -> " ++ show tm
+  show (Case x as tm) = foldl (\ x (a, tp) -> x ++ " " ++ a) x as ++ " -> " ++ show tm
 
 instance Show Ctor where
   show (Ctor x as) = foldl (\ x a -> x ++ " " ++ showType a ShowTypeArg) x as
