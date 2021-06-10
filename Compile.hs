@@ -42,6 +42,15 @@ addRule' lhs ns es xs = addRule $ Rule lhs $ HGF (map show ns) es xs
 returnRule :: RuleM
 returnRule = RuleM [] []
 
+-- Naming convention for factor v=(v1,v2)
+pairFactorName :: Type -> Type -> String
+pairFactorName tp1 tp2 = "v=(" ++ show tp1 ++ "," ++ show tp2 ++ ")"
+
+-- Naming convention for constructor factor
+ctorFactorName :: Var -> String
+ctorFactorName c = "v=" ++ c
+
+
 -- Local var rule
 var2fgg :: Var -> Type -> RuleM
 var2fgg x tp =
@@ -70,7 +79,7 @@ tmapp2fgg (TmApp tm1 tm2 tp2 tp) =
         combine [[tp2, tp, TpArr tp2 tp], map snd xs1, map snd xs2]
       es = [Edge (itp2 : ixs2) (show tm2),
             Edge (iarr : ixs1) (show tm1),
-            Edge [itp2, itp, iarr] "v=(v1,v2)"]
+            Edge [itp2, itp, iarr] (pairFactorName tp2 tp)]
       xs = itp : ixs1 ++ ixs2 in
     addRule' (show (TmApp tm1 tm2 tp2 tp)) ns es xs
 
@@ -86,7 +95,7 @@ ctor2fgg (Ctor x as) y =
       (ns, [ias1, ias2, [iy]]) = combine [as, as, [TpVar y]]
       ias = zip3 ias1 ias2 as'
       es_as = map (\ (ia1, ia2, a) -> Edge [ia1, ia2] a) ias
-      es = Edge (iy : ias2) ("v=" ++ x) : es_as
+      es = Edge (iy : ias2) (ctorFactorName x) : es_as
       xs = iy : ias1 in
     addRule' x ns es xs
 
@@ -99,7 +108,7 @@ case2fgg xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
         combine [[TpVar y, tp], map snd as, map snd xs_ctm, map snd xs_xtm]
       es = [Edge (ictm : ixs_ctm) (show ctm),
             Edge (ixtm : ixs_xtm ++ ixs_as) (show xtm),
-            Edge (ictm : ixs_as) ("v=" ++ x)]
+            Edge (ictm : ixs_as) (ctorFactorName x)]
       xs = ixtm : ixs_ctm ++ ixs_xtm in
     addRule' (show (TmCase ctm cs y tp)) ns es xs
 case2fgg xs _ (Case x as xtm) =
@@ -118,7 +127,7 @@ term2fgg (TmLam x tp tm tp') =
   bindExt x tp (term2fgg tm) +>= \ xs' ->
   let (ns, [[itp, itp', iarr], ixs']) = combine [[tp, tp', TpArr tp tp'], map snd xs']
       es = [Edge ([itp, itp'] ++ ixs') (show tm),
-            Edge [itp, itp', iarr] "v=(v1,v2)"]
+            Edge [itp, itp', iarr] (pairFactorName tp tp')]
       xs = iarr : ixs' in
     addRule' (show (TmLam x tp tm tp')) ns es xs
 term2fgg (TmApp tm1 tm2 tp2 tp) =
