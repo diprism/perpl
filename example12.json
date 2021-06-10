@@ -50,7 +50,11 @@
         {
             "lhs": "odd false",
             "rhs": {
-                "nodes": ["Bool->Bool", "Bool", "Bool"],
+                "nodes": [
+                    { "label": "Bool->Bool" },
+                    { "label": "Bool"},
+                    { "label": "Bool"}
+                ],
                 "edges": [
                     { "attachments": [0], "label": "odd" },
                     { "attachments": [1], "label": "false" },
@@ -62,7 +66,9 @@
         {
             "lhs": "odd",
             "rhs": {
-                "nodes": ["Bool"],
+                "nodes": [
+                    { "label": "Bool" }
+                ],
                 "edges": [
                     { "attachments": [0], "label": "lambda ..." }
                 ],
@@ -72,7 +78,10 @@
         {
             "lhs": "lambda ...",
             "rhs": {
-                "nodes": ["Bool", "Bool"],
+                "nodes": [
+                    { "label": "Bool" },
+                    { "label": "Bool" }
+                ],
                 "edges": [
                     { "attachments": [0,1], "label": "if ..." },
                     { "attachments": [0,1,2], "label": "v=(v1,v2)" }
@@ -83,7 +92,11 @@
         {
             "lhs": "if ...",
             "rhs": {
-                "nodes": ["Bool", "Bool", "Bool"],
+                "nodes": [
+                    { "label": "Bool" },
+                    { "label": "Bool" },
+                    { "label": "Bool" }
+                ],
                 "edges": [
                     { "attachments": [0], "label": "sample_p" },
                     { "attachments": [0], "label": "v=true" },
@@ -95,7 +108,11 @@
         {
             "lhs": "if ...",
             "rhs": {
-                "nodes": ["Bool", "Bool", "Bool"],
+                "nodes": [
+                    { "label": "Bool" },
+                    { "label": "Bool" },
+                    { "label": "Bool" }
+                ],
                 "edges": [
                     { "attachments": [0], "label": "sample_p" },
                     { "attachments": [0], "label": "v=false" },
@@ -107,7 +124,12 @@
         {
             "lhs": "odd (odd q)",
             "rhs": {
-                "nodes": ["Bool", "Bool", "Bool->Bool", "Bool"],
+                "nodes": [
+                    { "label": "Bool" },
+                    { "label": "Bool" },
+                    { "label": "Bool->Bool" },
+                    { "label": "Bool" }
+                ],
                 "edges": [
                     { "attachments": [0,1], "label": "odd q" },
                     { "attachments": [2], "label": "odd" },
@@ -119,7 +141,12 @@
         {
             "lhs": "odd q",
             "rhs": {
-                "nodes": ["Bool", "Bool", "Bool->Bool", "Bool"],
+                "nodes": [
+                    { "label": "Bool" },
+                    { "label": "Bool" },
+                    { "label": "Bool->Bool" },
+                    { "label": "Bool" }
+                ],
                 "edges": [
                     { "attachments": [0,1], "label": "q" },
                     { "attachments": [2], "label": "odd" },
@@ -131,7 +158,10 @@
         {
             "lhs": "q",
             "rhs": {
-                "nodes": ["Bool", "Bool"],
+                "nodes": [
+                    { "label": "Bool" },
+                    { "label": "Bool" }
+                ],
                 "edges": [
                     { "attachments": [0,1], "label": "=" }
                 ],
@@ -141,7 +171,11 @@
         {
             "lhs": "not q",
             "rhs": {
-                "nodes": ["Bool", "Bool", "Bool"],
+                "nodes": [
+                    { "label": "Bool" },
+                    { "label": "Bool" },
+                    { "label": "Bool" }
+                ],
                 "edges": [
                     { "attachments": [0,1], "label": "q" },
                     { "attachments": [1,2], "label": "!=" }
@@ -152,7 +186,9 @@
         {
             "lhs": "false",
             "rhs": {
-                "nodes": ["Bool"],
+                "nodes": [
+                    { "label": "Bool" }
+                ],
                 "edges": [
                     { "attachments": [0], "label": "v=false" }
                 ],
