@@ -97,7 +97,7 @@ ctorVar2fgg x tp =
       tps = dropFromEnd 1 tps'
       etas = map (ctorEtaName x) [0..length tps - 1]
       (atm, [end]) = foldl (\ (tm, (atp : tps)) a -> (TmApp tm (TmVar a atp ScopeLocal) atp (joinArrows tps), tps)) (TmVar x tp ScopeCtor, tps') etas
-      ltm = foldr (\ a f (atp : tps) -> TmLam a atp (f tps) (joinArrows tps)) (const $ stopApp atm end) etas tps' in
+      ltm = foldr (\ a f (atp : tps) -> TmLam a atp (f tps) (joinArrows tps)) (const $ TmFGGBreak atm) etas tps' in
     term2fgg ltm
 
 getCtorArgs :: Term -> [(Var, Type)]
@@ -128,11 +128,12 @@ case2fgg xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
 case2fgg xs _ (Case x as xtm) =
   error "case2fgg expected a TmCase, but got something else"
 
-stopApp :: Term -> Type -> Term
-stopApp tm tp = TmApp tm (TmVar " ___STOP___ " (TpVar " ___STOP___ ") ScopeGlobal) (TpVar " ___STOP___ ") tp
+--stopApp :: Term -> Type -> Term
+--stopApp tm tp = TmApp tm (TmVar " ___STOP___ " (TpVar " ___STOP___ ") ScopeGlobal) (TpVar " ___STOP___ ") tp
 
 term2fgg :: Term -> RuleM
-term2fgg (TmApp tm (TmVar " ___STOP___ " (TpVar " ___STOP___ ") ScopeGlobal) (TpVar " ___STOP___ ") tp) =
+--term2fgg (TmApp tm (TmVar " ___STOP___ " (TpVar " ___STOP___ ") ScopeGlobal) (TpVar " ___STOP___ ") tp) =
+term2fgg (TmFGGBreak tm) =
   addExts (getCtorArgs tm)
 term2fgg (TmVar x tp local) =
   case local of
