@@ -83,11 +83,13 @@ tmapp2fgg (TmApp tm1 tm2 tp2 tp) =
     addRule' (show (TmApp tm1 tm2 tp2 tp)) ns es xs +>
     addFactor fac (getPairWeights tp2 tp)
 
+-- Eta-expands a constructor and adds all necessary rules
 ctorEtaRule :: Ctor -> Var -> RuleM
 ctorEtaRule (Ctor x as) y =
   let eta = (ctorAddLams x (ctorGetArgs x as) (TpVar y)) in
   addRule' x [TpVar y] [Edge [0] (show eta)] [0]
 
+-- Adds the lambda rules for an eta-expanded constructor
 ctorLamRules :: Ctor -> Var -> RuleM
 ctorLamRules (Ctor x as) y = fst $ h as' where
   as' = ctorGetArgs x as
@@ -113,9 +115,15 @@ ctorRules (Ctor x as) y cs =
     ctorLamRules (Ctor x as) y +>
     addFactor fac (getCtorWeights ix (length cs))
 
+ctorsRules :: [Ctor] -> Var -> RuleM
+ctorsRules cs y = foldr (\ c r -> r +> ctorRules c y cs) returnRule cs
+
+ctorsFactors :: [Ctor] -> Var -> RuleM
+ctorsFactors cs y = addFactor (typeFactorName (TpVar y)) (getCtorEqWeights (length cs))
+
 -- Add a rule for this particular case in a case-of statement
-case2fgg :: [(Var, Type)] -> Term -> Case -> RuleM
-case2fgg xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
+caseRule :: [(Var, Type)] -> Term -> Case -> RuleM
+caseRule xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
   bindExts True as (term2fgg xtm) +>= \ xs_xtm ->
   let fac = ctorFactorName x (ctorGetArgs x (map snd as))
       (ns, [[ictm, ixtm], ixs_as, ixs_ctm, ixs_xtm]) =
@@ -125,8 +133,8 @@ case2fgg xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
             Edge (ixs_as ++ [ictm]) fac]
       xs = ixtm : ixs_ctm ++ ixs_xtm in
     addRule' (show (TmCase ctm cs y tp)) ns es xs
-case2fgg xs _ (Case x as xtm) =
-  error "case2fgg expected a TmCase, but got something else"
+caseRule xs _ (Case x as xtm) =
+  error "caseRule expected a TmCase, but got something else"
 
 -- Add a rule for a lambda term
 lamRule :: Bool -> Var -> Type -> Term -> Type -> RuleM -> RuleM
@@ -151,7 +159,7 @@ term2fgg (TmApp tm1 tm2 tp2 tp) =
   tmapp2fgg (TmApp tm1 tm2 tp2 tp)
 term2fgg (TmCase tm cs y tp) =
   term2fgg tm +>= \ xs ->
-  foldr (\ c r -> case2fgg xs (TmCase tm cs y tp) c +> r) returnRule cs
+  foldr (\ c r -> caseRule xs (TmCase tm cs y tp) c +> r) returnRule cs
 term2fgg (TmSamp d y) =
   addFactor (show $ TmSamp d y) (ThisWeight (WeightsData 1)) +> -- TODO
   returnRule -- TODO
@@ -163,12 +171,13 @@ prog2fgg (ProgFun x tp tm ps) =
   let (rm, ds) = prog2fgg ps in
     ((rm +> term2fgg tm +> addRule' x [tp] [Edge [0] (show tm)] [0]), ds)
 prog2fgg (ProgData y cs ps) =
-  let (rm, ds) = prog2fgg ps in
-  ((rm +> addFactor (typeFactorName (TpVar y)) (getCtorEqWeights (length cs)) +>
-      foldr (\ c r -> r +> ctorRules c y cs) returnRule cs),
-   ((y, map (\ (Ctor x tps) -> show (ctorAddArgs x (ctorGetArgs x tps) (TpVar y))) cs) : ds))
+  let (rm, ds) = prog2fgg ps
+      new_ds = map (\ (Ctor x tps) -> ctorAddArgs x (ctorGetArgs x tps) (TpVar y)) cs in
+  (rm +> ctorsFactors cs y +> ctorsRules cs y, (y, map show new_ds) : ds)
 
 -- TODO: Add values for arrow-type domains (e.g. Bool -> Maybe)
+-- (Will likely require some ordering of which to add first, so
+-- that Bool -> Maybe is already there for Int -> Bool -> Maybe)
 
 -- Converts an elaborated program into an FGG
 file2fgg :: Progs -> FGG_JSON
