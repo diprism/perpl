@@ -1,6 +1,13 @@
 module Util where
 import Exprs
 
+-- Creates a matrix of all possible combinations of two lists
+kronecker :: [a] -> [b] -> [[(a, b)]]
+kronecker as bs = map (\ a -> map (\ b -> (a, b)) bs) as
+
+weightsRow :: Num n => Int {- Index -} -> Int {- Length -} -> [n]
+weightsRow i l = map (\ j -> if j == i then 1 else 0) [0..l-1]
+
 -- Argument-reordered version of maybe
 maybe2 :: Maybe a -> b -> (a -> b) -> b
 maybe2 m n j = maybe n j m
@@ -56,6 +63,11 @@ splitApps tm = splitAppsh tm (error "splitApps expects a TmApp")
 -- is partially applied.)
 ctorEtaName :: Var -> Int -> Var
 ctorEtaName x i = show i ++ x
+
+ctorGetArgs :: Var -> [Type] -> [(Var, Type)]
+ctorGetArgs x tps =
+  zip (map (ctorEtaName x) [0..length tps - 1]) tps
+
 
 -- Converts Cons -> (\ 0Cons. \ 1Cons. Cons 0Cons 1Cons)
 ctorEtaExpand :: Var -> Type -> Term
