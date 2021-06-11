@@ -1,8 +1,8 @@
 module FGG where
 import qualified Data.Map as Map
 import Data.List
-import Exprs
 import Ctxt
+import Util
 
 {- ====== JSON Functions ====== -}
 
@@ -30,6 +30,8 @@ instance Show JSON where
 type Domain = [String]
 type Value = String
 type FType = [Value]
+data PreWeight = ThisWeight Weights | PairWeight (String, String)
+type Factor = (String, PreWeight)
 type Prob = Double
 data WeightsH x = WeightsData x | WeightsDims (WeightsH [x])
 type Weights = WeightsH Prob
@@ -46,6 +48,12 @@ data FGG_JSON = FGG_JSON {
   start :: String,
   rules :: [Rule]
 }
+
+concatFactors :: [Factor] -> [Factor] -> [Factor]
+concatFactors [] gs = gs
+concatFactors ((x, w) : fs) gs =
+  let hs = concatFactors fs gs in
+    maybe ((x, w) : hs) (\ _ -> hs) (lookup x gs)
 
 weights_to_json_h :: WeightsH x -> (x -> JSON) -> JSON
 weights_to_json_h (WeightsData p) f = f p
@@ -117,30 +125,40 @@ instance Show FGG_JSON where
 emptyFGG :: String -> FGG_JSON
 emptyFGG s = FGG_JSON Map.empty Map.empty Map.empty s []
 
+preWeightToWeight :: Map.Map String FType -> PreWeight -> Weights
+preWeightToWeight ds (ThisWeight w) = w
+preWeightToWeight ds (PairWeight (tp1, tp2)) =
+  let Just vs1 = Map.lookup tp1 ds
+      Just vs2 = Map.lookup tp2 ds in
+--      Just vs12 = Map.lookup (tp1 ++ " -> " ++ tp2) ds in
+    -- |vs1| x |vs2| x (|vs1|*|vs2|)
+    WeightsDims $ WeightsDims $ WeightsDims $ WeightsData $
+      map (map (\ v12 -> concat $ map (map $ \ v12' -> if v12 == v12' then 1 else 0) (kronecker vs1 vs2))) (kronecker vs1 vs2)
+
 -- Construct an FGG from a list of rules, a start symbol,
 -- and a function that gives the possible values of each type
-rulesToFGG :: (Var -> [Var]) -> Var -> [Rule] -> FGG_JSON
-rulesToFGG getDomValues start rs =
+rulesToFGG :: (String -> [String]) -> String -> [Rule] -> [Factor] -> FGG_JSON
+rulesToFGG doms start rs facs =
   let rs' = nub rs
       ds  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
-                     foldr (\ n -> Map.insert n (getDomValues n)) m ns) Map.empty rs'
+                     foldr (\ n -> Map.insert n (doms n)) m ns) Map.empty rs'
       nts = foldr (\ (Rule lhs (HGF ns _ xs)) ->
                      Map.insert lhs (map (\ i -> ns !! i) xs)) Map.empty rs'
+      facs' = map (\ (x, w) -> (x, preWeightToWeight ds w)) facs
+      getFac = \ l -> maybe (error ("In rulesToFGG, no factor named " ++ l ++ " (factor names: " ++ show (map fst facs) ++ ", nts:" ++ show (Map.keys nts) ++ ")"))
+                        id $ lookup l facs'
       fs  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
                      foldr (\ (Edge atts l) -> let lnodes = map ((!!) ns) atts in
                                if Map.member l nts then id else
-                                 Map.insert l (lnodes,
-                                               getWeightsUniform
-                                                 (length . getDomValues)
-                                                 lnodes))
+                                 Map.insert l (lnodes, getFac l))
                            m es)
                   Map.empty rs' in
     FGG_JSON ds fs nts start rs'
 
 -- Make a uniformly-distributed weight matrix (TODO: replace)
-getWeightsUniform :: (Var -> Int) -> Domain -> Weights
+getWeightsUniform :: (String -> Int) -> Domain -> Weights
 getWeightsUniform g tps = h g (reverse tps) (WeightsData 1) where
-  h :: (Var -> Int) -> Domain -> WeightsH x -> WeightsH x
+  h :: (String -> Int) -> Domain -> WeightsH x -> WeightsH x
   h g [] ws = ws
   h g (tp : tps) ws =
     let num_values = g tp in
