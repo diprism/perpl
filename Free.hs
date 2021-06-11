@@ -25,17 +25,7 @@ freeVars (UsVar x) = Map.singleton x 1
 freeVars (UsLam x tp tm) = Map.delete x $ freeVars tm
 freeVars (UsApp tm tm') = Map.unionWith (+) (freeVars tm) (freeVars tm')
 freeVars (UsCase tm cs) = foldr (Map.unionWith max . freeVarsCase) (freeVars tm) cs
-freeVars (UsSamp d y) = Map.empty -- TODO: should this return a list of y's ctors?
-
-{-freeVars :: Term -> Map.Map Var Int
-freeVars (TmVar x tp) = Map.singleton x 1
-freeVars (TmLam x tp tm tp') = Map.delete x $ freeVars tm
-freeVars (TmApp tm tm' tp tp') = Map.unionWith (+) (freeVars tm) (freeVars tm')
-freeVars (TmCase tm cs y tp) = foldr (Map.unionWith max . freeVarsCase) (freeVars tm) cs
-freeVars (TmSamp d y) = Map.empty -- TODO: should this return a list of y's ctors?
-
-freeVarsCase :: Case -> Map.Map Var Int
-freeVarsCase (Case c xs tm) = foldr Map.delete (freeVars tm) xs-}
+freeVars (UsSamp d y) = Map.empty
 
 freeVarsCase :: CaseUs -> Map.Map Var Int
 freeVarsCase (CaseUs c xs tm) = foldr Map.delete (freeVars tm) xs
