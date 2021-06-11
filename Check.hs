@@ -30,9 +30,7 @@ checkTerm :: Ctxt -> UsTm -> Either String (Term, Type)
 
 checkTerm g (UsVar x) = maybe2 (ctxtLookupTerm g x)
   (err ("Variable '" ++ x ++ "' not in scope"))
-  $ \ (sc, tp) -> case sc of
-    ScopeCtor -> return (ctorEtaExpand x tp, tp)
-    _ -> return (TmVar x tp sc, tp)
+  $ \ (sc, tp) -> return (TmVar x tp sc, tp)
 
 checkTerm g (UsLam x tp tm) =
   ifErr (not $ checkAffLin x tm)
