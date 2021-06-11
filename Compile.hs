@@ -55,14 +55,16 @@ var2fgg :: Var -> Type -> RuleM
 var2fgg x tp =
   let fac = typeFactorName tp in
   addRule' x [tp, tp] [Edge [0, 1] fac] [0, 1]
-  -- +> maybe returnRule (addFactor fac) (getTypeWeights tp)
 
 
 -- Bind a list of external nodes, and add rules for them
 bindExts :: Bool -> [(Var, Type)] -> RuleM -> RuleM
 bindExts addVarRules xs' (RuleM rs xs fs) =
-  let keep = not . flip elem (map fst xs') . fst in
-  foldr (\ (x, tp) r -> var2fgg x tp +> r) (RuleM rs (filter keep xs) fs) xs'
+  let keep = not . flip elem (map fst xs') . fst
+      rm = RuleM rs (filter keep xs) fs in
+    if addVarRules
+      then foldr (\ (x, tp) r -> var2fgg x tp +> r) rm xs'
+      else rm
 
 -- Bind an external node, and add a rule for it
 bindExt :: Bool -> Var -> Type -> RuleM -> RuleM
@@ -169,7 +171,7 @@ prog2fgg :: Progs -> (RuleM, [(Var, Domain)])
 prog2fgg (ProgExec tm) = (term2fgg tm, [])
 prog2fgg (ProgFun x tp tm ps) =
   let (rm, ds) = prog2fgg ps in
-    ((rm +> term2fgg tm +> addRule' x [tp] [Edge [0] (show tm)] [0]), ds)
+    (rm +> term2fgg tm +> addRule' x [tp] [Edge [0] (show tm)] [0], ds)
 prog2fgg (ProgData y cs ps) =
   let (rm, ds) = prog2fgg ps
       new_ds = map (\ (Ctor x tps) -> ctorAddArgs x (ctorGetArgs x tps) (TpVar y)) cs in
