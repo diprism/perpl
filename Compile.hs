@@ -2,50 +2,8 @@ module Compile where
 import Data.List
 import Exprs
 import FGG
-import Check
 import Util
-
--- RuleM monad-like datatype and funcions
-type External = (Var, Type)
-data RuleM = RuleM [Rule] [External] [Factor]
-
--- RuleM instances of >>= and >= (since not
--- technically a monad, need to pick new names)
-infixl 1 +>=, +>
-(+>=) :: RuleM -> ([External] -> RuleM) -> RuleM
-RuleM rs xs fs +>= g =
-  let RuleM rs' xs' fs' = g xs in
-    RuleM (rs ++ rs') (xs ++ xs') (concatFactors fs fs')
-
-(+>) :: RuleM -> RuleM -> RuleM
-r1 +> r2 = r1 +>= \ _ -> r2
-
--- Add a list of external nodes
-addExts :: [(Var, Type)] -> RuleM
-addExts xs = RuleM [] xs []
-
--- Add a single external node
-addExt :: Var -> Type -> RuleM
-addExt x tp = addExts [(x, tp)]
-
--- Add a list of rules
-addRules :: [Rule] -> RuleM
-addRules rs = RuleM rs [] []
-
--- Add a single rule
-addRule :: Rule -> RuleM
-addRule r = addRules [r]
-
--- Add a rule from the given components
-addRule' :: String -> [Type] -> [Edge] -> [Int] -> RuleM
-addRule' lhs ns es xs = addRule $ Rule lhs $ HGF (map show ns) es xs
-
-addFactor :: Var -> PreWeight -> RuleM
-addFactor x w = RuleM [] [] [(x, w)]
-
--- Do nothing new
-returnRule :: RuleM
-returnRule = RuleM [] [] []
+import RuleM
 
 -- Naming convention for testing equality two terms of the same type
 typeFactorName :: Type -> String
@@ -59,6 +17,38 @@ pairFactorName tp1 tp2 = "v=(" ++ show tp1 ++ "," ++ show tp2 ++ ")"
 ctorFactorName :: Var -> [(Var, Type)] -> String
 ctorFactorName x as = "v=" ++ show (ctorAddArgs x as (TpVar "irrelevant"))
 
+-- Establishes naming convention for eta-expanding a constructor.
+-- So Cons h t -> (\ 0Cons. \ 1Cons. Cons 0Cons 1Cons) h t.
+-- This is necessary so that the FGG can use one rule for each
+-- constructor, and not for each usage of it in the code.
+-- It also fixes the issue of partially-applied constructors.
+ctorEtaName :: Var -> Int -> Var
+ctorEtaName x i = show i ++ x
+
+-- Returns the names of the args for a constructor
+ctorGetArgs :: Var -> [Type] -> [(Var, Type)]
+ctorGetArgs x tps =
+  zip (map (ctorEtaName x) [0..length tps - 1]) tps
+
+-- Turns a constructor into one with all its args applied
+ctorAddArgs :: Var -> [(Var, Type)] -> Type -> Term
+ctorAddArgs x as tp = h as tp
+  where
+    h [] tp = TmVar x tp ScopeCtor
+    h ((a, atp) : as) tp =
+      let tm = h as (TpArr atp tp) in
+        TmApp tm (TmVar a atp ScopeLocal) atp tp
+
+-- Eta-expands a constructor
+ctorAddLams :: Var -> [(Var, Type)] -> Type -> Term
+ctorAddLams x as tp =
+  foldr (\ (a, atp) tm -> TmLam a atp tm (getType tm))
+    (ctorAddArgs x as tp) as
+
+-- Converts Cons -> (\ 0Cons. \ 1Cons. Cons 0Cons 1Cons)
+ctorEtaExpand :: Var -> Type -> Term
+ctorEtaExpand x = uncurry (ctorAddLams x . ctorGetArgs x) . splitArrows
+
 
 -- Local var rule
 var2fgg :: Var -> Type -> RuleM
@@ -67,9 +57,6 @@ var2fgg x tp =
   addRule' x [tp, tp] [Edge [0, 1] fac] [0, 1]
   -- +> maybe returnRule (addFactor fac) (getTypeWeights tp)
 
--- Extract rules from a RuleM
-getRules :: RuleM -> [Rule]
-getRules (RuleM rs xs fs) = rs
 
 -- Bind a list of external nodes, and add rules for them
 bindExts :: Bool -> [(Var, Type)] -> RuleM -> RuleM
@@ -80,19 +67,6 @@ bindExts addVarRules xs' (RuleM rs xs fs) =
 -- Bind an external node, and add a rule for it
 bindExt :: Bool -> Var -> Type -> RuleM -> RuleM
 bindExt addVarRule x tp = bindExts addVarRule [(x, tp)]
-
-getPairWeights :: Type -> Type -> PreWeight
-getPairWeights tp1 tp2 = PairWeight ((show tp1), (show tp2))
-
-getCtorWeights :: Int {- ctor index -} -> Int {- num of ctors -} -> PreWeight
-getCtorWeights ci cs = ThisWeight $ WeightsDims $ WeightsData $ weightsRow ci cs
-
--- Identity matrix
-getCtorEqWeights :: Int {- num of ctors -} -> PreWeight
-getCtorEqWeights cs =
-  let is = [0..cs - 1] in
-    ThisWeight $ fmap (\ (i, j) -> if i == j then 1 else 0) $
-      WeightsDims $ WeightsDims $ WeightsData $ kronecker is is
 
 -- Add rule for a term application
 tmapp2fgg :: Term -> RuleM
@@ -121,7 +95,7 @@ ctorLamRules (Ctor x as) y = fst $ h as' where
   h ((a, tp) : as) =
     let (rm, tm) = h as
         tp' = joinArrows (map snd as) (TpVar y) in
-      (lam2fgg False a tp tm tp' rm, TmLam a tp tm tp')
+      (lamRule False a tp tm tp' rm, TmLam a tp tm tp')
 
 -- Add rule for a constructor
 ctorRules :: Ctor -> Var -> [Ctor] -> RuleM
@@ -139,7 +113,6 @@ ctorRules (Ctor x as) y cs =
     ctorLamRules (Ctor x as) y +>
     addFactor fac (getCtorWeights ix (length cs))
 
-
 -- Add a rule for this particular case in a case-of statement
 case2fgg :: [(Var, Type)] -> Term -> Case -> RuleM
 case2fgg xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
@@ -155,8 +128,9 @@ case2fgg xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
 case2fgg xs _ (Case x as xtm) =
   error "case2fgg expected a TmCase, but got something else"
 
-lam2fgg :: Bool -> Var -> Type -> Term -> Type -> RuleM -> RuleM
-lam2fgg addVarRule x tp tm tp' rm =
+-- Add a rule for a lambda term
+lamRule :: Bool -> Var -> Type -> Term -> Type -> RuleM -> RuleM
+lamRule addVarRule x tp tm tp' rm =
   bindExt addVarRule x tp rm +>= \ xs' ->
   let (ns, [[itp, itp', iarr], ixs']) = combine [[tp, tp', TpArr tp tp'], map snd xs']
       es = [Edge ([itp, itp'] ++ ixs') (show tm),
@@ -172,7 +146,7 @@ term2fgg (TmVar x tp local) =
     ScopeLocal -> addExt x tp
     ScopeCtor -> returnRule
 term2fgg (TmLam x tp tm tp') =
-  lam2fgg True x tp tm tp' (term2fgg tm)
+  lamRule True x tp tm tp' (term2fgg tm)
 term2fgg (TmApp tm1 tm2 tp2 tp) =
   tmapp2fgg (TmApp tm1 tm2 tp2 tp)
 term2fgg (TmCase tm cs y tp) =
@@ -181,12 +155,6 @@ term2fgg (TmCase tm cs y tp) =
 term2fgg (TmSamp d y) =
   addFactor (show $ TmSamp d y) (ThisWeight (WeightsData 1)) +> -- TODO
   returnRule -- TODO
-
--- Extracts the start term at the end of a program
-getStartTerm :: Progs -> Term
-getStartTerm (ProgExec tm) = tm
-getStartTerm (ProgFun x tp tm ps) = getStartTerm ps
-getStartTerm (ProgData y cs ps) = getStartTerm ps
 
 -- Goes through a program and adds all the rules for it
 prog2fgg :: Progs -> (RuleM, [(Var, Domain)])
@@ -198,7 +166,7 @@ prog2fgg (ProgData y cs ps) =
   let (rm, ds) = prog2fgg ps in
   ((rm +> addFactor (typeFactorName (TpVar y)) (getCtorEqWeights (length cs)) +>
       foldr (\ c r -> r +> ctorRules c y cs) returnRule cs),
-   ((y, map (\ (Ctor x tps) -> show (ctorAddArgs x (ctorGetArgs x tps) (TpVar y)) {- TODO: does this hack really work? -}) cs) : ds))
+   ((y, map (\ (Ctor x tps) -> show (ctorAddArgs x (ctorGetArgs x tps) (TpVar y))) cs) : ds))
 
 -- TODO: Add values for arrow-type domains (e.g. Bool -> Maybe)
 

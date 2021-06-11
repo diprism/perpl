@@ -36,6 +36,12 @@ getType (TmApp tm1 tm2 tp2 tp) = tp
 getType (TmCase tm cs y tp) = tp
 getType (TmSamp d y) = TpVar y
 
+-- Extracts the start term at the end of a program
+getStartTerm :: Progs -> Term
+getStartTerm (ProgExec tm) = tm
+getStartTerm (ProgFun x tp tm ps) = getStartTerm ps
+getStartTerm (ProgData y cs ps) = getStartTerm ps
+
 -- Splits tp1 -> tp2 -> ... -> tpn into ([tp1, tp2, ...], tpn)
 splitArrows :: Type -> ([Type], Type)
 splitArrows (TpArr tp1 tp2) = let (tps, end) = splitArrows tp2 in (tp1 : tps, end)
@@ -54,43 +60,3 @@ splitApps tm = splitAppsh tm (error "splitApps expects a TmApp")
       let (hd, as) = splitAppsh tm1 tp in
         (hd, as ++ [(tm2, tp2)])
     splitAppsh tm tp = ((tm, tp), [])
-
--- Establishes naming convention for eta-expanding a constructor.
--- So Cons h t -> (\ 0Cons. \ 1Cons. Cons 0Cons 1Cons) h t.
--- This is necessary so that the FGG can use one rule for each
--- constructor, and not for each usage of it in the code.
--- (Though if you did the latter approach, you could avoid having
--- to eta-expand in most cases, only doing it when the constructor
--- is partially applied.)
-ctorEtaName :: Var -> Int -> Var
-ctorEtaName x i = show i ++ x
-
--- Returns the names of the args for a constructor
-ctorGetArgs :: Var -> [Type] -> [(Var, Type)]
-ctorGetArgs x tps =
-  zip (map (ctorEtaName x) [0..length tps - 1]) tps
-
--- splits (Cons : A -> List -> List) into ([(Cons0, A), (Cons1, List)], List)
-ctorGetArgs' :: Var -> Type -> ([(Var, Type)], Type)
-ctorGetArgs' x tp =
-  let (tps, end) = splitArrows tp in
-    (ctorGetArgs x tps, end)
-
--- Turns a constructor into one with all its args applied
-ctorAddArgs :: Var -> [(Var, Type)] -> Type -> Term
-ctorAddArgs x as tp = h as tp
-  where
-    h [] tp = TmVar x tp ScopeCtor
-    h ((a, atp) : as) tp =
-      let tm = h as (TpArr atp tp) in
-        TmApp tm (TmVar a atp ScopeLocal) atp tp
-
--- Eta-expands a constructor
-ctorAddLams :: Var -> [(Var, Type)] -> Type -> Term
-ctorAddLams x as tp =
-  foldr (\ (a, atp) tm -> TmLam a atp tm (getType tm))
-    (ctorAddArgs x as tp) as
-
--- Converts Cons -> (\ 0Cons. \ 1Cons. Cons 0Cons 1Cons)
-ctorEtaExpand :: Var -> Type -> Term
-ctorEtaExpand x = uncurry (ctorAddLams x . ctorGetArgs x) . splitArrows
