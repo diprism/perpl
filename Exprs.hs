@@ -36,7 +36,6 @@ data Term =
   | TmApp Term Term Type {- -> -} Type
   | TmCase Term [Case] Var Type
   | TmSamp Dist Var
-  | TmCtor Var [(Var, Type)]
 
 
 data Type =
@@ -67,7 +66,6 @@ showTermParens :: Term -> ShowHist -> Bool
 showTermParens (TmLam _ _ _ _)  ShowAppL = True
 showTermParens (TmLam _ _ _ _)  ShowAppR = True
 showTermParens (TmApp _ _ _ _)  ShowAppR = True
-showTermParens (TmCtor _ _)     ShowAppR = True
 showTermParens (TmCase _ _ _ _) ShowAppL = True
 showTermParens (TmCase _ _ _ _) ShowAppR = True
 showTermParens (TmCase _ _ _ _) ShowCase = True
@@ -88,7 +86,6 @@ showTermh (TmLam x tp tm _) = "\\ " ++ x ++ " : " ++ show tp ++ ". " ++ showTerm
 showTermh (TmApp tm1 tm2 _ _) = showTerm tm1 ShowAppL ++ " " ++ showTerm tm2 ShowAppR
 showTermh (TmCase tm cs _ _) = "case " ++ showTerm tm ShowCase ++ " of " ++ showCasesCtors cs
 showTermh (TmSamp d y) = "sample " ++ show d ++ " " ++ y
-showTermh (TmCtor x as) = foldl (\ tm (a, tp) -> tm ++ " " ++ a) x as
 
 -- Type show helper (ignoring parentheses)
 showTypeh :: Type -> String

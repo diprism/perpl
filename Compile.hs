@@ -57,7 +57,7 @@ pairFactorName tp1 tp2 = "v=(" ++ show tp1 ++ "," ++ show tp2 ++ ")"
 
 -- Naming convention for constructor factor
 ctorFactorName :: Var -> [(Var, Type)] -> String
-ctorFactorName x as = "v=" ++ show (TmCtor x as)
+ctorFactorName x as = "v=" ++ show (ctorAddArgs x as (TpVar "irrelevant"))
 
 
 -- Local var rule
@@ -117,20 +117,20 @@ ctorEtaRule (Ctor x as) y =
 ctorLamRules :: Ctor -> Var -> RuleM
 ctorLamRules (Ctor x as) y = fst $ h as' where
   as' = ctorGetArgs x as
-  h [] = (returnRule, TmCtor x as')
+  h [] = (returnRule, ctorAddArgs x as' (TpVar y))
   h ((a, tp) : as) =
     let (rm, tm) = h as
         tp' = joinArrows (map snd as) (TpVar y) in
       (lam2fgg False a tp tm tp' rm, TmLam a tp tm tp')
 
 -- Add rule for a constructor
-ctor2fgg :: Ctor -> Var -> [Ctor] -> RuleM
-ctor2fgg (Ctor x as) y cs =
+ctorRules :: Ctor -> Var -> [Ctor] -> RuleM
+ctorRules (Ctor x as) y cs =
   let ix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0
       as' = map (ctorEtaName x) [0..length as - 1]
       (ns, [ias, [iy]]) = combine [as, [TpVar y]]
       ias' = zip ias as'
-      tm = TmCtor x (zip as' as)
+      tm = ctorAddArgs x (zip as' as) (TpVar y)
       fac = ctorFactorName x (zip as' as)
       es = [Edge (ias ++ [iy]) fac]
       xs = ias ++ [iy] in
@@ -166,8 +166,6 @@ lam2fgg addVarRule x tp tm tp' rm =
 
 -- Traverse a term and add all rules for subexpressions
 term2fgg :: Term -> RuleM
---term2fgg (TmCtor x as) =
---  addExts (reverse as)
 term2fgg (TmVar x tp local) =
   case local of
     ScopeGlobal -> returnRule
@@ -177,9 +175,6 @@ term2fgg (TmLam x tp tm tp') =
   lam2fgg True x tp tm tp' (term2fgg tm)
 term2fgg (TmApp tm1 tm2 tp2 tp) =
   tmapp2fgg (TmApp tm1 tm2 tp2 tp)
---  case splitApps (TmApp tm1 tm2 tp2 tp) of
---    (((TmVar x xtp ScopeCtor), TpVar y), as) -> ctor2fgg x xtp y as
---    _ -> tmapp2fgg (TmApp tm1 tm2 tp2 tp)
 term2fgg (TmCase tm cs y tp) =
   term2fgg tm +>= \ xs ->
   foldr (\ c r -> case2fgg xs (TmCase tm cs y tp) c +> r) returnRule cs
@@ -202,8 +197,8 @@ prog2fgg (ProgFun x tp tm ps) =
 prog2fgg (ProgData y cs ps) =
   let (rm, ds) = prog2fgg ps in
   ((rm +> addFactor (typeFactorName (TpVar y)) (getCtorEqWeights (length cs)) +>
-      foldr (\ c r -> r +> ctor2fgg c y cs) returnRule cs),
-   ((y, map (\ (Ctor x tps) -> show (TmCtor x (ctorGetArgs x tps)) {- TODO: does this hack really work? -}) cs) : ds))
+      foldr (\ c r -> r +> ctorRules c y cs) returnRule cs),
+   ((y, map (\ (Ctor x tps) -> show (ctorAddArgs x (ctorGetArgs x tps) (TpVar y)) {- TODO: does this hack really work? -}) cs) : ds))
 
 -- TODO: Add values for arrow-type domains (e.g. Bool -> Maybe)
 
