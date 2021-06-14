@@ -88,6 +88,7 @@ tmapp2fgg (TmApp tm1 tm2 tp2 tp) =
 
 -- Eta-expands a constructor and adds all necessary rules
 ctorEtaRule :: Ctor -> Var -> RuleM
+ctorEtaRule (Ctor x []) y = returnRule -- if no args, no need to eta-expand
 ctorEtaRule (Ctor x as) y =
   let eta = (ctorAddLams x (ctorGetArgs x as) (TpVar y)) in
   addRule' (TmVar x (joinArrows as (TpVar y)) ScopeCtor) [TpVar y] [Edge [0] (show eta)] [0]
@@ -174,10 +175,6 @@ prog2fgg (ProgFun x tp tm ps) =
   prog2fgg ps +> term2fgg tm +> addRule' (TmVar x tp ScopeGlobal) [tp] [Edge [0] (show tm)] [0]
 prog2fgg (ProgData y cs ps) =
   prog2fgg ps +> ctorsFactors cs y +> ctorsRules cs y
-
--- TODO: Add values for arrow-type domains (e.g. Bool -> Maybe)
--- (Will likely require some ordering of which to add first, so
--- that Bool -> Maybe is already there for Int -> Bool -> Maybe)
 
 -- TODO: External node ordering (that is, make sure v, v1, v2,
 -- etc... are connected correctly)
