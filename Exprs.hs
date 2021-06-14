@@ -4,7 +4,6 @@ data UsProgs =
     UsProgExec UsTm
   | UsProgFun String Type UsTm UsProgs
   | UsProgData String [Ctor] UsProgs
-  deriving Show
 
 data Progs =
     ProgExec Term
@@ -26,7 +25,6 @@ data UsTm = -- User Term
   | UsApp UsTm UsTm
   | UsCase UsTm [CaseUs]
   | UsSamp Dist Var
-  deriving Show
 
 data VarScope = ScopeLocal | ScopeGlobal | ScopeCtor
 
@@ -36,6 +34,7 @@ data Term =
   | TmApp Term Term Type {- -> -} Type
   | TmCase Term [Case] Var Type
   | TmSamp Dist Var
+  | TmCtor Var [(Term, Type)] Var
 
 
 data Type =
@@ -44,12 +43,28 @@ data Type =
 --  | TpMeas Var
   deriving Eq
 
---type Arg = (Var, Type)
 data CaseUs = CaseUs Var [Var] UsTm
-  deriving Show
 
 data Case = Case Var [(Var, Type)] Term
 
+
+{- Convert back from elaborated terms to user terms -}
+
+toUsTm :: Term -> UsTm
+toUsTm (TmVar x _ _) = UsVar x
+toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
+toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
+toUsTm (TmCase tm cs _ _) = UsCase (toUsTm tm) (map toCaseUs cs)
+toUsTm (TmSamp d y) = UsSamp d y
+toUsTm (TmCtor x as _) = foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar x) as
+
+toCaseUs :: Case -> CaseUs
+toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)
+
+toUsProgs :: Progs -> UsProgs
+toUsProgs (ProgExec tm) = UsProgExec (toUsTm tm)
+toUsProgs (ProgFun x tp tm ps) = UsProgFun x tp (toUsTm tm) (toUsProgs ps)
+toUsProgs (ProgData y cs ps) = UsProgData y cs (toUsProgs ps)
 
 
 {- Show Instances -}
@@ -62,16 +77,16 @@ data ShowHist = ShowAppL | ShowAppR | ShowCase | ShowArrL | ShowTypeArg | ShowNo
   deriving Eq
 
 -- Should we add parens to this term, given its parent term?
-showTermParens :: Term -> ShowHist -> Bool
-showTermParens (TmLam _ _ _ _)  ShowAppL = True
-showTermParens (TmLam _ _ _ _)  ShowAppR = True
-showTermParens (TmApp _ _ _ _)  ShowAppR = True
-showTermParens (TmCase _ _ _ _) ShowAppL = True
-showTermParens (TmCase _ _ _ _) ShowAppR = True
-showTermParens (TmCase _ _ _ _) ShowCase = True
-showTermParens (TmSamp _ _)     ShowAppL = True
-showTermParens (TmSamp _ _)     ShowAppR = True
-showTermParens _                _        = False
+showTermParens :: UsTm -> ShowHist -> Bool
+showTermParens (UsLam _ _ _) ShowAppL = True
+showTermParens (UsLam _ _ _) ShowAppR = True
+showTermParens (UsApp _ _  ) ShowAppR = True
+showTermParens (UsCase _ _ ) ShowAppL = True
+showTermParens (UsCase _ _ ) ShowAppR = True
+showTermParens (UsCase _ _ ) ShowCase = True
+showTermParens (UsSamp _ _ ) ShowAppL = True
+showTermParens (UsSamp _ _ ) ShowAppR = True
+showTermParens _             _        = False
 
 -- Should we add parens to this type, given its parent type?
 showTypeParens :: Type -> ShowHist -> Bool
@@ -80,12 +95,12 @@ showTypeParens (TpArr _ _) ShowTypeArg = True
 showTypeParens _ _ = False
 
 -- Term show helper (ignoring parentheses)
-showTermh :: Term -> String
-showTermh (TmVar x _ _) = x
-showTermh (TmLam x tp tm _) = "\\ " ++ x ++ " : " ++ show tp ++ ". " ++ showTerm tm ShowNone
-showTermh (TmApp tm1 tm2 _ _) = showTerm tm1 ShowAppL ++ " " ++ showTerm tm2 ShowAppR
-showTermh (TmCase tm cs _ _) = "case " ++ showTerm tm ShowCase ++ " of " ++ showCasesCtors cs
-showTermh (TmSamp d y) = "sample " ++ show d ++ " " ++ y
+showTermh :: UsTm -> String
+showTermh (UsVar x) = x
+showTermh (UsLam x tp tm) = "\\ " ++ x ++ " : " ++ show tp ++ ". " ++ showTerm tm ShowNone
+showTermh (UsApp tm1 tm2) = showTerm tm1 ShowAppL ++ " " ++ showTerm tm2 ShowAppR
+showTermh (UsCase tm cs) = "case " ++ showTerm tm ShowCase ++ " of " ++ showCasesCtors cs
+showTermh (UsSamp d y) = "sample " ++ show d ++ " " ++ y
 
 -- Type show helper (ignoring parentheses)
 showTypeh :: Type -> String
@@ -93,7 +108,7 @@ showTypeh (TpVar y) = y
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
 
 -- Show a term, given its parent for parentheses
-showTerm :: Term -> ShowHist -> String
+showTerm :: UsTm -> ShowHist -> String
 showTerm tm h = parensIf (showTermParens tm h) (showTermh tm)
 
 -- Show a type, given its parent for parentheses
@@ -112,19 +127,25 @@ instance Show Dist where
   show DistAmb = "amb"
   show DistUni = "uniform"
 
+instance Show CaseUs where
+  show (CaseUs x as tm) = foldl (\ x a -> x ++ " " ++ a) x as ++ " -> " ++ show tm
 instance Show Case where
-  show (Case x as tm) = foldl (\ x (a, tp) -> x ++ " " ++ a) x as ++ " -> " ++ show tm
+  show = show . toCaseUs
 
 instance Show Ctor where
   show (Ctor x as) = foldl (\ x a -> x ++ " " ++ showType a ShowTypeArg) x as
 
-instance Show Term where
+instance Show UsTm where
   show = flip showTerm ShowNone
+instance Show Term where
+  show = show . toUsTm
 
 instance Show Type where
   show = flip showType ShowNone
 
+instance Show UsProgs where
+  show (UsProgExec tm) = "exec " ++ show tm
+  show (UsProgFun x tp tm ps) = "fun " ++ x ++ " : " ++ show tp ++ " = " ++ show tm ++ "\n\n" ++ show ps
+  show (UsProgData y cs ps) = "data " ++ y ++ " = " ++ showCasesCtors cs ++ "\n\n" ++ show ps
 instance Show Progs where
-  show (ProgExec tm) = "exec " ++ show tm
-  show (ProgFun x tp tm ps) = "fun " ++ x ++ " : " ++ show tp ++ " = " ++ show tm ++ "\n\n" ++ show ps
-  show (ProgData y cs ps) = "data " ++ y ++ " = " ++ showCasesCtors cs ++ "\n\n" ++ show ps
+  show = show . toUsProgs

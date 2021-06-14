@@ -23,42 +23,70 @@ ifBound g x = ifErr (ctxtBinds g x) ("'" ++ x ++ "' has multiple definitions")
 
 -- Error message prefix, telling which definition an error occurred in
 declErr :: Var -> Either String a -> Either String a
-declErr x e = either (\ s -> Left ("In the definition of '" ++ x ++ "': " ++ s)) Right e
+declErr x = mapLeft $ \ s -> "In the definition of '" ++ x ++ "': " ++ s
 
 -- Check and elaborate a term under a context
 checkTerm :: Ctxt -> UsTm -> Either String (Term, Type)
+checkTermh :: Ctxt -> UsTm -> Either String Term
 
-checkTerm g (UsVar x) = maybe2 (ctxtLookupTerm g x)
+-- Checks and elaborates a term variable, if it is one
+checkTermVar :: Bool -> Ctxt -> UsTm -> Either String Term
+checkTermVar eta g (UsVar x) = maybe2 (ctxtLookupTerm g x)
   (err ("Variable '" ++ x ++ "' not in scope"))
-  $ \ (sc, tp) -> return (TmVar x tp sc, tp)
+  $ \ (sc, tp) -> case (eta, sc) of
+    (True, ScopeCtor) ->
+      let (tps, TpVar y) = splitArrows tp in
+        return (ctorEtaExpand x [] (ctorGetArgs x tps) y)
+    _ -> return (TmVar x tp sc)
+checkTermVar eta g tm = checkTermh g tm
 
-checkTerm g (UsLam x tp tm) =
+checkTerm g tm =
+  mapLeft (\ s -> "In the term " ++ show tm ++ ": " ++ s)
+    (checkTermh g tm) >>= \ tm' ->
+  return (tm', getType tm')
+
+checkTermh g (UsVar x) = checkTermVar True g (UsVar x)
+
+checkTermh g (UsLam x tp tm) =
   ifErr (not $ checkAffLin x tm)
     ("Bound variable '" ++ x ++ "' is not " ++ checkAffLinMsg ++ " in the body") >>
   checkType g tp >>
   checkTerm (ctxtDeclTerm g x tp) tm >>= \ (tm', tp') ->
-  return (TmLam x tp tm' tp', TpArr tp tp')
+  return (TmLam x tp tm' tp')
 
-checkTerm g (UsApp tm1 tm2) =
-  checkTerm g tm1 >>= \ (tm1', tp1) ->
-  checkTerm g tm2 >>= \ (tm2', tp2) ->
-  case tp1 of
-    (TpArr tp1a tp1b) ->
-      if tp1a == tp2
-        then return (TmApp tm1' tm2' tp1a tp1b, tp1b)
-        else err "Application arg types do not match"
-    _ -> err "Application to non-arrow type"
+checkTermh g (UsApp tm1 tm2) =
+  let (hd, as) = splitUsApps (UsApp tm1 tm2) in
+    checkTermVar False g hd >>= \ hd' ->
+    let hdtp = getType hd'
+        (tps, end) = splitArrows hdtp
+        numErrMsg = "Expected " ++ show (length tps) ++
+                    " arguments at most, but got " ++ show (length as)
+        expVsActTpMsg = \ exp act -> "Expected arg of type " ++
+                                     show exp ++ ", but got " ++ show act in
+      ifErr (length as > length tps) (error numErrMsg) >>
+      let tps' = take (length as) tps
+          end' = joinArrows (drop (length as) tps) end in
+      sequence (map (checkTerm g) as) >>= \ as' ->
+      sequence (map (\ ((a, atp), tp) -> ifErr (atp /= tp) (expVsActTpMsg tp atp)) (zip as' tps')) >>
+      case hd' of
+        (TmVar x _ ScopeCtor) ->
+          let TpVar y = end
+              etas = ctorGetArgs x tps
+              etas' = drop (length as') etas in
+          return (ctorEtaExpand x as' etas' y)
+          --return (joinApps (ctorEtaExpand x [] etas y) as' end')
+        _ -> return (joinApps hd' as' end')
 
-checkTerm g (UsCase tm cs) =
+checkTermh g (UsCase tm cs) =
   checkTerm g tm >>= \ (tm', tp) ->
   case tp of
     (TpArr _ _) -> err "Case splitting on arrow type"
     (TpVar y) -> maybe2 (ctxtLookupType g y)
       (err "Error in checkTerm UsCase") -- shouldn't happen
       $ \ ycs -> checkCases g ycs cs >>= \ (cs', tp') ->
-        return (TmCase tm' cs' y tp', tp')
+        return (TmCase tm' cs' y tp')
 
-checkTerm g (UsSamp d y) = maybe2 (ctxtLookupType g y)
+checkTermh g (UsSamp d y) = maybe2 (ctxtLookupType g y)
   (err ("Type variable '" ++ y ++ "' not in scope"))
   $ \ cs ->
     foldr
@@ -66,7 +94,7 @@ checkTerm g (UsSamp d y) = maybe2 (ctxtLookupType g y)
         ifErr (not $ null as)
           ("Not sure how to instantiate args for constructor '" ++ x ++ "' when sampling"))
       okay cs >>
-    return (TmSamp d y, TpVar y)
+    return (TmSamp d y)
 
 
 -- Check a type under a context
@@ -146,7 +174,7 @@ declProgs g (UsProgFun x tp tm ps) =
 declProgs g (UsProgData y cs ps) =
   ifBound g y >>
   foldl (\ r (Ctor x tps) -> r >>= \ g' ->
-            ifBound g' x >> return (ctxtDefTerm g' x (TpVar "")))
+            ifBound g' x >> return (ctxtDefTerm g' x (TpVar "irrelevant")))
     (return $ ctxtDeclType g y []) cs >>
   declProgs (ctxtDeclType g y cs) ps
 

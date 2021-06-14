@@ -6,57 +6,12 @@ import Util
 import RuleM
 import Ctxt
 
--- Naming convention for testing equality two terms of the same type
-typeFactorName :: Type -> String
-typeFactorName tp = "==" ++ show tp
-
--- Naming convention for factor v=(v1,v2)
-pairFactorName :: Type -> Type -> String
-pairFactorName tp1 tp2 = "v=(" ++ show tp1 ++ "," ++ show tp2 ++ ")"
-
--- Naming convention for constructor factor
-ctorFactorName :: Var -> [(Var, Type)] -> String
-ctorFactorName x as = "v=" ++ show (ctorAddArgs x as (TpVar "irrelevant"))
-
--- Establishes naming convention for eta-expanding a constructor.
--- So Cons h t -> (\ 0Cons. \ 1Cons. Cons 0Cons 1Cons) h t.
--- This is necessary so that the FGG can use one rule for each
--- constructor, and not for each usage of it in the code.
--- It also fixes the issue of partially-applied constructors.
-ctorEtaName :: Var -> Int -> Var
-ctorEtaName x i = show i ++ x
-
--- Returns the names of the args for a constructor
-ctorGetArgs :: Var -> [Type] -> [(Var, Type)]
-ctorGetArgs x tps =
-  zip (map (ctorEtaName x) [0..length tps - 1]) tps
-
--- Turns a constructor into one with all its args applied
-ctorAddArgs :: Var -> [(Var, Type)] -> Type -> Term
-ctorAddArgs x as tp = h as tp
-  where
-    h [] tp = TmVar x tp ScopeCtor
-    h ((a, atp) : as) tp =
-      let tm = h as (TpArr atp tp) in
-        TmApp tm (TmVar a atp ScopeLocal) atp tp
-
--- Eta-expands a constructor
-ctorAddLams :: Var -> [(Var, Type)] -> Type -> Term
-ctorAddLams x as tp =
-  foldr (\ (a, atp) tm -> TmLam a atp tm (getType tm))
-    (ctorAddArgs x as tp) as
-
--- Converts Cons -> (\ 0Cons. \ 1Cons. Cons 0Cons 1Cons)
-ctorEtaExpand :: Var -> Type -> Term
-ctorEtaExpand x = uncurry (ctorAddLams x . ctorGetArgs x) . splitArrows
-
 
 -- Local var rule
 var2fgg :: Var -> Type -> RuleM
 var2fgg x tp =
   let fac = typeFactorName tp in
   addRule' (TmVar x tp ScopeLocal) [tp, tp] [Edge [0, 1] fac] [0, 1]
-
 
 -- Bind a list of external nodes, and add rules for them
 bindExts :: Bool -> [(Var, Type)] -> RuleM -> RuleM
@@ -72,10 +27,10 @@ bindExt :: Bool -> Var -> Type -> RuleM -> RuleM
 bindExt addVarRule x tp = bindExts addVarRule [(x, tp)]
 
 -- Add rule for a term application
-tmapp2fgg :: Term -> RuleM
-tmapp2fgg (TmApp tm1 tm2 tp2 tp) =
-  term2fgg tm1 +>= \ xs1 ->
-  term2fgg tm2 +>= \ xs2 ->
+tmapp2fgg :: Ctxt -> Term -> RuleM
+tmapp2fgg g (TmApp tm1 tm2 tp2 tp) =
+  term2fgg g tm1 +>= \ xs1 ->
+  term2fgg g tm2 +>= \ xs2 ->
   let fac = pairFactorName tp2 tp
       (ns, [[itp2, itp, iarr], ixs1, ixs2]) =
         combine [[tp2, tp, TpArr tp2 tp], map snd xs1, map snd xs2]
@@ -86,7 +41,9 @@ tmapp2fgg (TmApp tm1 tm2 tp2 tp) =
     addRule' (TmApp tm1 tm2 tp2 tp) ns es xs +>
     addFactor fac (getPairWeights tp2 tp)
 
+
 -- Eta-expands a constructor and adds all necessary rules
+{-
 ctorEtaRule :: Ctor -> Var -> RuleM
 ctorEtaRule (Ctor x []) y = returnRule -- if no args, no need to eta-expand
 ctorEtaRule (Ctor x as) y =
@@ -110,7 +67,7 @@ ctorRules (Ctor x as) y cs =
       as' = map (ctorEtaName x) [0..length as - 1]
       (ns, [ias, [iy]]) = combine [as, [TpVar y]]
       ias' = zip ias as'
-      tm = ctorAddArgs x (zip as' as) (TpVar y)
+      tm = ctorAddArgs x (zip as' as) y
       fac = ctorFactorName x (zip as' as)
       es = [Edge (ias ++ [iy]) fac]
       xs = ias ++ [iy] in
@@ -118,18 +75,35 @@ ctorRules (Ctor x as) y cs =
     ctorEtaRule  (Ctor x as) y +>
     ctorLamRules (Ctor x as) y +>
     addFactor fac (getCtorWeights ix (length cs))
+-}
+-- Add rule for a constructor
+ctorRules :: Ctor -> Var -> [Ctor] -> RuleM
+ctorRules (Ctor x as) y cs =
+  let ix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0
+      as' = map (ctorEtaName x) [0..length as - 1]
+      (ns, [ias, [iy]]) = combine [as, [TpVar y]]
+      ias' = zip ias as'
+      fac = ctorFactorName x (toTermArgs (zip as' as))
+      es = [Edge (ias ++ [iy]) fac]
+      xs = ias ++ [iy]
+      tm = TmCtor x (map (\ (a, atp) -> (TmVar a atp ScopeLocal, atp)) (zip as' as)) y in
+    addRule' tm ns es xs +>
+    -- default, in case this ctor never gets called:
+    addFactor fac (getCtorWeights ix (length cs))
 
 ctorsRules :: [Ctor] -> Var -> RuleM
-ctorsRules cs y = foldr (\ c r -> r +> ctorRules c y cs) returnRule cs
+ctorsRules cs y =
+ foldr (\ c r -> r +> ctorRules c y cs) returnRule cs
 
 ctorsFactors :: [Ctor] -> Var -> RuleM
 ctorsFactors cs y = addFactor (typeFactorName (TpVar y)) (getCtorEqWeights (length cs))
 
 -- Add a rule for this particular case in a case-of statement
-caseRule :: [(Var, Type)] -> Term -> Case -> RuleM
-caseRule xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
-  bindExts True as (term2fgg xtm) +>= \ xs_xtm ->
-  let fac = ctorFactorName x (ctorGetArgs x (map snd as))
+caseRule :: Ctxt -> [(Var, Type)] -> Term -> Case -> RuleM
+caseRule g xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
+  let g' = foldr (\ (a, atp) g -> ctxtDeclTerm g a atp) g as in
+  bindExts True as (term2fgg g' xtm) +>= \ xs_xtm ->
+  let fac = ctorFactorName x (toTermArgs (ctorGetArgs x (map snd as)))
       (ns, [[ictm, ixtm], ixs_as, ixs_ctm, ixs_xtm]) =
         combine [[TpVar y, tp], map snd as, map snd xs_ctm, map snd xs_xtm]
       es = [Edge (ictm : ixs_ctm) (show ctm),
@@ -137,7 +111,7 @@ caseRule xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
             Edge (ixs_as ++ [ictm]) fac]
       xs = ixtm : ixs_ctm ++ ixs_xtm in
     addRule' (TmCase ctm cs y tp) ns es xs
-caseRule xs _ (Case x as xtm) =
+caseRule g xs _ (Case x as xtm) =
   error "caseRule expected a TmCase, but got something else"
 
 -- Add a rule for a lambda term
@@ -151,40 +125,48 @@ lamRule addVarRule x tp tm tp' rm =
     addRule' (TmLam x tp tm tp') ns es xs
 
 -- Traverse a term and add all rules for subexpressions
-term2fgg :: Term -> RuleM
-term2fgg (TmVar x tp local) =
+term2fgg :: Ctxt -> Term -> RuleM
+term2fgg g (TmVar x tp local) =
   case local of
     ScopeGlobal -> returnRule
     ScopeLocal -> addExt x tp
-    ScopeCtor -> returnRule
-term2fgg (TmLam x tp tm tp') =
-  lamRule True x tp tm tp' (term2fgg tm)
-term2fgg (TmApp tm1 tm2 tp2 tp) =
-  tmapp2fgg (TmApp tm1 tm2 tp2 tp)
-term2fgg (TmCase tm cs y tp) =
-  term2fgg tm +>= \ xs ->
-  foldr (\ c r -> caseRule xs (TmCase tm cs y tp) c +> r) returnRule cs
-term2fgg (TmSamp d y) =
+    ScopeCtor -> error ("term2fgg should not see a ctor var (" ++ x ++ ")")
+term2fgg g (TmCtor x as y) =
+  map (\ (a, atp) -> term2fgg g a) as +*>= \ xss ->
+  let (ns, [iy] : ias : ixss) = combine ([TpVar y] : map snd as : map (map snd) xss)
+      es = Edge (iy : ias) (show (TmCtor x as y)) : map (\ (ixs, (a, _), itp) -> Edge (itp : ixs) (show a)) (zip3 ixss as ias)
+      xs = iy : concat ixss
+      Just cs = ctxtLookupType g y
+      cix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0 in
+  addRule' (TmCtor x as y) ns es xs +>
+  addFactor (ctorFactorName x as) (getCtorWeights cix (length cs))
+term2fgg g (TmLam x tp tm tp') =
+  lamRule True x tp tm tp' (term2fgg (ctxtDeclTerm g x tp) tm)
+term2fgg g (TmApp tm1 tm2 tp2 tp) =
+  tmapp2fgg g (TmApp tm1 tm2 tp2 tp)
+term2fgg g (TmCase tm cs y tp) =
+  term2fgg g tm +>= \ xs ->
+  foldr (\ c r -> caseRule g xs (TmCase tm cs y tp) c +> r) returnRule cs
+term2fgg g (TmSamp d y) =
   addFactor (show $ TmSamp d y) (ThisWeight (WeightsData 1)) +> -- TODO
   returnRule -- TODO
 
 -- Goes through a program and adds all the rules for it
-prog2fgg :: Progs -> RuleM
-prog2fgg (ProgExec tm) = term2fgg tm
-prog2fgg (ProgFun x tp tm ps) =
-  prog2fgg ps +> term2fgg tm +> addRule' (TmVar x tp ScopeGlobal) [tp] [Edge [0] (show tm)] [0]
-prog2fgg (ProgData y cs ps) =
-  prog2fgg ps +> ctorsFactors cs y +> ctorsRules cs y
+prog2fgg :: Ctxt -> Progs -> RuleM
+prog2fgg g (ProgExec tm) = term2fgg g tm
+prog2fgg g (ProgFun x tp tm ps) =
+  prog2fgg g ps +> term2fgg g tm +> addRule' (TmVar x tp ScopeGlobal) [tp] [Edge [0] (show tm)] [0]
+prog2fgg g (ProgData y cs ps) =
+  prog2fgg g ps +> ctorsFactors cs y +> ctorsRules cs y
 
--- TODO: External node ordering (that is, make sure v, v1, v2,
--- etc... are connected correctly)
+-- TODO: Name external nodes with lookup map
 
 getDomain :: Ctxt -> Type -> [String]
-getDomain g (TpVar y) = maybe2 (ctxtLookupType g y) [] $ map $ \ (Ctor x as) -> show $ ctorAddArgs x (ctorGetArgs x as) (TpVar y)
+getDomain g (TpVar y) = maybe2 (ctxtLookupType g y) [] $ map $ \ (Ctor x as) -> show $ ctorDefault x as y
 getDomain g (TpArr tp1 tp2) = map (\ (s1, s2) -> "(" ++ s1 ++ "," ++ s2 ++ ")") (concat (kronecker (getDomain g tp1) (getDomain g tp2)))
 
 -- Converts an elaborated program into an FGG
 file2fgg :: Ctxt -> Progs -> FGG_JSON
 file2fgg g ps =
-  let RuleM rs xs fs = prog2fgg ps in
+  let RuleM rs xs fs = prog2fgg g ps in
     rulesToFGG (getDomain g) (show $ getStartTerm ps) (reverse rs) fs
