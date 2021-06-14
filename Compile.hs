@@ -4,6 +4,7 @@ import Exprs
 import FGG
 import Util
 import RuleM
+import Ctxt
 
 -- Naming convention for testing equality two terms of the same type
 typeFactorName :: Type -> String
@@ -167,22 +168,26 @@ term2fgg (TmSamp d y) =
   returnRule -- TODO
 
 -- Goes through a program and adds all the rules for it
-prog2fgg :: Progs -> (RuleM, [(Var, Domain)])
-prog2fgg (ProgExec tm) = (term2fgg tm, [])
+prog2fgg :: Progs -> RuleM
+prog2fgg (ProgExec tm) = term2fgg tm
 prog2fgg (ProgFun x tp tm ps) =
-  let (rm, ds) = prog2fgg ps in
-    (rm +> term2fgg tm +> addRule' x [tp] [Edge [0] (show tm)] [0], ds)
+  prog2fgg ps +> term2fgg tm +> addRule' x [tp] [Edge [0] (show tm)] [0]
 prog2fgg (ProgData y cs ps) =
-  let (rm, ds) = prog2fgg ps
-      new_ds = map (\ (Ctor x tps) -> ctorAddArgs x (ctorGetArgs x tps) (TpVar y)) cs in
-  (rm +> ctorsFactors cs y +> ctorsRules cs y, (y, map show new_ds) : ds)
+  prog2fgg ps +> ctorsFactors cs y +> ctorsRules cs y
 
 -- TODO: Add values for arrow-type domains (e.g. Bool -> Maybe)
 -- (Will likely require some ordering of which to add first, so
 -- that Bool -> Maybe is already there for Int -> Bool -> Maybe)
 
+-- TODO: External node ordering (that is, make sure v, v1, v2,
+-- etc... are connected correctly)
+
+getDomain :: Ctxt -> Type -> [String]
+getDomain g (TpVar y) = maybe2 (ctxtLookupType g y) [] $ map $ \ (Ctor x as) -> show $ ctorAddArgs x (ctorGetArgs x as) (TpVar y)
+getDomain g (TpArr tp1 tp2) = map (\ (s1, s2) -> "(" ++ s1 ++ "," ++ s2 ++ ")") (concat (kronecker (getDomain g tp1) (getDomain g tp2)))
+
 -- Converts an elaborated program into an FGG
-file2fgg :: Progs -> FGG_JSON
-file2fgg ps =
-  let (RuleM rs xs fs, ds) = prog2fgg ps in
-    rulesToFGG (\ y -> maybe [] id (lookup y ds)) (show $ getStartTerm ps) (reverse rs) fs
+file2fgg :: Ctxt -> Progs -> FGG_JSON
+file2fgg g ps =
+  let RuleM rs xs fs = prog2fgg ps in
+    rulesToFGG (getDomain g) (show $ getStartTerm ps) (reverse rs) fs

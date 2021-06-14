@@ -153,5 +153,5 @@ declProgs g (UsProgData y cs ps) =
 
 -- Check a program, returning either an error message
 -- or the elaborated program
-checkFile :: UsProgs -> Either String Progs
-checkFile ps = declProgs emptyCtxt ps >>= \ g' -> checkProgs g' (alphaRename g' ps)
+checkFile :: UsProgs -> Either String (Ctxt, Progs)
+checkFile ps = declProgs emptyCtxt ps >>= \ g' -> checkProgs g' (alphaRename g' ps) >>= \ ps' -> return (g', ps')

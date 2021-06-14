@@ -3,6 +3,7 @@ import qualified Data.Map as Map
 import Data.List
 import Ctxt
 import Util
+import Exprs
 
 {- ====== JSON Functions ====== -}
 
@@ -37,7 +38,7 @@ data WeightsH x = WeightsData x | WeightsDims (WeightsH [x])
 type Weights = WeightsH Prob
 data Edge = Edge { edge_atts :: [Int], edge_label :: String }
   deriving Eq
-data HGF = HGF { hgf_nodes :: [String], hfg_edges :: [Edge], hfg_exts :: [Int]}
+data HGF = HGF { hgf_nodes :: [Type], hfg_edges :: [Edge], hfg_exts :: [Int]}
   deriving Eq
 data Rule = Rule String HGF
   deriving Eq
@@ -107,7 +108,7 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
        \ (Rule lhs (HGF ns es xs)) -> JSobject [
            ("lhs", JSstring lhs),
            ("rhs", JSobject [
-               ("nodes", JSarray $ map (\ n -> JSobject [("label", JSstring n)]) ns),
+               ("nodes", JSarray $ map (\ n -> JSobject [("label", JSstring (show n))]) ns),
                ("edges", JSarray $ flip map es $
                  \ (Edge atts l) -> JSobject [
                    ("attachments", JSarray (map JSint atts)),
@@ -137,20 +138,20 @@ preWeightToWeight ds (PairWeight (tp1, tp2)) =
 
 -- Construct an FGG from a list of rules, a start symbol,
 -- and a function that gives the possible values of each type
-rulesToFGG :: (String -> [String]) -> String -> [Rule] -> [Factor] -> FGG_JSON
+rulesToFGG :: (Type -> [String]) -> String -> [Rule] -> [Factor] -> FGG_JSON
 rulesToFGG doms start rs facs =
   let rs' = nub rs
       ds  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
-                     foldr (\ n -> Map.insert n (doms n)) m ns) Map.empty rs'
+                     foldr (\ n -> Map.insert (show n) (doms n)) m ns) Map.empty rs'
       nts = foldr (\ (Rule lhs (HGF ns _ xs)) ->
-                     Map.insert lhs (map (\ i -> ns !! i) xs)) Map.empty rs'
+                     Map.insert lhs (map (\ i -> show $ ns !! i) xs)) Map.empty rs'
       facs' = map (\ (x, w) -> (x, preWeightToWeight ds w)) facs
       getFac = \ l -> maybe (error ("In rulesToFGG, no factor named " ++ l ++ " (factor names: " ++ show (map fst facs) ++ ", nts:" ++ show (Map.keys nts) ++ ")"))
                         id $ lookup l facs'
       fs  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
                      foldr (\ (Edge atts l) -> let lnodes = map ((!!) ns) atts in
                                if Map.member l nts then id else
-                                 Map.insert l (lnodes, getFac l))
+                                 Map.insert l (map show lnodes, getFac l))
                            m es)
                   Map.empty rs' in
     FGG_JSON ds fs nts start rs'

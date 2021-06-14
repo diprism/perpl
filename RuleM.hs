@@ -37,7 +37,7 @@ addRule r = addRules [r]
 
 -- Add a rule from the given components
 addRule' :: String -> [Type] -> [Edge] -> [Int] -> RuleM
-addRule' lhs ns es xs = addRule $ Rule lhs $ HGF (map show ns) es xs
+addRule' lhs ns es xs = addRule $ Rule lhs $ HGF ns es xs
 
 addFactor :: Var -> PreWeight -> RuleM
 addFactor x w = RuleM [] [] [(x, w)]
