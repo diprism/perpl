@@ -55,7 +55,7 @@ ctorEtaExpand x = uncurry (ctorAddLams x . ctorGetArgs x) . splitArrows
 var2fgg :: Var -> Type -> RuleM
 var2fgg x tp =
   let fac = typeFactorName tp in
-  addRule' x [tp, tp] [Edge [0, 1] fac] [0, 1]
+  addRule' (TmVar x tp ScopeLocal) [tp, tp] [Edge [0, 1] fac] [0, 1]
 
 
 -- Bind a list of external nodes, and add rules for them
@@ -83,14 +83,14 @@ tmapp2fgg (TmApp tm1 tm2 tp2 tp) =
             Edge (iarr : ixs1) (show tm1),
             Edge [itp2, itp, iarr] fac]
       xs = itp : ixs1 ++ ixs2 in
-    addRule' (show (TmApp tm1 tm2 tp2 tp)) ns es xs +>
+    addRule' (TmApp tm1 tm2 tp2 tp) ns es xs +>
     addFactor fac (getPairWeights tp2 tp)
 
 -- Eta-expands a constructor and adds all necessary rules
 ctorEtaRule :: Ctor -> Var -> RuleM
 ctorEtaRule (Ctor x as) y =
   let eta = (ctorAddLams x (ctorGetArgs x as) (TpVar y)) in
-  addRule' x [TpVar y] [Edge [0] (show eta)] [0]
+  addRule' (TmVar x (joinArrows as (TpVar y)) ScopeCtor) [TpVar y] [Edge [0] (show eta)] [0]
 
 -- Adds the lambda rules for an eta-expanded constructor
 ctorLamRules :: Ctor -> Var -> RuleM
@@ -113,7 +113,7 @@ ctorRules (Ctor x as) y cs =
       fac = ctorFactorName x (zip as' as)
       es = [Edge (ias ++ [iy]) fac]
       xs = ias ++ [iy] in
-    addRule' (show tm) ns es xs +>
+    addRule' tm ns es xs +>
     ctorEtaRule  (Ctor x as) y +>
     ctorLamRules (Ctor x as) y +>
     addFactor fac (getCtorWeights ix (length cs))
@@ -135,7 +135,7 @@ caseRule xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
             Edge (ixtm : ixs_xtm ++ ixs_as) (show xtm),
             Edge (ixs_as ++ [ictm]) fac]
       xs = ixtm : ixs_ctm ++ ixs_xtm in
-    addRule' (show (TmCase ctm cs y tp)) ns es xs
+    addRule' (TmCase ctm cs y tp) ns es xs
 caseRule xs _ (Case x as xtm) =
   error "caseRule expected a TmCase, but got something else"
 
@@ -147,7 +147,7 @@ lamRule addVarRule x tp tm tp' rm =
       es = [Edge ([itp, itp'] ++ ixs') (show tm),
             Edge [itp, itp', iarr] (pairFactorName tp tp')]
       xs = iarr : ixs' in
-    addRule' (show (TmLam x tp tm tp')) ns es xs
+    addRule' (TmLam x tp tm tp') ns es xs
 
 -- Traverse a term and add all rules for subexpressions
 term2fgg :: Term -> RuleM
@@ -171,7 +171,7 @@ term2fgg (TmSamp d y) =
 prog2fgg :: Progs -> RuleM
 prog2fgg (ProgExec tm) = term2fgg tm
 prog2fgg (ProgFun x tp tm ps) =
-  prog2fgg ps +> term2fgg tm +> addRule' x [tp] [Edge [0] (show tm)] [0]
+  prog2fgg ps +> term2fgg tm +> addRule' (TmVar x tp ScopeGlobal) [tp] [Edge [0] (show tm)] [0]
 prog2fgg (ProgData y cs ps) =
   prog2fgg ps +> ctorsFactors cs y +> ctorsRules cs y
 
