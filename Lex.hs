@@ -1,6 +1,7 @@
 module Lex where
 import Exprs
 
+-- Possible tokens
 data Token =
     TkVar Var
   | TkLam
@@ -22,10 +23,11 @@ data Token =
   | TkBar
   | TkFun
   | TkData
-  | TkExec
+--  | TkExec
+  | TkSemicolon
   deriving (Eq, Show)
 
-
+-- Lex a string, returning a list of tokens
 lexStrh :: String -> [Token] -> Maybe [Token]
 lexStrh (' ' : s) = lexStrh s
 lexStrh ('\n' : s) = lexStrh s
@@ -35,6 +37,7 @@ lexStrh ('<' : '-' : s) = lexAdd s TkLeftArr
 lexStrh (':' : s) = lexAdd s TkColon
 lexStrh ('.' : s) = lexAdd s TkDot
 lexStrh (',' : s) = lexAdd s TkComma
+lexStrh (';' : s) = lexAdd s TkSemicolon
 lexStrh ('|' : s) = lexAdd s TkBar
 lexStrh ('=' : s) = lexAdd s TkEq
 lexStrh ('(' : s) = lexAdd s TkParenL
@@ -62,6 +65,7 @@ lexVar = h "" where
   h v (c : s) = if isVarChar c then h (c : v) s else Just (reverse v, (c : s))
   h v "" = Just (reverse v, "")
 
+-- Determines if c is a valid character for a variable name
 --varChars = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['\'', '_']
 isVarChar :: Char -> Bool
 isVarChar c =
@@ -71,6 +75,7 @@ isVarChar c =
   (c == '\'') ||
   (c == '_')
 
+-- List of keywords and the names that lex as them
 keywords = [
   ("fail", TkFail),
   ("amb", TkAmb),
@@ -80,9 +85,9 @@ keywords = [
   ("measure", TkMeas),
   ("uniform", TkUni),
   ("sample", TkSample),
-  ("fun", TkFun),
-  ("data", TkData),
-  ("exec", TkExec)]
+  ("define", TkFun),
+--  ("exec", TkExec),
+  ("data", TkData)]
 
 -- Lex a keyword or a variable name.
 lexKeywordOrVar :: String -> [Token] -> Maybe [Token]
@@ -90,6 +95,7 @@ lexKeywordOrVar s ts = lexVar s >>= \ (v, rest) -> if length v > 0 then trykw ke
   trykw ((kwstr, kwtok) : kws) v s = if kwstr == v then lexAdd s kwtok else trykw kws v s
   trykw [] v s = lexAdd s (TkVar v)
 
+-- Add a token, and continue lexing
 lexAdd :: String -> Token -> [Token] -> Maybe [Token]
 lexAdd s t ts = lexStrh s (t : ts)
 
