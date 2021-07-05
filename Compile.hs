@@ -122,7 +122,8 @@ lamRule addVarRule x tp tm tp' rm =
       es = [Edge ([itp, itp'] ++ ixs') (show tm),
             Edge [itp, itp', iarr] (pairFactorName tp tp')]
       xs = iarr : ixs' in
-    addRule' (TmLam x tp tm tp') ns es xs
+    addRule' (TmLam x tp tm tp') ns es xs +>
+    addFactor (pairFactorName tp tp') (getPairWeights tp tp')
 
 -- Traverse a term and add all rules for subexpressions
 term2fgg :: Ctxt -> Term -> RuleM
@@ -161,12 +162,19 @@ prog2fgg g (ProgData y cs ps) =
 
 -- TODO: Name external nodes with lookup map
 
-getDomain :: Ctxt -> Type -> [String]
-getDomain g (TpVar y) = maybe2 (ctxtLookupType g y) [] $ map $ \ (Ctor x as) -> show $ ctorDefault x as y
-getDomain g (TpArr tp1 tp2) = map (\ (s1, s2) -> "(" ++ s1 ++ "," ++ s2 ++ ")") (concat (kronecker (getDomain g tp1) (getDomain g tp2)))
+-- Computes a list of all the possible inhabitants of a type
+domainValues :: Ctxt -> Type -> [String]
+domainValues g = uncurry h . splitArrows where
+  h :: [Type] -> Type -> [String]
+  h tps (TpVar y) = maybe2 (ctxtLookupType g y) [] $ \ cs -> concat $ flip map cs $ \ (Ctor x as) ->
+    let dvs_as = map (domainValues g) as
+        dvs_x = foldl (kronwith $ \ d da -> d ++ " " ++ parens da) [x] dvs_as in
+      map (parensIf (not $ null tps)) $
+        foldl (\ ds -> kronwith (\ da d -> da ++ " -> " ++ d) ds . domainValues g)
+          dvs_x tps
 
 -- Converts an elaborated program into an FGG
 file2fgg :: Ctxt -> Progs -> FGG_JSON
 file2fgg g ps =
   let RuleM rs xs fs = prog2fgg g ps in
-    rulesToFGG (getDomain g) (show $ getStartTerm ps) (reverse rs) fs
+    rulesToFGG (domainValues g) (show $ getStartTerm ps) (reverse rs) fs
