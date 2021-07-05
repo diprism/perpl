@@ -156,15 +156,6 @@ rulesToFGG doms start rs facs =
                   Map.empty rs' in
     FGG_JSON ds fs nts start rs'
 
--- Make a uniformly-distributed weight matrix (TODO: replace)
-getWeightsUniform :: (String -> Int) -> Domain -> Weights
-getWeightsUniform g tps = h g (reverse tps) (WeightsData 1) where
-  h :: (String -> Int) -> Domain -> WeightsH x -> WeightsH x
-  h g [] ws = ws
-  h g (tp : tps) ws =
-    let num_values = g tp in
-      WeightsDims $ h g tps (fmap (replicate num_values) ws)
-
 
 {-example_ctxt :: Ctxt
 example_ctxt = ctxtDeclType (ctxtDeclType emptyCtxt "W" (map (\ x -> Ctor x []) ["the", "cat", "sat", "on", "mat"])) "T" (map (\ x -> Ctor x []) ["DT", "NN", "VBD", "IN", "BOS", "EOS"])
