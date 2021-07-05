@@ -69,9 +69,12 @@ toUsProgs (ProgData y cs ps) = UsProgData y cs (toUsProgs ps)
 
 {- Show Instances -}
 
+parens :: String -> String
+parens s = "(" ++ s ++ ")"
+
 parensIf :: Bool -> String -> String
-parensIf True s = "(" ++ s ++ ")"
-parensIf False s = s
+parensIf True = parens
+parensIf False = id
 
 data ShowHist = ShowAppL | ShowAppR | ShowCase | ShowArrL | ShowTypeArg | ShowNone
   deriving Eq
