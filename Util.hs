@@ -9,6 +9,9 @@ mapLeft f (Right c) = Right c
 kronecker :: [a] -> [b] -> [[(a, b)]]
 kronecker as bs = map (\ a -> map (\ b -> (a, b)) bs) as
 
+kronwith :: (a -> b -> c) -> [a] -> [b] -> [c]
+kronwith f as bs = map (uncurry f) $ concat $ kronecker as bs
+
 weightsRow :: Num n => Int {- Index -} -> Int {- Length -} -> [n]
 weightsRow i l = map (\ j -> if j == i then 1 else 0) [0..l-1]
 
@@ -96,7 +99,7 @@ typeFactorName tp = "==" ++ show tp
 
 -- Naming convention for factor v=(v1,v2)
 pairFactorName :: Type -> Type -> String
-pairFactorName tp1 tp2 = "v=(" ++ show tp1 ++ "," ++ show tp2 ++ ")"
+pairFactorName tp1 tp2 = "v=(" ++ show (TpArr tp1 tp2) ++ ")"
 
 -- Naming convention for constructor factor
 ctorFactorName :: Var -> [(Term, Type)] -> String
