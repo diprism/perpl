@@ -92,7 +92,7 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
       
      ("factors", mapToList fs $
        \ (d, ws) -> JSobject [
-         ("function", JSstring "constant"),
+         ("function", JSstring "categorical"),
          ("type", JSarray $ map JSstring d),
          ("weights", weights_to_json ws)
        ]),
