@@ -101,7 +101,7 @@ ctorsFactors cs y = addFactor (typeFactorName (TpVar y)) (getCtorEqWeights (leng
 -- Add a rule for this particular case in a case-of statement
 caseRule :: Ctxt -> [(Var, Type)] -> Term -> Case -> RuleM
 caseRule g xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
-  let g' = foldr (\ (a, atp) g -> ctxtDeclTerm g a atp) g as in
+  let g' = ctxtDeclArgs g as in
   bindExts True as (term2fgg g' xtm) +>= \ xs_xtm ->
   let fac = ctorFactorName x (toTermArgs (ctorGetArgs x (map snd as)))
       (ns, [[ictm, ixtm], ixs_as, ixs_ctm, ixs_xtm]) =

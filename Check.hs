@@ -120,7 +120,7 @@ checkCase g (Ctor x as) (CaseUs x' as' tm) =
   ifErr (length as /= length as')
     ("Expected " ++ show (length as) ++ " args for case '" ++
       x ++ "', but got " ++ show (length as')) >>
-  let g' = foldr (\ (tp, a) g -> ctxtDeclTerm g a tp) g (zip as as')
+  let g' = ctxtDeclArgs g (zip as' as)
       msg = \ a -> "In the case " ++ x' ++ ", arg " ++ a ++ " is not linear in the body" in
   foldr (\ a r -> ifErr (not $ checkAffLin a tm) (msg a) >> r) okay as' >>
   checkTerm g' tm >>= \ (tm', tp) ->

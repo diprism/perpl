@@ -16,6 +16,9 @@ emptyCtxt = Map.empty
 ctxtDeclTerm :: Ctxt -> Var -> Type -> Ctxt
 ctxtDeclTerm g x tp = Map.insert x (DefTerm ScopeLocal tp) g
 
+ctxtDeclArgs :: Ctxt -> [(Var, Type)] -> Ctxt
+ctxtDeclArgs = foldl $ uncurry . ctxtDeclTerm
+
 -- Add a global term to the context
 ctxtDefTerm :: Ctxt -> Var -> Type -> Ctxt
 ctxtDefTerm g x tp = Map.insert x (DefTerm ScopeGlobal tp) g
