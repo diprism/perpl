@@ -147,6 +147,7 @@ renameCtor (Ctor x tps) = pure (Ctor x) <*> foldr (\ tp tps' -> pure (:) <*> ren
 renameProgs :: UsProgs -> RenameM UsProgs
 renameProgs (UsProgExec tm) = pure UsProgExec <*> renameTerm tm
 renameProgs (UsProgFun x tp tm ps) = pure (UsProgFun x) <*> renameType tp <*> renameTerm tm <*> renameProgs ps
+renameProgs (UsProgExtern x tp ps) = pure (UsProgExtern x) <*> renameType tp <*> renameProgs ps
 renameProgs (UsProgData y cs ps) = pure (UsProgData y) <*> foldr (\ c cs' -> pure (:) <*> renameCtor c <*> cs') (return []) cs <*> renameProgs ps
 
 -- Alpha-rename a file

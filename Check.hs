@@ -155,6 +155,11 @@ checkProgs g (UsProgFun x tp tm ps) =
   checkProgs g ps >>= \ ps' ->
   return (ProgFun x tp tm' ps')
 
+checkProgs g (UsProgExtern x tp ps) =
+  checkType g tp >>
+  checkProgs g ps >>= \ ps' ->
+  return (ProgExtern x tp ps')
+
 checkProgs g (UsProgData x cs ps) =
   declErr x (foldr (\ (Ctor x tps) r -> foldr (\ tp r -> checkType g tp >> r) okay tps >> r) okay cs) >>
   checkProgs g ps >>= \ ps' ->
@@ -168,6 +173,10 @@ declProgs :: Ctxt -> UsProgs -> Either String Ctxt
 declProgs g (UsProgExec tm) = return g
 
 declProgs g (UsProgFun x tp tm ps) =
+  ifBound g x >>
+  declProgs (ctxtDefTerm g x tp) ps
+
+declProgs g (UsProgExtern x tp ps) =
   ifBound g x >>
   declProgs (ctxtDefTerm g x tp) ps
 

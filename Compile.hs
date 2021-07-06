@@ -15,9 +15,9 @@ var2fgg x tp =
 
 -- Bind a list of external nodes, and add rules for them
 bindExts :: Bool -> [(Var, Type)] -> RuleM -> RuleM
-bindExts addVarRules xs' (RuleM rs xs fs) =
+bindExts addVarRules xs' (RuleM rs xs nts fs) =
   let keep = not . flip elem (map fst xs') . fst
-      rm = RuleM rs (filter keep xs) fs in
+      rm = RuleM rs (filter keep xs) nts fs in
     if addVarRules
       then foldr (\ (x, tp) r -> var2fgg x tp +> r) rm xs'
       else rm
@@ -149,14 +149,24 @@ term2fgg g (TmCase tm cs y tp) =
   term2fgg g tm +>= \ xs ->
   foldr (\ c r -> caseRule g xs (TmCase tm cs y tp) c +> r) returnRule cs
 term2fgg g (TmSamp d y) =
-  addFactor (show $ TmSamp d y) (ThisWeight (WeightsData 1)) +> -- TODO
-  returnRule -- TODO
+  let dvs = domainValues g (TpVar y)
+      dvws = WeightsDims $ WeightsData dvs in
+  case d of
+    DistFail -> returnRule
+    DistUni  ->
+      addFactor (show $ TmSamp DistUni y) (ThisWeight (fmap (const (1.0 / fromIntegral (length dvs))) dvws)) +>
+      addRule' (TmSamp DistUni y) [TpVar y] [] [0]
+    DistAmb  -> 
+      addFactor (show $ TmSamp DistAmb y) (ThisWeight (fmap (const 1) dvws)) +>
+      addRule' (TmSamp DistAmb y) [TpVar y] [] [0]
 
 -- Goes through a program and adds all the rules for it
 prog2fgg :: Ctxt -> Progs -> RuleM
 prog2fgg g (ProgExec tm) = term2fgg g tm
 prog2fgg g (ProgFun x tp tm ps) =
   prog2fgg g ps +> term2fgg g tm +> addRule' (TmVar x tp ScopeGlobal) [tp] [Edge [0] (show tm)] [0]
+prog2fgg g (ProgExtern x tp ps) =
+  prog2fgg g ps +> addNonterm x tp
 prog2fgg g (ProgData y cs ps) =
   prog2fgg g ps +> ctorsFactors cs y +> ctorsRules cs y
 
@@ -176,5 +186,5 @@ domainValues g = uncurry h . splitArrows where
 -- Converts an elaborated program into an FGG
 file2fgg :: Ctxt -> Progs -> FGG_JSON
 file2fgg g ps =
-  let RuleM rs xs fs = prog2fgg g ps in
-    rulesToFGG (domainValues g) (show $ getStartTerm ps) (reverse rs) fs
+  let RuleM rs xs nts fs = prog2fgg g ps in
+    rulesToFGG (domainValues g) (show $ getStartTerm ps) (reverse rs) nts fs

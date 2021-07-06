@@ -22,6 +22,7 @@ data Token =
   | TkComma
   | TkBar
   | TkFun
+  | TkExtern
   | TkData
 --  | TkExec
   | TkSemicolon
@@ -86,6 +87,7 @@ keywords = [
   ("uniform", TkUni),
   ("sample", TkSample),
   ("define", TkFun),
+  ("extern", TkExtern),
 --  ("exec", TkExec),
   ("data", TkData)]
 

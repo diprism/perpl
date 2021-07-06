@@ -3,11 +3,13 @@ module Exprs where
 data UsProgs =
     UsProgExec UsTm
   | UsProgFun String Type UsTm UsProgs
+  | UsProgExtern String Type UsProgs
   | UsProgData String [Ctor] UsProgs
 
 data Progs =
     ProgExec Term
   | ProgFun String Type Term Progs
+  | ProgExtern String Type Progs
   | ProgData String [Ctor] Progs
 
 data Ctor = Ctor Var [Type]
@@ -64,6 +66,7 @@ toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)
 toUsProgs :: Progs -> UsProgs
 toUsProgs (ProgExec tm) = UsProgExec (toUsTm tm)
 toUsProgs (ProgFun x tp tm ps) = UsProgFun x tp (toUsTm tm) (toUsProgs ps)
+toUsProgs (ProgExtern x tp ps) = UsProgExtern x tp (toUsProgs ps)
 toUsProgs (ProgData y cs ps) = UsProgData y cs (toUsProgs ps)
 
 
@@ -147,8 +150,9 @@ instance Show Type where
   show = flip showType ShowNone
 
 instance Show UsProgs where
-  show (UsProgExec tm) = "exec " ++ show tm
-  show (UsProgFun x tp tm ps) = "fun " ++ x ++ " : " ++ show tp ++ " = " ++ show tm ++ "\n\n" ++ show ps
-  show (UsProgData y cs ps) = "data " ++ y ++ " = " ++ showCasesCtors cs ++ "\n\n" ++ show ps
+  show (UsProgExec tm) = show tm
+  show (UsProgFun x tp tm ps) = "define " ++ x ++ " : " ++ show tp ++ " = " ++ show tm ++ ";\n\n" ++ show ps
+  show (UsProgExtern x tp ps) = "extern " ++ x ++ " : " ++ show tp ++ ";\n\n" ++ show ps
+  show (UsProgData y cs ps) = "data " ++ y ++ " = " ++ showCasesCtors cs ++ ";\n\n" ++ show ps
 instance Show Progs where
   show = show . toUsProgs

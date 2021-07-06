@@ -141,11 +141,13 @@ parseTypes = ParseM $ \ ts ->
 -- Program
 parseProg :: ParseM UsProgs
 parseProg = ParseM $ \ ts -> case ts of
--- fun f : type = term
+-- define f : type = term; ...
   (TkFun : ts) -> parseMt ts $ pure UsProgFun <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkSemicolon <*> parseProg
--- data T = ctors
+-- extern f : type; ...
+  (TkExtern : ts) -> parseMt ts $ pure UsProgExtern <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkSemicolon <*> parseProg
+-- data T = ctors; ...
   (TkData : ts) -> parseMt ts $ pure UsProgData <*> parseVar <* parseDrop TkEq <*> parseCtors <* parseDrop TkSemicolon <*> parseProg
--- exec term
+-- term
   _ -> parseMt ts $ pure UsProgExec <*> parseTerm1
 --  (TkExec : ts) -> parseMt ts $ pure UsProgExec <*> parseTerm1
 --  _ -> Nothing

@@ -6,35 +6,42 @@ import Util
 
 -- RuleM monad-like datatype and funcions
 type External = (Var, Type)
-data RuleM = RuleM [Rule] [External] [Factor]
+data RuleM = RuleM [Rule] [External] [Nonterminal] [Factor]
 
 -- RuleM instances of >>= and >= (since not
 -- technically a monad, need to pick new names)
 infixl 1 +>=, +>, +*>=
 (+>=) :: RuleM -> ([External] -> RuleM) -> RuleM
-RuleM rs xs fs +>= g =
-  let RuleM rs' xs' fs' = g xs in
-    RuleM (rs ++ rs') (xs ++ xs') (concatFactors fs fs')
+RuleM rs xs nts fs +>= g =
+  let RuleM rs' xs' nts' fs' = g xs in
+    RuleM (rs ++ rs') (xs ++ xs') (nts ++ nts') (concatFactors fs fs')
 
 (+>) :: RuleM -> RuleM -> RuleM
 r1 +> r2 = r1 +>= \ _ -> r2
 
 (+*>=) :: [RuleM] -> ([[External]] -> RuleM) -> RuleM
 rs +*>= rf =
-  let (r, xss) = foldr (\ r' (r, xss) -> let RuleM rs' xs' fs' = r' in (r +> r', xs' : xss)) (returnRule, []) rs in
+  let (r, xss) = foldr (\ r' (r, xss) -> let RuleM rs' xs' nts' fs' = r' in (r +> r', xs' : xss)) (returnRule, []) rs in
     r +> rf xss
 
 -- Add a list of external nodes
 addExts :: [(Var, Type)] -> RuleM
-addExts xs = RuleM [] xs []
+addExts xs = RuleM [] xs [] []
 
 -- Add a single external node
 addExt :: Var -> Type -> RuleM
 addExt x tp = addExts [(x, tp)]
 
+addNonterms :: [Nonterminal] -> RuleM
+addNonterms nts = RuleM [] [] nts []
+
+-- Add a single nonterminal
+addNonterm :: Var -> Type -> RuleM
+addNonterm x tp = addNonterms [(x, tp)]
+
 -- Add a list of rules
 addRules :: [Rule] -> RuleM
-addRules rs = RuleM rs [] []
+addRules rs = RuleM rs [] [] []
 
 -- Add a single rule
 addRule :: Rule -> RuleM
@@ -45,15 +52,15 @@ addRule' :: Term -> [Type] -> [Edge] -> [Int] -> RuleM
 addRule' lhs ns es xs = addRule $ Rule (show lhs) $ HGF ns es xs
 
 addFactor :: Var -> PreWeight -> RuleM
-addFactor x w = RuleM [] [] [(x, w)]
+addFactor x w = RuleM [] [] [] [(x, w)]
 
 -- Do nothing new
 returnRule :: RuleM
-returnRule = RuleM [] [] []
+returnRule = RuleM [] [] [] []
 
 -- Extract rules from a RuleM
 getRules :: RuleM -> [Rule]
-getRules (RuleM rs xs fs) = rs
+getRules (RuleM rs xs nts fs) = rs
 
 
 

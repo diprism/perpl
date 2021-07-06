@@ -28,6 +28,7 @@ instance Show JSON where
 
 {- ====== FGG Functions ====== -}
 
+type Nonterminal = (Var, Type)
 type Domain = [String]
 type Value = String
 type FType = [Value]
@@ -138,23 +139,24 @@ preWeightToWeight ds (PairWeight (tp1, tp2)) =
 
 -- Construct an FGG from a list of rules, a start symbol,
 -- and a function that gives the possible values of each type
-rulesToFGG :: (Type -> [String]) -> String -> [Rule] -> [Factor] -> FGG_JSON
-rulesToFGG doms start rs facs =
+rulesToFGG :: (Type -> [String]) -> String -> [Rule] -> [Nonterminal] -> [Factor] -> FGG_JSON
+rulesToFGG doms start rs nts facs =
   let rs' = nub rs
       ds  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
                      foldr (\ n -> Map.insert (show n) (doms n)) m ns) Map.empty rs'
-      nts = foldr (\ (Rule lhs (HGF ns _ xs)) ->
-                     Map.insert lhs (map (\ i -> show $ ns !! i) xs)) Map.empty rs'
+      nts'' = foldr (\ (x, tp) -> Map.insert x [show tp]) Map.empty nts
+      nts' = foldr (\ (Rule lhs (HGF ns _ xs)) ->
+                      Map.insert lhs (map (\ i -> show $ ns !! i) xs)) nts'' rs'
       facs' = map (\ (x, w) -> (x, preWeightToWeight ds w)) facs
-      getFac = \ l -> maybe (error ("In rulesToFGG, no factor named " ++ l ++ " (factor names: " ++ show (map fst facs) ++ ", nts:" ++ show (Map.keys nts) ++ ")"))
+      getFac = \ l -> maybe (error ("In rulesToFGG, no factor named " ++ l ++ " (factor names: " ++ show (map fst facs) ++ ", nts:" ++ show (Map.keys nts') ++ ")"))
                         id $ lookup l facs'
       fs  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
                      foldr (\ (Edge atts l) -> let lnodes = map ((!!) ns) atts in
-                               if Map.member l nts then id else
+                               if Map.member l nts' then id else
                                  Map.insert l (map show lnodes, getFac l))
                            m es)
                   Map.empty rs' in
-    FGG_JSON ds fs nts start rs'
+    FGG_JSON ds fs nts' start rs'
 
 
 {-example_ctxt :: Ctxt
