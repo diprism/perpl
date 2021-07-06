@@ -41,7 +41,7 @@ getType (TmVar x tp sc) = tp
 getType (TmLam x tp tm tp') = TpArr tp tp'
 getType (TmApp tm1 tm2 tp2 tp) = tp
 getType (TmCase tm cs y tp) = tp
-getType (TmSamp d y) = TpVar y
+getType (TmSamp d tp) = tp
 getType (TmCtor x as y) = TpVar y
 
 -- Extracts the start term at the end of a program

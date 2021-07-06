@@ -25,7 +25,7 @@ freeVars (UsVar x) = Map.singleton x 1
 freeVars (UsLam x tp tm) = Map.delete x $ freeVars tm
 freeVars (UsApp tm tm') = Map.unionWith (+) (freeVars tm) (freeVars tm')
 freeVars (UsCase tm cs) = foldr (Map.unionWith max . freeVarsCase) (freeVars tm) cs
-freeVars (UsSamp d y) = Map.empty
+freeVars (UsSamp d tp) = Map.empty
 
 freeVarsCase :: CaseUs -> Map.Map Var Int
 freeVarsCase (CaseUs c xs tm) = foldr Map.delete (freeVars tm) xs
@@ -58,7 +58,7 @@ isLin x tm = h tm == LinYes where
     (foldr (\ c -> linIf' (linCase c) LinErr) LinYes cs)
     -- make sure x is linear in all the cases, or in none of the cases
     (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
-  h (UsSamp d y) = LinNo
+  h (UsSamp d tp) = LinNo
 
 
 {- ====== Alpha-Renaming Functions ====== -}
@@ -123,8 +123,8 @@ renameTerm (UsCase tm cs) =
   pure UsCase
     <*> renameTerm tm
     <*> foldr (\ c cs' -> pure (:) <*> renameCase c <*> cs') (return []) cs
-renameTerm (UsSamp d y) =
-  pure (UsSamp d) <*> getVar y
+renameTerm (UsSamp d tp) =
+  pure (UsSamp d) <*> renameType tp
 
 -- Alpha-rename a user-case
 renameCase :: CaseUs -> RenameM CaseUs

@@ -148,17 +148,17 @@ term2fgg g (TmApp tm1 tm2 tp2 tp) =
 term2fgg g (TmCase tm cs y tp) =
   term2fgg g tm +>= \ xs ->
   foldr (\ c r -> caseRule g xs (TmCase tm cs y tp) c +> r) returnRule cs
-term2fgg g (TmSamp d y) =
-  let dvs = domainValues g (TpVar y)
+term2fgg g (TmSamp d tp) =
+  let dvs = domainValues g tp
       dvws = WeightsDims $ WeightsData dvs in
   case d of
     DistFail -> returnRule
     DistUni  ->
-      addFactor (show $ TmSamp DistUni y) (ThisWeight (fmap (const (1.0 / fromIntegral (length dvs))) dvws)) +>
-      addRule' (TmSamp DistUni y) [TpVar y] [] [0]
+      addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const (1.0 / fromIntegral (length dvs))) dvws)) +>
+      addRule' (TmSamp d tp) [tp] [] [0]
     DistAmb  -> 
-      addFactor (show $ TmSamp DistAmb y) (ThisWeight (fmap (const 1) dvws)) +>
-      addRule' (TmSamp DistAmb y) [TpVar y] [] [0]
+      addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 1) dvws)) +>
+      addRule' (TmSamp d tp) [tp] [] [0]
 
 -- Goes through a program and adds all the rules for it
 prog2fgg :: Ctxt -> Progs -> RuleM

@@ -67,7 +67,7 @@ parseTerm1 = ParseM $ \ ts -> case ts of
 -- \ x : type -> term
   (TkLam : ts) -> parseMt ts $ pure UsLam <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
 -- sample dist x
-  (TkSample : ts) -> parseMt ts $ pure UsSamp <*> parseDist <*> parseVar
+  (TkSample : ts) -> parseMt ts $ pure UsSamp <*> parseDist <* parseDrop TkColon <*> parseType1
 -- case term of cases
   (TkCase : ts) -> parseMt ts $ pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
   _ -> parseMt ts parseTerm2

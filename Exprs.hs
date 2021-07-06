@@ -26,7 +26,7 @@ data UsTm = -- User Term
   | UsLam Var Type UsTm
   | UsApp UsTm UsTm
   | UsCase UsTm [CaseUs]
-  | UsSamp Dist Var
+  | UsSamp Dist Type
 
 data VarScope = ScopeLocal | ScopeGlobal | ScopeCtor
 
@@ -35,7 +35,7 @@ data Term =
   | TmLam Var Type Term Type
   | TmApp Term Term Type {- -> -} Type
   | TmCase Term [Case] Var Type
-  | TmSamp Dist Var
+  | TmSamp Dist Type
   | TmCtor Var [(Term, Type)] Var
 
 
@@ -57,7 +57,7 @@ toUsTm (TmVar x _ _) = UsVar x
 toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmCase tm cs _ _) = UsCase (toUsTm tm) (map toCaseUs cs)
-toUsTm (TmSamp d y) = UsSamp d y
+toUsTm (TmSamp d tp) = UsSamp d tp
 toUsTm (TmCtor x as _) = foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar x) as
 
 toCaseUs :: Case -> CaseUs
@@ -106,7 +106,7 @@ showTermh (UsVar x) = x
 showTermh (UsLam x tp tm) = "\\ " ++ x ++ " : " ++ show tp ++ ". " ++ showTerm tm ShowNone
 showTermh (UsApp tm1 tm2) = showTerm tm1 ShowAppL ++ " " ++ showTerm tm2 ShowAppR
 showTermh (UsCase tm cs) = "case " ++ showTerm tm ShowCase ++ " of " ++ showCasesCtors cs
-showTermh (UsSamp d y) = "sample " ++ show d ++ " " ++ y
+showTermh (UsSamp d tp) = "sample " ++ show d ++ " : " ++ show tp
 
 -- Type show helper (ignoring parentheses)
 showTypeh :: Type -> String

@@ -86,7 +86,11 @@ checkTermh g (UsCase tm cs) =
       $ \ ycs -> checkCases g ycs cs >>= \ (cs', tp') ->
         return (TmCase tm' cs' y tp')
 
-checkTermh g (UsSamp d y) = maybe2 (ctxtLookupType g y)
+checkTermh g (UsSamp d tp) =
+  checkType g tp >>
+  return (TmSamp d tp)
+
+{-checkTermh g (UsSamp d y) = maybe2 (ctxtLookupType g y)
   (err ("Type variable '" ++ y ++ "' not in scope"))
   $ \ cs ->
     foldr
@@ -95,6 +99,7 @@ checkTermh g (UsSamp d y) = maybe2 (ctxtLookupType g y)
           ("Not sure how to instantiate args for constructor '" ++ x ++ "' when sampling"))
       okay cs >>
     return (TmSamp d y)
+-}
 
 
 -- Check a type under a context
