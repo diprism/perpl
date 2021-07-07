@@ -37,14 +37,19 @@ data Term =
   | TmCase Term [Case] Var Type
   | TmSamp Dist Type
   | TmCtor Var [(Term, Type)] Var
-  | TmMaybe (Maybe Term) Type -- For internal use only
-  | TmElimMaybe Term Type Term (Var, Term) Type -- For internal use only
+  -- For internal use only
+  | TmMaybe (Maybe Term) Type
+  | TmElimMaybe Term Type Term (Var, Term) Type
+  | TmBool Bool
+  | TmIf Term Term Term Type
 
 
 data Type =
     TpArr Type Type
   | TpVar Var
-  | TpMaybe Type -- For internal use only
+  -- For internal use only
+  | TpMaybe Type
+  | TpBool
 --  | TpMeas Var
   deriving Eq
 
@@ -53,8 +58,11 @@ data CaseUs = CaseUs Var [Var] UsTm
 data Case = Case Var [(Var, Type)] Term
 
 tpMaybeName   = "%Maybe%"
+tpBoolname    = "%Bool%"
 tmNothingName = "%nothing%"
-tmJustName    = "%just"
+tmJustName    = "%just%"
+tmTrueName    = "%true%"
+tmFalseName   = "%false%"
 
 {- Convert back from elaborated terms to user terms -}
 
@@ -72,6 +80,8 @@ toUsTm (TmElimMaybe tm tp ntm (jx, jtm) tp') =
   UsCase (toUsTm tm)
     [CaseUs tmNothingName [] (toUsTm ntm),
      CaseUs tmJustName [jx] (toUsTm jtm)]
+toUsTm (TmBool b) = UsVar (if b then tmTrueName else tmFalseName)
+toUsTm (TmIf iftm thentm elsetm tp) = UsCase (toUsTm iftm) [CaseUs tmFalseName [] (toUsTm elsetm), CaseUs tmTrueName [] (toUsTm thentm)]
 
 toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)

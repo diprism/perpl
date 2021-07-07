@@ -160,16 +160,25 @@ term2fgg g (TmSamp d tp) =
       addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 1) dvws)) +>
       addRule' (TmSamp d tp) [tp] [] [0]
 term2fgg g (TmMaybe Nothing tp) =
-  let fac = maybeFactorName (TmMaybe Nothing tp) in
+  let fac = internalFactorName (TmMaybe Nothing tp) in
     addRule' (TmMaybe Nothing tp) [TpMaybe tp] [Edge [0] fac] [0] +>
     addFactor fac (error "TODO: weights for nothing")
 term2fgg g (TmMaybe (Just tm) tp) =
   term2fgg g tm +>= \ xs ->
-  let fac = maybeFactorName (TmMaybe (Just tm) tp)
+  let fac = internalFactorName (TmMaybe (Just tm) tp)
       (ns, [imtp : itp : ixs]) = combine [TpMaybe tp : tp : map snd xs]
       es = [Edge (ixs ++ [itp]) (show tm), Edge [itp, imtp] fac] in
     addRule' (TmMaybe (Just tm) tp) ns es ixs +>
     addFactor fac (error "TODO: weights for just")
+term2fgg g (TmElimMaybe tm tp ntm (jx, jtm) tp') =
+  error "TODO"
+term2fgg g (TmBool b) =
+  let fac = internalFactorName (TmBool b)
+      ws = if b then [0, 1] else [1, 0] in
+    addRule' (TmBool b) [TpBool] [Edge [0] fac] [0] +>
+    addFactor fac (ThisWeight $ WeightsDims $ WeightsData ws)
+term2fgg g (TmIf iftm thentm elsetm tp) =
+  error "TODO"
 
 -- Goes through a program and adds all the rules for it
 prog2fgg :: Ctxt -> Progs -> RuleM

@@ -45,6 +45,8 @@ getType (TmSamp d tp) = tp
 getType (TmCtor x as y) = TpVar y
 getType (TmMaybe mtm tp) = TpMaybe tp
 getType (TmElimMaybe tm tp ntm (jx, jtm) tp') = tp'
+getType (TmBool b) = TpBool
+getType (TmIf iftm thentm elsetm tp) = tp
 
 -- Extracts the start term at the end of a program
 getStartTerm :: Progs -> Term
@@ -108,8 +110,8 @@ pairFactorName tp1 tp2 = "v=(" ++ show (TpArr tp1 tp2) ++ ")"
 ctorFactorName :: Var -> [(Term, Type)] -> String
 ctorFactorName x as = "v=" ++ show (TmCtor x as "irrelevant")
 
-maybeFactorName :: Term -> String
-maybeFactorName tm = "v=(" ++ show tm ++ ")"
+internalFactorName :: Term -> String
+internalFactorName tm = "v=(" ++ show tm ++ ")"
 
 -- Establishes naming convention for eta-expanding a constructor.
 -- So Cons h t -> (\ ?Cons0. \ ?Cons1. Cons ?Cons0 ?Cons1) h t.

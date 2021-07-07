@@ -139,6 +139,8 @@ renameCase (CaseUs x as tm) =
 renameType :: Type -> RenameM Type
 renameType (TpVar y) = pure TpVar <*> getVar y
 renameType (TpArr tp1 tp2) = pure TpArr <*> renameType tp1 <*> renameType tp2
+renameType (TpMaybe tp) = pure TpMaybe <*> renameType tp
+renameType TpBool = pure TpBool
 
 -- Alpha-rename a constructor definition
 renameCtor :: Ctor -> RenameM Ctor
