@@ -172,7 +172,9 @@ alphaRename g ps =
 type FreeVars = Map.Map Var Type
 
 eliminate :: Ctxt -> Var -> Type -> Term -> Term
-eliminate g x (TpArr tp1 tp2) tm = error "TODO"
+eliminate g x (TpArr tp1 tp2) tm =
+  let tp = getType tm in
+  TmElimMaybe (TmVar x (TpMaybe (TpArr tp1 tp2)) ScopeLocal) (TpArr tp1 tp2) tm (ctorEtaName tmJustName 0, TmSamp DistFail tp) tp
 eliminate g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
   (error ("In Free.hs/eliminate, unknown type var " ++ y))
   $ \ cs ->
@@ -195,12 +197,21 @@ aff2linh :: Ctxt -> Term -> (Term, FreeVars)
 aff2linh g (TmVar x tp sc) = (TmVar x tp sc, Map.singleton x tp)
 aff2linh g (TmLam x tp tm tp') =
   let (tm', fvs) = aff2linh (ctxtDeclTerm g x tp) tm
-      tm'' = if Map.member x fvs then tm' else eliminate g x tp tm' in
-    (TmLam x tp tm'' tp', Map.delete x fvs)
+      tm'' = if Map.member x fvs then tm' else eliminate g x tp tm'
+      rtp = TpArr tp tp' in
+    (TmIf (TmSamp DistAmb TpBool)
+      (TmMaybe (Just (TmLam x tp tm'' tp')) rtp)
+      (eliminates g (Map.delete x fvs) (TmMaybe Nothing rtp)) rtp,
+     Map.delete x fvs)
 aff2linh g (TmApp tm1 tm2 tp2 tp) =
   let (tm1', fvs1) = aff2linh g tm1
-      (tm2', fvs2) = aff2linh g tm2 in
-    (TmApp tm1' tm2' tp2 tp, Map.union fvs1 fvs2)
+      (tm2', fvs2) = aff2linh g tm2
+      jx = ctorEtaName tmJustName 0 in
+    (TmElimMaybe tm1' (TpArr tp2 tp)
+      (eliminates g fvs2 (TmSamp DistFail tp)) -- TODO: perhaps instead "fail" as a function type that takes all fvs2 as args and returns tp, for the sake of efficiency? (apps faster than eliminating?)
+      (jx, TmApp (TmVar jx (TpArr tp2 tp) ScopeLocal) tm2' tp2 tp)
+      tp,
+     Map.union fvs1 fvs2)
 aff2linh g (TmCase tm cs y tp) =
   let csxs = map (aff2linCase g) cs
       xsAny = Map.unions (map snd csxs)
