@@ -37,11 +37,14 @@ data Term =
   | TmCase Term [Case] Var Type
   | TmSamp Dist Type
   | TmCtor Var [(Term, Type)] Var
+  | TmMaybe (Maybe Term) Type -- For internal use only
+  | TmElimMaybe Term Type Term (Var, Term) Type -- For internal use only
 
 
 data Type =
     TpArr Type Type
   | TpVar Var
+  | TpMaybe Type -- For internal use only
 --  | TpMeas Var
   deriving Eq
 
@@ -49,6 +52,9 @@ data CaseUs = CaseUs Var [Var] UsTm
 
 data Case = Case Var [(Var, Type)] Term
 
+tpMaybeName   = "%Maybe%"
+tmNothingName = "%nothing%"
+tmJustName    = "%just"
 
 {- Convert back from elaborated terms to user terms -}
 
@@ -59,6 +65,13 @@ toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmCase tm cs _ _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
 toUsTm (TmCtor x as _) = foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar x) as
+toUsTm (TmMaybe mtm tp) =
+  let apptp = \ tmName -> UsApp (UsVar tmName) (UsVar ("[" ++ show tp ++ "]")) in
+    maybe (apptp tmNothingName) (UsApp (apptp tmJustName) . toUsTm) mtm
+toUsTm (TmElimMaybe tm tp ntm (jx, jtm) tp') =
+  UsCase (toUsTm tm)
+    [CaseUs tmNothingName [] (toUsTm ntm),
+     CaseUs tmJustName [jx] (toUsTm jtm)]
 
 toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)
