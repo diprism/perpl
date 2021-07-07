@@ -1,6 +1,7 @@
 module Free where
 import Exprs
 import Ctxt
+import Util
 import qualified Data.Map as Map
 
 -- For checking linearity, vars can appear:
@@ -157,3 +158,64 @@ alphaRename g ps =
       (RenameM f) = renameProgs ps
       (ps', xs') = f xs in
     ps'
+
+
+
+{- ====== Affine to Linear Functions ====== -}
+-- These functions convert affine terms to
+-- linear ones, where an affine term is one where
+-- every bound var occurs at most once, and a
+-- linear term is one where every bound var
+-- occurs exactly once
+type FreeVars = Map.Map Var Type
+
+eliminate :: Ctxt -> Var -> Type -> Term -> Term
+eliminate g x (TpArr tp1 tp2) tm = error "TODO"
+eliminate g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
+  (error ("In Free.hs/eliminate, unknown type var " ++ y))
+  $ \ cs ->
+      TmCase (TmVar x (TpVar y) ScopeLocal)
+        (map (\ (Ctor x' as) ->
+                let as' = ctorGetArgs x' as in
+                  Case x' as' (foldr (uncurry $ eliminate g) tm as'))
+          cs) y (getType tm)
+
+eliminates :: Ctxt -> FreeVars -> Term -> Term
+eliminates g fvs tm = Map.foldrWithKey (eliminate g) tm fvs
+
+aff2linCase :: Ctxt -> Case -> (Case, FreeVars)
+aff2linCase g (Case x as tm) =
+  let (tm', fvs) = aff2linh (ctxtDeclArgs g as) tm
+      tm'' = eliminates g (Map.difference (Map.fromList as) fvs) tm' in
+    (Case x as tm'', foldr (Map.delete . fst) fvs as)
+
+aff2linh :: Ctxt -> Term -> (Term, FreeVars)
+aff2linh g (TmVar x tp sc) = (TmVar x tp sc, Map.singleton x tp)
+aff2linh g (TmLam x tp tm tp') =
+  let (tm', fvs) = aff2linh (ctxtDeclTerm g x tp) tm
+      tm'' = if Map.member x fvs then tm' else eliminate g x tp tm' in
+    (TmLam x tp tm'' tp', Map.delete x fvs)
+aff2linh g (TmApp tm1 tm2 tp2 tp) =
+  let (tm1', fvs1) = aff2linh g tm1
+      (tm2', fvs2) = aff2linh g tm2 in
+    (TmApp tm1' tm2' tp2 tp, Map.union fvs1 fvs2)
+aff2linh g (TmCase tm cs y tp) =
+  let csxs = map (aff2linCase g) cs
+      xsAny = Map.unions (map snd csxs)
+      xsAll = foldr Map.intersection xsAny (map snd csxs)
+      (tm', tmxs) = aff2linh g tm
+      cs' = flip map csxs $ \ (Case x as tm', xs) -> Case x as $
+                eliminates (ctxtDeclArgs g as) (Map.difference xsAny xs) tm' in
+    (TmCase tm' cs' y tp, Map.union xsAll tmxs)
+aff2linh g (TmSamp d tp) = (TmSamp d tp, Map.empty)
+aff2linh g (TmCtor x as y) =
+  let (as', fvss) = unzip $ flip map as $ 
+        \ (tm, tp) -> let (tm', xs) = aff2linh g tm in ((tm', tp), xs) in
+  (TmCtor x as' y, Map.unions fvss)
+
+aff2lin :: Ctxt -> Term -> Term
+aff2lin g tm =
+  let (tm', fvs) = aff2linh g tm in
+    if Map.null fvs
+      then tm'
+      else error ("in aff2lin, remaining free vars: " ++ show (Map.keys fvs))
