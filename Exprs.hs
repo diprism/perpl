@@ -29,6 +29,7 @@ data UsTm = -- User Term
   | UsSamp Dist Type
 
 data VarScope = ScopeLocal | ScopeGlobal | ScopeCtor
+  deriving Eq
 
 data Term =
     TmVar Var Type VarScope
@@ -58,7 +59,7 @@ data CaseUs = CaseUs Var [Var] UsTm
 data Case = Case Var [(Var, Type)] Term
 
 tpMaybeName   = "%Maybe%"
-tpBoolname    = "%Bool%"
+tpBoolName    = "%Bool%"
 tmNothingName = "%nothing%"
 tmJustName    = "%just%"
 tmTrueName    = "%true%"
@@ -121,6 +122,7 @@ showTermParens _             _        = False
 showTypeParens :: Type -> ShowHist -> Bool
 showTypeParens (TpArr _ _) ShowArrL = True
 showTypeParens (TpArr _ _) ShowTypeArg = True
+showTypeParens (TpMaybe _) ShowTypeArg = True
 showTypeParens _ _ = False
 
 -- Term show helper (ignoring parentheses)
@@ -135,6 +137,8 @@ showTermh (UsSamp d tp) = "sample " ++ show d ++ " : " ++ show tp
 showTypeh :: Type -> String
 showTypeh (TpVar y) = y
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
+showTypeh (TpMaybe tp) = tpMaybeName ++ " " ++ showType tp ShowTypeArg
+showTypeh TpBool = tpBoolName
 
 -- Show a term, given its parent for parentheses
 showTerm :: UsTm -> ShowHist -> String
