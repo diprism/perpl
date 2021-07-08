@@ -106,12 +106,12 @@ typeFactorName tp = "==" ++ show tp
 pairFactorName :: Type -> Type -> String
 pairFactorName tp1 tp2 = "v=(" ++ show (TpArr tp1 tp2) ++ ")"
 
+internalFactorName :: Term -> String
+internalFactorName tm = "v=" ++ show tm
+
 -- Naming convention for constructor factor
 ctorFactorName :: Var -> [(Term, Type)] -> String
-ctorFactorName x as = "v=" ++ show (TmCtor x as "irrelevant")
-
-internalFactorName :: Term -> String
-internalFactorName tm = "v=(" ++ show tm ++ ")"
+ctorFactorName x as = internalFactorName (TmCtor x as "irrelevant")
 
 -- Establishes naming convention for eta-expanding a constructor.
 -- So Cons h t -> (\ ?Cons0. \ ?Cons1. Cons ?Cons0 ?Cons1) h t.
