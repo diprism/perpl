@@ -194,7 +194,7 @@ aff2linCase g (Case x as tm) =
     (Case x as tm'', foldr (Map.delete . fst) fvs as)
 
 aff2linh :: Ctxt -> Term -> (Term, FreeVars)
-aff2linh g (TmVar x tp sc) = (TmVar x tp sc, Map.singleton x tp)
+aff2linh g (TmVar x tp sc) = (TmVar x tp sc, if sc == ScopeLocal then Map.singleton x tp else Map.empty)
 aff2linh g (TmLam x tp tm tp') =
   let (tm', fvs) = aff2linh (ctxtDeclTerm g x tp) tm
       tm'' = if Map.member x fvs then tm' else eliminate g x tp tm'
