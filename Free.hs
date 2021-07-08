@@ -174,7 +174,8 @@ type FreeVars = Map.Map Var Type
 eliminate :: Ctxt -> Var -> Type -> Term -> Term
 eliminate g x (TpArr tp1 tp2) tm =
   let tp = getType tm in
-  TmElimMaybe (TmVar x (TpMaybe (TpArr tp1 tp2)) ScopeLocal) (TpArr tp1 tp2) tm (ctorEtaName tmJustName 0, TmSamp DistFail tp) tp
+    error "TODO"
+    --TmElimMaybe (TmVar x (TpMaybe (TpArr tp1 tp2)) ScopeLocal) (TpArr tp1 tp2) tm (ctorEtaName tmJustName 0, TmSamp DistFail tp) tp
 eliminate g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
   (error ("In Free.hs/eliminate, unknown type var " ++ y))
   $ \ cs ->
@@ -184,8 +185,21 @@ eliminate g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
                   Case x' as' (foldr (uncurry $ eliminate g) tm as'))
           cs) y (getType tm)
 
+{-
+L(\x:X. b) [x \in FV(b)] => \x:Maybe L'(X). case x of nothing => discard (FV(b) - {x}) in fail | just x' => L(b)
+L(\x:X. b) [x \notin FV(b)] => \x:Maybe L'(X). case x of nothing => L(b) | just x' -> discard x', FV(b) in fail
+L(f a) => L(f) (if amb then nothing else just L(a))
+
+-}
+
 eliminates :: Ctxt -> FreeVars -> Term -> Term
 eliminates g fvs tm = Map.foldrWithKey (eliminate g) tm fvs
+
+aff2linTp :: Type -> Type
+aff2linTp (TpVar y) = TpVar y
+aff2linTp (TpArr tp1 tp2) = TpArr (TpMaybe (aff2linTp tp1)) (aff2linTp tp2)
+aff2linTp (TpMaybe tp) = TpMaybe (aff2linTp tp)
+aff2linTp TpBool = TpBool
 
 aff2linCase :: Ctxt -> Case -> (Case, FreeVars)
 aff2linCase g (Case x as tm) =
@@ -197,20 +211,25 @@ aff2linh :: Ctxt -> Term -> (Term, FreeVars)
 aff2linh g (TmVar x tp sc) = (TmVar x tp sc, if sc == ScopeLocal then Map.singleton x tp else Map.empty)
 aff2linh g (TmLam x tp tm tp') =
   let (tm', fvs) = aff2linh (ctxtDeclTerm g x tp) tm
-      tm'' = if Map.member x fvs then tm' else eliminate g x tp tm'
-      rtp = TpArr tp tp' in
-    (TmIf (TmSamp DistAmb TpBool)
-      (TmMaybe (Just (TmLam x tp tm'' tp')) rtp)
-      (eliminates g (Map.delete x fvs) (TmMaybe Nothing rtp)) rtp,
-     Map.delete x fvs)
+      lptp = aff2linTp tp
+      ltp = TpMaybe lptp
+      ltp' = aff2linTp tp'
+      rtp = TpArr ltp ltp'
+      x' = aff2linName x
+      mktm = \ ntm jtm -> (TmLam x' ltp (TmElimMaybe (TmVar x' ltp ScopeLocal) lptp ntm (x, jtm) rtp) ltp', Map.delete x fvs)
+      free = Map.member x fvs
+      fvs' = if free then Map.delete x fvs else Map.insert x lptp fvs
+      failtm = eliminates g fvs' (TmSamp DistFail ltp') in
+    if free then mktm failtm tm' else mktm tm' failtm
 aff2linh g (TmApp tm1 tm2 tp2 tp) =
+  -- L(f a) => L(f) (if amb then nothing else just L(a))
+  -- TODO: perhaps instead "fail" as a function type that takes all fvs2 as args and returns tp, for the sake of efficiency? (apps faster than eliminating?)
   let (tm1', fvs1) = aff2linh g tm1
       (tm2', fvs2) = aff2linh g tm2
+      ltp2 = aff2linTp tp2
+      ltp = aff2linTp tp
       jx = ctorEtaName tmJustName 0 in
-    (TmElimMaybe tm1' (TpArr tp2 tp)
-      (eliminates g fvs2 (TmSamp DistFail tp)) -- TODO: perhaps instead "fail" as a function type that takes all fvs2 as args and returns tp, for the sake of efficiency? (apps faster than eliminating?)
-      (jx, TmApp (TmVar jx (TpArr tp2 tp) ScopeLocal) tm2' tp2 tp)
-      tp,
+    (TmApp tm1' (TmIf (TmSamp DistAmb TpBool) (TmMaybe Nothing ltp2) (TmMaybe (Just tm2') ltp2) (TpMaybe ltp2)) (TpMaybe ltp2) ltp,
      Map.union fvs1 fvs2)
 aff2linh g (TmCase tm cs y tp) =
   let csxs = map (aff2linCase g) cs
@@ -219,7 +238,7 @@ aff2linh g (TmCase tm cs y tp) =
       (tm', tmxs) = aff2linh g tm
       cs' = flip map csxs $ \ (Case x as tm', xs) -> Case x as $
                 eliminates (ctxtDeclArgs g as) (Map.difference xsAny xs) tm' in
-    (TmCase tm' cs' y tp, Map.union xsAll tmxs)
+    (TmCase tm' cs' y (aff2linTp tp), Map.union xsAll tmxs)
 aff2linh g (TmSamp d tp) = (TmSamp d tp, Map.empty)
 aff2linh g (TmCtor x as y) =
   let (as', fvss) = unzip $ flip map as $ 

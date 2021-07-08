@@ -157,7 +157,8 @@ term2fgg g (TmSamp d tp) =
   let dvs = domainValues g tp
       dvws = WeightsDims $ WeightsData dvs in
   case d of
-    DistFail -> returnRule
+    DistFail ->
+      addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 0) dvws))
     DistUni  ->
       addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const (1.0 / fromIntegral (length dvs))) dvws)) +>
       addRule' (TmSamp d tp) [tp] [] [0]
@@ -168,7 +169,8 @@ term2fgg g (TmMaybe Nothing tp) =
   let fac = maybeFactorName Nothing tp
       ws = 1 : map (const 0) (domainValues g tp) in
     addRule' (TmMaybe Nothing tp) [TpMaybe tp] [Edge [0] fac] [0] +>
-    addFactor fac (ThisWeight $ WeightsDims $ WeightsData ws)
+    addFactor fac (ThisWeight $ WeightsDims $ WeightsData ws) +>
+    addMaybeFactors tp
 term2fgg g (TmMaybe (Just tm) tp) =
   term2fgg g tm +>= \ xs ->
   let fac = maybeFactorName (Just tm) tp
@@ -176,7 +178,8 @@ term2fgg g (TmMaybe (Just tm) tp) =
       es = [Edge (ixs ++ [itp]) (show tm), Edge [itp, imtp] fac]
       ws = 0 : map (const 1) (domainValues g tp) in
     addRule' (TmMaybe (Just tm) tp) ns es ixs +>
-    addFactor fac (ThisWeight $ WeightsDims $ WeightsData ws)
+    addFactor fac (ThisWeight $ WeightsDims $ WeightsData ws) +>
+    addMaybeFactors tp
 term2fgg g (TmElimMaybe tm xtp ntm (jx, jtm) vtp) =
   term2fgg g tm +>= \ tmxs ->
   term2fgg g ntm +>= \ ntmxs ->
@@ -195,7 +198,8 @@ term2fgg g (TmElimMaybe tm xtp ntm (jx, jtm) vtp) =
       j_xs = j_itmxs ++ j_ijtmxs
   in
   addRule' (TmElimMaybe tm xtp ntm (jx, jtm) vtp) n_ns n_es n_xs +>
-  addRule' (TmElimMaybe tm xtp ntm (jx, jtm) vtp) j_ns j_es j_xs
+  addRule' (TmElimMaybe tm xtp ntm (jx, jtm) vtp) j_ns j_es j_xs +>
+  addMaybeFactors xtp
 term2fgg g (TmBool b) =
   let fac = internalFactorName (TmBool b)
       ws = if b then [0, 1] else [1, 0] in
@@ -257,18 +261,20 @@ maybeFactorName :: Maybe Term -> Type -> String
 maybeFactorName Nothing tp = internalFactorName (TmMaybe Nothing tp)
 maybeFactorName (Just tm) tp = internalFactorName (TmMaybe (Just (TmVar "" tp ScopeLocal)) tp)
 
-addInternalFactors :: RuleM
-addInternalFactors =
-  let boolCtors = [Ctor tmFalseName [], Ctor tmTrueName []]
---      maybeCtors = [Ctor tmNothingName [], Ctor tmJustName []]
-  in
+addMaybeFactors :: Type -> RuleM
+addMaybeFactors tp =
+  let maybeCtors = [Ctor (tmNothingName ++ " [" ++ show tp ++ "]") [], Ctor (tmJustName ++ " [" ++ show tp ++ "] ") []] in
+    ctorsFactors maybeCtors (tpMaybeName ++ " " ++ show tp) +>
+    foldr (\ c rm -> ctorRules c tpMaybeName maybeCtors +> rm) returnRule maybeCtors
+
+addBoolFactors :: RuleM
+addBoolFactors =
+  let boolCtors = [Ctor tmFalseName [], Ctor tmTrueName []] in
   ctorsFactors boolCtors tpBoolName +>
---  ctorsFactors maybeCtors tpMaybeName +>
   foldr (\ c rm -> ctorRules c tpBoolName boolCtors +> rm) returnRule boolCtors
---  foldr (\ c rm -> ctorRules c tpMaybeName maybeCtors +> rm) returnRule maybeCtors
 
 -- Converts an elaborated program into an FGG
 file2fgg :: Ctxt -> Progs -> FGG_JSON
 file2fgg g ps =
-  let RuleM rs xs nts fs = addInternalFactors +> prog2fgg g ps in
+  let RuleM rs xs nts fs = addBoolFactors +> prog2fgg g ps in
     rulesToFGG (domainValues g) (show $ getStartTerm ps) (reverse rs) nts fs

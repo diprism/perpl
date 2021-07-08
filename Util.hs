@@ -127,6 +127,9 @@ ctorFactorName x as = internalFactorName (TmCtor x as "irrelevant")
 ctorEtaName :: Var -> Int -> Var
 ctorEtaName x i = "?" ++ x ++ show i
 
+aff2linName :: Var -> Var
+aff2linName x = '%' : x
+
 
 -- Returns the names of the args for a constructor
 ctorGetArgs :: Var -> [Type] -> [(Var, Type)]
