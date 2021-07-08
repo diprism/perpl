@@ -5,11 +5,14 @@ import Exprs
 import Util
 
 -- "Switch" for if we enforce linear vs. affine
-checkAffLin :: Var -> UsTm -> Bool
---checkAffLin = isLin
+--checkAffLinFun = isLin
 --checkAffLinMsg = "linear"
-checkAffLin = isAff
+checkAffLinFun = isAff
 checkAffLinMsg = "affine"
+
+checkAffLin :: Var -> Type -> UsTm -> Bool
+checkAffLin x (TpArr _ _) tm = checkAffLinFun x tm
+checkAffLin x _ tm = True
 
 -- Return error
 err :: String -> Either String a
@@ -50,7 +53,7 @@ checkTerm g tm =
 checkTermh g (UsVar x) = checkTermVar True g (UsVar x)
 
 checkTermh g (UsLam x tp tm) =
-  ifErr (not $ checkAffLin x tm)
+  ifErr (not $ checkAffLin x tp tm)
     ("Bound variable '" ++ x ++ "' is not " ++ checkAffLinMsg ++ " in the body") >>
   checkType g tp >>
   checkTerm (ctxtDeclTerm g x tp) tm >>= \ (tm', tp') ->
@@ -123,10 +126,11 @@ checkCase g (Ctor x as) (CaseUs x' as' tm) =
     ("Expected " ++ show (length as) ++ " args for case '" ++
       x ++ "', but got " ++ show (length as')) >>
   let g' = ctxtDeclArgs g (zip as' as)
+      as'' = zip as' as
       msg = \ a -> "In the case " ++ x' ++ ", arg " ++ a ++ " is not linear in the body" in
-  foldr (\ a r -> ifErr (not $ checkAffLin a tm) (msg a) >> r) okay as' >>
+  foldr (\ (a, atp) r -> ifErr (not $ checkAffLin a atp tm) (msg a) >> r) okay as'' >>
   checkTerm g' tm >>= \ (tm', tp) ->
-  return (Case x (zip as' as) tm', tp)
+  return (Case x as'' tm', tp)
 
 -- Check and elaborate a list of cases under a context
 checkCases :: Ctxt -> [Ctor] -> [CaseUs] -> Either String ([Case], Type)
@@ -168,7 +172,7 @@ checkProgs g (UsProgExtern x tp ps) =
   return (ProgExtern x tp ps')
 
 checkProgs g (UsProgData x cs ps) =
-  declErr x (foldr (\ (Ctor x tps) r -> foldr (\ tp r -> checkType g tp >> r) okay tps >> r) okay cs) >>
+  declErr x (foldr (\ (Ctor x tps) r -> foldr (\ tp r -> checkType g tp >> ifErr (hasArr tp) ("Constructor " ++ x ++ " has an arg with an arrow type, which is not allowed") >> r) okay tps >> r) okay cs) >>
   checkProgs g ps >>= \ ps' ->
   return (ProgData x cs ps')
 

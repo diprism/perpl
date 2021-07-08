@@ -48,6 +48,12 @@ getType (TmElimMaybe tm tp ntm (jx, jtm) tp') = tp'
 getType (TmBool b) = TpBool
 getType (TmIf iftm thentm elsetm tp) = tp
 
+hasArr :: Type -> Bool
+hasArr (TpVar x) = False -- assuming datatype x can't have arrows either
+hasArr (TpArr tp1 tp2) = True
+hasArr (TpMaybe tp) = hasArr tp
+hasArr TpBool = False
+
 -- Extracts the start term at the end of a program
 getStartTerm :: Progs -> Term
 getStartTerm (ProgExec tm) = tm
