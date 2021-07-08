@@ -6,8 +6,10 @@ import Util
 
 -- "Switch" for if we enforce linear vs. affine
 checkAffLin :: Var -> UsTm -> Bool
-checkAffLin = isLin -- isAff
-checkAffLinMsg = "linear" -- "affine"
+--checkAffLin = isLin
+--checkAffLinMsg = "linear"
+checkAffLin = isAff
+checkAffLinMsg = "affine"
 
 -- Return error
 err :: String -> Either String a
@@ -150,7 +152,7 @@ checkProgs :: Ctxt -> UsProgs -> Either String Progs
 
 checkProgs g (UsProgExec tm) =
   checkTerm g tm >>= \ (tm', tp') ->
-  return (ProgExec tm')
+  return (ProgExec (aff2lin g tm'))
 
 checkProgs g (UsProgFun x tp tm ps) =
   checkType g tp >>
@@ -158,7 +160,7 @@ checkProgs g (UsProgFun x tp tm ps) =
   ifErr (tp /= tp')
     ("Expected type of function '" ++ x ++ "' does not match computed type") >>
   checkProgs g ps >>= \ ps' ->
-  return (ProgFun x tp tm' ps')
+  return (ProgFun x tp (aff2lin g tm') ps')
 
 checkProgs g (UsProgExtern x tp ps) =
   checkType g tp >>
