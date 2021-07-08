@@ -148,7 +148,7 @@ parseProg = ParseM $ \ ts -> case ts of
 -- data T = ctors; ...
   (TkData : ts) -> parseMt ts $ pure UsProgData <*> parseVar <* parseDrop TkEq <*> parseCtors <* parseDrop TkSemicolon <*> parseProg
 -- term
-  _ -> parseMt ts $ pure UsProgExec <*> parseTerm1
+  _ -> parseMt ts $ pure UsProgExec <*> parseTerm1 <* parseDropSoft TkSemicolon
 --  (TkExec : ts) -> parseMt ts $ pure UsProgExec <*> parseTerm1
 --  _ -> Nothing
 
