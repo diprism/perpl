@@ -174,7 +174,7 @@ type FreeVars = Map.Map Var Type
 eliminate :: Ctxt -> Var -> Type -> Term -> Term
 eliminate g x (TpArr tp1 tp2) tm =
   let tp = getType tm in
-    error "TODO"
+    error "This shouldn't happen"
     --TmElimMaybe (TmVar x (TpMaybe (TpArr tp1 tp2)) ScopeLocal) (TpArr tp1 tp2) tm (ctorEtaName tmJustName 0, TmSamp DistFail tp) tp
 eliminate g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
   (error ("In Free.hs/eliminate, unknown type var " ++ y))
@@ -184,6 +184,12 @@ eliminate g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
                 let as' = ctorGetArgs x' as in
                   Case x' as' (foldr (uncurry $ eliminate g) tm as'))
           cs) y (getType tm)
+eliminate g x (TpMaybe tp) tm =
+  let x' = aff2linName x
+      tp' = getType tm in
+  TmElimMaybe (TmVar x (TpMaybe tp) ScopeLocal) tp tm (x', TmSamp DistFail tp') tp'
+  -- TODO: ^^^ doesn't eliminate the x in just x; instead it simply fails then and there
+eliminate g x TpBool tm = TmIf (TmVar x TpBool ScopeLocal) tm tm (getType tm)
 
 {-
 L(\x:X. b) [x \in FV(b)] => \x:Maybe L'(X). case x of nothing => discard (FV(b) - {x}) in fail | just x' => L(b)
@@ -208,13 +214,15 @@ aff2linCase g (Case x as tm) =
     (Case x as tm'', foldr (Map.delete . fst) fvs as)
 
 aff2linh :: Ctxt -> Term -> (Term, FreeVars)
-aff2linh g (TmVar x tp sc) = (TmVar x tp sc, if sc == ScopeLocal then Map.singleton x tp else Map.empty)
+aff2linh g (TmVar x tp sc) =
+  let ltp = aff2linTp tp in
+    (TmVar x ltp sc, if sc == ScopeLocal then Map.singleton x ltp else Map.empty)
 aff2linh g (TmLam x tp tm tp') =
-  let (tm', fvs) = aff2linh (ctxtDeclTerm g x tp) tm
-      lptp = aff2linTp tp
+  let lptp = aff2linTp tp
       ltp = TpMaybe lptp
       ltp' = aff2linTp tp'
       rtp = TpArr ltp ltp'
+      (tm', fvs) = aff2linh (ctxtDeclTerm g x tp) tm
       x' = aff2linName x
       mktm = \ ntm jtm -> (TmLam x' ltp (TmElimMaybe (TmVar x' ltp ScopeLocal) lptp ntm (x, jtm) rtp) ltp', Map.delete x fvs)
       free = Map.member x fvs
@@ -239,9 +247,9 @@ aff2linh g (TmCase tm cs y tp) =
       cs' = flip map csxs $ \ (Case x as tm', xs) -> Case x as $
                 eliminates (ctxtDeclArgs g as) (Map.difference xsAny xs) tm' in
     (TmCase tm' cs' y (aff2linTp tp), Map.union xsAll tmxs)
-aff2linh g (TmSamp d tp) = (TmSamp d tp, Map.empty)
+aff2linh g (TmSamp d tp) = (TmSamp d (aff2linTp tp), Map.empty)
 aff2linh g (TmCtor x as y) =
-  let (as', fvss) = unzip $ flip map as $ 
+  let (as', fvss) = unzip $ flip map as $ -- No need to aff2linTp bc args can't have arrows
         \ (tm, tp) -> let (tm', xs) = aff2linh g tm in ((tm', tp), xs) in
   (TmCtor x as' y, Map.unions fvss)
 
