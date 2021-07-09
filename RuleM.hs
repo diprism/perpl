@@ -79,8 +79,8 @@ getCtorWeights domsize ci cs =
   
 
 -- Identity matrix
-getCtorEqWeights :: (Type -> Int) -> Int {- num of ctors -} -> PreWeight
-getCtorEqWeights domsize cs =
+getCtorEqWeights :: Int {- num of possible values -} -> PreWeight
+getCtorEqWeights cs =
   let is = [0..cs - 1] in
     ThisWeight $ fmap (\ (i, j) -> if i == j then 1 else 0) $
       matrixWeight $ kronecker is is

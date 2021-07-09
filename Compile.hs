@@ -97,7 +97,7 @@ ctorsRules g cs y =
  foldr (\ c r -> r +> ctorRules g c y cs) returnRule cs
 
 ctorsFactors :: Ctxt -> [Ctor] -> Type -> RuleM
-ctorsFactors g cs y = addFactor (typeFactorName y) (getCtorEqWeights (domainSize g) (length cs))
+ctorsFactors g cs y = addFactor (typeFactorName y) (getCtorEqWeights (domainSize g y))
 
 -- Add a rule for this particular case in a case-of statement
 caseRule :: Ctxt -> [(Var, Type)] -> Term -> Case -> RuleM
