@@ -7,10 +7,6 @@ import RuleM
 import Ctxt
 
 
--- TODO: rework ctor and internal factor weights to range over all
---       values of types; e.g. weights of Maybe Bool range over
---       {nothing [Bool], just [Bool] true, just [Bool] false}
-
 -- Local var rule
 var2fgg :: Var -> Type -> RuleM
 var2fgg x tp =
