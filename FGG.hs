@@ -137,6 +137,13 @@ preWeightToWeight ds (PairWeight (tp1, tp2)) =
     WeightsDims $ WeightsDims $ WeightsDims $ WeightsData $
       map (map (\ v12 -> concat $ map (map $ \ v12' -> if v12 == v12' then 1 else 0) (kronecker vs1 vs2))) (kronecker vs1 vs2)
 
+scalarWeight = WeightsData
+vectorWeight = WeightsDims . WeightsData
+matrixWeight = WeightsDims . WeightsDims . WeightsData
+scalarPreWeight = ThisWeight . scalarWeight
+vectorPreWeight = ThisWeight . vectorWeight
+matrixPreWeight = ThisWeight . matrixWeight
+
 -- Construct an FGG from a list of rules, a start symbol,
 -- and a function that gives the possible values of each type
 rulesToFGG :: (Type -> [String]) -> String -> [Rule] -> [Nonterminal] -> [Factor] -> FGG_JSON

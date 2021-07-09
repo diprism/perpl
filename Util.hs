@@ -13,7 +13,7 @@ kronwith :: (a -> b -> c) -> [a] -> [b] -> [c]
 kronwith f as bs = map (uncurry f) $ concat $ kronecker as bs
 
 weightsRow :: Num n => Int {- Index -} -> Int {- Length -} -> [n]
-weightsRow i l = map (\ j -> if j == i then 1 else 0) [0..l-1]
+weightsRow i l = [if j == i then 1 else 0 | j <- [0..l-1]] --map (\ j -> if j == i then 1 else 0) [0..l-1]
 
 -- Argument-reordered version of maybe
 maybe2 :: Maybe a -> b -> (a -> b) -> b

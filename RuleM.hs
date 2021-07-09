@@ -65,14 +65,22 @@ getRules (RuleM rs xs nts fs) = rs
 
 
 getPairWeights :: Type -> Type -> PreWeight
-getPairWeights tp1 tp2 = PairWeight ((show tp1), (show tp2))
+getPairWeights tp1 tp2 = PairWeight (show tp1, show tp2)
 
-getCtorWeights :: Int {- ctor index -} -> Int {- num of ctors -} -> PreWeight
-getCtorWeights ci cs = ThisWeight $ WeightsDims $ WeightsData $ weightsRow ci cs
+getCtorWeights :: (Type -> Int) -> Int {- ctor index -} -> [Ctor] -> PreWeight
+getCtorWeights domsize ci cs =
+--  vectorPreWeight $ weightsRow ci cs
+  vectorPreWeight $ foldl
+      (\ ws (i, Ctor _ as) ->
+         let n = if i == ci then 1 else 0
+             ns = product (map domsize as) in
+           ws ++ [n | _ <- [0..ns-1]])
+      [] (zip [0..length cs - 1] cs)
+  
 
 -- Identity matrix
-getCtorEqWeights :: Int {- num of ctors -} -> PreWeight
-getCtorEqWeights cs =
+getCtorEqWeights :: (Type -> Int) -> Int {- num of ctors -} -> PreWeight
+getCtorEqWeights domsize cs =
   let is = [0..cs - 1] in
     ThisWeight $ fmap (\ (i, j) -> if i == j then 1 else 0) $
-      WeightsDims $ WeightsDims $ WeightsData $ kronecker is is
+      matrixWeight $ kronecker is is

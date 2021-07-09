@@ -188,7 +188,6 @@ eliminate g x (TpMaybe tp) tm =
   let x' = aff2linName x
       tp' = getType tm in
   TmElimMaybe (TmVar x (TpMaybe tp) ScopeLocal) tp tm (x', TmSamp DistFail tp') tp'
-  -- TODO: ^^^ doesn't eliminate the x in just x; instead it simply fails then and there
 eliminate g x TpBool tm = TmIf (TmVar x TpBool ScopeLocal) tm tm (getType tm)
 
 {-
@@ -213,6 +212,7 @@ aff2linCase g (Case x as tm) =
       tm'' = eliminates g (Map.difference (Map.fromList as) fvs) tm' in
     (Case x as tm'', foldr (Map.delete . fst) fvs as)
 
+-- TODO: at fail terms we don't eliminate FVs; should we?
 aff2linh :: Ctxt -> Term -> (Term, FreeVars)
 aff2linh g (TmVar x tp sc) =
   let ltp = aff2linTp tp in
@@ -227,11 +227,10 @@ aff2linh g (TmLam x tp tm tp') =
       mktm = \ ntm jtm -> (TmLam x' ltp (TmElimMaybe (TmVar x' ltp ScopeLocal) lptp ntm (x, jtm) rtp) ltp', Map.delete x fvs)
       free = Map.member x fvs
       fvs' = if free then Map.delete x fvs else Map.insert x lptp fvs
-      failtm = TmSamp DistFail ltp' in -- TODO: Is it a problem if this doesn't eliminate fvs'?
+      failtm = TmSamp DistFail ltp' in
     if free then mktm failtm tm' else mktm tm' failtm
 aff2linh g (TmApp tm1 tm2 tp2 tp) =
   -- L(f a) => L(f) (if amb then nothing else just L(a))
-  -- TODO: perhaps instead "fail" as a function type that takes all fvs2 as args and returns tp, for the sake of efficiency? (apps faster than eliminating?)
   let (tm1', fvs1) = aff2linh g tm1
       (tm2', fvs2) = aff2linh g tm2
       ltp2 = aff2linTp tp2
