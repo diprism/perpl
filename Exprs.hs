@@ -74,6 +74,7 @@ toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmCase tm cs _ _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
 toUsTm (TmCtor x as _) = foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar x) as
+toUsTm (TmMaybe (Just (TmVar "" _ _)) tp) = UsApp (UsVar tmJustName) (UsVar ("[" ++ show tp ++ "]"))
 toUsTm (TmMaybe mtm tp) =
   let apptp = \ tmName -> UsApp (UsVar tmName) (UsVar ("[" ++ show tp ++ "]")) in
     maybe (apptp tmNothingName) (UsApp (apptp tmJustName) . toUsTm) mtm
@@ -137,7 +138,8 @@ showTermh (UsSamp d tp) = "sample " ++ show d ++ " : " ++ show tp
 showTypeh :: Type -> String
 showTypeh (TpVar y) = y
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
-showTypeh (TpMaybe tp) = tpMaybeName ++ " " ++ showType tp ShowTypeArg
+--showTypeh (TpMaybe tp) = tpMaybeName ++ " " ++ showType tp ShowTypeArg -- " [" ++ showType tp ShowNone ++ "]"
+showTypeh (TpMaybe tp) = tpMaybeName ++ " [" ++ showType tp ShowNone ++ "]"
 showTypeh TpBool = tpBoolName
 
 -- Show a term, given its parent for parentheses

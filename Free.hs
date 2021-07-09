@@ -227,7 +227,7 @@ aff2linh g (TmLam x tp tm tp') =
       mktm = \ ntm jtm -> (TmLam x' ltp (TmElimMaybe (TmVar x' ltp ScopeLocal) lptp ntm (x, jtm) rtp) ltp', Map.delete x fvs)
       free = Map.member x fvs
       fvs' = if free then Map.delete x fvs else Map.insert x lptp fvs
-      failtm = eliminates g fvs' (TmSamp DistFail ltp') in
+      failtm = TmSamp DistFail ltp' in -- TODO: Is it a problem if this doesn't eliminate fvs'?
     if free then mktm failtm tm' else mktm tm' failtm
 aff2linh g (TmApp tm1 tm2 tp2 tp) =
   -- L(f a) => L(f) (if amb then nothing else just L(a))
@@ -259,3 +259,5 @@ aff2lin g tm =
     if Map.null fvs
       then tm'
       else error ("in aff2lin, remaining free vars: " ++ show (Map.keys fvs))
+
+-- TODO: Also rename all bound vars to fresh names after aff2lin conversion?
