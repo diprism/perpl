@@ -253,13 +253,13 @@ aff2linh g (TmLam x tp tm tp') =
       failtm = TmSamp DistFail ltp' in
     if free then mktm failtm tm' else mktm tm' failtm
 aff2linh g (TmApp tm1 tm2 tp2 tp) =
-  -- L(f a) => L(f) (if amb then nothing else just L(a))
+  -- L(f a) => L(f) (if amb then (discard FV(a) in nothing) else just L(a))
   let (tm1', fvs1) = aff2linh g tm1
       (tm2', fvs2) = aff2linh g tm2
       ltp2 = aff2linTp tp2
       ltp = aff2linTp tp
       jx = ctorEtaName tmJustName 0 in
-    (TmApp tm1' (tmIf (TmSamp DistAmb TpBool) (tmMaybe Nothing ltp2) (tmMaybe (Just tm2') ltp2) (TpMaybe ltp2)) (TpMaybe ltp2) ltp,
+    (TmApp tm1' (tmIf (TmSamp DistAmb TpBool) (eliminates g fvs2 (tmMaybe Nothing ltp2)) (tmMaybe (Just tm2') ltp2) (TpMaybe ltp2)) (TpMaybe ltp2) ltp,
      Map.union fvs1 fvs2)
 aff2linh g (TmCase tm y cs tp) =
   let csxs = map (aff2linCase g) cs
