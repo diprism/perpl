@@ -166,7 +166,8 @@ checkProgs g (UsProgFun x tp tm ps) =
   ifErr (tp /= tp')
     ("Expected type of function '" ++ x ++ "' does not match computed type") >>
   checkProgs g ps >>= \ ps' ->
-  return (ProgFun x tp (convertAffLin g tm') ps')
+  let tm'' = convertAffLin g tm' in
+  return (ProgFun x (getType tm'') tm'' ps')
 
 checkProgs g (UsProgExtern x tp ps) =
   checkType g tp >>
