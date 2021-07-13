@@ -35,14 +35,14 @@ data Term =
     TmVar Var Type VarScope
   | TmLam Var Type Term Type
   | TmApp Term Term Type {- -> -} Type
-  | TmCase Term [Case] Var Type
+  | TmCase Term Type [Case] Type
   | TmSamp Dist Type
-  | TmCtor Var [(Term, Type)] Var
+  | TmCtor Var [(Term, Type)] Type
   -- For internal use only
-  | TmMaybe (Maybe Term) Type
-  | TmElimMaybe Term Type Term (Var, Term) Type
-  | TmBool Bool
-  | TmIf Term Term Term Type
+--  | TmMaybe (Maybe Term) Type
+--  | TmElimMaybe Term Type Term (Var, Term) Type
+--  | TmBool Bool
+--  | TmIf Term Term Term Type
 
 
 data Type =
@@ -65,25 +65,40 @@ tmJustName    = "%just%"
 tmTrueName    = "%true%"
 tmFalseName   = "%false%"
 
+tmMaybe :: Maybe Term -> Type -> Term
+tmMaybe Nothing tp = TmCtor tmNothingName [] (TpMaybe tp)
+tmMaybe (Just tm) tp = TmCtor tmJustName [(tm, tp)] (TpMaybe tp)
+tmElimMaybe :: Term -> Type -> Term -> (Var, Term) -> Type -> Term
+tmElimMaybe tm tp ntm (jx, jtm) tp' =
+  TmCase tm (TpMaybe tp) [Case tmNothingName [] ntm, Case tmJustName [(jx, tp)] jtm] tp'
+tmBool :: Bool -> Term
+tmBool b = TmCtor (if b then tmTrueName else tmFalseName) [] TpBool
+tmIf :: Term -> Term -> Term -> Type -> Term
+tmIf iftm thentm elsetm tp =
+  TmCase iftm TpBool [Case tmFalseName [] elsetm, Case tmTrueName [] thentm] tp
+
+boolCtors = [Ctor tmFalseName [], Ctor tmTrueName []]
+maybeCtors tp = [Ctor tmNothingName [], Ctor tmJustName [tp]]
+
 {- Convert back from elaborated terms to user terms -}
 
 toUsTm :: Term -> UsTm
 toUsTm (TmVar x _ _) = UsVar x
 toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
-toUsTm (TmCase tm cs _ _) = UsCase (toUsTm tm) (map toCaseUs cs)
+toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
 toUsTm (TmCtor x as _) = foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar x) as
-toUsTm (TmMaybe (Just (TmVar "" _ _)) tp) = UsApp (UsVar tmJustName) (UsVar ("[" ++ show tp ++ "]"))
-toUsTm (TmMaybe mtm tp) =
-  let apptp = \ tmName -> UsApp (UsVar tmName) (UsVar ("[" ++ show tp ++ "]")) in
-    maybe (apptp tmNothingName) (UsApp (apptp tmJustName) . toUsTm) mtm
-toUsTm (TmElimMaybe tm tp ntm (jx, jtm) tp') =
-  UsCase (toUsTm tm)
-    [CaseUs tmNothingName [] (toUsTm ntm),
-     CaseUs tmJustName [jx] (toUsTm jtm)]
-toUsTm (TmBool b) = UsVar (if b then tmTrueName else tmFalseName)
-toUsTm (TmIf iftm thentm elsetm tp) = UsCase (toUsTm iftm) [CaseUs tmFalseName [] (toUsTm elsetm), CaseUs tmTrueName [] (toUsTm thentm)]
+--toUsTm (TmMaybe (Just (TmVar "" _ _)) tp) = UsApp (UsVar tmJustName) (UsVar ("[" ++ show tp ++ "]"))
+--toUsTm (TmMaybe mtm tp) =
+--  let apptp = \ tmName -> UsApp (UsVar tmName) (UsVar ("[" ++ show tp ++ "]")) in
+--    maybe (apptp tmNothingName) (UsApp (apptp tmJustName) . toUsTm) mtm
+--toUsTm (TmElimMaybe tm tp ntm (jx, jtm) tp') =
+--  UsCase (toUsTm tm)
+--    [CaseUs tmNothingName [] (toUsTm ntm),
+--     CaseUs tmJustName [jx] (toUsTm jtm)]
+--toUsTm (TmBool b) = UsVar (if b then tmTrueName else tmFalseName)
+--toUsTm (TmIf iftm thentm elsetm tp) = UsCase (toUsTm iftm) [CaseUs tmFalseName [] (toUsTm elsetm), CaseUs tmTrueName [] (toUsTm thentm)]
 
 toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)

@@ -11,6 +11,8 @@ convertAffLin g tm = if allowAff then aff2lin g tm else tm
 checkAffLinFun = if allowAff then isAff else isLin
 checkAffLinMsg = if allowAff then "affine" else "linear"
 
+-- TODO: make sure x occurs same number of times in each branch of computation
+--       (e.g. case q of false -> q | true -> false)
 checkAffLin :: Var -> Type -> UsTm -> Bool
 checkAffLin x (TpArr _ _) tm = checkAffLinFun x tm
 checkAffLin x _ tm = True
@@ -42,7 +44,7 @@ checkTermVar eta g (UsVar x) = maybe2 (ctxtLookupTerm g x)
   $ \ (sc, tp) -> case (eta, sc) of
     (True, ScopeCtor) ->
       let (tps, TpVar y) = splitArrows tp in
-        return (ctorEtaExpand x [] (ctorGetArgs x tps) y)
+        return (ctorEtaExpand x [] (ctorGetArgs x tps) (TpVar y))
     _ -> return (TmVar x tp sc)
 checkTermVar eta g tm = checkTermh g tm
 
@@ -76,10 +78,9 @@ checkTermh g (UsApp tm1 tm2) =
       sequence (map (\ ((a, atp), tp) -> ifErr (atp /= tp) (expVsActTpMsg tp atp)) (zip as' tps')) >>
       case hd' of
         (TmVar x _ ScopeCtor) ->
-          let TpVar y = end
-              etas = ctorGetArgs x tps
+          let etas = ctorGetArgs x tps
               etas' = drop (length as') etas in
-          return (ctorEtaExpand x as' etas' y)
+          return (ctorEtaExpand x as' etas' end)
           --return (joinApps (ctorEtaExpand x [] etas y) as' end')
         _ -> return (joinApps hd' as' end')
 
@@ -90,7 +91,7 @@ checkTermh g (UsCase tm cs) =
     (TpVar y) -> maybe2 (ctxtLookupType g y)
       (err "Error in checkTerm UsCase") -- shouldn't happen
       $ \ ycs -> checkCases g ycs cs >>= \ (cs', tp') ->
-        return (TmCase tm' cs' y tp')
+        return (TmCase tm' (TpVar y) cs' tp')
 
 checkTermh g (UsSamp d tp) =
   checkType g tp >>

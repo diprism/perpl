@@ -3,6 +3,7 @@ import Exprs
 import Ctxt
 import Util
 import qualified Data.Map as Map
+import Data.List
 
 -- For checking linearity, vars can appear:
 -- LinNo: not at all
@@ -196,20 +197,21 @@ eliminate :: Ctxt -> Var -> Type -> Term -> Term
 eliminate g x (TpArr tp1 tp2) tm =
   let tp = getType tm in
     error "This shouldn't happen"
-    --TmElimMaybe (TmVar x (TpMaybe (TpArr tp1 tp2)) ScopeLocal) (TpArr tp1 tp2) tm (ctorEtaName tmJustName 0, TmSamp DistFail tp) tp
+    --tmElimMaybe (TmVar x (TpMaybe (TpArr tp1 tp2)) ScopeLocal) (TpArr tp1 tp2) tm (ctorEtaName tmJustName 0, TmSamp DistFail tp) tp
 eliminate g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
   (error ("In Free.hs/eliminate, unknown type var " ++ y))
   $ \ cs ->
-      TmCase (TmVar x (TpVar y) ScopeLocal)
+      TmCase (TmVar x (TpVar y) ScopeLocal) (TpVar y)
         (map (\ (Ctor x' as) ->
                 let as' = ctorGetArgs x' as in
                   Case x' as' (foldr (uncurry $ eliminate g) tm as'))
-          cs) y (getType tm)
+          cs) (getType tm)
 eliminate g x (TpMaybe tp) tm =
   let x' = aff2linName x
       tp' = getType tm in
-  TmElimMaybe (TmVar x (TpMaybe tp) ScopeLocal) tp tm (x', TmSamp DistFail tp') tp'
-eliminate g x TpBool tm = TmIf (TmVar x TpBool ScopeLocal) tm tm (getType tm)
+    tmElimMaybe (TmVar x (TpMaybe tp) ScopeLocal) tp tm (x', TmSamp DistFail tp') tp'
+eliminate g x TpBool tm =
+  tmIf (TmVar x TpBool ScopeLocal) tm tm (getType tm)
 
 {-
 L(\x:X. b) [x \in FV(b)] => \x:Maybe L'(X). case x of nothing => discard (FV(b) - {x}) in fail | just x' => L(b)
@@ -245,7 +247,7 @@ aff2linh g (TmLam x tp tm tp') =
       rtp = TpArr ltp ltp'
       (tm', fvs) = aff2linh (ctxtDeclTerm g x tp) tm
       x' = aff2linName x
-      mktm = \ ntm jtm -> (TmLam x' ltp (TmElimMaybe (TmVar x' ltp ScopeLocal) lptp ntm (x, jtm) rtp) ltp', Map.delete x fvs)
+      mktm = \ ntm jtm -> (TmLam x' ltp (tmElimMaybe (TmVar x' ltp ScopeLocal) lptp ntm (x, jtm) rtp) ltp', Map.delete x fvs)
       free = Map.member x fvs
       fvs' = if free then Map.delete x fvs else Map.insert x lptp fvs
       failtm = TmSamp DistFail ltp' in
@@ -257,16 +259,16 @@ aff2linh g (TmApp tm1 tm2 tp2 tp) =
       ltp2 = aff2linTp tp2
       ltp = aff2linTp tp
       jx = ctorEtaName tmJustName 0 in
-    (TmApp tm1' (TmIf (TmSamp DistAmb TpBool) (TmMaybe Nothing ltp2) (TmMaybe (Just tm2') ltp2) (TpMaybe ltp2)) (TpMaybe ltp2) ltp,
+    (TmApp tm1' (tmIf (TmSamp DistAmb TpBool) (tmMaybe Nothing ltp2) (tmMaybe (Just tm2') ltp2) (TpMaybe ltp2)) (TpMaybe ltp2) ltp,
      Map.union fvs1 fvs2)
-aff2linh g (TmCase tm cs y tp) =
+aff2linh g (TmCase tm y cs tp) =
   let csxs = map (aff2linCase g) cs
       xsAny = Map.unions (map snd csxs)
       xsAll = foldr Map.intersection xsAny (map snd csxs)
       (tm', tmxs) = aff2linh g tm
       cs' = flip map csxs $ \ (Case x as tm', xs) -> Case x as $
-                eliminates (ctxtDeclArgs g as) (Map.difference xsAny xs) tm' in
-    (TmCase tm' cs' y (aff2linTp tp), Map.union xsAll tmxs)
+                  eliminates (ctxtDeclArgs g as) (Map.difference xsAny xs) tm' in
+    (TmCase tm' y cs' (aff2linTp tp), Map.union xsAll tmxs)
 aff2linh g (TmSamp d tp) = (TmSamp d (aff2linTp tp), Map.empty)
 aff2linh g (TmCtor x as y) =
   let (as', fvss) = unzip $ flip map as $ -- No need to aff2linTp bc args can't have arrows
@@ -280,3 +282,34 @@ aff2lin g tm =
       then tm'
       else error ("in aff2lin, remaining free vars: " ++ show (Map.keys fvs))
 
+
+piAppend :: Var -> [Type] -> Map.Map Var [[Type]] -> Map.Map Var [[Type]]
+piAppend y tp pis = Map.insertWith (++) y [tp] pis
+
+-- Retrieves all instantiations of polymorphic types (e.g. Maybe [...])
+getPolyInstsTerm :: Map.Map Var [[Type]] -> Term -> Map.Map Var [[Type]]
+getPolyInstsTerm pis (TmVar x tp sc) = getPolyInstsType pis tp
+getPolyInstsTerm pis (TmLam x tp tm tp') = getPolyInstsTerm (getPolyInstsType pis tp) tm -- no need to do tp' bc tm already adds all insts
+getPolyInstsTerm pis (TmApp tm1 tm2 tp2 tp) = getPolyInstsTerm (getPolyInstsTerm pis tm2) tm1
+getPolyInstsTerm pis (TmCase tm y cs tp) =
+  foldl (\ pis (Case x as ctm) -> getPolyInstsTerm pis ctm)
+    (getPolyInstsType (getPolyInstsTerm pis tm) y) cs
+getPolyInstsTerm pis (TmSamp d tp) = getPolyInstsType pis tp
+getPolyInstsTerm pis (TmCtor x as tp) = foldl (\ pis (a, atp) -> getPolyInstsTerm pis a) (getPolyInstsType pis tp) as
+
+getPolyInstsType :: Map.Map Var [[Type]] -> Type -> Map.Map Var [[Type]]
+getPolyInstsType pis (TpVar y) = pis
+getPolyInstsType pis (TpArr tp1 tp2) = getPolyInstsType (getPolyInstsType pis tp1) tp2
+getPolyInstsType pis TpBool = piAppend tpBoolName [] pis
+getPolyInstsType pis (TpMaybe tp) = piAppend tpMaybeName [tp] (getPolyInstsType pis tp)
+
+getPolyInstsProg :: Map.Map Var [[Type]] -> Progs -> Map.Map Var [[Type]]
+getPolyInstsProg pis (ProgExec tm) = getPolyInstsTerm pis tm
+getPolyInstsProg pis (ProgFun x tp tm ps) = getPolyInstsProg (getPolyInstsTerm pis tm) ps
+getPolyInstsProg pis (ProgExtern x tp ps) = getPolyInstsProg (getPolyInstsType pis tp) ps
+getPolyInstsProg pis (ProgData y cs ps) = getPolyInstsProg (foldl (\ pis (Ctor x as) -> foldl getPolyInstsType pis as) pis cs) ps
+
+getPolyInsts :: Progs -> Var -> [[Type]]
+getPolyInsts ps y =
+  let is = getPolyInstsProg Map.empty ps in
+    maybe [] nub (Map.lookup y is)

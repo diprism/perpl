@@ -5,7 +5,7 @@ import FGG
 import Util
 import RuleM
 import Ctxt
-
+import Free
 
 -- Local var rule
 var2fgg :: Var -> Type -> RuleM
@@ -49,32 +49,34 @@ ctorRules g (Ctor x as) y cs =
       as' = map (ctorEtaName x) [0..length as - 1]
       (ns, [ias, [iy]]) = combine [as, [y]]
       ias' = zip ias as'
-      fac = ctorFactorName x (toTermArgs (zip as' as))
+      fac = ctorFactorName x (toTermArgs (zip as' as)) y
       es = [Edge (ias ++ [iy]) fac]
       xs = ias ++ [iy]
-      tm = TmCtor x (map (\ (a, atp) -> (TmVar a atp ScopeLocal, atp)) (zip as' as)) (show y) in
-    addRule' tm ns es xs
+      tm = TmCtor x (map (\ (a, atp) -> (TmVar a atp ScopeLocal, atp)) (zip as' as)) y in
+    addRule' tm ns es xs +>
+    addFactor (ctorFactorNameDefault x as y)
+      (getCtorWeightsFlat (domainValues g) (Ctor x as) cs)
 
 ctorsRules :: Ctxt -> [Ctor] -> Type -> RuleM
 ctorsRules g cs y =
   foldr (\ (fac, ws) rm -> addFactor fac ws +> rm) returnRule
-    (getCtorWeightsAll (domainValues g) cs) +>
-  foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) y cs +> addFactor (ctorFactorNameDefault x as) (getCtorWeightsFlat (domainValues g) (Ctor x as) cs)) returnRule cs +>
+    (getCtorWeightsAll (domainValues g) cs y) +>
+  foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) y cs) returnRule cs +>
   addFactor (typeFactorName y) (getCtorEqWeights (domainSize g y))
 
 -- Add a rule for this particular case in a case-of statement
 caseRule :: Ctxt -> [(Var, Type)] -> Term -> Case -> RuleM
-caseRule g xs_ctm (TmCase ctm cs y tp) (Case x as xtm) =
+caseRule g xs_ctm (TmCase ctm y cs tp) (Case x as xtm) =
   let g' = ctxtDeclArgs g as in
   bindExts True as (term2fgg g' xtm) +>= \ xs_xtm ->
-  let fac = ctorFactorName x (toTermArgs (ctorGetArgs x (map snd as)))
+  let fac = ctorFactorName x (toTermArgs (ctorGetArgs x (map snd as))) y
       (ns, [[ictm, ixtm], ixs_as, ixs_ctm, ixs_xtm]) =
-        combine [[TpVar y, tp], map snd as, map snd xs_ctm, map snd xs_xtm]
+        combine [[y, tp], map snd as, map snd xs_ctm, map snd xs_xtm]
       es = [Edge (ictm : ixs_ctm) (show ctm),
             Edge (ixtm : ixs_xtm ++ ixs_as) (show xtm),
             Edge (ixs_as ++ [ictm]) fac]
       xs = ixs_ctm ++ ixs_xtm ++ [ixtm] in
-    addRule' (TmCase ctm cs y tp) ns es xs
+    addRule' (TmCase ctm y cs tp) ns es xs
 caseRule g xs _ (Case x as xtm) =
   error "caseRule expected a TmCase, but got something else"
 
@@ -98,19 +100,20 @@ term2fgg g (TmVar x tp local) =
     ScopeCtor -> error ("term2fgg should not see a ctor var (" ++ x ++ ")")
 term2fgg g (TmCtor x as y) =
   map (\ (a, atp) -> term2fgg g a) as +*>= \ xss ->
-  let (ns, [iy] : ias : ixss) = combine ([TpVar y] : map snd as : map (map snd) xss)
-      es = Edge (ias ++ [iy]) (ctorFactorName x as) : map (\ (ixs, (a, _), itp) -> Edge (itp : ixs) (show a)) (zip3 ixss as ias)
+  let (ns, [iy] : ias : ixss) = combine ([y] : map snd as : map (map snd) xss)
+      es = Edge (ias ++ [iy]) (ctorFactorNameDefault x (map snd as) y) :
+           map (\ (ixs, (a, _), itp) -> Edge (itp : ixs) (show a)) (zip3 ixss as ias)
       xs = iy : concat ixss
-      Just cs = ctxtLookupType g y
+      Just cs = ctxtLookupType' g y
       cix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0 in
   addRule' (TmCtor x as y) ns es xs
 term2fgg g (TmLam x tp tm tp') =
   lamRule True x tp tm tp' (term2fgg (ctxtDeclTerm g x tp) tm)
 term2fgg g (TmApp tm1 tm2 tp2 tp) =
   tmapp2fgg g (TmApp tm1 tm2 tp2 tp)
-term2fgg g (TmCase tm cs y tp) =
+term2fgg g (TmCase tm y cs tp) =
   term2fgg g tm +>= \ xs ->
-  foldr (\ c r -> caseRule g xs (TmCase tm cs y tp) c +> r) returnRule cs
+  foldr (\ c r -> caseRule g xs (TmCase tm y cs tp) c +> r) returnRule cs
 term2fgg g (TmSamp d tp) =
   let dvs = domainValues g tp
       dvws = vectorWeight dvs in
@@ -123,65 +126,6 @@ term2fgg g (TmSamp d tp) =
     DistAmb  -> 
       addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 1) dvws)) +>
       addRule' (TmSamp d tp) [tp] [] [0]
-term2fgg g (TmMaybe Nothing tp) =
-  let fac = maybeFactorName Nothing tp
-      ws = 1 : map (const 0) (domainValues g tp) in
-    addRule' (TmMaybe Nothing tp) [TpMaybe tp] [Edge [0] fac] [0] +>
-    addFactor fac (vectorPreWeight ws) +>
-    addMaybeFactors g tp
-term2fgg g (TmMaybe (Just tm) tp) =
-  term2fgg g tm +>= \ xs ->
-  let fac = maybeFactorName (Just tm) tp
-      (ns, [imtp : itp : ixs]) = combine [TpMaybe tp : tp : map snd xs]
-      es = [Edge (ixs ++ [itp]) (show tm), Edge [itp, imtp] fac]
-      ws = 0 : map (const 1) (domainValues g tp) in
-    addRule' (TmMaybe (Just tm) tp) ns es ixs +>
-    addFactor fac (vectorPreWeight ws) +>
-    addMaybeFactors g tp
-term2fgg g (TmElimMaybe tm xtp ntm (jx, jtm) vtp) =
-  term2fgg g tm +>= \ tmxs ->
-  term2fgg g ntm +>= \ ntmxs ->
-  bindExt True jx xtp (term2fgg (ctxtDeclTerm g jx xtp) jtm) +>= \ jtmxs ->
-  let (n_ns, [[n_iv, n_itm], n_itmxs, n_intmxs]) =
-        combine [[vtp, TpMaybe xtp], map snd tmxs, map snd ntmxs]
-      (j_ns, [[j_iv, j_ix, j_itm], j_itmxs, j_ijtmxs]) =
-        combine [[vtp, xtp, TpMaybe xtp], map snd tmxs, map snd jtmxs]
-      n_es = [Edge (n_itm : n_itmxs) (show tm),
-              Edge (n_iv : n_intmxs) (show ntm),
-              Edge [n_itm] (maybeFactorName Nothing xtp)]
-      j_es = [Edge (j_itm : j_itmxs) (show tm),
-              Edge (j_iv : j_ix : j_ijtmxs) (show jtm),
-              Edge [j_itm, j_ix] (maybeFactorName (Just (TmVar jx xtp ScopeLocal)) xtp)]
-      n_xs = n_itmxs ++ n_intmxs
-      j_xs = j_itmxs ++ j_ijtmxs
-  in
-  addRule' (TmElimMaybe tm xtp ntm (jx, jtm) vtp) n_ns n_es n_xs +>
-  addRule' (TmElimMaybe tm xtp ntm (jx, jtm) vtp) j_ns j_es j_xs +>
-  addMaybeFactors g xtp
-term2fgg g (TmBool b) =
-  let fac = internalFactorName (TmBool b)
-      ws = if b then [0, 1] else [1, 0] in
-    addRule' (TmBool b) [TpBool] [Edge [0] fac] [0] +>
-    addFactor fac (vectorPreWeight ws)
-term2fgg g (TmIf iftm thentm elsetm tp) =
-  term2fgg g iftm +>= \ ifxs ->
-  term2fgg g thentm +>= \ thenxs ->
-  term2fgg g elsetm +>= \ elsexs ->
-  let (t_ns, [[t_iv, t_iif], t_iifxs, t_ithenxs]) =
-        combine [[tp, TpBool], map snd ifxs, map snd thenxs]
-      (f_ns, [[f_iv, f_iif], f_iifxs, f_ielsexs]) =
-        combine [[tp, TpBool], map snd ifxs, map snd elsexs]
-      t_es = [Edge (t_iif : t_iifxs) (show iftm),
-              Edge (t_iv : t_ithenxs) (show thentm),
-              Edge [t_iif] (internalFactorName (TmBool True))]
-      f_es = [Edge (f_iif : f_iifxs) (show iftm),
-              Edge (f_iv : f_ielsexs) (show elsetm),
-              Edge [f_iif] (internalFactorName (TmBool False))]
-      t_xs = t_iifxs ++ t_ithenxs
-      f_xs = f_iifxs ++ f_ielsexs
-  in
-  addRule' (TmIf iftm thentm elsetm tp) t_ns t_es t_xs +>
-  addRule' (TmIf iftm thentm elsetm tp) f_ns f_es f_xs
 
 -- Goes through a program and adds all the rules for it
 prog2fgg :: Ctxt -> Progs -> RuleM
@@ -218,22 +162,28 @@ domainValues g = tpVals where
 domainSize :: Ctxt -> Type -> Int
 domainSize g = length . domainValues g
 
-maybeFactorName :: Maybe Term -> Type -> String
-maybeFactorName Nothing tp = internalFactorName (TmMaybe Nothing tp)
-maybeFactorName (Just tm) tp = internalFactorName (TmMaybe (Just (TmVar "" tp ScopeLocal)) tp)
+addMaybeFactors :: Ctxt -> [Type] -> RuleM
+addMaybeFactors g (tp : []) = ctorsRules g (maybeCtors tp) (TpMaybe tp)
 
-addMaybeFactors :: Ctxt -> Type -> RuleM
-addMaybeFactors g tp =
-  let maybeCtors = [Ctor (tmNothingName ++ " [" ++ show tp ++ "]") [], Ctor (tmJustName ++ " [" ++ show tp ++ "]") [tp]] in
-    ctorsRules g maybeCtors (TpMaybe tp)
+addBoolFactors :: Ctxt -> [Type] -> RuleM
+addBoolFactors g [] = ctorsRules g boolCtors TpBool
 
-addBoolFactors :: RuleM
-addBoolFactors =
-  let boolCtors = [Ctor tmFalseName [], Ctor tmTrueName []] in
-  ctorsRules emptyCtxt boolCtors TpBool
+data InternalCtor = InternalCtor String (Ctxt -> [Type] -> RuleM) Int {- Num of type args -}
+boolInternalCtor = InternalCtor tpBoolName addBoolFactors 0
+maybeInternalCtor = InternalCtor tpMaybeName addMaybeFactors 1
+
+addInternalFactors :: Ctxt -> Progs -> RuleM
+addInternalFactors g ps =
+  let internals = [boolInternalCtor, maybeInternalCtor]
+      insts = getPolyInsts ps in
+  foldr (\ (InternalCtor name addFs len) rm ->
+           let tps = insts name
+               msg = ("Expected " ++ show len ++ " type args for "
+                        ++ name ++ ", but got " ++ show (length tps)) in
+             foldr (\ as rm' -> if len == length as then addFs g as +> rm' else error msg) rm tps) returnRule internals
 
 -- Converts an elaborated program into an FGG
 file2fgg :: Ctxt -> Progs -> FGG_JSON
 file2fgg g ps =
-  let RuleM rs xs nts fs = addBoolFactors +> prog2fgg g ps in
+  let RuleM rs xs nts fs = addInternalFactors g ps +> prog2fgg g ps in
     rulesToFGG (domainValues g) (show $ getStartTerm ps) (reverse rs) nts fs

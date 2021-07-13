@@ -96,12 +96,12 @@ weightsPull (WeightsDims ws : ws') =
   let ws'' = map invWeightsDims (WeightsDims ws : ws') in
   WeightsDims $ weightsPull ws''
 
-getCtorWeightsAll :: (Type -> [String]) -> [Ctor] -> [(String, PreWeight)]
-getCtorWeightsAll dom cs =
+getCtorWeightsAll :: (Type -> [String]) -> [Ctor] -> Type -> [(String, PreWeight)]
+getCtorWeightsAll dom cs y =
   concat $ flip map cs $ \ (Ctor x as) ->
     flip map (getCtorWeights dom (Ctor x as) cs) $ \ (as', ws) ->
       let as'' = map (\ (x, atp) -> (TmVar x atp ScopeLocal, atp)) (zip as' as) in
-        (ctorFactorName x as'', ws)
+        (ctorFactorName x as'' y, ws)
 
 getCtorWeights :: (Type -> [String]) -> Ctor -> [Ctor] -> [([String], PreWeight)]
 getCtorWeights dom (Ctor x as) cs =

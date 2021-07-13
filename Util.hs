@@ -49,13 +49,13 @@ getType :: Term -> Type
 getType (TmVar x tp sc) = tp
 getType (TmLam x tp tm tp') = TpArr tp tp'
 getType (TmApp tm1 tm2 tp2 tp) = tp
-getType (TmCase tm cs y tp) = tp
+getType (TmCase ctm ctp cs tp) = tp
 getType (TmSamp d tp) = tp
-getType (TmCtor x as y) = TpVar y
-getType (TmMaybe mtm tp) = TpMaybe tp
+getType (TmCtor x as tp) = tp
+{-getType (TmMaybe mtm tp) = TpMaybe tp
 getType (TmElimMaybe tm tp ntm (jx, jtm) tp') = tp'
 getType (TmBool b) = TpBool
-getType (TmIf iftm thentm elsetm tp) = tp
+getType (TmIf iftm thentm elsetm tp) = tp-}
 
 hasArr :: Type -> Bool
 hasArr (TpVar x) = False -- assuming datatype x can't have arrows either
@@ -124,11 +124,22 @@ pairFactorName tp1 tp2 = "v=(" ++ show (TpArr tp1 tp2) ++ ")"
 internalFactorName :: Term -> String
 internalFactorName tm = "v=" ++ show tm
 
--- Naming convention for constructor factor
-ctorFactorName :: Var -> [(Term, Type)] -> String
-ctorFactorName x as = internalFactorName (TmCtor x as "irrelevant")
+addTypeInst :: Var -> [Type] -> Var
+addTypeInst x [] = x
+addTypeInst x (tp : tps) = x ++ " [" ++ foldl (\ s tp' -> s ++ ", " ++ show tp') (show tp) tps ++ "]"
 
-ctorFactorNameDefault :: Var -> [Type] -> String
+getTypeInst :: Type -> [Type]
+getTypeInst (TpMaybe tp) = [tp]
+getTypeInst _ = []
+
+varTypeInst :: Var -> Type -> Var
+varTypeInst x = addTypeInst x . getTypeInst
+
+-- Naming convention for constructor factor
+ctorFactorName :: Var -> [(Term, Type)] -> Type -> String
+ctorFactorName x as tp = internalFactorName (TmCtor (varTypeInst x tp) as tp)
+
+ctorFactorNameDefault :: Var -> [Type] -> Type -> String
 ctorFactorNameDefault x as = ctorFactorName x (map (\ (i, a) -> (TmVar (ctorEtaName x i) a ScopeLocal, a)) (enumerate as))
 
 -- Establishes naming convention for eta-expanding a constructor.
@@ -149,15 +160,15 @@ ctorGetArgs x tps =
   zip (map (ctorEtaName x) [0..length tps - 1]) tps
 
 -- Turns a constructor into one with all its args applied
-ctorAddArgs :: Var -> [(Term, Type)] -> [(Var, Type)] -> Var -> Term
+ctorAddArgs :: Var -> [(Term, Type)] -> [(Var, Type)] -> Type -> Term
 ctorAddArgs x tas vas y =
   TmCtor x (tas ++ map (\ (a, atp) -> (TmVar a atp ScopeLocal, atp)) vas) y
 
 -- Eta-expands a constructor with the necessary extra args
-ctorEtaExpand :: Var -> [(Term, Type)] -> [(Var, Type)] -> Var -> Term
+ctorEtaExpand :: Var -> [(Term, Type)] -> [(Var, Type)] -> Type -> Term
 ctorEtaExpand x tas vas y =
   foldr (\ (a, atp) tm -> TmLam a atp tm (getType tm))
     (ctorAddArgs x tas vas y) vas
 
-ctorDefault :: Var -> [Type] -> Var -> Term
+ctorDefault :: Var -> [Type] -> Type -> Term
 ctorDefault x as y = TmCtor x (map (\ (a, atp) -> (TmVar a atp ScopeLocal, atp)) (ctorGetArgs x as)) y
