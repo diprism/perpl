@@ -67,16 +67,68 @@ getRules (RuleM rs xs nts fs) = rs
 getPairWeights :: Type -> Type -> PreWeight
 getPairWeights tp1 tp2 = PairWeight (show tp1, show tp2)
 
-getCtorWeights :: (Type -> Int) -> Int {- ctor index -} -> [Ctor] -> PreWeight
-getCtorWeights domsize ci cs =
---  vectorPreWeight $ weightsRow ci cs
-  vectorPreWeight $ foldl
-      (\ ws (i, Ctor _ as) ->
-         let n = if i == ci then 1 else 0
-             ns = product (map domsize as) in
-           ws ++ [n | _ <- [0..ns-1]])
-      [] (zip [0..length cs - 1] cs)
-  
+
+splitCtorsAt :: [Ctor] -> Var -> ([Ctor], [Ctor])
+splitCtorsAt [] x = ([], [])
+splitCtorsAt (Ctor x' as : cs) x
+  | x == x' = ([], cs)
+  | otherwise =
+    let (b, a) = splitCtorsAt cs x in
+      (Ctor x' as : b, a)
+
+invWeightsData :: WeightsH a -> a
+invWeightsData (WeightsData ws) = ws
+invWeightsData (WeightsDims ws) = error "In invWeightsData, expected WeightsData"
+
+invWeightsDims :: WeightsH a -> WeightsH [a]
+invWeightsDims (WeightsDims ws) = ws
+invWeightsDims (WeightsData ws) = error "In invWeightsDims, expected WeightsDims"
+
+weightsPush :: WeightsH [a] -> [WeightsH a]
+weightsPush (WeightsData ws) = map WeightsData ws
+weightsPush (WeightsDims ws) = map WeightsDims (weightsPush ws)
+
+weightsPull :: [WeightsH a] -> WeightsH [a]
+--weightsPull [] = ???
+weightsPull (WeightsData ws : ws') =
+  WeightsData (map invWeightsData (WeightsData ws : ws'))
+weightsPull (WeightsDims ws : ws') =
+  let ws'' = map invWeightsDims (WeightsDims ws : ws') in
+  WeightsDims $ weightsPull ws''
+
+getCtorWeightsAll :: (Type -> [String]) -> [Ctor] -> [(String, PreWeight)]
+getCtorWeightsAll dom cs =
+  concat $ flip map cs $ \ (Ctor x as) ->
+    flip map (getCtorWeights dom (Ctor x as) cs) $ \ (as', ws) ->
+      let as'' = map (\ (x, atp) -> (TmVar x atp ScopeLocal, atp)) (zip as' as) in
+        (ctorFactorName x as'', ws)
+
+getCtorWeights :: (Type -> [String]) -> Ctor -> [Ctor] -> [([String], PreWeight)]
+getCtorWeights dom (Ctor x as) cs =
+  let (cs_before, cs_after) = splitCtorsAt cs x
+      csf = \ cs' -> sum (map (\ (Ctor x' as') -> product (map (length . dom) as')) cs')
+      cs_b' = csf cs_before
+      cs_a' = csf cs_after
+      mkrow = \ mask -> replicate cs_b' 0 ++ mask ++ replicate cs_a' 0
+  in
+    flip map (kronpos (map dom as)) $ \ as' -> (,) (map (\ (_, _, a) -> a) as') $ ThisWeight $
+      let (out, pos) = foldr (\ (i, o, _) (l, j) -> (l * o, l * i + j)) (1, 0) as'
+          row = WeightsDims $ WeightsData $ mkrow (weightsRow pos out) in
+      foldr (\ (i, o, a) ws -> WeightsDims $ weightsPull [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]]) row as'
+
+getCtorWeightsFlat :: (Type -> [String]) -> Ctor -> [Ctor] -> PreWeight
+getCtorWeightsFlat dom (Ctor x as) cs =
+  let (cs_before, cs_after) = splitCtorsAt cs x
+      csf = \ cs' -> sum (map (\ (Ctor x' as') -> product (map (length . dom) as')) cs')
+      cs_b' = csf cs_before
+      cs_a' = csf cs_after
+      mkrow = \ mask -> replicate cs_b' 0 ++ mask ++ replicate cs_a' 0
+  in
+    ThisWeight $
+      foldr
+        (\ avs jl2ws j l -> WeightsDims $ weightsPull [jl2ws (l * i + j) (l * length avs) | i <- [0..length avs - 1]])
+        (\ j l -> WeightsDims (WeightsData (mkrow (weightsRow j l))))
+        (map dom as) 0 1
 
 -- Identity matrix
 getCtorEqWeights :: Int {- num of possible values -} -> PreWeight

@@ -12,6 +12,15 @@ kronecker as bs = map (\ a -> map (\ b -> (a, b)) bs) as
 kronwith :: (a -> b -> c) -> [a] -> [b] -> [c]
 kronwith f as bs = map (uncurry f) $ concat $ kronecker as bs
 
+kronall :: [[a]] -> [[a]]
+kronall = foldr (\ vs ws -> [ (v : xs) | v <- vs, xs <- ws ]) [[]]
+
+kronpos :: [[a]] -> [[(Int, Int, a)]]
+kronpos = kronall . map (\ as -> map (\ (i, a) -> (i, length as, a)) (enumerate as))
+
+enumerate :: [a] -> [(Int, a)]
+enumerate as = zip [0..length as - 1] as
+
 weightsRow :: Num n => Int {- Index -} -> Int {- Length -} -> [n]
 weightsRow i l = [if j == i then 1 else 0 | j <- [0..l-1]] --map (\ j -> if j == i then 1 else 0) [0..l-1]
 
@@ -118,6 +127,9 @@ internalFactorName tm = "v=" ++ show tm
 -- Naming convention for constructor factor
 ctorFactorName :: Var -> [(Term, Type)] -> String
 ctorFactorName x as = internalFactorName (TmCtor x as "irrelevant")
+
+ctorFactorNameDefault :: Var -> [Type] -> String
+ctorFactorNameDefault x as = ctorFactorName x (map (\ (i, a) -> (TmVar (ctorEtaName x i) a ScopeLocal, a)) (enumerate as))
 
 -- Establishes naming convention for eta-expanding a constructor.
 -- So Cons h t -> (\ ?Cons0. \ ?Cons1. Cons ?Cons0 ?Cons1) h t.

@@ -123,6 +123,10 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
 instance Show FGG_JSON where
   show = show . fgg_to_json
 
+instance Show PreWeight where
+  show (ThisWeight ws) = show $ weights_to_json ws
+  show (PairWeight (s1, s2)) = "PairWeight " ++ s1 ++ " " ++ s2
+
 -- Default FGG
 emptyFGG :: String -> FGG_JSON
 emptyFGG s = FGG_JSON Map.empty Map.empty Map.empty s []
@@ -155,12 +159,12 @@ rulesToFGG doms start rs nts facs =
       nts' = foldr (\ (Rule lhs (HGF ns _ xs)) ->
                       Map.insert lhs (map (\ i -> show $ ns !! i) xs)) nts'' rs'
       facs' = map (\ (x, w) -> (x, preWeightToWeight ds w)) facs
-      getFac = \ l -> maybe (error ("In rulesToFGG, no factor named " ++ l ++ " (factor names: " ++ show (map fst facs) ++ ", nts:" ++ show (Map.keys nts') ++ ")"))
+      getFac = \ l lhs -> maybe (error ("In rulesToFGG, in the rule " ++ lhs ++ ", no factor named " ++ l ++ " (factor names: " ++ show (map fst facs) ++ ", nts:" ++ show (Map.keys nts') ++ ")"))
                         id $ lookup l facs'
       fs  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
                      foldr (\ (Edge atts l) -> let lnodes = map ((!!) ns) atts in
                                if Map.member l nts' then id else
-                                 Map.insert l (map show lnodes, getFac l))
+                                 Map.insert l (map show lnodes, getFac l lhs))
                            m es)
                   Map.empty rs' in
     FGG_JSON ds fs nts' start rs'

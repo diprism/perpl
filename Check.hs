@@ -5,10 +5,11 @@ import Exprs
 import Util
 
 -- "Switch" for if we enforce linear vs. affine
---checkAffLinFun = isLin
---checkAffLinMsg = "linear"
-checkAffLinFun = isAff
-checkAffLinMsg = "affine"
+allowAff = True
+convertAffLin :: Ctxt -> Term -> Term
+convertAffLin g tm = if allowAff then aff2lin g tm else tm
+checkAffLinFun = if allowAff then isAff else isLin
+checkAffLinMsg = if allowAff then "affine" else "linear"
 
 checkAffLin :: Var -> Type -> UsTm -> Bool
 checkAffLin x (TpArr _ _) tm = checkAffLinFun x tm
@@ -156,7 +157,7 @@ checkProgs :: Ctxt -> UsProgs -> Either String Progs
 
 checkProgs g (UsProgExec tm) =
   checkTerm g tm >>= \ (tm', tp') ->
-  return (ProgExec (aff2lin g tm'))
+  return (ProgExec (convertAffLin g tm'))
 
 checkProgs g (UsProgFun x tp tm ps) =
   checkType g tp >>
@@ -164,7 +165,7 @@ checkProgs g (UsProgFun x tp tm ps) =
   ifErr (tp /= tp')
     ("Expected type of function '" ++ x ++ "' does not match computed type") >>
   checkProgs g ps >>= \ ps' ->
-  return (ProgFun x tp (aff2lin g tm') ps')
+  return (ProgFun x tp (convertAffLin g tm') ps')
 
 checkProgs g (UsProgExtern x tp ps) =
   checkType g tp >>
@@ -202,4 +203,8 @@ declProgs g (UsProgData y cs ps) =
 -- Check a program, returning either an error message
 -- or the elaborated program
 checkFile :: UsProgs -> Either String (Ctxt, Progs)
-checkFile ps = declProgs emptyCtxt ps >>= \ g' -> checkProgs g' (alphaRename g' ps) >>= \ ps' -> return (g', ps')
+checkFile ps =
+  declProgs emptyCtxt ps >>= \ g' ->
+  checkProgs g' (alphaRename g' ps) >>= \ ps' ->
+  --Left (show ps')
+  return (g', ps')

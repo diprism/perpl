@@ -113,19 +113,40 @@ newVar x = RenameM $ \ xs ->
   newVarH xs x = if Map.member x xs then h xs x 1 else x
 
 -- Alpha-rename a user-term
-renameTerm :: UsTm -> RenameM UsTm
-renameTerm (UsVar x) =
+renameUsTm :: UsTm -> RenameM UsTm
+renameUsTm (UsVar x) =
   pure UsVar <*> getVar x
-renameTerm (UsLam x tp tm) =
-  bindVar x $ pure (flip UsLam) <*> renameType tp <*> newVar x <*> renameTerm tm
-renameTerm (UsApp tm1 tm2) =
-  pure UsApp <*> renameTerm tm1 <*> renameTerm tm2
-renameTerm (UsCase tm cs) =
+renameUsTm (UsLam x tp tm) =
+  -- flipped so that newVar x doesn't rename inside tp (future-proof)
+  bindVar x $ pure (flip UsLam) <*> renameType tp <*> newVar x <*> renameUsTm tm
+renameUsTm (UsApp tm1 tm2) =
+  pure UsApp <*> renameUsTm tm1 <*> renameUsTm tm2
+renameUsTm (UsCase tm cs) =
   pure UsCase
-    <*> renameTerm tm
+    <*> renameUsTm tm
     <*> foldr (\ c cs' -> pure (:) <*> renameCase c <*> cs') (return []) cs
-renameTerm (UsSamp d tp) =
+renameUsTm (UsSamp d tp) =
   pure (UsSamp d) <*> renameType tp
+
+-- TODO: Also rename all bound vars to fresh names after aff2lin conversion?
+{-renameTerm :: Term -> RenameM Term
+renameTerm (TmVar x tp sc) =
+  pure TmVar <*> getVar x <*> renameType tp <*> pure sc
+renameTerm (TmLam x tp tm tp') =
+  bindVar x $ pure TmLam <*> newVar x <*> renameType tp <*> renameTerm tm <*> renameType tp'
+renameTerm (TmApp tm1 tm2 tp2 tp) =
+  pure TmApp <*> renameTerm tm1 <*> renameTerm tm2 <*> renameType tp2 <*> renameType tp
+renameTerm (TmCase tm cs y tp) =
+  pure TmCase <*> renameTerm tm <*> mapM renameCase cs <*> getVar y <*> renameType tp
+renameTerm (TmSamp d tp) = error "TODO"
+renameTerm (TmCtor x as y) = error "TODO"
+renameTerm (TmMaybe mtm tp) = error "TODO"
+renameTerm (TmElimMaybe tm tp ntm (jx, jtm) tp') = error "TODO"
+renameTerm (TmBool b) = error "TODO"
+renameTerm (TmIf tm ttm ftm) = error "TODO"
+
+renameSeq :: [RenameM a] -> RenameM [a]
+renameSeq rs = foldr () ()-}
 
 -- Alpha-rename a user-case
 renameCase :: CaseUs -> RenameM CaseUs
@@ -133,7 +154,7 @@ renameCase (CaseUs x as tm) =
   bindVars as $
   pure (CaseUs x)
     <*> foldr (\ a as' -> pure (:) <*> newVar a <*> as') (return []) as
-    <*> renameTerm tm
+    <*> renameUsTm tm
 
 -- Alpha-rename a type
 renameType :: Type -> RenameM Type
@@ -148,8 +169,8 @@ renameCtor (Ctor x tps) = pure (Ctor x) <*> foldr (\ tp tps' -> pure (:) <*> ren
 
 -- Alpha-rename an entire user-program
 renameProgs :: UsProgs -> RenameM UsProgs
-renameProgs (UsProgExec tm) = pure UsProgExec <*> renameTerm tm
-renameProgs (UsProgFun x tp tm ps) = pure (UsProgFun x) <*> renameType tp <*> renameTerm tm <*> renameProgs ps
+renameProgs (UsProgExec tm) = pure UsProgExec <*> renameUsTm tm
+renameProgs (UsProgFun x tp tm ps) = pure (UsProgFun x) <*> renameType tp <*> renameUsTm tm <*> renameProgs ps
 renameProgs (UsProgExtern x tp ps) = pure (UsProgExtern x) <*> renameType tp <*> renameProgs ps
 renameProgs (UsProgData y cs ps) = pure (UsProgData y) <*> foldr (\ c cs' -> pure (:) <*> renameCtor c <*> cs') (return []) cs <*> renameProgs ps
 
@@ -259,4 +280,3 @@ aff2lin g tm =
       then tm'
       else error ("in aff2lin, remaining free vars: " ++ show (Map.keys fvs))
 
--- TODO: Also rename all bound vars to fresh names after aff2lin conversion?
