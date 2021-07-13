@@ -62,6 +62,10 @@ returnRule = RuleM [] [] [] []
 getRules :: RuleM -> [Rule]
 getRules (RuleM rs xs nts fs) = rs
 
+-- Removes all external nodes from a RuleM
+resetExts :: RuleM -> RuleM
+resetExts (RuleM rs xs nts fs) = RuleM rs [] nts fs
+
 
 
 getPairWeights :: Type -> Type -> PreWeight

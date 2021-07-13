@@ -26,6 +26,13 @@ bindExts addVarRules xs' (RuleM rs xs nts fs) =
 bindExt :: Bool -> Var -> Type -> RuleM -> RuleM
 bindExt addVarRule x tp = bindExts addVarRule [(x, tp)]
 
+-- Only takes the external nodes from one of the cases,
+-- because they should all have the same externals and
+-- we don't want to include them more than once.
+bindCases :: [RuleM] -> RuleM
+bindCases =
+  foldr (\ rm rm' -> rm +> resetExts rm') returnRule
+
 
 -- Add rule for a term application
 tmapp2fgg :: Ctxt -> Term -> RuleM
@@ -35,10 +42,10 @@ tmapp2fgg g (TmApp tm1 tm2 tp2 tp) =
   let fac = pairFactorName tp2 tp
       (ns, [[itp2, itp, iarr], ixs1, ixs2]) =
         combine [[tp2, tp, TpArr tp2 tp], map snd xs1, map snd xs2]
-      es = [Edge (itp2 : ixs2) (show tm2),
-            Edge (iarr : ixs1) (show tm1),
+      es = [Edge (ixs2 ++ [itp2]) (show tm2),
+            Edge (ixs1 ++ [iarr]) (show tm1),
             Edge [itp2, itp, iarr] fac]
-      xs = itp : ixs1 ++ ixs2 in
+      xs = ixs1 ++ ixs2 ++ [itp] in
     addRule' (TmApp tm1 tm2 tp2 tp) ns es xs +>
     addFactor fac (getPairWeights tp2 tp)
 
@@ -67,13 +74,14 @@ ctorsRules g cs y =
 -- Add a rule for this particular case in a case-of statement
 caseRule :: Ctxt -> [(Var, Type)] -> Term -> Case -> RuleM
 caseRule g xs_ctm (TmCase ctm y cs tp) (Case x as xtm) =
+  --(\ _ -> error (show (Case x as xtm) ++ ", " ++ show tp)) $
   let g' = ctxtDeclArgs g as in
   bindExts True as (term2fgg g' xtm) +>= \ xs_xtm ->
   let fac = ctorFactorName x (toTermArgs (ctorGetArgs x (map snd as))) y
       (ns, [[ictm, ixtm], ixs_as, ixs_ctm, ixs_xtm]) =
         combine [[y, tp], map snd as, map snd xs_ctm, map snd xs_xtm]
-      es = [Edge (ictm : ixs_ctm) (show ctm),
-            Edge (ixtm : ixs_xtm ++ ixs_as) (show xtm),
+      es = [Edge (ixs_ctm ++ [ictm]) (show ctm),
+            Edge (ixs_xtm ++ ixs_as ++ [ixtm]) (show xtm),
             Edge (ixs_as ++ [ictm]) fac]
       xs = ixs_ctm ++ ixs_xtm ++ [ixtm] in
     addRule' (TmCase ctm y cs tp) ns es xs
@@ -85,9 +93,9 @@ lamRule :: Bool -> Var -> Type -> Term -> Type -> RuleM -> RuleM
 lamRule addVarRule x tp tm tp' rm =
   bindExt addVarRule x tp rm +>= \ xs' ->
   let (ns, [[itp, itp', iarr], ixs']) = combine [[tp, tp', TpArr tp tp'], map snd xs']
-      es = [Edge ([itp, itp'] ++ ixs') (show tm),
+      es = [Edge (ixs' ++ [itp, itp']) (show tm),
             Edge [itp, itp', iarr] (pairFactorName tp tp')]
-      xs = iarr : ixs' in
+      xs = ixs' ++ [iarr] in
     addRule' (TmLam x tp tm tp') ns es xs +>
     addFactor (pairFactorName tp tp') (getPairWeights tp tp')
 
@@ -102,8 +110,8 @@ term2fgg g (TmCtor x as y) =
   map (\ (a, atp) -> term2fgg g a) as +*>= \ xss ->
   let (ns, [iy] : ias : ixss) = combine ([y] : map snd as : map (map snd) xss)
       es = Edge (ias ++ [iy]) (ctorFactorNameDefault x (map snd as) y) :
-           map (\ (ixs, (a, _), itp) -> Edge (itp : ixs) (show a)) (zip3 ixss as ias)
-      xs = iy : concat ixss
+           map (\ (ixs, (a, _), itp) -> Edge (ixs ++ [itp]) (show a)) (zip3 ixss as ias)
+      xs = concat ixss ++ [iy]
       Just cs = ctxtLookupType' g y
       cix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0 in
   addRule' (TmCtor x as y) ns es xs
@@ -113,7 +121,8 @@ term2fgg g (TmApp tm1 tm2 tp2 tp) =
   tmapp2fgg g (TmApp tm1 tm2 tp2 tp)
 term2fgg g (TmCase tm y cs tp) =
   term2fgg g tm +>= \ xs ->
-  foldr (\ c r -> caseRule g xs (TmCase tm y cs tp) c +> r) returnRule cs
+  bindCases (map (caseRule g xs (TmCase tm y cs tp)) cs)
+  --foldr (\ c r -> caseRule g xs (TmCase tm y cs tp) c +> r) returnRule cs
 term2fgg g (TmSamp d tp) =
   let dvs = domainValues g tp
       dvws = vectorWeight dvs in

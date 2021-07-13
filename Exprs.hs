@@ -80,6 +80,17 @@ tmIf iftm thentm elsetm tp =
 boolCtors = [Ctor tmFalseName [], Ctor tmTrueName []]
 maybeCtors tp = [Ctor tmNothingName [], Ctor tmJustName [tp]]
 
+addTypeInst :: Var -> [Type] -> UsTm
+addTypeInst x [] = UsVar x
+addTypeInst x (tp : tps) = UsApp (UsVar x) (UsVar ("[" ++ foldl (\ s tp' -> s ++ ", " ++ show tp') (show tp) tps ++ "]"))
+
+getTypeInst :: Type -> [Type]
+getTypeInst (TpMaybe tp) = [tp]
+getTypeInst _ = []
+
+varTypeInst :: Var -> Type -> UsTm
+varTypeInst x = addTypeInst x . getTypeInst
+
 {- Convert back from elaborated terms to user terms -}
 
 toUsTm :: Term -> UsTm
@@ -88,17 +99,7 @@ toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
-toUsTm (TmCtor x as _) = foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar x) as
---toUsTm (TmMaybe (Just (TmVar "" _ _)) tp) = UsApp (UsVar tmJustName) (UsVar ("[" ++ show tp ++ "]"))
---toUsTm (TmMaybe mtm tp) =
---  let apptp = \ tmName -> UsApp (UsVar tmName) (UsVar ("[" ++ show tp ++ "]")) in
---    maybe (apptp tmNothingName) (UsApp (apptp tmJustName) . toUsTm) mtm
---toUsTm (TmElimMaybe tm tp ntm (jx, jtm) tp') =
---  UsCase (toUsTm tm)
---    [CaseUs tmNothingName [] (toUsTm ntm),
---     CaseUs tmJustName [jx] (toUsTm jtm)]
---toUsTm (TmBool b) = UsVar (if b then tmTrueName else tmFalseName)
---toUsTm (TmIf iftm thentm elsetm tp) = UsCase (toUsTm iftm) [CaseUs tmFalseName [] (toUsTm elsetm), CaseUs tmTrueName [] (toUsTm thentm)]
+toUsTm (TmCtor x as tp) = foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (varTypeInst x tp) as
 
 toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)

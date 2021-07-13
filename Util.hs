@@ -124,20 +124,9 @@ pairFactorName tp1 tp2 = "v=(" ++ show (TpArr tp1 tp2) ++ ")"
 internalFactorName :: Term -> String
 internalFactorName tm = "v=" ++ show tm
 
-addTypeInst :: Var -> [Type] -> Var
-addTypeInst x [] = x
-addTypeInst x (tp : tps) = x ++ " [" ++ foldl (\ s tp' -> s ++ ", " ++ show tp') (show tp) tps ++ "]"
-
-getTypeInst :: Type -> [Type]
-getTypeInst (TpMaybe tp) = [tp]
-getTypeInst _ = []
-
-varTypeInst :: Var -> Type -> Var
-varTypeInst x = addTypeInst x . getTypeInst
-
 -- Naming convention for constructor factor
 ctorFactorName :: Var -> [(Term, Type)] -> Type -> String
-ctorFactorName x as tp = internalFactorName (TmCtor (varTypeInst x tp) as tp)
+ctorFactorName x as tp = internalFactorName (TmCtor x as tp)
 
 ctorFactorNameDefault :: Var -> [Type] -> Type -> String
 ctorFactorNameDefault x as = ctorFactorName x (map (\ (i, a) -> (TmVar (ctorEtaName x i) a ScopeLocal, a)) (enumerate as))
