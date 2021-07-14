@@ -130,11 +130,11 @@ term2fgg g (TmSamp d tp) =
     DistFail ->
       addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 0) dvws))
     DistUni  ->
-      addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const (1.0 / fromIntegral (length dvs))) dvws)) +>
-      addRule' (TmSamp d tp) [tp] [] [0]
-    DistAmb  -> 
-      addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 1) dvws)) +>
-      addRule' (TmSamp d tp) [tp] [] [0]
+      addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const (1.0 / fromIntegral (length dvs))) dvws))
+      -- +> addRule' (TmSamp d tp) [tp] [] [0]
+    DistAmb  ->  -- TODO: need to change this rule, bc doesn't show up as factor (it shows up as a nonterminal)
+      addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 1) dvws))
+      -- +> addRule' (TmSamp d tp) [tp] [] [0]
 
 -- Goes through a program and adds all the rules for it
 prog2fgg :: Ctxt -> Progs -> RuleM
