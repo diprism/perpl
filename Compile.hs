@@ -7,6 +7,10 @@ import RuleM
 import Ctxt
 import Free
 
+-- TODO: Figure out how to handle externals for terms like
+--         case q of false -> q | true -> true
+--       (where some var occurs multiple times)
+
 -- Local var rule
 var2fgg :: Var -> Type -> RuleM
 var2fgg x tp =
@@ -142,11 +146,12 @@ prog2fgg g (ProgExec tm) = term2fgg g tm
 prog2fgg g (ProgFun x tp tm ps) =
   prog2fgg g ps +> term2fgg g tm +> addRule' (TmVar x tp ScopeGlobal) [tp] [Edge [0] (show tm)] [0]
 prog2fgg g (ProgExtern x tp ps) =
-  prog2fgg g ps +> addNonterm x tp
+  let dvs = domainValues g tp
+      dvws = vectorWeight dvs in
+  prog2fgg g ps +> addFactor x (ThisWeight (fmap (const 0) dvws))
+  -- addNonterm x tp
 prog2fgg g (ProgData y cs ps) =
   prog2fgg g ps +> ctorsRules g cs (TpVar y)
-
--- TODO: Name external nodes with lookup map
 
 -- Computes a list of all the possible inhabitants of a type
 domainValues :: Ctxt -> Type -> [String]
