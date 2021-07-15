@@ -240,25 +240,27 @@ aff2linCase g (Case x as tm) =
       tm'' = eliminates g (Map.difference (Map.fromList as) fvs) tm' in
     (Case x as tm'', foldr (Map.delete . fst) fvs as)
 
--- TODO: at fail terms we don't eliminate FVs; should we?
 aff2linh :: Ctxt -> Term -> (Term, FreeVars)
 aff2linh g (TmVar x tp sc) =
-  let ltp = aff2linTp tp in
-    flip (,) (if sc == ScopeLocal then Map.singleton x ltp else Map.empty) $
+  let ltp = aff2linTp tp
+      fvs = if sc == ScopeLocal then Map.singleton x ltp else Map.empty in
+    (TmVar x ltp sc, fvs)
+    {-flip (,) fvs $
     case ltp of
       TpMaybe tp' ->
         let jx = ctorEtaName tmJustName 0
             jtm = TmVar jx tp' ScopeLocal
             ntm = TmSamp DistFail tp' in
           tmElimMaybe (TmVar x (TpMaybe tp') sc) tp' ntm (jx, jtm) tp'
-      _ -> TmVar x ltp sc
+      _ -> TmVar x ltp sc-}
 aff2linh g (TmLam x tp tm tp') =
   let ltp = aff2linTp tp
       ltp' = aff2linTp tp'
       (tm', fvs) = aff2linh (ctxtDeclTerm g x ltp) tm
       fvs' = Map.delete x fvs
+      tm'' = if Map.member x fvs then tm' else eliminate g x ltp tm'
       jtm = TmCtor tmJustName
-              [(TmLam x ltp tm' ltp', TpArr ltp ltp')] (TpMaybe (TpArr ltp ltp'))
+              [(TmLam x ltp tm'' ltp', TpArr ltp ltp')] (TpMaybe (TpArr ltp ltp'))
       ntm = eliminates g fvs'
               (TmCtor tmNothingName [] (TpMaybe (TpArr ltp ltp'))) in
     (tmIf (TmSamp DistAmb TpBool) jtm ntm (TpMaybe (TpArr ltp ltp')), fvs')
@@ -269,15 +271,21 @@ aff2linh g (TmApp tm1 tm2 tp2 tp) =
       ltp2 = aff2linTp tp2
       ltp = aff2linTp tp
       fvs = Map.union fvs1 fvs2 in
-    (TmApp tm1' tm2' ltp2 ltp, fvs)
+    {-(TmApp tm1' tm2' ltp2 ltp, fvs)-}
+    let ntm = TmApp (TmSamp DistFail (TpArr ltp2 ltp)) tm2' ltp2 ltp
+        jx = ctorEtaName tmJustName 0
+        jtm = TmApp (TmVar jx (TpArr ltp2 ltp) ScopeLocal) tm2' ltp2 ltp
+    in
+      (tmElimMaybe tm1' (TpArr ltp2 ltp) ntm (jx, jtm) ltp, fvs)
+
 aff2linh g (TmCase tm y cs tp) =
   let csxs = map (aff2linCase g) cs
       xsAny = Map.unions (map snd csxs)
-      xsAll = foldr Map.intersection xsAny (map snd csxs)
+      --xsAll = foldr Map.intersection xsAny (map snd csxs)
       (tm', tmxs) = aff2linh g tm
       cs' = flip map csxs $ \ (Case x as tm', xs) -> Case x as $
                   eliminates (ctxtDeclArgs g as) (Map.difference xsAny xs) tm' in
-    (TmCase tm' y cs' (aff2linTp tp), Map.union xsAll tmxs)
+    (TmCase tm' y cs' (aff2linTp tp), Map.union xsAny tmxs)
 aff2linh g (TmSamp d tp) = (TmSamp d (aff2linTp tp), Map.empty)
 aff2linh g (TmCtor x as y) =
   let (as', fvss) = unzip $ flip map as $ -- No need to aff2linTp bc args can't have arrows

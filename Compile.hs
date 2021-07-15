@@ -80,12 +80,15 @@ caseRule :: Ctxt -> [(Var, Type)] -> Term -> Case -> RuleM
 caseRule g xs_ctm (TmCase ctm y cs tp) (Case x as xtm) =
   --(\ _ -> error (show (Case x as xtm) ++ ", " ++ show tp)) $
   let g' = ctxtDeclArgs g as in
-  bindExts True as (term2fgg g' xtm) +>= \ xs_xtm ->
+  --bindExts True as (term2fgg g' xtm) +>= \ xs_xtm ->
+  bindExts True as $
+  term2fgg g' xtm +>= \ xs_xtm_as ->
   let fac = ctorFactorName x (toTermArgs (ctorGetArgs x (map snd as))) y
-      (ns, [[ictm, ixtm], ixs_as, ixs_ctm, ixs_xtm]) =
-        combine [[y, tp], map snd as, map snd xs_ctm, map snd xs_xtm]
+      (ns, [[ictm, ixtm], ixs_xtm_as, ixs_ctm]) =
+        combine [[y, tp], map snd xs_xtm_as, map snd xs_ctm]
+      (ixs_xtm, ixs_as) = foldr (\ (a, i) (ixs_xtm, ixs_as) -> if elem (fst a) (map fst as) then (ixs_xtm, i : ixs_as) else (i : ixs_xtm, ixs_as)) ([], []) (zip xs_xtm_as ixs_xtm_as)
       es = [Edge (ixs_ctm ++ [ictm]) (show ctm),
-            Edge (ixs_xtm ++ ixs_as ++ [ixtm]) (show xtm),
+            Edge (ixs_xtm_as ++ [ixtm]) (show xtm),
             Edge (ixs_as ++ [ictm]) fac]
       xs = ixs_ctm ++ ixs_xtm ++ [ixtm] in
     addRule' (TmCase ctm y cs tp) ns es xs
@@ -137,7 +140,7 @@ term2fgg g (TmSamp d tp) =
     DistUni  ->
       addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const (1.0 / fromIntegral (length dvs))) dvws))
       -- +> addRule' (TmSamp d tp) [tp] [] [0]
-    DistAmb  ->  -- TODO: need to change this rule, bc doesn't show up as factor (it shows up as a nonterminal)
+    DistAmb  -> -- TODO: is this fine, or do we need to add a rule with one node and one edge (that has the factor below)?
       addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 1) dvws))
       -- +> addRule' (TmSamp d tp) [tp] [] [0]
 
