@@ -179,7 +179,7 @@ instance Show Dist where
   show DistUni = "uniform"
 
 instance Show CaseUs where
-  show (CaseUs x as tm) = foldl (\ x a -> x ++ " " ++ a) x as ++ " -> " ++ show tm
+  show (CaseUs x as tm) = foldl (\ x a -> x ++ " " ++ a) x as ++ " -> " ++ showTerm tm ShowCase
 instance Show Case where
   show = show . toCaseUs
 
