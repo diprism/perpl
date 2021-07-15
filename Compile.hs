@@ -106,6 +106,7 @@ lamRule addVarRule x tp tm tp' rm =
 -- Traverse a term and add all rules for subexpressions
 term2fgg :: Ctxt -> Term -> RuleM
 term2fgg g (TmVar x tp local) =
+  addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp)) +>
   case local of
     ScopeGlobal -> returnRule
     ScopeLocal -> addExt x tp

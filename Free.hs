@@ -225,9 +225,14 @@ eliminates g fvs tm = Map.foldrWithKey (eliminate g) tm fvs
 
 aff2linTp :: Type -> Type
 aff2linTp (TpVar y) = TpVar y
+aff2linTp (TpArr tp1 tp2) = TpMaybe (TpArr (aff2linTp tp1) (aff2linTp tp2))
+aff2linTp tp = error ("aff2linTp shouldn't see a " ++ show tp)
+{-
+aff2linTp (TpVar y) = TpVar y
 aff2linTp (TpArr tp1 tp2) = TpArr (TpMaybe (aff2linTp tp1)) (aff2linTp tp2)
 aff2linTp (TpMaybe tp) = TpMaybe (aff2linTp tp)
 aff2linTp TpBool = TpBool
+-}
 
 aff2linCase :: Ctxt -> Case -> (Case, FreeVars)
 aff2linCase g (Case x as tm) =
@@ -239,28 +244,32 @@ aff2linCase g (Case x as tm) =
 aff2linh :: Ctxt -> Term -> (Term, FreeVars)
 aff2linh g (TmVar x tp sc) =
   let ltp = aff2linTp tp in
-    (TmVar x ltp sc, if sc == ScopeLocal then Map.singleton x ltp else Map.empty)
+    flip (,) (if sc == ScopeLocal then Map.singleton x ltp else Map.empty) $
+    case ltp of
+      TpMaybe tp' ->
+        let jx = ctorEtaName tmJustName 0
+            jtm = TmVar jx tp' ScopeLocal
+            ntm = TmSamp DistFail tp' in
+          tmElimMaybe (TmVar x (TpMaybe tp') sc) tp' ntm (jx, jtm) tp'
+      _ -> TmVar x ltp sc
 aff2linh g (TmLam x tp tm tp') =
-  let lptp = aff2linTp tp
-      ltp = TpMaybe lptp
+  let ltp = aff2linTp tp
       ltp' = aff2linTp tp'
-      --rtp = TpArr ltp ltp'
-      (tm', fvs) = aff2linh (ctxtDeclTerm g x tp) tm
-      x' = aff2linName x
-      mktm = \ ntm jtm -> (TmLam x' ltp (tmElimMaybe (TmVar x' ltp ScopeLocal) lptp ntm (x, jtm) ltp') ltp', Map.delete x fvs)
-      free = Map.member x fvs
-      fvs' = if free then Map.delete x fvs else Map.insert x lptp fvs
-      failtm = TmSamp DistFail ltp' in
-    if free then mktm failtm tm' else mktm tm' failtm
+      (tm', fvs) = aff2linh (ctxtDeclTerm g x ltp) tm
+      fvs' = Map.delete x fvs
+      jtm = TmCtor tmJustName
+              [(TmLam x ltp tm' ltp', TpArr ltp ltp')] (TpMaybe (TpArr ltp ltp'))
+      ntm = eliminates g fvs'
+              (TmCtor tmNothingName [] (TpMaybe (TpArr ltp ltp'))) in
+    (tmIf (TmSamp DistAmb TpBool) jtm ntm (TpMaybe (TpArr ltp ltp')), fvs')
 aff2linh g (TmApp tm1 tm2 tp2 tp) =
   -- L(f a) => L(f) (if amb then (discard FV(a) in nothing) else just L(a))
   let (tm1', fvs1) = aff2linh g tm1
       (tm2', fvs2) = aff2linh g tm2
       ltp2 = aff2linTp tp2
       ltp = aff2linTp tp
-      jx = ctorEtaName tmJustName 0 in
-    (TmApp tm1' (tmIf (TmSamp DistAmb TpBool) (eliminates g fvs2 (tmMaybe Nothing ltp2)) (tmMaybe (Just tm2') ltp2) (TpMaybe ltp2)) (TpMaybe ltp2) ltp,
-     Map.union fvs1 fvs2)
+      fvs = Map.union fvs1 fvs2 in
+    (TmApp tm1' tm2' ltp2 ltp, fvs)
 aff2linh g (TmCase tm y cs tp) =
   let csxs = map (aff2linCase g) cs
       xsAny = Map.unions (map snd csxs)
