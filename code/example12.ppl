@@ -1,9 +1,12 @@
-extern sample_p: Bool ;
+data Bool = false | true;
 
-define odd = \q.
-  if sample_p then
-    odd (odd q)
-  else
-    not q ;
+extern sample_p: Bool;
+
+define not: Bool->Bool = \b: Bool. case b of false -> true | true -> false;
+
+define odd: Bool->Bool = \q: Bool.
+  case sample_p of
+  | false -> not q
+  | true -> odd (odd q);
     
 odd false
