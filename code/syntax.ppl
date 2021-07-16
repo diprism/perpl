@@ -1,0 +1,47 @@
+-------- Syntax guide --------
+
+-- This is a single line comment.
+
+{-
+This is a multi-line comment.
+It can appear just about anywhere,
+even in the middle of a line of code.
+-}
+
+-- You can define datatypes like this:
+data Bool = False | True;
+
+
+data String = Nil | Cons Bool List;
+
+-- We just use the binary alphabet {0, 1}
+data Regexp = Symbol Bool | Union Regexp Regexp | Concat Regexp Regexp | Star Regexp;
+
+
+-- Unfortunately need to state type at def and also in lambdas
+define match : Regexp -> String -> String = \ r : Regexp. \ w : String.
+  case r of
+  -- Note that cases need to be in same order as they appear in datatype def, for now at least
+  --v Optional first bar
+    | Symbol a -> (case w of Nil -> sample fail : String | Cons a w' -> w')
+    | Union r1 r2 -> match (case sample amb : Bool of False -> r1 | True -> r2) w
+    | Concat r1 r2 -> match r2 (match r1 w)
+    | Star r -> (case w of Nil -> Nil | Cons wh wt -> match r (match r w));
+  -- Note the closing semicolon ----------------------------------------^
+
+-- You can declare external distributions like this:
+extern flip : Bool;
+-- ... or even something strange like
+extern hmm : (Regexp -> Bool) -> String;
+
+
+define sample_kinds : (Bool -> Bool -> Bool -> Bool) -> Bool =
+  \ f : Bool -> Bool -> Bool -> Bool. f
+    (sample fail : Bool) -- p(False) = 0, p(True) = 0
+    (sample amb : Bool) -- p(False) = 1, p(True) = 1
+    (sample uniform : Bool); -- p(False) = 0.5, p(True) = 0.5
+
+
+-- You must then end the program with something to run, like
+match (Concat (Symbol False) (Star (Symbol True)))
+      (Cons False (Cons True (Cons True (Cons True Nil))))

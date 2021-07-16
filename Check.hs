@@ -207,6 +207,6 @@ declProgs g (UsProgData y cs ps) =
 checkFile :: UsProgs -> Either String (Ctxt, Progs)
 checkFile ps =
   declProgs emptyCtxt ps >>= \ g' ->
-  checkProgs g' (alphaRename g' ps) >>= \ ps' ->
+  checkProgs g' (alphaRenameUs g' ps) >>= \ ps' ->
   --Left (show ps')
-  return (g', ps')
+  return (g', alphaRename g' ps')

@@ -4,6 +4,7 @@ import Ctxt
 import Util
 import qualified Data.Map as Map
 import Data.List
+import Data.Char
 
 -- For checking linearity, vars can appear:
 -- LinNo: not at all
@@ -106,12 +107,19 @@ newVar x = RenameM $ \ xs ->
   let x' = newVarH xs x in
     (x', Map.insert x x' (Map.insert x' x' xs))
   where
+  var2num :: Var -> Integer
+  var2num n = if null n then 0 else read n :: Integer
+  -- Pulls the number suffix from a var, and returns it + 1. Ex: "foo123" -> ("foo", 124)
+  pullNum :: Var -> (Var, Integer)
+  pullNum = fmap succ . either id (\ n -> ("", var2num n)) . foldr (\ c -> either (\ (p, s) -> Left (c : p, s)) (\ n -> if isDigit c then Right (c : n) else Left ([c], var2num n))) (Right "")
+  
   h xs x n =
     let x' = x ++ show n in
       if Map.member x' xs
         then h xs x (succ n)
         else x'
-  newVarH xs x = if Map.member x xs then h xs x 1 else x
+  newVarH xs x =
+    if Map.member x xs then uncurry (h xs) (pullNum x) else x
 
 -- Alpha-rename a user-term
 renameUsTm :: UsTm -> RenameM UsTm
@@ -125,37 +133,38 @@ renameUsTm (UsApp tm1 tm2) =
 renameUsTm (UsCase tm cs) =
   pure UsCase
     <*> renameUsTm tm
-    <*> foldr (\ c cs' -> pure (:) <*> renameCase c <*> cs') (return []) cs
+    <*> mapM renameCaseUs cs
 renameUsTm (UsSamp d tp) =
   pure (UsSamp d) <*> renameType tp
 
--- TODO: Also rename all bound vars to fresh names after aff2lin conversion?
-{-renameTerm :: Term -> RenameM Term
+-- Alpha-rename a term
+renameTerm :: Term -> RenameM Term
 renameTerm (TmVar x tp sc) =
   pure TmVar <*> getVar x <*> renameType tp <*> pure sc
 renameTerm (TmLam x tp tm tp') =
-  bindVar x $ pure TmLam <*> newVar x <*> renameType tp <*> renameTerm tm <*> renameType tp'
+  bindVar x (pure (flip TmLam) <*> renameType tp <*> newVar x <*> renameTerm tm) <*> renameType tp'
 renameTerm (TmApp tm1 tm2 tp2 tp) =
   pure TmApp <*> renameTerm tm1 <*> renameTerm tm2 <*> renameType tp2 <*> renameType tp
-renameTerm (TmCase tm cs y tp) =
-  pure TmCase <*> renameTerm tm <*> mapM renameCase cs <*> getVar y <*> renameType tp
-renameTerm (TmSamp d tp) = error "TODO"
-renameTerm (TmCtor x as y) = error "TODO"
-renameTerm (TmMaybe mtm tp) = error "TODO"
-renameTerm (TmElimMaybe tm tp ntm (jx, jtm) tp') = error "TODO"
-renameTerm (TmBool b) = error "TODO"
-renameTerm (TmIf tm ttm ftm) = error "TODO"
+renameTerm (TmCase tm y cs tp) =
+  pure TmCase <*> renameTerm tm <*> renameType y <*> mapM renameCase cs <*> renameType tp
+renameTerm (TmSamp d tp) =
+  pure (TmSamp d) <*> renameType tp
+renameTerm (TmCtor x as y) =
+  pure TmCtor <*> getVar x <*> mapM (renameArg renameTerm) as <*> renameType y
 
-renameSeq :: [RenameM a] -> RenameM [a]
-renameSeq rs = foldr () ()-}
+-- Alpha-rename an arg, given a function that alpha-renames its value
+renameArg :: (a -> RenameM a) -> (a, Type) -> RenameM (a, Type)
+renameArg f (a, atp) = pure (,) <*> f a <*> renameType atp
+
+-- Alpha-rename a case
+renameCase :: Case -> RenameM Case
+renameCase (Case x as tm) =
+  bindVars (map fst as) $ pure Case <*> getVar x <*> mapM (renameArg newVar) as <*> renameTerm tm
 
 -- Alpha-rename a user-case
-renameCase :: CaseUs -> RenameM CaseUs
-renameCase (CaseUs x as tm) =
-  bindVars as $
-  pure (CaseUs x)
-    <*> foldr (\ a as' -> pure (:) <*> newVar a <*> as') (return []) as
-    <*> renameUsTm tm
+renameCaseUs :: CaseUs -> RenameM CaseUs
+renameCaseUs (CaseUs x as tm) =
+  bindVars as $ pure CaseUs <*> getVar x <*> mapM newVar as <*> renameUsTm tm
 
 -- Alpha-rename a type
 renameType :: Type -> RenameM Type
@@ -169,20 +178,29 @@ renameCtor :: Ctor -> RenameM Ctor
 renameCtor (Ctor x tps) = pure (Ctor x) <*> foldr (\ tp tps' -> pure (:) <*> renameType tp <*> tps') (return []) tps
 
 -- Alpha-rename an entire user-program
-renameProgs :: UsProgs -> RenameM UsProgs
-renameProgs (UsProgExec tm) = pure UsProgExec <*> renameUsTm tm
-renameProgs (UsProgFun x tp tm ps) = pure (UsProgFun x) <*> renameType tp <*> renameUsTm tm <*> renameProgs ps
-renameProgs (UsProgExtern x tp ps) = pure (UsProgExtern x) <*> renameType tp <*> renameProgs ps
-renameProgs (UsProgData y cs ps) = pure (UsProgData y) <*> foldr (\ c cs' -> pure (:) <*> renameCtor c <*> cs') (return []) cs <*> renameProgs ps
+renameUsProgs :: UsProgs -> RenameM UsProgs
+renameUsProgs (UsProgExec tm) = pure UsProgExec <*> renameUsTm tm
+renameUsProgs (UsProgFun x tp tm ps) = pure (UsProgFun x) <*> renameType tp <*> renameUsTm tm <*> renameUsProgs ps
+renameUsProgs (UsProgExtern x tp ps) = pure (UsProgExtern x) <*> renameType tp <*> renameUsProgs ps
+renameUsProgs (UsProgData y cs ps) = pure (UsProgData y) <*> mapM renameCtor cs <*> renameUsProgs ps
 
--- Alpha-rename a file
-alphaRename :: Ctxt -> UsProgs -> UsProgs
-alphaRename g ps =
-  let xs = Map.mapWithKey const g
-      (RenameM f) = renameProgs ps
-      (ps', xs') = f xs in
-    ps'
+renameProgs :: Progs -> RenameM Progs
+renameProgs (ProgExec tm) = pure ProgExec <*> renameTerm tm
+renameProgs (ProgFun x tp tm ps) = pure (ProgFun x) <*> renameType tp <*> renameTerm tm <*> renameProgs ps
+renameProgs (ProgExtern x tp ps) = pure (ProgExtern x) <*> renameType tp <*> renameProgs ps
+renameProgs (ProgData y cs ps) = pure (ProgData y) <*> mapM renameCtor cs <*> renameProgs ps
 
+-- Auxiliary helper
+alphaRename' :: Ctxt -> RenameM a -> a
+alphaRename' g (RenameM f) = fst $ f $ Map.mapWithKey const g
+
+-- Alpha-rename a raw file
+alphaRenameUs :: Ctxt -> UsProgs -> UsProgs
+alphaRenameUs g = alphaRename' g . renameUsProgs
+
+-- Alpha-rename an elaborated file
+alphaRename :: Ctxt -> Progs -> Progs
+alphaRename g = alphaRename' g . renameProgs
 
 
 {- ====== Affine to Linear Functions ====== -}
@@ -193,98 +211,81 @@ alphaRename g ps =
 -- occurs exactly once
 type FreeVars = Map.Map Var Type
 
-eliminate :: Ctxt -> Var -> Type -> Term -> Term
-eliminate g x (TpArr tp1 tp2) tm =
-  let tp = getType tm in
-    error "This shouldn't happen"
-    --tmElimMaybe (TmVar x (TpMaybe (TpArr tp1 tp2)) ScopeLocal) (TpArr tp1 tp2) tm (ctorEtaName tmJustName 0, TmSamp DistFail tp) tp
-eliminate g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
-  (error ("In Free.hs/eliminate, unknown type var " ++ y))
+-- Uses x without changing the value or type of a term
+-- For example, take x : Bool and some term tm that becomes
+-- case x of false -> tm | true -> tm
+discard :: Ctxt -> Var -> Type -> Term -> Term
+discard g x (TpArr tp1 tp2) tm =
+  error "This shouldn't happen" -- Should be TpMaybe if it is an arrow type
+discard g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
+  (error ("In Free.hs/discard, unknown type var " ++ y))
   $ \ cs ->
       TmCase (TmVar x (TpVar y) ScopeLocal) (TpVar y)
         (map (\ (Ctor x' as) ->
                 let as' = ctorGetArgs x' as in
-                  Case x' as' (foldr (uncurry $ eliminate g) tm as'))
+                  Case x' as' (foldr (uncurry $ discard g) tm as'))
           cs) (getType tm)
-eliminate g x (TpMaybe tp) tm =
+discard g x (TpMaybe tp) tm =
   let x' = aff2linName x
       tp' = getType tm in
     tmElimMaybe (TmVar x (TpMaybe tp) ScopeLocal) tp tm (x', TmSamp DistFail tp') tp'
-eliminate g x TpBool tm =
+discard g x TpBool tm =
   tmIf (TmVar x TpBool ScopeLocal) tm tm (getType tm)
 
-{-
-L(\x:X. b) [x \in FV(b)] => \x:Maybe L'(X). case x of nothing => discard (FV(b) - {x}) in fail | just x' => L(b)
-L(\x:X. b) [x \notin FV(b)] => \x:Maybe L'(X). case x of nothing => L(b) | just x' -> discard x', FV(b) in fail
-L(f a) => L(f) (if amb then nothing else just L(a))
+-- Discard a set of variables
+discards :: Ctxt -> FreeVars -> Term -> Term
+discards g fvs tm = Map.foldrWithKey (discard g) tm fvs
 
--}
-
-eliminates :: Ctxt -> FreeVars -> Term -> Term
-eliminates g fvs tm = Map.foldrWithKey (eliminate g) tm fvs
-
+-- Convert the type of an affine term to what it will be when linear
+-- That is, recursively change every T1 -> T2 to be Maybe (T1 -> T2)
 aff2linTp :: Type -> Type
 aff2linTp (TpVar y) = TpVar y
 aff2linTp (TpArr tp1 tp2) = TpMaybe (TpArr (aff2linTp tp1) (aff2linTp tp2))
 aff2linTp tp = error ("aff2linTp shouldn't see a " ++ show tp)
-{-
-aff2linTp (TpVar y) = TpVar y
-aff2linTp (TpArr tp1 tp2) = TpArr (TpMaybe (aff2linTp tp1)) (aff2linTp tp2)
-aff2linTp (TpMaybe tp) = TpMaybe (aff2linTp tp)
-aff2linTp TpBool = TpBool
--}
 
+-- Make a case linear, returning the local vars that occur free in it
 aff2linCase :: Ctxt -> Case -> (Case, FreeVars)
 aff2linCase g (Case x as tm) =
   let (tm', fvs) = aff2linh (ctxtDeclArgs g as) tm
-      tm'' = eliminates g (Map.difference (Map.fromList as) fvs) tm' in
+      -- Need to discard all "as" that do not occur free in "tm"
+      tm'' = discards g (Map.difference (Map.fromList as) fvs) tm' in
     (Case x as tm'', foldr (Map.delete . fst) fvs as)
 
+-- Make a term linear, returning the local vars that occur free in it
 aff2linh :: Ctxt -> Term -> (Term, FreeVars)
 aff2linh g (TmVar x tp sc) =
   let ltp = aff2linTp tp
       fvs = if sc == ScopeLocal then Map.singleton x ltp else Map.empty in
     (TmVar x ltp sc, fvs)
-    {-flip (,) fvs $
-    case ltp of
-      TpMaybe tp' ->
-        let jx = ctorEtaName tmJustName 0
-            jtm = TmVar jx tp' ScopeLocal
-            ntm = TmSamp DistFail tp' in
-          tmElimMaybe (TmVar x (TpMaybe tp') sc) tp' ntm (jx, jtm) tp'
-      _ -> TmVar x ltp sc-}
 aff2linh g (TmLam x tp tm tp') =
   let ltp = aff2linTp tp
       ltp' = aff2linTp tp'
       (tm', fvs) = aff2linh (ctxtDeclTerm g x ltp) tm
       fvs' = Map.delete x fvs
-      tm'' = if Map.member x fvs then tm' else eliminate g x ltp tm'
+      tm'' = if Map.member x fvs then tm' else discard g x ltp tm'
       jtm = TmCtor tmJustName
               [(TmLam x ltp tm'' ltp', TpArr ltp ltp')] (TpMaybe (TpArr ltp ltp'))
-      ntm = eliminates g fvs'
+      ntm = discards g fvs'
               (TmCtor tmNothingName [] (TpMaybe (TpArr ltp ltp'))) in
     (tmIf (TmSamp DistAmb TpBool) jtm ntm (TpMaybe (TpArr ltp ltp')), fvs')
 aff2linh g (TmApp tm1 tm2 tp2 tp) =
-  -- L(f a) => L(f) (if amb then (discard FV(a) in nothing) else just L(a))
   let (tm1', fvs1) = aff2linh g tm1
       (tm2', fvs2) = aff2linh g tm2
       ltp2 = aff2linTp tp2
       ltp = aff2linTp tp
-      fvs = Map.union fvs1 fvs2 in
-    {-(TmApp tm1' tm2' ltp2 ltp, fvs)-}
-    let ntm = TmApp (TmSamp DistFail (TpArr ltp2 ltp)) tm2' ltp2 ltp
-        jx = ctorEtaName tmJustName 0
-        jtm = TmApp (TmVar jx (TpArr ltp2 ltp) ScopeLocal) tm2' ltp2 ltp
-    in
-      (tmElimMaybe tm1' (TpArr ltp2 ltp) ntm (jx, jtm) ltp, fvs)
-
+      fvs = Map.union fvs1 fvs2
+      ntm = TmApp (TmSamp DistFail (TpArr ltp2 ltp)) tm2' ltp2 ltp
+      jx = ctorEtaName tmJustName 0
+      jtm = TmApp (TmVar jx (TpArr ltp2 ltp) ScopeLocal) tm2' ltp2 ltp in
+    (tmElimMaybe tm1' (TpArr ltp2 ltp) ntm (jx, jtm) ltp, fvs)
 aff2linh g (TmCase tm y cs tp) =
   let csxs = map (aff2linCase g) cs
       xsAny = Map.unions (map snd csxs)
-      --xsAll = foldr Map.intersection xsAny (map snd csxs)
       (tm', tmxs) = aff2linh g tm
       cs' = flip map csxs $ \ (Case x as tm', xs) -> Case x as $
-                  eliminates (ctxtDeclArgs g as) (Map.difference xsAny xs) tm' in
+                  -- Need to discard any vars that occur free in other cases, but
+                  -- not in this one bc all cases must have same set of free vars
+                  discards (ctxtDeclArgs g as) (Map.difference xsAny xs) tm' in
     (TmCase tm' y cs' (aff2linTp tp), Map.union xsAny tmxs)
 aff2linh g (TmSamp d tp) = (TmSamp d (aff2linTp tp), Map.empty)
 aff2linh g (TmCtor x as y) =
@@ -292,6 +293,7 @@ aff2linh g (TmCtor x as y) =
         \ (tm, tp) -> let (tm', xs) = aff2linh g tm in ((tm', tp), xs) in
   (TmCtor x as' y, Map.unions fvss)
 
+-- Makes an affine term linear
 aff2lin :: Ctxt -> Term -> Term
 aff2lin g tm =
   let (tm', fvs) = aff2linh g tm in
@@ -299,11 +301,11 @@ aff2lin g tm =
       then tm'
       else error ("in aff2lin, remaining free vars: " ++ show (Map.keys fvs))
 
-
+-- Records an instantiation of a polymorphic type
 piAppend :: Var -> [Type] -> Map.Map Var [[Type]] -> Map.Map Var [[Type]]
 piAppend y tp pis = Map.insertWith (++) y [tp] pis
 
--- Retrieves all instantiations of polymorphic types (e.g. Maybe [...])
+-- Retrieves all instantiations of polymorphic types (e.g. Maybe [...]) in a term
 getPolyInstsTerm :: Map.Map Var [[Type]] -> Term -> Map.Map Var [[Type]]
 getPolyInstsTerm pis (TmVar x tp sc) = getPolyInstsType pis tp
 getPolyInstsTerm pis (TmLam x tp tm tp') = getPolyInstsTerm (getPolyInstsType pis tp) tm -- no need to do tp' bc tm already adds all insts
@@ -314,18 +316,21 @@ getPolyInstsTerm pis (TmCase tm y cs tp) =
 getPolyInstsTerm pis (TmSamp d tp) = getPolyInstsType pis tp
 getPolyInstsTerm pis (TmCtor x as tp) = foldl (\ pis (a, atp) -> getPolyInstsTerm pis a) (getPolyInstsType pis tp) as
 
+-- Retrives all instantiations of polymorphic types (e.g. Maybe [...]) in a type
 getPolyInstsType :: Map.Map Var [[Type]] -> Type -> Map.Map Var [[Type]]
 getPolyInstsType pis (TpVar y) = pis
 getPolyInstsType pis (TpArr tp1 tp2) = getPolyInstsType (getPolyInstsType pis tp1) tp2
 getPolyInstsType pis TpBool = piAppend tpBoolName [] pis
 getPolyInstsType pis (TpMaybe tp) = piAppend tpMaybeName [tp] (getPolyInstsType pis tp)
 
+-- Retrives all instantiations of polymorphic types (e.g. Maybe [...]) in a file
 getPolyInstsProg :: Map.Map Var [[Type]] -> Progs -> Map.Map Var [[Type]]
 getPolyInstsProg pis (ProgExec tm) = getPolyInstsTerm pis tm
 getPolyInstsProg pis (ProgFun x tp tm ps) = getPolyInstsProg (getPolyInstsTerm pis tm) ps
 getPolyInstsProg pis (ProgExtern x tp ps) = getPolyInstsProg (getPolyInstsType pis tp) ps
 getPolyInstsProg pis (ProgData y cs ps) = getPolyInstsProg (foldl (\ pis (Ctor x as) -> foldl getPolyInstsType pis as) pis cs) ps
 
+-- Retrives all instantiations of a particular polymorphic type var (e.g. Maybe [...])
 getPolyInsts :: Progs -> Var -> [[Type]]
 getPolyInsts ps y =
   let is = getPolyInstsProg Map.empty ps in
