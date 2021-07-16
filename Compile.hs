@@ -149,11 +149,11 @@ prog2fgg :: Ctxt -> Progs -> RuleM
 prog2fgg g (ProgExec tm) = term2fgg g tm
 prog2fgg g (ProgFun x tp tm ps) =
   prog2fgg g ps +> term2fgg g tm +> addRule' (TmVar x tp ScopeGlobal) [tp] [Edge [0] (show tm)] [0]
-prog2fgg g (ProgExtern x tp ps) =
-  let dvs = domainValues g tp
-      dvws = vectorWeight dvs in
-  prog2fgg g ps +> addFactor x (ThisWeight (fmap (const 0) dvws))
-  -- addNonterm x tp
+prog2fgg g (ProgExtern x xp tp ps) =
+  let ws = ThisWeight (fmap (const 0) (vectorWeight (domainValues g tp))) in
+  prog2fgg g ps +>
+  addRule' (TmVar x tp ScopeGlobal) [tp] [Edge [0] xp] [0] +>
+  addFactor xp ws
 prog2fgg g (ProgData y cs ps) =
   prog2fgg g ps +> ctorsRules g cs (TpVar y)
 

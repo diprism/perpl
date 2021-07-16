@@ -172,7 +172,7 @@ checkProgs g (UsProgFun x tp tm ps) =
 checkProgs g (UsProgExtern x tp ps) =
   checkType g tp >>
   checkProgs g ps >>= \ ps' ->
-  return (ProgExtern x tp ps')
+  return (ProgExtern x "0" tp ps')
 
 checkProgs g (UsProgData x cs ps) =
   declErr x (foldr (\ (Ctor x tps) r -> foldr (\ tp r -> checkType g tp >> ifErr (hasArr tp) ("Constructor " ++ x ++ " has an arg with an arrow type, which is not allowed") >> r) okay tps >> r) okay cs) >>

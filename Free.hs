@@ -187,7 +187,7 @@ renameUsProgs (UsProgData y cs ps) = pure (UsProgData y) <*> mapM renameCtor cs 
 renameProgs :: Progs -> RenameM Progs
 renameProgs (ProgExec tm) = pure ProgExec <*> renameTerm tm
 renameProgs (ProgFun x tp tm ps) = pure (ProgFun x) <*> renameType tp <*> renameTerm tm <*> renameProgs ps
-renameProgs (ProgExtern x tp ps) = pure (ProgExtern x) <*> renameType tp <*> renameProgs ps
+renameProgs (ProgExtern x xp tp ps) = pure (ProgExtern x) <*> (bindVar xp $ newVar xp) <*> renameType tp <*> renameProgs ps
 renameProgs (ProgData y cs ps) = pure (ProgData y) <*> mapM renameCtor cs <*> renameProgs ps
 
 -- Auxiliary helper
@@ -327,7 +327,7 @@ getPolyInstsType pis (TpMaybe tp) = piAppend tpMaybeName [tp] (getPolyInstsType 
 getPolyInstsProg :: Map.Map Var [[Type]] -> Progs -> Map.Map Var [[Type]]
 getPolyInstsProg pis (ProgExec tm) = getPolyInstsTerm pis tm
 getPolyInstsProg pis (ProgFun x tp tm ps) = getPolyInstsProg (getPolyInstsTerm pis tm) ps
-getPolyInstsProg pis (ProgExtern x tp ps) = getPolyInstsProg (getPolyInstsType pis tp) ps
+getPolyInstsProg pis (ProgExtern x xp tp ps) = getPolyInstsProg (getPolyInstsType pis tp) ps
 getPolyInstsProg pis (ProgData y cs ps) = getPolyInstsProg (foldl (\ pis (Ctor x as) -> foldl getPolyInstsType pis as) pis cs) ps
 
 -- Retrives all instantiations of a particular polymorphic type var (e.g. Maybe [...])

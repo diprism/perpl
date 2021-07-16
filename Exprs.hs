@@ -9,7 +9,7 @@ data UsProgs =
 data Progs =
     ProgExec Term
   | ProgFun String Type Term Progs
-  | ProgExtern String Type Progs
+  | ProgExtern String String Type Progs
   | ProgData String [Ctor] Progs
 
 data Ctor = Ctor Var [Type]
@@ -107,7 +107,7 @@ toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)
 toUsProgs :: Progs -> UsProgs
 toUsProgs (ProgExec tm) = UsProgExec (toUsTm tm)
 toUsProgs (ProgFun x tp tm ps) = UsProgFun x tp (toUsTm tm) (toUsProgs ps)
-toUsProgs (ProgExtern x tp ps) = UsProgExtern x tp (toUsProgs ps)
+toUsProgs (ProgExtern x xp tp ps) = UsProgExtern x tp (toUsProgs ps)
 toUsProgs (ProgData y cs ps) = UsProgData y cs (toUsProgs ps)
 
 

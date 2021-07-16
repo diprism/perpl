@@ -67,7 +67,7 @@ hasArr TpBool = False
 getStartTerm :: Progs -> Term
 getStartTerm (ProgExec tm) = tm
 getStartTerm (ProgFun x tp tm ps) = getStartTerm ps
-getStartTerm (ProgExtern x tp ps) = getStartTerm ps
+getStartTerm (ProgExtern x xp tp ps) = getStartTerm ps
 getStartTerm (ProgData y cs ps) = getStartTerm ps
 
 -- Splits tp1 -> tp2 -> ... -> tpn into ([tp1, tp2, ...], tpn)
@@ -141,7 +141,6 @@ ctorEtaName x i = "?" ++ x ++ show i
 
 aff2linName :: Var -> Var
 aff2linName x = '%' : x
-
 
 -- Returns the names of the args for a constructor
 ctorGetArgs :: Var -> [Type] -> [(Var, Type)]
