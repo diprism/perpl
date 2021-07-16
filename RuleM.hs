@@ -1,5 +1,6 @@
 module RuleM where
 import Data.List
+import qualified Data.Map as Map
 import Exprs
 import FGG
 import Util
@@ -14,7 +15,10 @@ infixl 1 +>=, +>, +*>=
 (+>=) :: RuleM -> ([External] -> RuleM) -> RuleM
 RuleM rs xs nts fs +>= g =
   let RuleM rs' xs' nts' fs' = g xs in
-    RuleM (rs ++ rs') (xs ++ xs') (nts ++ nts') (concatFactors fs fs')
+    RuleM (rs ++ rs')
+          (unionBy (\ (a, _) (a', _) -> a == a') xs xs')
+          (nts ++ nts')
+          (concatFactors fs fs')
 
 (+>) :: RuleM -> RuleM -> RuleM
 r1 +> r2 = r1 +>= \ _ -> r2
@@ -140,3 +144,21 @@ getCtorEqWeights cs =
   let is = [0..cs - 1] in
     ThisWeight $ fmap (\ (i, j) -> if i == j then 1 else 0) $
       matrixWeight $ kronecker is is
+
+
+combineExts :: Ord a => [[(a, x)]] -> ([(a, x)], [[Int]])
+combineExts = h Map.empty 0 where
+
+  index :: Ord a => Map.Map a Int -> Int -> [(a, x)] -> (Map.Map a Int, [(a, x)])
+  index ixs i [] = (ixs, [])
+  index ixs i (a : as) = case Map.lookup (fst a) ixs of
+    Nothing -> fmap ((:) a) (index (Map.insert (fst a) i ixs) (succ i) as)
+    Just ia -> index ixs i as
+  
+  h :: Ord a => Map.Map a Int -> Int -> [[(a, x)]] -> ([(a, x)], [[Int]])
+  h ixs i [] = ([], [])
+  h ixs i (as : rest) =
+    let (ixs', as') = index ixs i as
+        is = map (\ (a, _) -> ixs' Map.! a) as
+        (rs, ms) = h ixs' (i + length as') rest in
+      (as' ++ rs, is : ms)

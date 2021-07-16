@@ -45,12 +45,13 @@ tmapp2fgg g (TmApp tm1 tm2 tp2 tp) =
   term2fgg g tm2 +>= \ xs2 ->
   let fac = pairFactorName tp2 tp
       (ns, [[itp2, itp, iarr], ixs1, ixs2]) =
-        combine [[tp2, tp, TpArr tp2 tp], map snd xs1, map snd xs2]
+        -- For " 0" et al, pick impossible var names
+        combineExts [[(" 0", tp2), (" 1", tp), (" 2", TpArr tp2 tp)], xs1, xs2]
       es = [Edge (ixs2 ++ [itp2]) (show tm2),
             Edge (ixs1 ++ [iarr]) (show tm1),
             Edge [itp2, itp, iarr] fac]
-      xs = ixs1 ++ ixs2 ++ [itp] in
-    addRule' (TmApp tm1 tm2 tp2 tp) ns es xs +>
+      xs = nub (ixs1 ++ ixs2 ++ [itp]) in
+    addRule' (TmApp tm1 tm2 tp2 tp) (map snd ns) es xs +>
     addFactor fac (getPairWeights tp2 tp)
 
 -- Add rule for a constructor
@@ -85,13 +86,13 @@ caseRule g xs_ctm (TmCase ctm y cs tp) (Case x as xtm) =
   term2fgg g' xtm +>= \ xs_xtm_as ->
   let fac = ctorFactorName x (toTermArgs (ctorGetArgs x (map snd as))) y
       (ns, [[ictm, ixtm], ixs_xtm_as, ixs_ctm]) =
-        combine [[y, tp], map snd xs_xtm_as, map snd xs_ctm]
+        combineExts [[(" 0", y), (" 1", tp)], xs_xtm_as, xs_ctm]
       (ixs_xtm, ixs_as) = foldr (\ (a, i) (ixs_xtm, ixs_as) -> if elem (fst a) (map fst as) then (ixs_xtm, i : ixs_as) else (i : ixs_xtm, ixs_as)) ([], []) (zip xs_xtm_as ixs_xtm_as)
       es = [Edge (ixs_ctm ++ [ictm]) (show ctm),
             Edge (ixs_xtm_as ++ [ixtm]) (show xtm),
             Edge (ixs_as ++ [ictm]) fac]
-      xs = ixs_ctm ++ ixs_xtm ++ [ixtm] in
-    addRule' (TmCase ctm y cs tp) ns es xs
+      xs = nub (ixs_ctm ++ ixs_xtm ++ [ixtm]) in
+    addRule' (TmCase ctm y cs tp) (map snd ns) es xs
 caseRule g xs _ (Case x as xtm) =
   error "caseRule expected a TmCase, but got something else"
 
@@ -116,13 +117,13 @@ term2fgg g (TmVar x tp local) =
     ScopeCtor -> error ("term2fgg should not see a ctor var (" ++ x ++ ")")
 term2fgg g (TmCtor x as y) =
   map (\ (a, atp) -> term2fgg g a) as +*>= \ xss ->
-  let (ns, [iy] : ias : ixss) = combine ([y] : map snd as : map (map snd) xss)
+  let (ns, [iy] : ias : ixss) = combineExts ([(" 0", y)] : map (\ (i, (tm, tp)) -> (' ' : show (succ i), tp)) (enumerate as) : xss)
       es = Edge (ias ++ [iy]) (ctorFactorNameDefault x (map snd as) y) :
            map (\ (ixs, (a, _), itp) -> Edge (ixs ++ [itp]) (show a)) (zip3 ixss as ias)
       xs = concat ixss ++ [iy]
       Just cs = ctxtLookupType' g y
       cix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0 in
-  addRule' (TmCtor x as y) ns es xs
+  addRule' (TmCtor x as y) (map snd ns) es xs
 term2fgg g (TmLam x tp tm tp') =
   lamRule True x tp tm tp' (term2fgg (ctxtDeclTerm g x tp) tm)
 term2fgg g (TmApp tm1 tm2 tp2 tp) =
