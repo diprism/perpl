@@ -1,0 +1,9 @@
+(* Von Neumann's trick for simulating a fair coin with an unfair one. *)
+
+extern sample_p: Bool;
+
+define fair =
+  let c1 = sample_p in
+    let c2 = sample_p in
+      if c1 = c2 then fair else c1
+      
