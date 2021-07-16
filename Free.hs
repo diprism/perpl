@@ -4,6 +4,7 @@ import Ctxt
 import Util
 import qualified Data.Map as Map
 import Data.List
+import Data.Char
 
 -- For checking linearity, vars can appear:
 -- LinNo: not at all
@@ -106,12 +107,19 @@ newVar x = RenameM $ \ xs ->
   let x' = newVarH xs x in
     (x', Map.insert x x' (Map.insert x' x' xs))
   where
+  var2num :: Var -> Integer
+  var2num n = if null n then 0 else read n :: Integer
+  -- Pulls the number suffix from a var, and returns it + 1. Ex: "foo123" -> ("foo", 124)
+  pullNum :: Var -> (Var, Integer)
+  pullNum = fmap succ . either id (\ n -> ("", var2num n)) . foldr (\ c -> either (\ (p, s) -> Left (c : p, s)) (\ n -> if isDigit c then Right (c : n) else Left ([c], var2num n))) (Right "")
+  
   h xs x n =
     let x' = x ++ show n in
       if Map.member x' xs
         then h xs x (succ n)
         else x'
-  newVarH xs x = if Map.member x xs then h xs x 1 else x
+  newVarH xs x =
+    if Map.member x xs then uncurry (h xs) (pullNum x) else x
 
 -- Alpha-rename a user-term
 renameUsTm :: UsTm -> RenameM UsTm
