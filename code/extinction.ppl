@@ -7,7 +7,7 @@ extern p: Bool; -- false = 0 sons, true = 2 sons
 
 define extinct: Bool =
   case p of
-    | true -> let _ = extinct in let _ = extinct in unit
-    | false -> unit;
+    | false -> unit
+    | true -> let _ = extinct in let _ = extinct in unit;
 
 extinct -- Should be {unit: min(0, (1-p)/p)}

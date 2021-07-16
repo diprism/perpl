@@ -10,6 +10,6 @@ define fair: Bool =
       -- if c1 = c2 then fair else c1
       case c1 of
         | false -> (case c2 of false -> fair | true -> c1)
-        | true  -> (case c2 of true  -> c1   | false -> fair);
+        | true  -> (case c2 of false -> c1   | true -> fair);
 
 fair -- Should always be {true: 0.5, false: 0.5}
