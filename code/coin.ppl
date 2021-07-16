@@ -1,15 +1,17 @@
-(* Von Neumann's trick for simulating a fair coin with an unfair one. *)
+{- Von Neumann's trick for simulating a fair coin with an unfair one. -}
 
 data Bool = false | true;
 
-extern unfair: Bool;
+extern unfair : Bool;
 
 define fair: Bool =
-  let c1 = unfair in
-    let c2 = unfair in
+--  let c1 = unfair in
+--    let c2 = unfair in
       -- if c1 = c2 then fair else c1
+  (\c1 : Bool. \c2 : Bool.
       case c1 of
         | false -> (case c2 of false -> fair | true -> c1)
-        | true  -> (case c2 of false -> c1   | true -> fair);
+        | true  -> (case c2 of false -> c1   | true -> fair))
+  unfair unfair;
 
 fair -- Should always be {true: 0.5, false: 0.5}
