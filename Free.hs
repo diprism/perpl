@@ -125,36 +125,42 @@ renameUsTm (UsApp tm1 tm2) =
 renameUsTm (UsCase tm cs) =
   pure UsCase
     <*> renameUsTm tm
-    <*> foldr (\ c cs' -> pure (:) <*> renameCase c <*> cs') (return []) cs
+    <*> mapM renameCaseUs cs
 renameUsTm (UsSamp d tp) =
   pure (UsSamp d) <*> renameType tp
 
--- TODO: Also rename all bound vars to fresh names after aff2lin conversion?
-{-renameTerm :: Term -> RenameM Term
+renameTerm :: Term -> RenameM Term
 renameTerm (TmVar x tp sc) =
   pure TmVar <*> getVar x <*> renameType tp <*> pure sc
 renameTerm (TmLam x tp tm tp') =
   bindVar x $ pure TmLam <*> newVar x <*> renameType tp <*> renameTerm tm <*> renameType tp'
 renameTerm (TmApp tm1 tm2 tp2 tp) =
   pure TmApp <*> renameTerm tm1 <*> renameTerm tm2 <*> renameType tp2 <*> renameType tp
-renameTerm (TmCase tm cs y tp) =
-  pure TmCase <*> renameTerm tm <*> mapM renameCase cs <*> getVar y <*> renameType tp
-renameTerm (TmSamp d tp) = error "TODO"
-renameTerm (TmCtor x as y) = error "TODO"
-renameTerm (TmMaybe mtm tp) = error "TODO"
-renameTerm (TmElimMaybe tm tp ntm (jx, jtm) tp') = error "TODO"
-renameTerm (TmBool b) = error "TODO"
-renameTerm (TmIf tm ttm ftm) = error "TODO"
+renameTerm (TmCase tm y cs tp) =
+  pure TmCase <*> renameTerm tm <*> renameType y <*> mapM renameCase cs <*> renameType tp
+renameTerm (TmSamp d tp) =
+  pure (TmSamp d) <*> renameType tp
+renameTerm (TmCtor x as y) =
+  pure TmCtor <*> getVar x <*> mapM (renameArg renameTerm) as <*> renameType y
 
-renameSeq :: [RenameM a] -> RenameM [a]
-renameSeq rs = foldr () ()-}
+renameArg :: (a -> RenameM a) -> (a, Type) -> RenameM (a, Type)
+renameArg f (a, atp) = pure (,) <*> f a <*> renameType atp
+
+renameCase :: Case -> RenameM Case
+renameCase (Case x as tm) =
+  bindVars (map fst as) $
+  pure Case
+    <*> getVar x
+    <*> mapM (renameArg newVar) as
+    <*> renameTerm tm
 
 -- Alpha-rename a user-case
-renameCase :: CaseUs -> RenameM CaseUs
-renameCase (CaseUs x as tm) =
+renameCaseUs :: CaseUs -> RenameM CaseUs
+renameCaseUs (CaseUs x as tm) =
   bindVars as $
-  pure (CaseUs x)
-    <*> foldr (\ a as' -> pure (:) <*> newVar a <*> as') (return []) as
+  pure CaseUs
+    <*> getVar x
+    <*> mapM newVar as
     <*> renameUsTm tm
 
 -- Alpha-rename a type
@@ -169,20 +175,29 @@ renameCtor :: Ctor -> RenameM Ctor
 renameCtor (Ctor x tps) = pure (Ctor x) <*> foldr (\ tp tps' -> pure (:) <*> renameType tp <*> tps') (return []) tps
 
 -- Alpha-rename an entire user-program
-renameProgs :: UsProgs -> RenameM UsProgs
-renameProgs (UsProgExec tm) = pure UsProgExec <*> renameUsTm tm
-renameProgs (UsProgFun x tp tm ps) = pure (UsProgFun x) <*> renameType tp <*> renameUsTm tm <*> renameProgs ps
-renameProgs (UsProgExtern x tp ps) = pure (UsProgExtern x) <*> renameType tp <*> renameProgs ps
-renameProgs (UsProgData y cs ps) = pure (UsProgData y) <*> foldr (\ c cs' -> pure (:) <*> renameCtor c <*> cs') (return []) cs <*> renameProgs ps
+renameUsProgs :: UsProgs -> RenameM UsProgs
+renameUsProgs (UsProgExec tm) = pure UsProgExec <*> renameUsTm tm
+renameUsProgs (UsProgFun x tp tm ps) = pure (UsProgFun x) <*> renameType tp <*> renameUsTm tm <*> renameUsProgs ps
+renameUsProgs (UsProgExtern x tp ps) = pure (UsProgExtern x) <*> renameType tp <*> renameUsProgs ps
+renameUsProgs (UsProgData y cs ps) = pure (UsProgData y) <*> mapM renameCtor cs <*> renameUsProgs ps
 
--- Alpha-rename a file
-alphaRename :: Ctxt -> UsProgs -> UsProgs
-alphaRename g ps =
-  let xs = Map.mapWithKey const g
-      (RenameM f) = renameProgs ps
-      (ps', xs') = f xs in
-    ps'
+renameProgs :: Progs -> RenameM Progs
+renameProgs (ProgExec tm) = pure ProgExec <*> renameTerm tm
+renameProgs (ProgFun x tp tm ps) = pure (ProgFun x) <*> renameType tp <*> renameTerm tm <*> renameProgs ps
+renameProgs (ProgExtern x tp ps) = pure (ProgExtern x) <*> renameType tp <*> renameProgs ps
+renameProgs (ProgData y cs ps) = pure (ProgData y) <*> mapM renameCtor cs <*> renameProgs ps
 
+-- Auxiliary helper
+alphaRename' :: Ctxt -> RenameM a -> a
+alphaRename' g (RenameM f) = fst $ f $ Map.mapWithKey const g
+
+-- Alpha-rename a raw file
+alphaRenameUs :: Ctxt -> UsProgs -> UsProgs
+alphaRenameUs g = alphaRename' g . renameUsProgs
+
+-- Alpha-rename an elaborated file
+alphaRename :: Ctxt -> Progs -> Progs
+alphaRename g = alphaRename' g . renameProgs
 
 
 {- ====== Affine to Linear Functions ====== -}
