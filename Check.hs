@@ -97,6 +97,13 @@ checkTermh g (UsSamp d tp) =
   checkType g tp >>
   return (TmSamp d tp)
 
+checkTermh g (UsLet x ltm tm) =
+  checkTerm g ltm >>= \ (ltm', ltp) ->
+  checkTerm (ctxtDeclTerm g x ltp) tm >>= \ (tm', tp) ->
+  ifErr (not $ checkAffLin x ltp tm)
+    ("Bound variable '" ++ x ++ "' is not " ++ checkAffLinMsg ++ " in the body") >>
+  return (TmApp (TmLam x ltp tm' tp) ltm' ltp tp)
+
 {-checkTermh g (UsSamp d y) = maybe2 (ctxtLookupType g y)
   (err ("Type variable '" ++ y ++ "' not in scope"))
   $ \ cs ->

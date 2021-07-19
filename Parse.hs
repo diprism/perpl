@@ -52,7 +52,9 @@ instance Monad ParseM where
 parseVar :: ParseM Var
 parseVar = ParseM $ \ ts -> case ts of
   ((p, TkVar v) : ts) -> parseMr v ts
-  ((p, _) : _) -> parseErr p "expected a variable name here (perhaps you used a reserved keyword?)"
+  ((p, t) : _) ->
+    parseErr p (if t `elem` keywords then show t ++ " is a reserved keyword"
+                 else "expected a variable name here")
   [] -> eofErr
 
 -- Parse zero or more symbols.
@@ -80,14 +82,15 @@ parseTerm1 = ParseM $ \ ts -> case ts of
   ((p, TkCase) : ts) -> parseMt ts $ pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
   _ -> parseMt ts parseTerm2
 
-
--- Lam, Sample
+-- Lam, Sample, Let
 parseTerm2 :: ParseM UsTm
 parseTerm2 = ParseM $ \ ts -> case ts of
--- \ x : type -> term
+-- \ x : type. term
   ((p, TkLam) : ts) -> parseMt ts $ pure UsLam <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
--- sample dist x
+-- sample dist : type
   ((p, TkSample) : ts) -> parseMt ts $ pure UsSamp <*> parseDist <* parseDrop TkColon <*> parseType1
+-- let x = term in term
+  ((p, TkLet) : ts) -> parseMt ts $ pure UsLet <*> parseVar <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
   _ -> parseMt ts parseTerm3
 
 -- App

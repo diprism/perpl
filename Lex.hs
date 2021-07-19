@@ -14,6 +14,8 @@ data Token =
   | TkUni
   | TkCase
   | TkOf
+  | TkLet
+  | TkIn
   | TkArr
   | TkLeftArr
   | TkColon
@@ -47,6 +49,8 @@ instance Show Token where
   show TkUni = "uniform"
   show TkCase = "case"
   show TkOf = "of"
+  show TkLet = "let"
+  show TkIn = "in"
   show TkFun = "define"
   show TkExtern  = "extern"
   show TkData = "data"
@@ -64,7 +68,7 @@ next (line, column) = (succ line, 0)
 -- List of punctuation tokens
 punctuation = [TkLam, TkParenL, TkParenR, TkEq, TkArr, TkLeftArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon]
 -- List of keyword tokens (use alphanumeric chars)
-keywords = [TkFail, TkAmb, TkUni, TkCase, TkOf, TkUni, TkSample, TkFun, TkExtern, TkData]
+keywords = [TkFail, TkAmb, TkUni, TkCase, TkOf, TkLet, TkIn, TkUni, TkSample, TkFun, TkExtern, TkData]
 
 lexPunctuation :: String -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
 lexPunctuation s =

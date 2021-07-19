@@ -27,6 +27,7 @@ data UsTm = -- User Term
   | UsApp UsTm UsTm
   | UsCase UsTm [CaseUs]
   | UsSamp Dist Type
+  | UsLet Var UsTm UsTm
 
 data VarScope = ScopeLocal | ScopeGlobal | ScopeCtor
   deriving Eq
@@ -133,6 +134,8 @@ showTermParens (UsCase _ _ ) ShowAppR = True
 showTermParens (UsCase _ _ ) ShowCase = True
 showTermParens (UsSamp _ _ ) ShowAppL = True
 showTermParens (UsSamp _ _ ) ShowAppR = True
+showTermParens (UsLet _ _ _) ShowAppL = True
+showTermParens (UsLet _ _ _) ShowAppR = True
 showTermParens _             _        = False
 
 -- Should we add parens to this type, given its parent type?
@@ -147,14 +150,14 @@ showTermh :: UsTm -> String
 showTermh (UsVar x) = x
 showTermh (UsLam x tp tm) = "\\ " ++ x ++ " : " ++ show tp ++ ". " ++ showTerm tm ShowNone
 showTermh (UsApp tm1 tm2) = showTerm tm1 ShowAppL ++ " " ++ showTerm tm2 ShowAppR
-showTermh (UsCase tm cs) = "case " ++ showTerm tm ShowCase ++ " of " ++ showCasesCtors cs
+showTermh (UsCase tm cs) = "case " ++ showTerm tm ShowNone ++ " of " ++ showCasesCtors cs
 showTermh (UsSamp d tp) = "sample " ++ show d ++ " : " ++ show tp
+showTermh (UsLet x tm tm') = "let " ++ x ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
 
 -- Type show helper (ignoring parentheses)
 showTypeh :: Type -> String
 showTypeh (TpVar y) = y
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
---showTypeh (TpMaybe tp) = tpMaybeName ++ " " ++ showType tp ShowTypeArg -- " [" ++ showType tp ShowNone ++ "]"
 showTypeh (TpMaybe tp) = tpMaybeName ++ " [" ++ showType tp ShowNone ++ "]"
 showTypeh TpBool = tpBoolName
 

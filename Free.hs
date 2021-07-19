@@ -29,6 +29,7 @@ freeVars (UsLam x tp tm) = Map.delete x $ freeVars tm
 freeVars (UsApp tm tm') = Map.unionWith (+) (freeVars tm) (freeVars tm')
 freeVars (UsCase tm cs) = foldr (Map.unionWith max . freeVarsCase) (freeVars tm) cs
 freeVars (UsSamp d tp) = Map.empty
+freeVars (UsLet x tm tm') = Map.unionWith max (freeVars tm) (Map.delete x $ freeVars tm')
 
 freeVarsCase :: CaseUs -> Map.Map Var Int
 freeVarsCase (CaseUs c xs tm) = foldr Map.delete (freeVars tm) xs
@@ -62,6 +63,8 @@ isLin x tm = h tm == LinYes where
     -- make sure x is linear in all the cases, or in none of the cases
     (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
   h (UsSamp d tp) = LinNo
+  h (UsLet x' tm tm') =
+    if x == x' then h tm else linIf' (h tm) (linIf' (h tm') LinErr LinYes) (h tm')
 
 
 {- ====== Alpha-Renaming Functions ====== -}
@@ -136,6 +139,8 @@ renameUsTm (UsCase tm cs) =
     <*> mapM renameCaseUs cs
 renameUsTm (UsSamp d tp) =
   pure (UsSamp d) <*> renameType tp
+renameUsTm (UsLet x tm tm') =
+  bindVar x $ pure (flip UsLet) <*> renameUsTm tm <*> newVar x <*> renameUsTm tm'
 
 -- Alpha-rename a term
 renameTerm :: Term -> RenameM Term
