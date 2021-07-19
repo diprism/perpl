@@ -2,8 +2,19 @@ module Parse where
 import Exprs
 import Lex
 
+lexErr (line, col) = Left $ "Lex error at line " ++ show line ++ ", column " ++ show col
+
+parseErr p s = Left (p, s)
+
+formatParseErr (line, col) emsg = Left $
+  "Parse error at line " ++ show line ++
+    ", column " ++ show col ++ ": " ++ emsg
+
+eofPos = (-1, 0)
+eofErr = parseErr eofPos "unexpected EOF"
+
 -- Parsing monad
-newtype ParseM a = ParseM ([Token] -> Maybe (a, [Token]))
+newtype ParseM a = ParseM ([(Pos, Token)] -> Either (Pos, String) (a, [(Pos, Token)]))
 
 -- Extract the function from ParseM
 parseMf (ParseM f) = f
@@ -12,27 +23,27 @@ parseMf (ParseM f) = f
 parseMt ts (ParseM f) = f ts
 
 -- Given something and a list of tokens, return them in the ParseM monad
-parseMr = curry Just
+parseMr = curry Right
 
 -- Consume token t.
 parseDrop t = ParseM $ \ ts -> case ts of
-  (t' : ts') -> if t == t' then parseMr () ts' else Nothing
-  _ -> Nothing
+  ((p, t') : ts') -> if t == t' then parseMr () ts' else parseErr p ("expecting " ++ show t)
+  [] -> eofErr
 
 -- Consume token t if there is one.
 parseDropSoft t = ParseM $ \ ts -> case ts of
-  (t' : ts') -> parseMr () (if t == t' then ts' else ts)
-  _ -> parseMr () ts
+  ((_, t') : ts') -> parseMr () (if t == t' then ts' else ts)
+  [] -> parseMr () ts
 
 instance Functor ParseM where
-  fmap f (ParseM g) = ParseM $ \ ts -> g ts >>= \ p -> Just (f (fst p), snd p)
+  fmap f (ParseM g) = ParseM $ \ ts -> g ts >>= \ p -> Right (f (fst p), snd p)
 
 instance Applicative ParseM where
   pure = ParseM . parseMr
   ParseM f <*> ParseM g =
     ParseM $ \ ts -> f ts >>= \ p ->
     g (snd p) >>= \ p' ->
-    Just (fst p (fst p'), snd p')
+    Right (fst p (fst p'), snd p')
 
 instance Monad ParseM where
   (ParseM f) >>= g = ParseM $ \ ts -> f ts >>= \ (a, ts') -> parseMf (g a) ts'
@@ -40,61 +51,69 @@ instance Monad ParseM where
 -- Parse a symbol.
 parseVar :: ParseM Var
 parseVar = ParseM $ \ ts -> case ts of
-  (TkVar v : ts) -> parseMr v ts
-  _ -> Nothing
+  ((p, TkVar v) : ts) -> parseMr v ts
+  ((p, _) : _) -> parseErr p "expected a variable name here (perhaps you used a reserved keyword?)"
+  [] -> eofErr
 
 -- Parse zero or more symbols.
 parseVars :: ParseM [Var]
 parseVars = ParseM $ \ ts -> case ts of
-  (TkVar v : ts) -> parseMt ts $ pure ((:) v) <*> parseVars
+  ((p, TkVar v) : ts) -> parseMt ts $ pure ((:) v) <*> parseVars
   _ -> parseMr [] ts
 
 -- Parse a branch of a case expression.
 parseCase :: ParseM CaseUs
 parseCase = ParseM $ \ ts -> case ts of
-  (TkBar : ts) -> parseMt ts parseCase
-  (TkVar c : ts) -> parseMt ts $ pure (CaseUs c) <*> parseVars <* parseDrop TkArr <*> parseTerm1
+  ((p, TkBar) : ts) -> parseMt ts parseCase
+  ((p, TkVar c) : ts) -> parseMt ts $ pure (CaseUs c) <*> parseVars <* parseDrop TkArr <*> parseTerm2
 
 -- Parse zero or more branches of a case expression.
 parseCases :: ParseM [CaseUs]
 parseCases = (*>) (parseDropSoft TkBar) $ ParseM $ \ ts -> case ts of
-  (TkVar _ : _) -> parseMt ts $ pure (:) <*> parseCase <*> parseCases
+  ((_, TkVar _) : _) -> parseMt ts $ pure (:) <*> parseCase <*> parseCases
   _ -> parseMr [] ts
 
--- Lam, Sample, CaseOf
+-- CaseOf
 parseTerm1 :: ParseM UsTm
 parseTerm1 = ParseM $ \ ts -> case ts of
--- \ x : type -> term
-  (TkLam : ts) -> parseMt ts $ pure UsLam <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
--- sample dist x
-  (TkSample : ts) -> parseMt ts $ pure UsSamp <*> parseDist <* parseDrop TkColon <*> parseType1
 -- case term of cases
-  (TkCase : ts) -> parseMt ts $ pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
+  ((p, TkCase) : ts) -> parseMt ts $ pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
   _ -> parseMt ts parseTerm2
 
--- App
+
+-- Lam, Sample
 parseTerm2 :: ParseM UsTm
-parseTerm2 = ParseM $ \ ts -> parseMt ts parseTerm3 >>= uncurry (parseMf . parseTermApp)
+parseTerm2 = ParseM $ \ ts -> case ts of
+-- \ x : type -> term
+  ((p, TkLam) : ts) -> parseMt ts $ pure UsLam <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
+-- sample dist x
+  ((p, TkSample) : ts) -> parseMt ts $ pure UsSamp <*> parseDist <* parseDrop TkColon <*> parseType1
+  _ -> parseMt ts parseTerm3
+
+-- App
+parseTerm3 :: ParseM UsTm
+parseTerm3 = ParseM $ \ ts -> parseMt ts parseTerm4 >>= uncurry (parseMf . parseTermApp)
 
 -- Parse an application spine
 parseTermApp tm = ParseM $ \ ts ->
-  maybe
-    (parseMr tm ts)
+  either
+    (\ _ -> parseMr tm ts)
     (uncurry $ parseMf . parseTermApp . UsApp tm)
-    (parseMt ts parseTerm3)
+    (parseMt ts parseTerm4)
 
 -- Var, Parens
-parseTerm3 :: ParseM UsTm
-parseTerm3 = ParseM $ \ ts -> case ts of
-  (TkVar v : ts) -> parseMr (UsVar v) ts
-  (TkParenL : ts) -> parseMt ts $ parseTerm1 <* parseDrop TkParenR
-  _ -> Nothing
+parseTerm4 :: ParseM UsTm
+parseTerm4 = ParseM $ \ ts -> case ts of
+  ((p, TkVar v) : ts) -> parseMr (UsVar v) ts
+  ((p, TkParenL) : ts) -> parseMt ts $ parseTerm1 <* parseDrop TkParenR
+  ((p, _) : _) -> parseErr p "couldn't parse a term here; perhaps you need to add parentheses?"
+  [] -> eofErr
 
 
 -- Arrow
 parseType1 :: ParseM Type
 parseType1 = ParseM $ \ ts -> parseMt ts parseType2 >>= \ (tp, ts) -> case ts of
-  (TkArr : ts) -> parseMt ts $ pure (TpArr tp) <*> parseType1
+  ((p, TkArr) : ts) -> parseMt ts $ pure (TpArr tp) <*> parseType1
   _ -> parseMr tp ts
 
 -- If we ever add type apps, do them here
@@ -109,61 +128,72 @@ parseType2 = ParseM $ \ ts -> parseMt ts parseType3 >>= \ (tp, ts') -> case ts' 
 -- TypeVar
 parseType3 :: ParseM Type
 parseType3 = ParseM $ \ ts -> case ts of
-  (TkVar v : ts) -> parseMr (TpVar v) ts
-  (TkParenL : ts) -> parseMt ts $ parseType1 <* parseDrop TkParenR
-  _ -> Nothing
+  ((p, TkVar v) : ts) -> parseMr (TpVar v) ts
+  ((p, TkParenL) : ts) -> parseMt ts $ parseType1 <* parseDrop TkParenR
+  ((p, _) : ts) -> parseErr p "couldn't parse a type here; perhaps you need to add parentheses?"
+  [] -> eofErr
 
 -- List of Constructors
 parseCtors :: ParseM [Ctor]
 parseCtors = ParseM $ \ ts -> case ts of
-  (TkVar _ : _) -> parseMt (TkBar : ts) parseCtorsH
+  ((p, TkVar _) : _) -> parseMt ((p, TkBar) : ts) parseCtorsH
   _ -> parseMt ts parseCtorsH
 parseCtorsH = ParseM $ \ ts -> case ts of
-  (TkBar : ts) -> parseMt ts $ pure (:) <*> (pure Ctor <*> parseVar <*> parseTypes) <*> parseCtorsH
+  ((p, TkBar) : ts) -> parseMt ts $ pure (:) <*> (pure Ctor <*> parseVar <*> parseTypes) <*> parseCtorsH
   _ -> parseMr [] ts
 
 -- Dist
 parseDist :: ParseM Dist
 parseDist = ParseM $ \ ts -> case ts of
-  (TkAmb : ts) -> parseMr DistAmb ts
-  (TkFail : ts) -> parseMr DistFail ts
-  (TkUni : ts) -> parseMr DistUni ts
-  _ -> Nothing
+  ((p, TkAmb) : ts) -> parseMr DistAmb ts
+  ((p, TkFail) : ts) -> parseMr DistFail ts
+  ((p, TkUni) : ts) -> parseMr DistUni ts
+  ((p, _) : _) -> parseErr p ("expected one of " ++ show TkAmb ++ ", " ++ show TkFail ++ ", or " ++ show TkUni ++ " here")
+  [] -> eofErr
 
 -- List of Types
 parseTypes :: ParseM [Type]
 parseTypes = ParseM $ \ ts ->
-  maybe
-    (parseMr [] ts)
+  either
+    (\ _ -> parseMr [] ts)
     (\ (tp, ts) -> parseMt ts $ fmap ((:) tp) parseTypes)
     (parseMt ts parseType3)
 
 -- Program
 parseProg :: ParseM UsProgs
 parseProg = ParseM $ \ ts -> case ts of
--- define f : type = term; ...
-  (TkFun : ts) -> parseMt ts $ pure UsProgFun <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkSemicolon <*> parseProg
--- extern f : type; ...
-  (TkExtern : ts) -> parseMt ts $ pure UsProgExtern <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkSemicolon <*> parseProg
--- data T = ctors; ...
-  (TkData : ts) -> parseMt ts $ pure UsProgData <*> parseVar <* parseDrop TkEq <*> parseCtors <* parseDrop TkSemicolon <*> parseProg
+-- define x : type = term; ...
+  ((p, TkFun) : ts) -> parseMt ts $ pure UsProgFun <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkSemicolon <*> parseProg
+-- extern x : type; ...
+  ((p, TkExtern) : ts) -> parseMt ts $ pure UsProgExtern <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkSemicolon <*> parseProg
+-- data Y = ctors; ...
+  ((p, TkData) : ts) -> parseMt ts $ pure UsProgData <*> parseVar <* parseDrop TkEq <*> parseCtors <* parseDrop TkSemicolon <*> parseProg
 -- term
   _ -> parseMt ts $ pure UsProgExec <*> parseTerm1 <* parseDropSoft TkSemicolon
---  (TkExec : ts) -> parseMt ts $ pure UsProgExec <*> parseTerm1
---  _ -> Nothing
+
+parseFormatErr :: [(Pos, Token)] -> Either (Pos, String) a -> Either String a
+parseFormatErr ts (Left (p, emsg))
+  | p == eofPos = formatParseErr (fst (last ts)) emsg
+  | otherwise = formatParseErr p emsg
+parseFormatErr ts (Right a) = Right a
 
 -- Extract the value from a ParseM, if it consumed all tokens
-parseOut :: ParseM a -> [Token] -> Maybe a
-parseOut m ts = parseMf m ts >>= \ (a, ts') -> if length ts' == 0 then Just a else Nothing
+parseOut :: ParseM a -> [(Pos, Token)] -> Either String a
+parseOut m ts =
+  parseFormatErr ts $
+  parseMf m ts >>= \ (a, ts') ->
+  if length ts' == 0
+    then Right a
+    else parseErr (fst (head ts')) "couldn't parse after this"
 
 -- Parse a term
-parseTerm :: [Token] -> Maybe UsTm
-parseTerm = parseOut parseTerm1
+parseTerm :: String -> Either String UsTm
+parseTerm s = lexStr s >>= parseOut parseTerm1
 
 -- Parse a type
-parseType :: [Token] -> Maybe Type
-parseType = parseOut parseType1
+parseType :: String -> Either String Type
+parseType s = lexStr s >>= parseOut parseType1
 
 -- Parse a whole program.
-parseFile :: [Token] -> Maybe UsProgs
-parseFile = parseOut parseProg
+parseFile :: String -> Either String UsProgs
+parseFile s = lexStr s >>= parseOut parseProg
