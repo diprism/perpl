@@ -7,10 +7,6 @@ import RuleM
 import Ctxt
 import Free
 
--- TODO: Figure out how to handle externals for terms like
---         case q of false -> q | true -> true
---       (where some var occurs multiple times)
-
 -- Local var rule
 var2fgg :: Var -> Type -> RuleM
 var2fgg x tp =
