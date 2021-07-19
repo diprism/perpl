@@ -1,4 +1,5 @@
 module Util where
+import Data.List
 import Exprs
 
 mapLeft :: (a -> b) -> Either a c -> Either b c
@@ -160,3 +161,13 @@ ctorEtaExpand x tas vas y =
 
 ctorDefault :: Var -> [Type] -> Type -> Term
 ctorDefault x as y = TmCtor x (map (\ (a, atp) -> (TmVar a atp ScopeLocal, atp)) (ctorGetArgs x as)) y
+
+sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
+sortCases ctors cases = map snd $ sortBy (\ (a, _) (b, _) -> compare a b) (label cases) where
+  getIdx :: Int -> Var -> [Ctor] -> Int
+  getIdx i x [] = i + 1
+  getIdx i x (Ctor x' tp : cs)
+    | x == x' = i
+    | otherwise = getIdx (succ i) x cs
+
+  label = map $ \ (CaseUs x as tm) -> (getIdx 0 x ctors, CaseUs x as tm)
