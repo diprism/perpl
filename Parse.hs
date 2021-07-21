@@ -35,6 +35,9 @@ parseDropSoft t = ParseM $ \ ts -> case ts of
   ((_, t') : ts') -> parseMr () (if t == t' then ts' else ts)
   [] -> parseMr () ts
 
+parseElse a' (ParseM a) =
+  ParseM $ \ ts -> either (\ _ -> Right (a', ts)) Right (a ts)
+
 instance Functor ParseM where
   fmap f (ParseM g) = ParseM $ \ ts -> g ts >>= \ p -> Right (f (fst p), snd p)
 
@@ -82,6 +85,11 @@ parseTerm1 = ParseM $ \ ts -> case ts of
   ((p, TkCase) : ts) -> parseMt ts $ pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
   _ -> parseMt ts parseTerm2
 
+parseLamArgs :: ParseM [(Var, Type)]
+parseLamArgs =
+  pure (curry (:)) <*> parseVar <* parseDrop TkColon <*> parseType1
+    <*> parseElse [] (parseDrop TkComma >> parseLamArgs)
+
 -- Lam, Sample, Let
 parseTerm2 :: ParseM UsTm
 parseTerm2 = ParseM $ \ ts -> case ts of
@@ -98,11 +106,8 @@ parseTerm3 :: ParseM UsTm
 parseTerm3 = ParseM $ \ ts -> parseMt ts parseTerm4 >>= uncurry (parseMf . parseTermApp)
 
 -- Parse an application spine
-parseTermApp tm = ParseM $ \ ts ->
-  either
-    (\ _ -> parseMr tm ts)
-    (uncurry $ parseMf . parseTermApp . UsApp tm)
-    (parseMt ts parseTerm4)
+parseTermApp tm =
+  parseElse tm (parseTerm4 >>= parseTermApp . UsApp tm)
 
 -- Var, Parens
 parseTerm4 :: ParseM UsTm
@@ -156,11 +161,7 @@ parseDist = ParseM $ \ ts -> case ts of
 
 -- List of Types
 parseTypes :: ParseM [Type]
-parseTypes = ParseM $ \ ts ->
-  either
-    (\ _ -> parseMr [] ts)
-    (\ (tp, ts) -> parseMt ts $ fmap ((:) tp) parseTypes)
-    (parseMt ts parseType3)
+parseTypes = parseElse [] (parseType3 >>= \ tp -> fmap ((:) tp) parseTypes)
 
 -- Program
 parseProg :: ParseM UsProgs
