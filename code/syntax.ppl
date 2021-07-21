@@ -12,7 +12,7 @@ even in the middle of a line of code.
 data Bool = False | True;
 
 
-data String = Nil | Cons Bool List;
+data String = Nil | Cons Bool String;
 
 -- We just use the binary alphabet {0, 1}
 data Regexp = Symbol Bool | Union Regexp Regexp | Concat Regexp Regexp | Star Regexp;
