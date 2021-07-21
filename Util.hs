@@ -53,10 +53,7 @@ getType (TmApp tm1 tm2 tp2 tp) = tp
 getType (TmCase ctm ctp cs tp) = tp
 getType (TmSamp d tp) = tp
 getType (TmCtor x as tp) = tp
-{-getType (TmMaybe mtm tp) = TpMaybe tp
-getType (TmElimMaybe tm tp ntm (jx, jtm) tp') = tp'
-getType (TmBool b) = TpBool
-getType (TmIf iftm thentm elsetm tp) = tp-}
+getType (TmFold fuf tm tp) = tp
 
 hasArr :: Type -> Bool
 hasArr (TpVar x) = False -- assuming datatype x can't have arrows either
@@ -151,7 +148,7 @@ ctorGetArgs x tps =
 -- Turns a constructor into one with all its args applied
 ctorAddArgs :: Var -> [(Term, Type)] -> [(Var, Type)] -> Type -> Term
 ctorAddArgs x tas vas y =
-  TmCtor x (tas ++ map (\ (a, atp) -> (TmVar a atp ScopeLocal, atp)) vas) y
+  TmFold True (TmCtor x (tas ++ map (\ (a, atp) -> (TmVar a atp ScopeLocal, atp)) vas) y) y
 
 -- Eta-expands a constructor with the necessary extra args
 ctorEtaExpand :: Var -> [(Term, Type)] -> [(Var, Type)] -> Type -> Term

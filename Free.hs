@@ -156,6 +156,8 @@ renameTerm (TmSamp d tp) =
   pure (TmSamp d) <*> renameType tp
 renameTerm (TmCtor x as y) =
   pure TmCtor <*> getVar x <*> mapM (renameArg renameTerm) as <*> renameType y
+renameTerm (TmFold fuf tm tp) =
+  pure (TmFold fuf) <*> renameTerm tm <*> renameType tp
 
 -- Alpha-rename an arg, given a function that alpha-renames its value
 renameArg :: (a -> RenameM a) -> (a, Type) -> RenameM (a, Type)
@@ -297,6 +299,9 @@ aff2linh g (TmCtor x as y) =
   let (as', fvss) = unzip $ flip map as $ -- No need to aff2linTp bc args can't have arrows
         \ (tm, tp) -> let (tm', xs) = aff2linh g tm in ((tm', tp), xs) in
   (TmCtor x as' y, Map.unions fvss)
+aff2linh g (TmFold fuf tm tp) =
+  let (tm', fvs) = aff2linh g tm in
+    (TmFold fuf tm' (aff2linTp tp), fvs)
 
 -- Makes an affine term linear
 aff2lin :: Ctxt -> Term -> Term
@@ -320,6 +325,7 @@ getPolyInstsTerm pis (TmCase tm y cs tp) =
     (getPolyInstsType (getPolyInstsTerm pis tm) y) cs
 getPolyInstsTerm pis (TmSamp d tp) = getPolyInstsType pis tp
 getPolyInstsTerm pis (TmCtor x as tp) = foldl (\ pis (a, atp) -> getPolyInstsTerm pis a) (getPolyInstsType pis tp) as
+getPolyInstsTerm pis (TmFold fuf tm tp) = getPolyInstsTerm pis tm
 
 -- Retrives all instantiations of polymorphic types (e.g. Maybe [...]) in a type
 getPolyInstsType :: Map.Map Var [[Type]] -> Type -> Map.Map Var [[Type]]

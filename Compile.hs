@@ -111,6 +111,7 @@ term2fgg g (TmVar x tp local) =
     ScopeGlobal -> returnRule
     ScopeLocal -> addExt x tp
     ScopeCtor -> error ("term2fgg should not see a ctor var (" ++ x ++ ")")
+term2fgg g (TmFold fuf tm tp) = term2fgg g tm -- TODO: this should cause error
 term2fgg g (TmCtor x as y) =
   map (\ (a, atp) -> term2fgg g a) as +*>= \ xss ->
   let (ns, [iy] : ias : ixss) = combineExts ([(" 0", y)] : map (\ (i, (tm, tp)) -> (' ' : show (succ i), tp)) (enumerate as) : xss)

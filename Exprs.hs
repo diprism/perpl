@@ -39,11 +39,7 @@ data Term =
   | TmCase Term Type [Case] Type
   | TmSamp Dist Type
   | TmCtor Var [(Term, Type)] Type
-  -- For internal use only
---  | TmMaybe (Maybe Term) Type
---  | TmElimMaybe Term Type Term (Var, Term) Type
---  | TmBool Bool
---  | TmIf Term Term Term Type
+  | TmFold Bool {- True => Fold; False => Unfold -} Term Type
 
 
 data Type =
@@ -101,6 +97,7 @@ toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
 toUsTm (TmCtor x as tp) = foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (varTypeInst x tp) as
+toUsTm (TmFold fuf tm tp) = toUsTm tm
 
 toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)
