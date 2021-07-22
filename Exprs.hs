@@ -33,6 +33,7 @@ data Term =
     TmVar Var Type VarScope
   | TmLam Var Type Term Type
   | TmApp Term Term Type {- -> -} Type
+  | TmLet Var Term Type Term Type
   | TmCase Term Type [Case] Type
   | TmSamp Dist Type
   | TmCtor Var [(Term, Type)] Type
@@ -91,6 +92,7 @@ toUsTm :: Term -> UsTm
 toUsTm (TmVar x _ _) = UsVar x
 toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
+toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
 toUsTm (TmCtor x as tp) = foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (varTypeInst x tp) as

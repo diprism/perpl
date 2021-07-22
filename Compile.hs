@@ -141,6 +141,14 @@ term2fgg g (TmSamp d tp) =
     DistAmb  -> -- TODO: is this fine, or do we need to add a rule with one node and one edge (that has the factor below)?
       addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 1) dvws))
       -- +> addRule' (TmSamp d tp) [tp] [] [0]
+term2fgg g (TmLet x xtm xtp tm tp) =
+  term2fgg g xtm +>= \ xtmxs ->
+  bindExt True x xtp (term2fgg (ctxtDeclTerm g x xtp) tm) +>= \ tmxs ->
+  let (ns, [[ixtp, itp], ixxs, ixs]) = combineExts [[(" 0", xtp), (" 1", tp)], xtmxs, tmxs]
+      es = [Edge (ixxs ++ [ixtp]) (show xtm), Edge (ixs ++ [ixtp, itp]) (show tm)]
+      xs = nub (ixxs ++ ixs) ++ [itp]
+  in
+    addRule' (TmLet x xtm xtp tm tp) (map snd ns) es xs
 
 -- Adds the rules for a Prog
 prog2fgg :: Ctxt -> Prog -> RuleM

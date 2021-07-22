@@ -35,6 +35,7 @@ freeVars' :: Term -> Map.Map Var Type
 freeVars' (TmVar x tp sc) = if sc == ScopeLocal then Map.singleton x tp else Map.empty
 freeVars' (TmLam x tp tm tp') = Map.delete x $ freeVars' tm
 freeVars' (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars' tm1) (freeVars' tm2)
+freeVars' (TmLet x xtm xtp tm tp) = Map.union (freeVars' xtm) (Map.delete x (freeVars' tm))
 freeVars' (TmCase tm tp cs tp') = foldr (Map.union . freeVarsCase') (freeVars' tm) cs
 freeVars' (TmSamp d tp) = Map.empty
 freeVars' (TmCtor x as tp) = Map.unions (map (freeVars' . fst) as)
@@ -163,6 +164,8 @@ renameTerm (TmLam x tp tm tp') =
   bindVar x (pure (flip TmLam) <*> renameType tp <*> newVar x <*> renameTerm tm) <*> renameType tp'
 renameTerm (TmApp tm1 tm2 tp2 tp) =
   pure TmApp <*> renameTerm tm1 <*> renameTerm tm2 <*> renameType tp2 <*> renameType tp
+renameTerm (TmLet x xtm xtp tm tp) =
+  bindVar x (pure (\ x tm tp xtm xtp -> TmLet x xtm xtp tm tp) <*> newVar x <*> renameTerm tm <*> renameType tp) <*> renameTerm xtm <*> renameType xtp
 renameTerm (TmCase tm y cs tp) =
   pure TmCase <*> renameTerm tm <*> renameType y <*> mapM renameCase cs <*> renameType tp
 renameTerm (TmSamp d tp) =
@@ -302,6 +305,14 @@ aff2linh g (TmApp tm1 tm2 tp2 tp) =
       jx = ctorEtaName tmJustName 0
       jtm = TmApp (TmVar jx (TpArr ltp2 ltp) ScopeLocal) tm2' ltp2 ltp in
     (tmElimMaybe tm1' (TpArr ltp2 ltp) ntm (jx, jtm) ltp, fvs)
+aff2linh g (TmLet x xtm xtp tm tp) =
+  let xtp' = aff2linTp xtp
+      tp' = aff2linTp tp
+      (xtm', fvsx) = aff2linh g xtm
+      (tm', fvs) = aff2linh (ctxtDeclTerm g x xtp') tm
+      tm'' = if Map.member x fvs then tm' else discard g x xtp' tm'
+  in
+    (TmLet x xtm' xtp' tm'' tp', Map.union fvsx (Map.delete x fvs))
 aff2linh g (TmCase tm y cs tp) =
   let csxs = map (aff2linCase g) cs
       xsAny = Map.unions (map snd csxs)
@@ -337,6 +348,7 @@ getPolyInstsTerm :: Map.Map Var [[Type]] -> Term -> Map.Map Var [[Type]]
 getPolyInstsTerm pis (TmVar x tp sc) = getPolyInstsType pis tp
 getPolyInstsTerm pis (TmLam x tp tm tp') = getPolyInstsTerm (getPolyInstsType pis tp) tm -- no need to do tp' bc tm already adds all insts
 getPolyInstsTerm pis (TmApp tm1 tm2 tp2 tp) = getPolyInstsTerm (getPolyInstsTerm pis tm2) tm1
+getPolyInstsTerm pis (TmLet x xtm xtp tm tp) = getPolyInstsTerm (getPolyInstsTerm pis xtm) tm
 getPolyInstsTerm pis (TmCase tm y cs tp) =
   foldl (\ pis (Case x as ctm) -> getPolyInstsTerm pis ctm)
     (getPolyInstsType (getPolyInstsTerm pis tm) y) cs
