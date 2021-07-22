@@ -11,6 +11,9 @@ convertAffLin g tm = if allowAff then aff2lin g tm else tm
 checkAffLinFun = if allowAff then isAff else isLin
 checkAffLinMsg = if allowAff then "affine" else "linear"
 
+--            (message, history)
+type ErrMsg = (String, [String])
+
 -- TODO: make sure x occurs same number of times in each branch of computation
 --       (e.g. case q of false -> q | true -> false)
 checkAffLin :: Var -> Type -> UsTm -> Bool
@@ -18,27 +21,30 @@ checkAffLin x (TpArr _ _) tm = checkAffLinFun x tm
 checkAffLin x _ tm = True
 
 -- Return error
-err :: String -> Either String a
-err = Left
+err :: String -> Either ErrMsg a
+err msg = Left (msg, [])
 
 -- Error if b is true
-ifErr :: Bool -> String -> Either String ()
+ifErr :: Bool -> String -> Either ErrMsg ()
 ifErr b e = if b then err e else okay
 
 -- Error if x \in g
-ifBound :: Ctxt -> Var -> Either String ()
+ifBound :: Ctxt -> Var -> Either ErrMsg ()
 ifBound g x = ifErr (ctxtBinds g x) ("'" ++ x ++ "' has multiple definitions")
 
 -- Error message prefix, telling which definition an error occurred in
-declErr :: Var -> Either String a -> Either String a
-declErr x = mapLeft $ \ s -> "In the definition of '" ++ x ++ "': " ++ s
+declErr :: Var -> Either ErrMsg a -> Either ErrMsg a
+declErr x = mapLeft $ \ (s, h) -> (s, h ++ [("In the definition of " ++ x ++ ", ")])
+
+pickErrHist :: Either ErrMsg a -> Either String a
+pickErrHist = mapLeft $ \ (s, h) -> concat (take 2 (reverse h)) ++ s
 
 -- Check and elaborate a term under a context
-checkTerm :: Ctxt -> UsTm -> Either String (Term, Type)
-checkTermh :: Ctxt -> UsTm -> Either String Term
+checkTerm :: Ctxt -> UsTm -> Either ErrMsg (Term, Type)
+checkTermh :: Ctxt -> UsTm -> Either ErrMsg Term
 
 -- Checks and elaborates a term variable, if it is one
-checkTermVar :: Bool -> Ctxt -> UsTm -> Either String Term
+checkTermVar :: Bool -> Ctxt -> UsTm -> Either ErrMsg Term
 checkTermVar eta g (UsVar x) = maybe2 (ctxtLookupTerm g x)
   (err ("Variable '" ++ x ++ "' not in scope"))
   $ \ (sc, tp) -> case (eta, sc) of
@@ -49,7 +55,7 @@ checkTermVar eta g (UsVar x) = maybe2 (ctxtLookupTerm g x)
 checkTermVar eta g tm = checkTermh g tm
 
 checkTerm g tm =
-  mapLeft (\ s -> "In the term " ++ show tm ++ ": " ++ s)
+  mapLeft (\ (s, h) -> (s, ("in the term " ++ show tm ++ ": ") : h))
     (checkTermh g tm) >>= \ tm' ->
   return (tm', getType tm')
 
@@ -71,7 +77,7 @@ checkTermh g (UsApp tm1 tm2) =
                     " arguments at most, but got " ++ show (length as)
         expVsActTpMsg = \ exp act -> "Expected arg of type " ++
                                      show exp ++ ", but got " ++ show act in
-      ifErr (length as > length tps) (error numErrMsg) >>
+      ifErr (length as > length tps) numErrMsg >>
       let tps' = take (length as) tps
           end' = joinArrows (drop (length as) tps) end in
       sequence (map (checkTerm g) as) >>= \ as' ->
@@ -117,7 +123,7 @@ checkTermh g (UsLet x ltm tm) =
 
 
 -- Check a type under a context
-checkType :: Ctxt -> Type -> Either String ()
+checkType :: Ctxt -> Type -> Either ErrMsg ()
 
 checkType g (TpVar y) = maybe2 (ctxtLookupType g y)
   (err ("Type variable '" ++ y ++ "' not in scope"))
@@ -128,7 +134,7 @@ checkType g (TpArr tp1 tp2) =
   checkType g tp2
 
 -- Check and elaborate a case under a context
-checkCase :: Ctxt -> Ctor -> CaseUs -> Either String (Case, Type)
+checkCase :: Ctxt -> Ctor -> CaseUs -> Either ErrMsg (Case, Type)
 checkCase g (Ctor x as) (CaseUs x' as' tm) =
   ifErr (x /= x') ("Expected case '" ++ x ++ "' but got '" ++ x' ++ "'") >>
   ifErr (length as /= length as')
@@ -142,7 +148,7 @@ checkCase g (Ctor x as) (CaseUs x' as' tm) =
   return (Case x as'' tm', tp)
 
 -- Check and elaborate a list of cases under a context
-checkCases :: Ctxt -> [Ctor] -> [CaseUs] -> Either String ([Case], Type)
+checkCases :: Ctxt -> [Ctor] -> [CaseUs] -> Either ErrMsg ([Case], Type)
 checkCases g [] [] = err "Case splitting on empty datatype"
 checkCases g (ct : cts) (c : cs) =
   checkCase g ct c >>= \ (c', tp) ->
@@ -151,7 +157,7 @@ checkCases g (ct : cts) (c : cs) =
 
 -- Check and elaborate a list of cases under a context,
 -- given an anticipated return type
-checkCasesh :: Ctxt -> [Ctor] -> [CaseUs] -> Type -> Either String [Case]
+checkCasesh :: Ctxt -> [Ctor] -> [CaseUs] -> Type -> Either ErrMsg [Case]
 checkCasesh g [] [] tp = return []
 checkCasesh g (ct : cts) (c : cs) tp =
   checkCase g ct c >>= \ (c', tp') ->
@@ -162,15 +168,14 @@ checkCasesh g _ _ tp = err "Incorrect number of cases"
 
 
 -- Check and elaborate a program under a context
-checkProgs :: Ctxt -> UsProgs -> Either String Progs
+checkProgs :: Ctxt -> UsProgs -> Either ErrMsg Progs
 
 checkProgs g (UsProgExec tm) =
   checkTerm g tm >>= \ (tm', tp') ->
   return (Progs [] (convertAffLin g tm'))
 
 checkProgs g (UsProgFun x tp tm ps) =
-  checkType g tp >>
-  declErr x (checkTerm g tm) >>= \ (tm', tp') ->
+  declErr x (checkType g tp >> checkTerm g tm) >>= \ (tm', tp') ->
   ifErr (tp /= tp')
     ("Expected type of function '" ++ x ++ "' does not match computed type") >>
   checkProgs g ps >>= \ (Progs ps' end) ->
@@ -178,7 +183,7 @@ checkProgs g (UsProgFun x tp tm ps) =
   return (Progs (ProgFun x (getType tm'') tm'' : ps') end)
 
 checkProgs g (UsProgExtern x tp ps) =
-  checkType g tp >>
+  declErr x (checkType g tp) >>
   checkProgs g ps >>= \ (Progs ps' end) ->
   return (Progs (ProgExtern x "0" tp : ps') end)
 
@@ -190,7 +195,7 @@ checkProgs g (UsProgData x cs ps) =
 
 -- Traverse a program and add all defs to a contexet,
 -- so that mutual definitions check correctly
-declProgs :: Ctxt -> UsProgs -> Either String Ctxt
+declProgs :: Ctxt -> UsProgs -> Either ErrMsg Ctxt
 
 declProgs g (UsProgExec tm) = return g
 
@@ -214,6 +219,7 @@ declProgs g (UsProgData y cs ps) =
 -- or the elaborated program
 checkFile :: UsProgs -> Either String (Ctxt, Progs)
 checkFile ps =
+  pickErrHist $
   declProgs emptyCtxt ps >>= \ g' ->
   checkProgs g' (alphaRenameUs g' ps) >>= \ ps' ->
   --Left (show ps')
