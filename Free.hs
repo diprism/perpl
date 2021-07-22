@@ -250,7 +250,9 @@ discard g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
 discard g x (TpMaybe tp) tm =
   let x' = aff2linName x
       tp' = getType tm in
-    tmElimMaybe (TmVar x (TpMaybe tp) ScopeLocal) tp tm (x', TmSamp DistFail tp') tp'
+    tmElimMaybe (TmVar x (TpMaybe tp) ScopeLocal) tp tm
+      (x', TmApp (TmApp (TmSamp DistFail (TpArr tp (TpArr tp' tp')))
+                   (TmVar x' tp ScopeLocal) tp (TpArr tp' tp')) tm tp' tp') tp'
 discard g x TpBool tm =
   tmIf (TmVar x TpBool ScopeLocal) tm tm (getType tm)
 
