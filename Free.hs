@@ -356,7 +356,7 @@ getPolyInstsProg pis (ProgExtern x xp tp) = getPolyInstsType pis tp
 getPolyInstsProg pis (ProgData y cs) = foldl (\ pis (Ctor x as) -> foldl getPolyInstsType pis as) pis cs
 
 getPolyInstsProgs :: Map.Map Var [[Type]] -> Progs -> Map.Map Var [[Type]]
-getPolyInstsProgs pis (Progs ps tm) = Map.unions (getPolyInstsTerm pis tm : map (getPolyInstsProg pis) ps)
+getPolyInstsProgs pis (Progs ps tm) = Map.unionsWith (++) (getPolyInstsTerm pis tm : map (getPolyInstsProg pis) ps)
 
 -- Retrives all instantiations of a particular polymorphic type var (e.g. Maybe [...])
 getPolyInsts :: Progs -> Var -> [[Type]]
