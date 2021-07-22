@@ -8,6 +8,6 @@ extern p: Bool; -- false = 0 sons, true = 2 sons
 define extinct: Unit =
   case p of
     | false -> unit
-    | true -> (\ u1 : Unit. \ u2 : Unit. unit) extinct extinct;
+    | true -> let u1 = extinct in let u2 = extinct in unit;
 
 extinct -- Should be {unit: min(0, (1-p)/p)}

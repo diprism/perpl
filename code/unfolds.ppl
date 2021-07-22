@@ -1,0 +1,61 @@
+-- What happens if a single Nat needs to have multiple return types when unfolded?
+
+data Nat = Zero | Succ Nat;
+define even : Nat -> Bool =
+  \ n : Nat. case n of Zero -> True | Succ n' -> not (even n');
+define multi-unfold : Nat -> Bool -> Bool =
+  \ n : Nat. case n of
+    | Zero -> \ b : Bool. b
+    | Succ m -> \ b : Bool. case b of False -> even m | True -> multi-unfold m False;
+
+--------------------------------------------------------------------------------
+-- 1. We could have this become the below, which I think should fix the issue:
+
+data Nat = Zero | Succ (Bool + (Bool -> Bool));
+
+define f1 : Nat -> Bool =
+  \ n : Nat. case n of
+    | Zero -> True
+    | Succ n' -> not (case n' of inl b -> b | inr b2b -> fail : Bool);
+
+define f2 : Nat -> (Bool -> Bool) =
+  \ n : Nat. case n of
+    | Zero -> \b : Bool. b
+    | Succ m -> \ b : Bool. case b of False -> (case m of inl b -> b | inr b2b -> fail : Bool) | True -> (case m of inl b -> fail : Bool -> Bool | inr b2b -> b2b) False;
+
+define even : Nat -> Bool = \ n : Nat. f1 n;
+define multi-unfold : Nat -> Bool -> Bool = \ n : Nat. f2 n;
+
+zero : Nat = Zero;
+succ : Nat -> Nat =
+  \ n : Nat. Succ (case amb : Bool of False -> inl (f1 n) | True -> inr (f2 n));
+
+multi-unfold (succ (succ zero)) True
+
+--------------------------------------------------------------------------------
+-- 2. Alternatively, we could use a product instead of a nondeterministic sum:
+
+data Nat = Zero | Succ (Bool * (Bool -> Bool));
+
+define f1 : Nat -> Bool =
+  \ n : Nat. case n of
+    | Zero -> True
+    | Succ n' -> not (fst n);
+
+define f2 : Nat -> (Bool -> Bool) =
+  \ n : Nat. case n of
+    | Zero -> \b : Bool. b
+    | Succ m -> \ b : Bool. case b of False -> fst m | True -> snd m False;
+
+define even : Nat -> Bool = \ n : Nat. f1 n;
+define multi-unfold : Nat -> Bool -> Bool = \ n : Nat. f2 n;
+
+zero : Nat = Zero;
+succ : Nat -> Nat =
+  \ n : Nat. Succ (f1 n, f2 n);
+
+multi-unfold (succ (succ zero)) True
+
+
+--------------------------------------------------------------------------------
+-- Is approach (1) or (2) better? By "better", do we just mean fastest?
