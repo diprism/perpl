@@ -92,11 +92,16 @@ parseCases = (*>) (parseDropSoft TkBar) $ parseSwitch $ \ t -> case t of
   TkVar _ -> pure (:) <*> parseCase <*> parseCases
   _ -> pure []
 
--- CaseOf
+-- CaseOf, Lam, Let
 parseTerm1 :: ParseM UsTm
 parseTerm1 = parseSwitch $ \ t -> case t of
 -- case term of term
   TkCase -> parseEat *> pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
+-- \ x : type. term
+  TkLam -> parseEat *> pure (flip (foldr (uncurry UsLam))) <*> parseLamArgs <* parseDrop TkDot <*> parseTerm1
+-- let x = term in term
+  TkLet -> parseEat *> pure UsLet <*> parseVar <* parseDrop TkEq
+             <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
   _ -> parseTerm2
 
 parseLamArgs :: ParseM [(Var, Type)]
@@ -104,17 +109,13 @@ parseLamArgs =
   pure (curry (:)) <*> parseVar <* parseDrop TkColon <*> parseType1
     <*> parseElse [] (parseDrop TkComma >> parseLamArgs)
 
--- Lam, Sample, Let
+-- Sample
 parseTerm2 :: ParseM UsTm
 parseTerm2 = parseSwitch $ \ t -> case t of
--- \ x : type. term
-  TkLam -> parseEat *> pure (flip (foldr (uncurry UsLam))) <*> parseLamArgs <* parseDrop TkDot <*> parseTerm1
     -- parseEat *> pure UsLam <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
 -- sample dist : type
   TkSample -> parseEat *> pure UsSamp <*> parseDist <* parseDrop TkColon <*> parseType1
--- let x = term in term
-  TkLet -> parseEat *> pure UsLet <*> parseVar <* parseDrop TkEq
-             <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
+
   _ -> parseTerm3
 
 -- App
