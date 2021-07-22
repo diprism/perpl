@@ -142,18 +142,20 @@ term2fgg g (TmSamp d tp) =
       addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 1) dvws))
       -- +> addRule' (TmSamp d tp) [tp] [] [0]
 
--- Goes through a program and adds all the rules for it
-prog2fgg :: Ctxt -> Progs -> RuleM
-prog2fgg g (ProgExec tm) = term2fgg g tm
-prog2fgg g (ProgFun x tp tm ps) =
-  prog2fgg g ps +> term2fgg g tm +> addRule' (TmVar x tp ScopeGlobal) [tp] [Edge [0] (show tm)] [0]
-prog2fgg g (ProgExtern x xp tp ps) =
+-- Adds the rules for a Prog
+prog2fgg :: Ctxt -> Prog -> RuleM
+prog2fgg g (ProgFun x tp tm) =
+  term2fgg g tm +> addRule' (TmVar x tp ScopeGlobal) [tp] [Edge [0] (show tm)] [0]
+prog2fgg g (ProgExtern x xp tp) =
   let ws = ThisWeight (fmap (const 0) (vectorWeight (domainValues g tp))) in
-  prog2fgg g ps +>
   addRule' (TmVar x tp ScopeGlobal) [tp] [Edge [0] xp] [0] +>
   addFactor xp ws
-prog2fgg g (ProgData y cs ps) =
-  prog2fgg g ps +> ctorsRules g cs (TpVar y)
+prog2fgg g (ProgData y cs) =
+  ctorsRules g cs (TpVar y)
+
+-- Goes through a program and adds all the rules for it
+progs2fgg :: Ctxt -> Progs -> RuleM
+progs2fgg g (Progs ps tm) = foldr (\ p rm -> rm +> prog2fgg g p) (term2fgg g tm) ps
 
 -- Computes a list of all the possible inhabitants of a type
 domainValues :: Ctxt -> Type -> [String]
@@ -201,5 +203,6 @@ addInternalFactors g ps =
 -- Converts an elaborated program into an FGG
 file2fgg :: Ctxt -> Progs -> FGG_JSON
 file2fgg g ps =
-  let RuleM rs xs nts fs = addInternalFactors g ps +> prog2fgg g ps in
-    rulesToFGG (domainValues g) (show $ getStartTerm ps) (reverse rs) nts fs
+  let Progs _ end = ps
+      RuleM rs xs nts fs = addInternalFactors g ps +> progs2fgg g ps in
+    rulesToFGG (domainValues g) (show end) (reverse rs) nts fs

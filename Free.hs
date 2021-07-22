@@ -31,8 +31,21 @@ freeVars (UsCase tm cs) = foldr (Map.unionWith max . freeVarsCase) (freeVars tm)
 freeVars (UsSamp d tp) = Map.empty
 freeVars (UsLet x tm tm') = Map.unionWith max (freeVars tm) (Map.delete x $ freeVars tm')
 
+freeVars' :: Term -> Map.Map Var Type
+freeVars' (TmVar x tp sc) = if sc == ScopeLocal then Map.singleton x tp else Map.empty
+freeVars' (TmLam x tp tm tp') = Map.delete x $ freeVars' tm
+freeVars' (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars' tm1) (freeVars' tm2)
+freeVars' (TmCase tm tp cs tp') = foldr (Map.union . freeVarsCase') (freeVars' tm) cs
+freeVars' (TmSamp d tp) = Map.empty
+freeVars' (TmCtor x as tp) = Map.unions (map (freeVars' . fst) as)
+freeVars' (TmFold fuf tm tp) = freeVars' tm
+
 freeVarsCase :: CaseUs -> Map.Map Var Int
 freeVarsCase (CaseUs c xs tm) = foldr Map.delete (freeVars tm) xs
+
+freeVarsCase' :: Case -> Map.Map Var Type
+freeVarsCase' (Case c as tm) = foldr (Map.delete . fst) (freeVars' tm) as
+
 
 -- Returns the (max) number of occurrences of x in tm
 freeOccurrences :: Var -> UsTm -> Int
@@ -191,11 +204,13 @@ renameUsProgs (UsProgFun x tp tm ps) = pure (UsProgFun x) <*> renameType tp <*> 
 renameUsProgs (UsProgExtern x tp ps) = pure (UsProgExtern x) <*> renameType tp <*> renameUsProgs ps
 renameUsProgs (UsProgData y cs ps) = pure (UsProgData y) <*> mapM renameCtor cs <*> renameUsProgs ps
 
+renameProg :: Prog -> RenameM Prog
+renameProg (ProgFun x tp tm) = pure (ProgFun x) <*> renameType tp <*> renameTerm tm
+renameProg (ProgExtern x xp tp) = pure (ProgExtern x) <*> (bindVar xp $ newVar xp) <*> renameType tp
+renameProg (ProgData y cs) = pure (ProgData y) <*> mapM renameCtor cs
+
 renameProgs :: Progs -> RenameM Progs
-renameProgs (ProgExec tm) = pure ProgExec <*> renameTerm tm
-renameProgs (ProgFun x tp tm ps) = pure (ProgFun x) <*> renameType tp <*> renameTerm tm <*> renameProgs ps
-renameProgs (ProgExtern x xp tp ps) = pure (ProgExtern x) <*> (bindVar xp $ newVar xp) <*> renameType tp <*> renameProgs ps
-renameProgs (ProgData y cs ps) = pure (ProgData y) <*> mapM renameCtor cs <*> renameProgs ps
+renameProgs (Progs ps tm) = pure Progs <*> mapM renameProg ps <*> renameTerm tm
 
 -- Auxiliary helper
 alphaRename' :: Ctxt -> RenameM a -> a
@@ -334,15 +349,17 @@ getPolyInstsType pis (TpArr tp1 tp2) = getPolyInstsType (getPolyInstsType pis tp
 getPolyInstsType pis TpBool = piAppend tpBoolName [] pis
 getPolyInstsType pis (TpMaybe tp) = piAppend tpMaybeName [tp] (getPolyInstsType pis tp)
 
--- Retrives all instantiations of polymorphic types (e.g. Maybe [...]) in a file
-getPolyInstsProg :: Map.Map Var [[Type]] -> Progs -> Map.Map Var [[Type]]
-getPolyInstsProg pis (ProgExec tm) = getPolyInstsTerm pis tm
-getPolyInstsProg pis (ProgFun x tp tm ps) = getPolyInstsProg (getPolyInstsTerm pis tm) ps
-getPolyInstsProg pis (ProgExtern x xp tp ps) = getPolyInstsProg (getPolyInstsType pis tp) ps
-getPolyInstsProg pis (ProgData y cs ps) = getPolyInstsProg (foldl (\ pis (Ctor x as) -> foldl getPolyInstsType pis as) pis cs) ps
+-- Retrives all instantiations of polymorphic types (e.g. Maybe [...]) in a Prog
+getPolyInstsProg :: Map.Map Var [[Type]] -> Prog -> Map.Map Var [[Type]]
+getPolyInstsProg pis (ProgFun x tp tm) = getPolyInstsTerm pis tm
+getPolyInstsProg pis (ProgExtern x xp tp) = getPolyInstsType pis tp
+getPolyInstsProg pis (ProgData y cs) = foldl (\ pis (Ctor x as) -> foldl getPolyInstsType pis as) pis cs
+
+getPolyInstsProgs :: Map.Map Var [[Type]] -> Progs -> Map.Map Var [[Type]]
+getPolyInstsProgs pis (Progs ps tm) = Map.unions (getPolyInstsTerm pis tm : map (getPolyInstsProg pis) ps)
 
 -- Retrives all instantiations of a particular polymorphic type var (e.g. Maybe [...])
 getPolyInsts :: Progs -> Var -> [[Type]]
 getPolyInsts ps y =
-  let is = getPolyInstsProg Map.empty ps in
+  let is = getPolyInstsProgs Map.empty ps in
     maybe [] nub (Map.lookup y is)

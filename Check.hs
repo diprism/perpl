@@ -158,6 +158,7 @@ checkCasesh g (ct : cts) (c : cs) tp =
   ifErr (tp /= tp') "Cases have different types" >>
   checkCasesh g cts cs tp >>= \ cs' ->
   return (c' : cs')
+checkCasesh g _ _ tp = err "Incorrect number of cases"
 
 
 -- Check and elaborate a program under a context
@@ -165,26 +166,26 @@ checkProgs :: Ctxt -> UsProgs -> Either String Progs
 
 checkProgs g (UsProgExec tm) =
   checkTerm g tm >>= \ (tm', tp') ->
-  return (ProgExec (convertAffLin g tm'))
+  return (Progs [] (convertAffLin g tm'))
 
 checkProgs g (UsProgFun x tp tm ps) =
   checkType g tp >>
   declErr x (checkTerm g tm) >>= \ (tm', tp') ->
   ifErr (tp /= tp')
     ("Expected type of function '" ++ x ++ "' does not match computed type") >>
-  checkProgs g ps >>= \ ps' ->
+  checkProgs g ps >>= \ (Progs ps' end) ->
   let tm'' = convertAffLin g tm' in
-  return (ProgFun x (getType tm'') tm'' ps')
+  return (Progs (ProgFun x (getType tm'') tm'' : ps') end)
 
 checkProgs g (UsProgExtern x tp ps) =
   checkType g tp >>
-  checkProgs g ps >>= \ ps' ->
-  return (ProgExtern x "0" tp ps')
+  checkProgs g ps >>= \ (Progs ps' end) ->
+  return (Progs (ProgExtern x "0" tp : ps') end)
 
 checkProgs g (UsProgData x cs ps) =
   declErr x (foldr (\ (Ctor x tps) r -> foldr (\ tp r -> checkType g tp >> ifErr (hasArr tp) ("Constructor " ++ x ++ " has an arg with an arrow type, which is not allowed") >> r) okay tps >> r) okay cs) >>
-  checkProgs g ps >>= \ ps' ->
-  return (ProgData x cs ps')
+  checkProgs g ps >>= \ (Progs ps' end) ->
+  return (Progs (ProgData x cs : ps') end)
 
 
 -- Traverse a program and add all defs to a contexet,

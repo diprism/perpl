@@ -61,13 +61,6 @@ hasArr (TpArr tp1 tp2) = True
 hasArr (TpMaybe tp) = hasArr tp
 hasArr TpBool = False
 
--- Extracts the start term at the end of a program
-getStartTerm :: Progs -> Term
-getStartTerm (ProgExec tm) = tm
-getStartTerm (ProgFun x tp tm ps) = getStartTerm ps
-getStartTerm (ProgExtern x xp tp ps) = getStartTerm ps
-getStartTerm (ProgData y cs ps) = getStartTerm ps
-
 -- Splits tp1 -> tp2 -> ... -> tpn into ([tp1, tp2, ...], tpn)
 splitArrows :: Type -> ([Type], Type)
 splitArrows (TpArr tp1 tp2) = let (tps, end) = splitArrows tp2 in (tp1 : tps, end)

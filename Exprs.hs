@@ -6,11 +6,8 @@ data UsProgs =
   | UsProgExtern String Type UsProgs
   | UsProgData String [Ctor] UsProgs
 
-data Progs =
-    ProgExec Term
-  | ProgFun String Type Term Progs
-  | ProgExtern String String Type Progs
-  | ProgData String [Ctor] Progs
+data Prog = ProgFun String Type Term | ProgExtern String String Type | ProgData String [Ctor]
+data Progs = Progs [Prog] Term
 
 data Ctor = Ctor Var [Type]
 
@@ -102,12 +99,14 @@ toUsTm (TmFold fuf tm tp) = toUsTm tm
 toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)
 
-toUsProgs :: Progs -> UsProgs
-toUsProgs (ProgExec tm) = UsProgExec (toUsTm tm)
-toUsProgs (ProgFun x tp tm ps) = UsProgFun x tp (toUsTm tm) (toUsProgs ps)
-toUsProgs (ProgExtern x xp tp ps) = UsProgExtern x tp (toUsProgs ps)
-toUsProgs (ProgData y cs ps) = UsProgData y cs (toUsProgs ps)
+toUsProgs' :: [Prog] -> UsTm -> UsProgs
+toUsProgs' (ProgFun x tp tm : ps) end = UsProgFun x tp (toUsTm tm) (toUsProgs' ps end)
+toUsProgs' (ProgExtern x xp tp : ps) end = UsProgExtern x tp (toUsProgs' ps end)
+toUsProgs' (ProgData y cs : ps) end = UsProgData y cs (toUsProgs' ps end)
+toUsProgs' [] end = UsProgExec end
 
+toUsProgs :: Progs -> UsProgs
+toUsProgs (Progs ps tm) = toUsProgs' ps (toUsTm tm)
 
 {- Show Instances -}
 
