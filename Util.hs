@@ -35,14 +35,15 @@ okay = return ()
 plus_l :: Num a => a -> [a] -> [a]
 a `plus_l` as = map ((+) a) as
 
--- Concatenates a list of lists, returning that and a
+
+{- -- Concatenates a list of lists, returning that and a
 -- list mapping original positions to their new indices
 -- within the concatenated list
 combine :: [[a]] -> ([a], [[Int]])
 combine as =
   (concat as,
    foldr (\ as' is i -> [i..i + length as' - 1] : is (i + length as'))
-     (const []) as 0)
+     (const []) as 0)-}
 
 
 -- Gets the type of an elaborated term in O(1) time
@@ -95,14 +96,14 @@ splitApps = splitAppsh []
       splitAppsh ((tm2, tp2) : acc) tm1
     splitAppsh acc tm = (tm, reverse acc)
 
+joinApps' :: Term -> [Term] -> Term
+joinApps' tm as = fst (h as) where
+  h :: [Term] -> (Term, Type)
+  h [] = (tm, getType tm)
+  h (a : as) = let (tm', TpArr tp1 tp2) = h as in (TmApp tm' a tp1 tp2, tp2)
+
 joinApps :: Term -> [(Term, Type)] -> Term
-joinApps tm as =
-  let tps = foldr (\ (_, atp) (atp' : atps) -> TpArr atp atp' : atp' : atps) [getType tm] as in
-    h tm as (tail tps)
-  where
-  h :: Term -> [(Term, Type)] -> [Type] -> Term
-  h tm [] [] = tm
-  h tm ((a, atp) : as) (tp : tps) = h (TmApp tm a atp tp) as tps
+joinApps tm as = joinApps' tm (map fst as)
 
 splitUsApps :: UsTm -> (UsTm, [UsTm])
 splitUsApps = h [] where

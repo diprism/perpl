@@ -18,7 +18,7 @@ internalFactorName tm = "v=" ++ show tm
 
 -- Naming convention for constructor factor
 ctorFactorName :: Var -> [(Term, Type)] -> Type -> String
-ctorFactorName x as tp = internalFactorName (TmVarG DefVar x as tp)
+ctorFactorName x as tp = internalFactorName (TmVarG CtorVar x as tp)
 
 ctorFactorNameDefault :: Var -> [Type] -> Type -> String
 ctorFactorNameDefault x as = ctorFactorName x (map (\ (i, a) -> (TmVarL (etaName x i) a, a)) (enumerate as))

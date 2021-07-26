@@ -105,6 +105,12 @@ weightsPull (WeightsDims ws : ws') =
   let ws'' = map invWeightsDims (WeightsDims ws : ws') in
   WeightsDims $ weightsPull ws''
 
+getExternWeights :: (Type -> [String]) -> [Type] -> Type -> PreWeight
+getExternWeights dom ps tp =
+  let rep = \ tp a -> WeightsDims (weightsPull (replicate (length (dom tp)) a))
+      iws = rep tp (WeightsData 0) in
+    ThisWeight $ foldr rep iws ps
+
 getCtorWeightsAll :: (Type -> [String]) -> [Ctor] -> Type -> [(String, PreWeight)]
 getCtorWeightsAll dom cs y =
   concat $ flip map cs $ \ (Ctor x as) ->

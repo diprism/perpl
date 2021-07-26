@@ -127,7 +127,7 @@ aff2linProg g (ProgFun x [] tm tp) =
       as' = map aff2linTp as
       ls' = map (fmap aff2linTp) ls
       etas = map (\ (i, atp) -> (etaName x i, atp)) (drop (length ls') (enumerate as'))
-      g' = foldl (\ g (x, tp) -> ctxtDefTerm g x tp) g ls'
+      g' = ctxtDeclArgs g ls'
       endtm' = aff2linTerm g' endtm
       endtp' = aff2linTp endtp -- This may not be necessary, but is future-proof
   in

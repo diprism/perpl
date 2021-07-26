@@ -58,14 +58,13 @@ tmapp2fgg g (TmApp tm1 tm2 tp2 tp) =
 ctorRules :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
 ctorRules g (Ctor x as) y cs =
   let ix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0
-      as' = map (etaName x) [0..length as - 1]
-      (ns, [ias, [iy]]) = combine [as, [y]]
-      ias' = zip ias as'
-      fac = ctorFactorName x (toTermArgs (zip as' as)) y
+      as' = map (\ (i, a) -> (etaName x i, a)) (enumerate as) -- zip (map (etaName x) [0..length as - 1]) as
+      (ns, [ias, [iy]]) = combineExts [as', [(" 0", y)]]
+      fac = ctorFactorName x (toTermArgs as') y
       es = [Edge (ias ++ [iy]) fac]
       xs = ias ++ [iy]
-      tm = TmVarG CtorVar x (map (\ (a, atp) -> (TmVarL a atp, atp)) (zip as' as)) y in
-    addRule' tm ns es xs +>
+      tm = TmVarG CtorVar x (map (\ (a, atp) -> (TmVarL a atp, atp)) as') y in
+    addRule' tm (map snd ns) es xs +>
     addFactor (ctorFactorNameDefault x as y)
       (getCtorWeightsFlat (domainValues g) (Ctor x as) cs)
 
@@ -100,11 +99,11 @@ caseRule g xs _ (Case x as xtm) =
 lamRule :: Bool -> Var -> Type -> Term -> Type -> RuleM -> RuleM
 lamRule addVarRule x tp tm tp' rm =
   bindExt addVarRule x tp rm +>= \ xs' ->
-  let (ns, [[itp, itp', iarr], ixs']) = combine [[tp, tp', TpArr tp tp'], map snd xs']
+  let (ns, [[itp, itp', iarr], ixs']) = combineExts [[(" 0", tp), (" 1", tp'), (" 2", TpArr tp tp')], xs']
       es = [Edge (ixs' ++ [itp, itp']) (show tm),
             Edge [itp, itp', iarr] (pairFactorName tp tp')]
       xs = ixs' ++ [iarr] in
-    addRule' (TmLam x tp tm tp') ns es xs +>
+    addRule' (TmLam x tp tm tp') (map snd ns) es xs +>
     addFactor (pairFactorName tp tp') (getPairWeights tp tp')
 
 -- Traverse a term and add all rules for subexpressions
@@ -160,13 +159,22 @@ term2fgg g (TmLet x xtm xtp tm tp) =
 -- Adds the rules for a Prog
 prog2fgg :: Ctxt -> Prog -> RuleM
 prog2fgg g (ProgFun x ps tm tp) =
-  -- TODO: args
-  term2fgg g tm +> addRule' (TmVarG DefVar x [] tp) [tp] [Edge [0] (show tm)] [0]
+  bindExts True ps $ term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
+  let (ns, [[itp], ixs]) = combineExts [[(" 0", tp)], tmxs]
+      es = [Edge (ixs ++ [itp]) (show tm)]
+      xs = ixs ++ [itp]
+  in
+    addRule' (TmVarG DefVar x [] tp) (map snd ns) es xs
 prog2fgg g (ProgExtern x xp ps tp) =
-  -- TODO: args
-  let ws = ThisWeight (fmap (const 0) (vectorWeight (domainValues g tp))) in
-  addRule' (TmVarG DefVar x [] tp) [tp] [Edge [0] xp] [0] +>
-  addFactor xp ws
+  let (ns, [(itp : ixs)]) = combineExts [[(" " ++ show i, atp) | (i, atp) <- enumerate (tp : ps)]]
+      es = [Edge (ixs ++ [itp]) xp]
+      xs = ixs ++ [itp]
+      ws = getExternWeights (domainValues g) ps tp
+--      ws = ThisWeight (fmap (const 0) (vectorWeight (domainValues g tp)))
+  in
+  --addRule' (TmVarG DefVar x [] tp) [tp] [Edge [0] xp] [0] +>
+    addRule' (TmVarG DefVar x [] tp) (map snd ns) es xs +>
+    addFactor xp ws
 prog2fgg g (ProgData y cs) =
   ctorsRules g cs (TpVar y)
 
