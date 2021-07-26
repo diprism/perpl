@@ -2,11 +2,14 @@ module Ctxt where
 import qualified Data.Map as Map
 import Exprs
 
-data VarDef =
-    DefTerm VarScope Type
+data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
+  deriving Eq
+
+data CtxtDef =
+    DefTerm Scope Type
   | DefData [Ctor]
 
-type Ctxt = Map.Map Var VarDef
+type Ctxt = Map.Map Var CtxtDef
 
 -- Default context
 emptyCtxt :: Ctxt
@@ -36,7 +39,7 @@ ctxtDeclType g y ctors =
     (Map.insert y (DefData ctors) g) ctors
 
 -- Lookup a term in the context
-ctxtLookupTerm :: Ctxt -> Var -> Maybe (VarScope, Type)
+ctxtLookupTerm :: Ctxt -> Var -> Maybe (Scope, Type)
 ctxtLookupTerm g x = Map.lookup x g >>= \ vd -> case vd of
   DefTerm sc tp -> Just (sc, tp)
   DefData cs -> Nothing

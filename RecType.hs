@@ -131,7 +131,11 @@ type DisentangleM a = State.State DisentangleState a
 disentangleTerm :: [Type] -> Term -> DisentangleM Term
 disentangleTerm recs = h where
   h :: Term -> DisentangleM Term
-  h (TmVar x tp sc) = pure (TmVar x tp sc)
+  h (TmVarL x tp) = pure (TmVarL x tp)
+  h (TmVarG gv x as tp) =
+    pure (TmVarG gv x)
+      <*> mapM (\ (atm, atp) -> fmap (flip (,) atp) (h atm)) as
+      <*> pure tp
   h (TmLam x tp tm tp') =
     pure (TmLam x tp) <*> h tm <*> pure tp'
   h (TmApp tm1 tm2 tp2 tp) =
@@ -142,12 +146,11 @@ disentangleTerm recs = h where
     | tp1 `elem` recs =
       h tm >>= \ tm' ->
       State.get >>= \ unfolds ->
-      let fvs = freeVars' (TmCase (TmVar "" (TpVar "") ScopeGlobal) tp1 cs tp2)
+      let fvs = freeVars' (TmCase (TmVarG DefVar "" [] tp1) tp1 cs tp2)
           fvs' = Map.toList fvs
-          ptp = joinArrows (map snd fvs') tp2
+          --ptp = joinArrows (map snd fvs') tp2
           name = applyName (length unfolds)
-          rtm = joinApps (TmVar name ptp ScopeGlobal)
-                         ((tm', tp1) : toTermArgs fvs') tp2 in
+          rtm = TmVarG DefVar name ((tm', tp1) : toTermArgs fvs') tp2 in
         State.put ((fvs, name, tp1, cs, tp2) : unfolds) >>
         pure rtm
     | otherwise =
@@ -155,10 +158,6 @@ disentangleTerm recs = h where
         <*> mapM (\ (Case x xas xtm) -> pure (Case x xas) <*> h xtm) cs <*> pure tp2
   h (TmSamp d tp) =
     pure (TmSamp d tp)
-  h (TmCtor x as tp) =
-    pure (TmCtor x)
-      <*> mapM (\ (atm, atp) -> fmap (flip (,) atp) (h atm)) as
-      <*> pure tp
   h (TmFold fuf tm tp) =
     pure (TmFold fuf) <*> h tm <*> pure tp
 
@@ -179,7 +178,7 @@ disentangleMake i (fvs, name, tp, cs, tp') =
   let tname = applyTargetName i
       as = (tname, tp) : Map.toList fvs
       rtp = joinArrows (map snd as) tp
-      rtm = addLams (TmCase (TmVar tname tp ScopeLocal) tp cs tp') as in
+      rtm = addLams (TmCase (TmVarL tname tp) tp cs tp') as in
     ProgFun name rtp rtm
 
 disentangleProgs :: [Type] -> Progs -> DisentangleM Progs
@@ -199,3 +198,5 @@ disentangleFile ps =
       recs = map TpVar (getRecTypes g ps) in
     fmap (map (\ (_, name, _, _, _) -> name))
          (disentangleRun recs disentangleProgs ps)
+
+

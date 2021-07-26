@@ -11,7 +11,7 @@ import Free
 var2fgg :: Var -> Type -> RuleM
 var2fgg x tp =
   let fac = typeFactorName tp in
-  addRule' (TmVar x tp ScopeLocal) [tp, tp] [Edge [0, 1] fac] [0, 1]
+  addRule' (TmVarL x tp) [tp, tp] [Edge [0, 1] fac] [0, 1]
 
 -- Bind a list of external nodes, and add rules for them
 bindExts :: Bool -> [(Var, Type)] -> RuleM -> RuleM
@@ -54,13 +54,13 @@ tmapp2fgg g (TmApp tm1 tm2 tp2 tp) =
 ctorRules :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
 ctorRules g (Ctor x as) y cs =
   let ix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0
-      as' = map (ctorEtaName x) [0..length as - 1]
+      as' = map (etaName x) [0..length as - 1]
       (ns, [ias, [iy]]) = combine [as, [y]]
       ias' = zip ias as'
       fac = ctorFactorName x (toTermArgs (zip as' as)) y
       es = [Edge (ias ++ [iy]) fac]
       xs = ias ++ [iy]
-      tm = TmCtor x (map (\ (a, atp) -> (TmVar a atp ScopeLocal, atp)) (zip as' as)) y in
+      tm = TmVarG CtorVar x (map (\ (a, atp) -> (TmVarL a atp, atp)) (zip as' as)) y in
     addRule' tm ns es xs +>
     addFactor (ctorFactorNameDefault x as y)
       (getCtorWeightsFlat (domainValues g) (Ctor x as) cs)
@@ -80,7 +80,7 @@ caseRule g xs_ctm (TmCase ctm y cs tp) (Case x as xtm) =
   --bindExts True as (term2fgg g' xtm) +>= \ xs_xtm ->
   bindExts True as $
   term2fgg g' xtm +>= \ xs_xtm_as ->
-  let fac = ctorFactorName x (toTermArgs (ctorGetArgs x (map snd as))) y
+  let fac = ctorFactorName x (toTermArgs (getArgs x (map snd as))) y
       (ns, [[ictm, ixtm], ixs_xtm_as, ixs_ctm]) =
         combineExts [[(" 0", y), (" 1", tp)], xs_xtm_as, xs_ctm]
       (ixs_xtm, ixs_as) = foldr (\ (a, i) (ixs_xtm, ixs_as) -> if elem (fst a) (map fst as) then (ixs_xtm, i : ixs_as) else (i : ixs_xtm, ixs_as)) ([], []) (zip xs_xtm_as ixs_xtm_as)
@@ -105,14 +105,13 @@ lamRule addVarRule x tp tm tp' rm =
 
 -- Traverse a term and add all rules for subexpressions
 term2fgg :: Ctxt -> Term -> RuleM
-term2fgg g (TmVar x tp local) =
+term2fgg g (TmVarL x tp) =
   addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp)) +>
-  case local of
-    ScopeGlobal -> returnRule
-    ScopeLocal -> addExt x tp
-    ScopeCtor -> error ("term2fgg should not see a ctor var (" ++ x ++ ")")
+  addExt x tp
 term2fgg g (TmFold fuf tm tp) = term2fgg g tm -- TODO: this should cause error
-term2fgg g (TmCtor x as y) =
+term2fgg g (TmVarG DefVar x as tp) =
+  error "TODO"
+term2fgg g (TmVarG CtorVar x as y) =
   map (\ (a, atp) -> term2fgg g a) as +*>= \ xss ->
   let (ns, [iy] : ias : ixss) = combineExts ([(" 0", y)] : map (\ (i, (tm, tp)) -> (' ' : show (succ i), tp)) (enumerate as) : xss)
       es = Edge (ias ++ [iy]) (ctorFactorNameDefault x (map snd as) y) :
@@ -120,7 +119,7 @@ term2fgg g (TmCtor x as y) =
       xs = concat ixss ++ [iy]
       Just cs = ctxtLookupType' g y
       cix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0 in
-  addRule' (TmCtor x as y) (map snd ns) es xs
+  addRule' (TmVarG CtorVar x as y) (map snd ns) es xs
 term2fgg g (TmLam x tp tm tp') =
   lamRule True x tp tm tp' (term2fgg (ctxtDeclTerm g x tp) tm)
 term2fgg g (TmApp tm1 tm2 tp2 tp) =
@@ -128,7 +127,6 @@ term2fgg g (TmApp tm1 tm2 tp2 tp) =
 term2fgg g (TmCase tm y cs tp) =
   term2fgg g tm +>= \ xs ->
   bindCases (map (caseRule g xs (TmCase tm y cs tp)) cs)
-  --foldr (\ c r -> caseRule g xs (TmCase tm y cs tp) c +> r) returnRule cs
 term2fgg g (TmSamp d tp) =
   let dvs = domainValues g tp
       dvws = vectorWeight dvs in
@@ -153,10 +151,12 @@ term2fgg g (TmLet x xtm xtp tm tp) =
 -- Adds the rules for a Prog
 prog2fgg :: Ctxt -> Prog -> RuleM
 prog2fgg g (ProgFun x tp tm) =
-  term2fgg g tm +> addRule' (TmVar x tp ScopeGlobal) [tp] [Edge [0] (show tm)] [0]
+  -- TODO: args
+  term2fgg g tm +> addRule' (TmVarG DefVar x [] tp) [tp] [Edge [0] (show tm)] [0]
 prog2fgg g (ProgExtern x xp tp) =
+  -- TODO: args
   let ws = ThisWeight (fmap (const 0) (vectorWeight (domainValues g tp))) in
-  addRule' (TmVar x tp ScopeGlobal) [tp] [Edge [0] xp] [0] +>
+  addRule' (TmVarG DefVar x [] tp) [tp] [Edge [0] xp] [0] +>
   addFactor xp ws
 prog2fgg g (ProgData y cs) =
   ctorsRules g cs (TpVar y)

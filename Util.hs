@@ -47,13 +47,13 @@ combine as =
 
 -- Gets the type of an elaborated term in O(1) time
 getType :: Term -> Type
-getType (TmVar x tp sc) = tp
+getType (TmVarL x tp) = tp
+getType (TmVarG gv x as tp) = tp
 getType (TmLam x tp tm tp') = TpArr tp tp'
 getType (TmApp tm1 tm2 tp2 tp) = tp
 getType (TmLet x xtm xtp tm tp) = tp
 getType (TmCase ctm ctp cs tp) = tp
 getType (TmSamp d tp) = tp
-getType (TmCtor x as tp) = tp
 getType (TmFold fuf tm tp) = tp
 
 hasArr :: Type -> Bool
@@ -103,7 +103,7 @@ addLams tm = fst  . foldr
 
 
 toTermArgs :: [(Var, Type)] -> [(Term, Type)]
-toTermArgs = map $ \ (a, atp) -> (TmVar a atp ScopeLocal, atp)
+toTermArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
 
 -- Naming convention for testing equality two terms of the same type
 typeFactorName :: Type -> String
@@ -118,40 +118,44 @@ internalFactorName tm = "v=" ++ show tm
 
 -- Naming convention for constructor factor
 ctorFactorName :: Var -> [(Term, Type)] -> Type -> String
-ctorFactorName x as tp = internalFactorName (TmCtor x as tp)
+ctorFactorName x as tp = internalFactorName (TmVarG DefVar x as tp)
 
 ctorFactorNameDefault :: Var -> [Type] -> Type -> String
-ctorFactorNameDefault x as = ctorFactorName x (map (\ (i, a) -> (TmVar (ctorEtaName x i) a ScopeLocal, a)) (enumerate as))
+ctorFactorNameDefault x as = ctorFactorName x (map (\ (i, a) -> (TmVarL (etaName x i) a, a)) (enumerate as))
 
 -- Establishes naming convention for eta-expanding a constructor.
 -- So Cons h t -> (\ ?Cons0. \ ?Cons1. Cons ?Cons0 ?Cons1) h t.
 -- This is necessary so that the FGG can use one rule for each
 -- constructor, and not for each usage of it in the code.
 -- It also fixes the issue of partially-applied constructors.
-ctorEtaName :: Var -> Int -> Var
-ctorEtaName x i = "?" ++ x ++ show i
+etaName :: Var -> Int -> Var
+etaName x i = "?" ++ x ++ show i
 
 aff2linName :: Var -> Var
 aff2linName x = '%' : x
 
 -- Returns the names of the args for a constructor
-ctorGetArgs :: Var -> [Type] -> [(Var, Type)]
-ctorGetArgs x tps =
-  zip (map (ctorEtaName x) [0..length tps - 1]) tps
+getArgs :: Var -> [Type] -> [(Var, Type)]
+getArgs x tps =
+  zip (map (etaName x) [0..length tps - 1]) tps
+
+foldIf :: GlobalVar -> Term -> Type -> Term
+foldIf CtorVar = TmFold True
+foldIf DefVar = const
 
 -- Turns a constructor into one with all its args applied
-ctorAddArgs :: Var -> [(Term, Type)] -> [(Var, Type)] -> Type -> Term
-ctorAddArgs x tas vas y =
-  TmFold True (TmCtor x (tas ++ map (\ (a, atp) -> (TmVar a atp ScopeLocal, atp)) vas) y) y
+addArgs :: GlobalVar -> Var -> [(Term, Type)] -> [(Var, Type)] -> Type -> Term
+addArgs gv x tas vas y =
+  foldIf gv (TmVarG gv x (tas ++ map (\ (a, atp) -> (TmVarL a atp, atp)) vas) y) y
 
 -- Eta-expands a constructor with the necessary extra args
-ctorEtaExpand :: Var -> [(Term, Type)] -> [(Var, Type)] -> Type -> Term
-ctorEtaExpand x tas vas y =
+etaExpand :: GlobalVar -> Var -> [(Term, Type)] -> [(Var, Type)] -> Type -> Term
+etaExpand gv x tas vas y =
   foldr (\ (a, atp) tm -> TmLam a atp tm (getType tm))
-    (ctorAddArgs x tas vas y) vas
+    (addArgs gv x tas vas y) vas
 
 ctorDefault :: Var -> [Type] -> Type -> Term
-ctorDefault x as y = TmCtor x (map (\ (a, atp) -> (TmVar a atp ScopeLocal, atp)) (ctorGetArgs x as)) y
+ctorDefault x as y = TmVarG CtorVar x (map (\ (a, atp) -> (TmVarL a atp, atp)) (getArgs x as)) y
 
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
 sortCases ctors cases = map snd $ sortBy (\ (a, _) (b, _) -> compare a b) (label cases) where

@@ -26,17 +26,16 @@ data UsTm = -- User Term
   | UsSamp Dist Type
   | UsLet Var UsTm UsTm
 
-data VarScope = ScopeLocal | ScopeGlobal | ScopeCtor
-  deriving Eq
+data GlobalVar = CtorVar | DefVar
 
 data Term =
-    TmVar Var Type VarScope
+    TmVarL Var Type -- Local var
+  | TmVarG GlobalVar Var [(Term, Type)] Type -- Global var
   | TmLam Var Type Term Type
   | TmApp Term Term Type {- -> -} Type
   | TmLet Var Term Type Term Type
   | TmCase Term Type [Case] Type
   | TmSamp Dist Type
-  | TmCtor Var [(Term, Type)] Type
   | TmFold Bool {- True => Fold; False => Unfold -} Term Type
 
 
@@ -61,13 +60,13 @@ tmTrueName    = "%true%"
 tmFalseName   = "%false%"
 
 tmMaybe :: Maybe Term -> Type -> Term
-tmMaybe Nothing tp = TmCtor tmNothingName [] (TpMaybe tp)
-tmMaybe (Just tm) tp = TmCtor tmJustName [(tm, tp)] (TpMaybe tp)
+tmMaybe Nothing tp = TmVarG CtorVar tmNothingName [] (TpMaybe tp)
+tmMaybe (Just tm) tp = TmVarG CtorVar tmJustName [(tm, tp)] (TpMaybe tp)
 tmElimMaybe :: Term -> Type -> Term -> (Var, Term) -> Type -> Term
 tmElimMaybe tm tp ntm (jx, jtm) tp' =
   TmCase tm (TpMaybe tp) [Case tmNothingName [] ntm, Case tmJustName [(jx, tp)] jtm] tp'
 tmBool :: Bool -> Term
-tmBool b = TmCtor (if b then tmTrueName else tmFalseName) [] TpBool
+tmBool b = TmVarG CtorVar (if b then tmTrueName else tmFalseName) [] TpBool
 tmIf :: Term -> Term -> Term -> Type -> Term
 tmIf iftm thentm elsetm tp =
   TmCase iftm TpBool [Case tmFalseName [] elsetm, Case tmTrueName [] thentm] tp
@@ -79,23 +78,24 @@ addTypeInst :: Var -> [Type] -> UsTm
 addTypeInst x [] = UsVar x
 addTypeInst x (tp : tps) = UsApp (UsVar x) (UsVar ("[" ++ foldl (\ s tp' -> s ++ ", " ++ show tp') (show tp) tps ++ "]"))
 
-getTypeInst :: Type -> [Type]
-getTypeInst (TpMaybe tp) = [tp]
-getTypeInst _ = []
+getTypeInst :: GlobalVar -> Type -> [Type]
+getTypeInst CtorVar (TpMaybe tp) = [tp]
+getTypeInst _ _ = []
 
-varTypeInst :: Var -> Type -> UsTm
-varTypeInst x = addTypeInst x . getTypeInst
+varTypeInst :: GlobalVar -> Var -> Type -> UsTm
+varTypeInst gv x = addTypeInst x . getTypeInst gv
 
 {- Convert back from elaborated terms to user terms -}
 
 toUsTm :: Term -> UsTm
-toUsTm (TmVar x _ _) = UsVar x
+toUsTm (TmVarL x _) = UsVar x
+toUsTm (TmVarG gv x as tp) =
+  foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (varTypeInst gv x tp) as
 toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
-toUsTm (TmCtor x as tp) = foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (varTypeInst x tp) as
 toUsTm (TmFold fuf tm tp) = toUsTm tm
 
 toCaseUs :: Case -> CaseUs

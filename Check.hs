@@ -44,10 +44,11 @@ checkTermVar :: Bool -> Ctxt -> UsTm -> Either ErrMsg Term
 checkTermVar eta g (UsVar x) = maybe2 (ctxtLookupTerm g x)
   (err ("Variable '" ++ x ++ "' not in scope"))
   $ \ (sc, tp) -> case (eta, sc) of
-    (True, ScopeCtor) ->
+    (_, ScopeLocal) -> return (TmVarL x tp)
+    (True, sc) ->
       let (tps, TpVar y) = splitArrows tp in
-        return (ctorEtaExpand x [] (ctorGetArgs x tps) (TpVar y))
-    _ -> return (TmVar x tp sc)
+        return (etaExpand (if sc == ScopeGlobal then DefVar else CtorVar) x [] (getArgs x tps) (TpVar y))
+    (False, sc) -> return (TmVarG (if sc == ScopeGlobal then DefVar else CtorVar) x [] tp)
 checkTermVar eta g tm = checkTermh g tm
 
 checkTerm g tm =
@@ -79,11 +80,11 @@ checkTermh g (UsApp tm1 tm2) =
       sequence (map (checkTerm g) as) >>= \ as' ->
       sequence (map (\ ((a, atp), tp) -> ifErr (atp /= tp) (expVsActTpMsg tp atp)) (zip as' tps')) >>
       case hd' of
-        (TmVar x _ ScopeCtor) ->
-          let etas = ctorGetArgs x tps
+        (TmVarG gv x [] tp) ->
+          let etas = getArgs x tps
               etas' = drop (length as') etas in
-          return (ctorEtaExpand x as' etas' end)
-          --return (joinApps (ctorEtaExpand x [] etas y) as' end')
+          return (etaExpand gv x as' etas' end)
+          --return (joinApps (etaExpand x [] etas y) as' end')
         _ -> return (joinApps hd' as' end')
 
 checkTermh g (UsCase tm cs) =

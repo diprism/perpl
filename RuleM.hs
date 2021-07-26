@@ -108,7 +108,7 @@ getCtorWeightsAll :: (Type -> [String]) -> [Ctor] -> Type -> [(String, PreWeight
 getCtorWeightsAll dom cs y =
   concat $ flip map cs $ \ (Ctor x as) ->
     flip map (getCtorWeights dom (Ctor x as) cs) $ \ (as', ws) ->
-      let as'' = map (\ (x, atp) -> (TmVar x atp ScopeLocal, atp)) (zip as' as) in
+      let as'' = map (\ (x, atp) -> (TmVarL x atp, atp)) (zip as' as) in
         (ctorFactorName x as'' y, ws)
 
 getCtorWeights :: (Type -> [String]) -> Ctor -> [Ctor] -> [([String], PreWeight)]
