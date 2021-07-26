@@ -102,7 +102,7 @@ joinLams tm = fst  . foldr
   (tm, getType tm)
 
 splitLams :: Term -> ([(Var, Type)], Term)
-splitLams (TmLam x tp tm) = let (ls, end) = splitLams tm in ((x, tp) : ls, end)
+splitLams (TmLam x tp tm tp') = let (ls, end) = splitLams tm in ((x, tp) : ls, end)
 
 
 toTermArgs :: [(Var, Type)] -> [(Term, Type)]
