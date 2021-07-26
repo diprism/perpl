@@ -3,6 +3,8 @@ import Exprs
 import Util
 import Show
 
+{- Naming conventions for internally-generated variables -}
+
 -- Naming convention for testing equality two terms of the same type
 typeFactorName :: Type -> String
 typeFactorName tp = "==" ++ show tp
@@ -21,11 +23,7 @@ ctorFactorName x as tp = internalFactorName (TmVarG DefVar x as tp)
 ctorFactorNameDefault :: Var -> [Type] -> Type -> String
 ctorFactorNameDefault x as = ctorFactorName x (map (\ (i, a) -> (TmVarL (etaName x i) a, a)) (enumerate as))
 
--- Establishes naming convention for eta-expanding a constructor.
--- So Cons h t -> (\ ?Cons0. \ ?Cons1. Cons ?Cons0 ?Cons1) h t.
--- This is necessary so that the FGG can use one rule for each
--- constructor, and not for each usage of it in the code.
--- It also fixes the issue of partially-applied constructors.
+-- Establishes naming convention for eta-expanding a constructor/global def.
 etaName :: Var -> Int -> Var
 etaName x i = "?" ++ x ++ show i
 
