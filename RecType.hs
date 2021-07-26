@@ -124,7 +124,7 @@ instance Monad DisentangleM where
   DisentangleM a cs >>= f = let DisentangleM b cs' = f a in -}
 
 -- N.B. state list is in reverse order
-type DisentangleResult = (FreeVars, Var, Type, [Case], Type)
+type DisentangleResult = (Map.Map Var Type, Var, Type, [Case], Type)
 type DisentangleState = [DisentangleResult]
 type DisentangleM a = State.State DisentangleState a
 

@@ -1,4 +1,5 @@
 module Main where
+import System.Exit
 import Exprs
 import Ctxt
 import Parse
@@ -7,7 +8,8 @@ import Compile
 import Util
 import RecType
 import Free
-import System.Exit
+import Rename
+import AffLin
 
 postprocess :: (Ctxt -> Progs -> a) -> Progs -> a
 postprocess f ps = f (ctxtDefProgs ps) ps
