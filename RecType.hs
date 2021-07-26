@@ -93,7 +93,7 @@ computeRefun g f y = h where
       let fvs = Map.toList (freeVars' (TmCase tm tp1 cs tp2))
           ptp = joinArrows (map snd fvs) tp2 in
         Just (joinApps (TmVar f ptp ScopeGlobal) (toTermArgs fvs) tp2,
-              ProgFun f ptp (addLams (TmCase tm tp1 cs tp2) fvs))
+              ProgFun f ptp (joinLams (TmCase tm tp1 cs tp2) fvs))
     | otherwise = error "TODO"
   h (TmSamp d tp) = Nothing -- TODO: what if tp == y?
   h (TmCtor x as tp) = error "TODO"
@@ -178,7 +178,7 @@ disentangleMake i (fvs, name, tp, cs, tp') =
   let tname = applyTargetName i
       as = (tname, tp) : Map.toList fvs
       rtp = joinArrows (map snd as) tp
-      rtm = addLams (TmCase (TmVarL tname tp) tp cs tp') as in
+      rtm = joinLams (TmCase (TmVarL tname tp) tp cs tp') as in
     ProgFun name rtp rtm
 
 disentangleProgs :: [Type] -> Progs -> DisentangleM Progs

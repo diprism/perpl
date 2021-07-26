@@ -95,11 +95,14 @@ splitUsApps = h [] where
   h as (UsApp tm1 tm2) = h (tm2 : as) tm1
   h as tm = (tm, as)
 
-addLams :: Term -> [(Var, Type)] -> Term
-addLams tm = fst  . foldr
+joinLams :: Term -> [(Var, Type)] -> Term
+joinLams tm = fst  . foldr
   (\ (a, atp) (tm, tp) ->
     (TmLam a atp tm tp, TpArr atp tp))
   (tm, getType tm)
+
+splitLams :: Term -> ([(Var, Type)], Term)
+splitLams (TmLam x tp tm) = let (ls, end) = splitLams tm in ((x, tp) : ls, end)
 
 
 toTermArgs :: [(Var, Type)] -> [(Term, Type)]
