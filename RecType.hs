@@ -199,4 +199,5 @@ disentangleFile ps =
     fmap (map (\ (_, name, _, _, _) -> name))
          (disentangleRun recs disentangleProgs ps)
 
-
+elimRecTypes :: (Progs, [Var]) -> Either String Progs
+elimRecTypes (ps, apply_fs) = return ps

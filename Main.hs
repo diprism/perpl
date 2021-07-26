@@ -19,10 +19,12 @@ main :: IO ()
 main =
   getContents >>= \ s ->
   either die (\ a -> print a >> exitSuccess) $
-  parseFile s >>=
+  -- Pipeline
+           parseFile s       >>=
   return . alphaRenameUsFile >>=
-  checkFile >>=
-  return . disentangleFile >>= \ (ps, apply_fs) ->
-  return (aff2linFile ps) >>=
-  return . alphaRenameFile >>=
+           checkFile         >>=
+  return . disentangleFile   >>=
+           elimRecTypes      >>=
+  return . aff2linFile       >>=
+  return . alphaRenameFile   >>=
   return . file2fgg
