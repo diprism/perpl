@@ -205,14 +205,6 @@ parseOut m ts =
     else parseErr' (fst $ head $ drop (length ts - length ts' - 1) ts)
            "couldn't parse after this"
 
--- Parse a term
-parseTerm :: String -> Either String UsTm
-parseTerm s = lexStr s >>= parseOut parseTerm1
-
--- Parse a type
-parseType :: String -> Either String Type
-parseType s = lexStr s >>= parseOut parseType1
-
 -- Parse a whole program.
-parseFile :: String -> Either String UsProgs
-parseFile s = lexStr s >>= parseOut parseProg
+parseFile :: [(Pos, Token)] -> Either String UsProgs
+parseFile = parseOut parseProg

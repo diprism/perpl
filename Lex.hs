@@ -140,3 +140,5 @@ lexErr (line, col) = Left $ "Lex error at line " ++ show line ++ ", column " ++ 
 -- Lex a string.
 lexStr :: String -> Either String [(Pos, Token)]
 lexStr s = either lexErr (Right . reverse) $ lexStrh s (1, 0) []
+
+lexFile = lexStr
