@@ -20,11 +20,11 @@ main =
   getContents >>= \ s ->
   either die (\ a -> print a >> exitSuccess) $
   -- Pipeline
-           parseFile s       >>=
-  return . alphaRenameUsFile >>=
-           checkFile         >>=
-  return . disentangleFile   >>=
-           elimRecTypes      >>=
-  return . aff2linFile       >>=
-  return . alphaRenameFile   >>=
-  return . file2fgg
+  parseFile s       >>=
+  alphaRenameUsFile >>=
+  checkFile         >>=
+  disentangleFile   >>=
+  elimRecTypes      >>=
+  aff2linFile       >>=
+  alphaRenameFile   >>=
+  compileFile

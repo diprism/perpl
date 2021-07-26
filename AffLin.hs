@@ -140,7 +140,7 @@ aff2linProg g (ProgData y cs) =
   ProgData y (map (\ (Ctor x as) -> Ctor x (map aff2linTp as)) cs)
 
 -- Make an affine file linear
-aff2linFile :: Progs -> Progs
+aff2linFile :: Progs -> Either String Progs
 aff2linFile (Progs ps end) =
   let g = ctxtDefProgs (Progs ps end) in
-    Progs (map (aff2linProg g) ps) (aff2linTerm g end)
+    return (Progs (map (aff2linProg g) ps) (aff2linTerm g end))

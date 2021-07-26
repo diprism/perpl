@@ -144,9 +144,9 @@ alphaRename' :: Ctxt -> RenameM a -> a
 alphaRename' g (RenameM f) = fst $ f $ Map.mapWithKey const g
 
 -- Alpha-rename a raw file
-alphaRenameUsFile :: UsProgs -> UsProgs
-alphaRenameUsFile ps = alphaRename' (ctxtDefUsProgs ps) (renameUsProgs ps)
+alphaRenameUsFile :: UsProgs -> Either String UsProgs
+alphaRenameUsFile ps = return (alphaRename' (ctxtDefUsProgs ps) (renameUsProgs ps))
 
 -- Alpha-rename an elaborated file
-alphaRenameFile :: Progs -> Progs
-alphaRenameFile ps = alphaRename' (ctxtDefProgs ps) (renameProgs ps)
+alphaRenameFile :: Progs -> Either String Progs
+alphaRenameFile ps = return (alphaRename' (ctxtDefProgs ps) (renameProgs ps))

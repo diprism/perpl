@@ -192,12 +192,12 @@ disentangleProgs recs p =
 disentangleRun :: [Type] -> ([Type] -> a -> DisentangleM a) -> a -> (a, DisentangleState)
 disentangleRun recs f a = fmap reverse (State.runState (f recs a) [])
 
-disentangleFile :: Progs -> (Progs, [Var])
+disentangleFile :: Progs -> Either String (Progs, [Var])
 disentangleFile ps =
   let g = ctxtDefProgs ps
       recs = map TpVar (getRecTypes g ps) in
-    fmap (map (\ (_, name, _, _, _) -> name))
-         (disentangleRun recs disentangleProgs ps)
+    return (fmap (map (\ (_, name, _, _, _) -> name))
+            (disentangleRun recs disentangleProgs ps))
 
 elimRecTypes :: (Progs, [Var]) -> Either String Progs
 elimRecTypes (ps, apply_fs) = return ps
