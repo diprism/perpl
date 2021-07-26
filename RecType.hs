@@ -5,6 +5,7 @@ import Exprs
 import Util
 import Free
 import Ctxt
+import Name
 
 
 isRecType' :: Ctxt -> Var -> [Type] -> Bool
@@ -31,14 +32,14 @@ isRecType g (TpVar y) = isRecDatatype g y
 isRecType g _ = False
 
 getRecTypes' :: Ctxt -> [Prog] -> [Var]
-getRecTypes' g (ProgData y cs : ps) =
-  if isRecDatatype g y then y : getRecTypes' g ps else getRecTypes' g ps
-getRecTypes' g (ProgFun x tp tm : ps) = getRecTypes' g ps
-getRecTypes' g (ProgExtern x xp tp : ps) = getRecTypes' g ps
+getRecTypes' g (ProgData y cs : ds) =
+  if isRecDatatype g y then y : getRecTypes' g ds else getRecTypes' g ds
+getRecTypes' g (ProgFun x ps tm tp : ds) = getRecTypes' g ds
+getRecTypes' g (ProgExtern x xp ps tp : ds) = getRecTypes' g ds
 getRecTypes' g [] = []
 
 getRecTypes :: Ctxt -> Progs -> [Var]
-getRecTypes g (Progs ps end) = getRecTypes' g ps
+getRecTypes g (Progs ds end) = getRecTypes' g ds
 
 
 
@@ -93,7 +94,7 @@ computeRefun g f y = h where
       let fvs = Map.toList (freeVars' (TmCase tm tp1 cs tp2))
           ptp = joinArrows (map snd fvs) tp2 in
         Just (joinApps (TmVar f ptp ScopeGlobal) (toTermArgs fvs) tp2,
-              ProgFun f ptp (joinLams (TmCase tm tp1 cs tp2) fvs))
+              ProgFun f ptp (joinLams fvs (TmCase tm tp1 cs tp2)))
     | otherwise = error "TODO"
   h (TmSamp d tp) = Nothing -- TODO: what if tp == y?
   h (TmCtor x as tp) = error "TODO"
@@ -162,10 +163,10 @@ disentangleTerm recs = h where
     pure (TmFold fuf) <*> h tm <*> pure tp
 
 disentangleProg :: [Type] -> Prog -> DisentangleM Prog
-disentangleProg recs (ProgFun x tp tm) =
-  pure (ProgFun x tp) <*> disentangleTerm recs tm
-disentangleProg recs (ProgExtern x xp tp) =
-  pure (ProgExtern x xp tp)
+disentangleProg recs (ProgFun x ps tm tp) =
+  pure (ProgFun x ps) <*> disentangleTerm recs tm <*> pure tp
+disentangleProg recs (ProgExtern x xp ps tp) =
+  pure (ProgExtern x xp ps tp)
 disentangleProg recs (ProgData y cs) =
   pure (ProgData y cs)
 
@@ -177,9 +178,8 @@ disentangleMake :: Int -> DisentangleResult -> Prog
 disentangleMake i (fvs, name, tp, cs, tp') =
   let tname = applyTargetName i
       as = (tname, tp) : Map.toList fvs
-      rtp = joinArrows (map snd as) tp
-      rtm = joinLams (TmCase (TmVarL tname tp) tp cs tp') as in
-    ProgFun name rtp rtm
+      rtm = TmCase (TmVarL tname tp) tp cs tp' in
+    ProgFun name as rtm tp
 
 disentangleProgs :: [Type] -> Progs -> DisentangleM Progs
 disentangleProgs recs p =

@@ -4,6 +4,7 @@ import qualified Data.Map as Map
 import Exprs
 import FGG
 import Util
+import Name
 
 -- RuleM monad-like datatype and funcions
 type External = (Var, Type)

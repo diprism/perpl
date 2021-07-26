@@ -3,6 +3,7 @@ import Ctxt
 import Free
 import Exprs
 import Util
+import Name
 
 --            (message, history)
 type ErrMsg = (String, [String])
@@ -85,7 +86,7 @@ checkTermh g (UsApp tm1 tm2) =
               etas' = drop (length as') etas in
           return (etaExpand gv x as' etas' end)
           --return (joinApps (etaExpand x [] etas y) as' end')
-        _ -> return (joinApps hd' as' end')
+        _ -> return (joinApps hd' as')
 
 checkTermh g (UsCase tm cs) =
   checkTerm g tm >>= \ (tm', tp) ->
@@ -174,12 +175,12 @@ checkProgs ds g (UsProgFun x tp tm ps) =
   ifErr (tp /= tp')
     ("Expected type of function '" ++ x ++ "' does not match computed type") >>
   checkProgs (x : ds) g ps >>= \ (Progs ps' end) ->
-  return (Progs (ProgFun x tp tm' : ps') end)
+  return (Progs (ProgFun x [] tm' tp : ps') end)
 
 checkProgs ds g (UsProgExtern x tp ps) =
   declErr x (ifBound ds x >> checkType g tp) >>
   checkProgs (x : ds) g ps >>= \ (Progs ps' end) ->
-  return (Progs (ProgExtern x "0" tp : ps') end)
+  return (Progs (ProgExtern x "0" [] tp : ps') end)
 
 checkProgs ds g (UsProgData x cs ps) =
   declErr x (ifBound ds x >> foldr (\ (Ctor x tps) r -> r >>= \ ds -> ifBound ds x >> foldr (\ tp r -> checkType g tp >> ifErr (hasArr tp) ("Constructor " ++ x ++ " has an arg with an arrow type, which is not allowed") >> r) okay tps >> return (x : ds)) (return (x : ds)) cs) >>= \ ds' ->

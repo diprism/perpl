@@ -132,8 +132,8 @@ renameUsProgs (UsProgExtern x tp ps) = pure (UsProgExtern x) <*> renameType tp <
 renameUsProgs (UsProgData y cs ps) = pure (UsProgData y) <*> mapM renameCtor cs <*> renameUsProgs ps
 
 renameProg :: Prog -> RenameM Prog
-renameProg (ProgFun x tp tm) = pure (ProgFun x) <*> renameType tp <*> renameTerm tm
-renameProg (ProgExtern x xp tp) = pure (ProgExtern x) <*> (bindVar xp $ newVar xp) <*> renameType tp
+renameProg (ProgFun x ps tm tp) = bindVars (map fst ps) $ pure (ProgFun x) <*> mapM (renameArg newVar) ps <*> renameTerm tm <*> renameType tp
+renameProg (ProgExtern x xp ps tp) = pure (ProgExtern x) <*> (bindVar xp $ newVar xp) <*> mapM renameType ps <*> renameType tp
 renameProg (ProgData y cs) = pure (ProgData y) <*> mapM renameCtor cs
 
 renameProgs :: Progs -> RenameM Progs

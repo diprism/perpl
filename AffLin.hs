@@ -1,9 +1,10 @@
 module AffLin where
+import qualified Data.Map as Map
+import Data.List
 import Exprs
 import Ctxt
 import Util
-import qualified Data.Map as Map
-import Data.List
+import Name
 
 
 {- ====== Affine to Linear Functions ====== -}
@@ -65,7 +66,6 @@ aff2linh g (TmVarG gv x as y) =
   let (as', fvss) = unzip $ flip map as $
         \ (tm, tp) -> let (tm', xs) = aff2linh g tm in ((tm', aff2linTp tp), xs) in
   (TmVarG gv x as' y, Map.unions fvss)
-  -- TODO: need to eta-expand global defs to have all arrows? And don't maybe-ify those lams? So that aff2lin on it doesn't convert those lams
 aff2linh g (TmLam x tp tm tp') =
   let ltp = aff2linTp tp
       ltp' = aff2linTp tp'
@@ -111,18 +111,31 @@ aff2linh g (TmFold fuf tm tp) =
 
 -- Makes an affine term linear
 aff2linTerm :: Ctxt -> Term -> Term
-aff2linTerm g tm =
-  let (tm', fvs) = aff2linh g tm in
+aff2linTerm g tm = fst (aff2linh g tm)
+{-  let (tm', fvs) = aff2linh g tm in
     if Map.null fvs
       then tm'
-      else error ("in aff2lin, remaining free vars: " ++ show (Map.keys fvs))
+      else error ("in aff2lin, remaining free vars: " ++ show (Map.keys fvs))-}
 
 -- Make an affine Prog linear
 aff2linProg :: Ctxt -> Prog -> Prog
-aff2linProg g (ProgFun x tp tm) =
-  ProgFun x (aff2linTp tp) (aff2linTerm g tm)
-aff2linProg g (ProgExtern x xp tp) =
-  ProgExtern x xp (aff2linTp tp)
+aff2linProg g (ProgFun x (_ : _) tm tp) = error "ProgFun should not have params before aff2lin"
+aff2linProg g (ProgExtern x xp (_ : _) tp) = error "ProgExtern should not have params before aff2lin"
+aff2linProg g (ProgFun x [] tm tp) =
+  let (as, endtp) = splitArrows tp
+      (ls, endtm) = splitLams tm
+      as' = map aff2linTp as
+      ls' = map (fmap aff2linTp) ls
+      etas = map (\ (i, atp) -> (etaName x i, atp)) (drop (length ls') (enumerate as'))
+      g' = foldl (\ g (x, tp) -> ctxtDefTerm g x tp) g ls'
+      endtm' = aff2linTerm g' endtm
+      endtp' = aff2linTp endtp -- This may not be necessary, but is future-proof
+  in
+    ProgFun x (ls' ++ etas) (joinApps endtm' (toTermArgs etas)) endtp'
+aff2linProg g (ProgExtern x xp [] tp) =
+  let (as, end) = splitArrows tp
+      as' = map aff2linTp as in
+    ProgExtern x xp as' end
 aff2linProg g (ProgData y cs) =
   ProgData y (map (\ (Ctor x as) -> Ctor x (map aff2linTp as)) cs)
 

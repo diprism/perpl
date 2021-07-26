@@ -1,6 +1,7 @@
 module Ctxt where
 import qualified Data.Map as Map
 import Exprs
+import Util
 
 data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
   deriving Eq
@@ -62,8 +63,8 @@ ctxtBinds :: Ctxt -> Var -> Bool
 ctxtBinds = flip Map.member
 
 ctxtDefProg :: Ctxt -> Prog -> Ctxt
-ctxtDefProg g (ProgFun x tp tm) = ctxtDefTerm g x tp
-ctxtDefProg g (ProgExtern x xp tp) = ctxtDefTerm g x tp
+ctxtDefProg g (ProgFun x ps tm tp) = ctxtDefTerm g x (joinArrows (map snd ps) tp)
+ctxtDefProg g (ProgExtern x xp ps tp) = ctxtDefTerm g x (joinArrows ps tp)
 ctxtDefProg g (ProgData y cs) = ctxtDeclType g y cs
 
 ctxtDefProgs :: Progs -> Ctxt

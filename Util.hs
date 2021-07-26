@@ -57,108 +57,14 @@ getType (TmSamp d tp) = tp
 getType (TmFold fuf tm tp) = tp
 
 hasArr :: Type -> Bool
-hasArr (TpVar x) = False -- assuming datatype x can't have arrows either
+hasArr (TpVar x) = False -- assuming datatype x can't have arrows
 hasArr (TpArr tp1 tp2) = True
 hasArr (TpMaybe tp) = hasArr tp
 hasArr TpBool = False
 
--- Splits tp1 -> tp2 -> ... -> tpn into ([tp1, tp2, ...], tpn)
-splitArrows :: Type -> ([Type], Type)
-splitArrows (TpArr tp1 tp2) = let (tps, end) = splitArrows tp2 in (tp1 : tps, end)
-splitArrows tp = ([], tp)
-
--- Joins ([tp1, tp2, ...], tpn) into tp1 -> tp2 -> ... -> tpn
-joinArrows :: [Type] -> Type -> Type
-joinArrows tps end = foldr TpArr end tps
-
--- Splits a series of TmApps into the head term and its args
-splitApps :: Term -> ((Term, Type), [(Term, Type)])
-splitApps tm = splitAppsh tm (error "splitApps expects a TmApp")
-  where
-    splitAppsh :: Term -> Type -> ((Term, Type), [(Term, Type)])
-    splitAppsh (TmApp tm1 tm2 tp2 tp) tp' =
-      let (hd, as) = splitAppsh tm1 tp in
-        (hd, as ++ [(tm2, tp2)])
-    splitAppsh tm tp = ((tm, tp), [])
-
-joinApps :: Term -> [(Term, Type)] -> Type -> Term
-joinApps tm as end =
-  let tps = foldr (\ (_, atp) (atp' : atps) -> TpArr atp atp' : atp' : atps) [end] as in
-    h tm as (tail tps)
-  where
-  h :: Term -> [(Term, Type)] -> [Type] -> Term
-  h tm [] [] = tm
-  h tm ((a, atp) : as) (tp : tps) = h (TmApp tm a atp tp) as tps
-
-splitUsApps :: UsTm -> (UsTm, [UsTm])
-splitUsApps = h [] where
-  h as (UsApp tm1 tm2) = h (tm2 : as) tm1
-  h as tm = (tm, as)
-
-joinLams :: Term -> [(Var, Type)] -> Term
-joinLams tm = fst  . foldr
-  (\ (a, atp) (tm, tp) ->
-    (TmLam a atp tm tp, TpArr atp tp))
-  (tm, getType tm)
-
-splitLams :: Term -> ([(Var, Type)], Term)
-splitLams (TmLam x tp tm tp') = let (ls, end) = splitLams tm in ((x, tp) : ls, end)
-
-
-toTermArgs :: [(Var, Type)] -> [(Term, Type)]
-toTermArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
-
--- Naming convention for testing equality two terms of the same type
-typeFactorName :: Type -> String
-typeFactorName tp = "==" ++ show tp
-
--- Naming convention for factor v=(v1,v2)
-pairFactorName :: Type -> Type -> String
-pairFactorName tp1 tp2 = "v=(" ++ show (TpArr tp1 tp2) ++ ")"
-
-internalFactorName :: Term -> String
-internalFactorName tm = "v=" ++ show tm
-
--- Naming convention for constructor factor
-ctorFactorName :: Var -> [(Term, Type)] -> Type -> String
-ctorFactorName x as tp = internalFactorName (TmVarG DefVar x as tp)
-
-ctorFactorNameDefault :: Var -> [Type] -> Type -> String
-ctorFactorNameDefault x as = ctorFactorName x (map (\ (i, a) -> (TmVarL (etaName x i) a, a)) (enumerate as))
-
--- Establishes naming convention for eta-expanding a constructor.
--- So Cons h t -> (\ ?Cons0. \ ?Cons1. Cons ?Cons0 ?Cons1) h t.
--- This is necessary so that the FGG can use one rule for each
--- constructor, and not for each usage of it in the code.
--- It also fixes the issue of partially-applied constructors.
-etaName :: Var -> Int -> Var
-etaName x i = "?" ++ x ++ show i
-
-aff2linName :: Var -> Var
-aff2linName x = '%' : x
-
--- Returns the names of the args for a constructor
-getArgs :: Var -> [Type] -> [(Var, Type)]
-getArgs x tps =
-  zip (map (etaName x) [0..length tps - 1]) tps
-
 foldIf :: GlobalVar -> Term -> Type -> Term
 foldIf CtorVar = TmFold True
 foldIf DefVar = const
-
--- Turns a constructor into one with all its args applied
-addArgs :: GlobalVar -> Var -> [(Term, Type)] -> [(Var, Type)] -> Type -> Term
-addArgs gv x tas vas y =
-  foldIf gv (TmVarG gv x (tas ++ map (\ (a, atp) -> (TmVarL a atp, atp)) vas) y) y
-
--- Eta-expands a constructor with the necessary extra args
-etaExpand :: GlobalVar -> Var -> [(Term, Type)] -> [(Var, Type)] -> Type -> Term
-etaExpand gv x tas vas y =
-  foldr (\ (a, atp) tm -> TmLam a atp tm (getType tm))
-    (addArgs gv x tas vas y) vas
-
-ctorDefault :: Var -> [Type] -> Type -> Term
-ctorDefault x as y = TmVarG CtorVar x (map (\ (a, atp) -> (TmVarL a atp, atp)) (getArgs x as)) y
 
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
 sortCases ctors cases = map snd $ sortBy (\ (a, _) (b, _) -> compare a b) (label cases) where
@@ -170,8 +76,59 @@ sortCases ctors cases = map snd $ sortBy (\ (a, _) (b, _) -> compare a b) (label
 
   label = map $ \ (CaseUs x as tm) -> (getIdx 0 x ctors, CaseUs x as tm)
 
-applyName :: Int -> Var
-applyName i = "%apply%" ++ show i
 
-applyTargetName :: Int -> Var
-applyTargetName i = "%unfold%" ++ show i
+-- Splits tp1 -> tp2 -> ... -> tpn into ([tp1, tp2, ...], tpn)
+splitArrows :: Type -> ([Type], Type)
+splitArrows (TpArr tp1 tp2) = let (tps, end) = splitArrows tp2 in (tp1 : tps, end)
+splitArrows tp = ([], tp)
+
+-- Joins ([tp1, tp2, ...], tpn) into tp1 -> tp2 -> ... -> tpn
+joinArrows :: [Type] -> Type -> Type
+joinArrows tps end = foldr TpArr end tps
+
+-- Splits tm1 tm2 tm3 ... tmn into (tm1, [(tm2, tp2), (tm3, tp3), ..., (tmn, tpn)])
+splitApps :: Term -> (Term, [(Term, Type)])
+splitApps = splitAppsh []
+  where
+    splitAppsh :: [(Term, Type)] -> Term -> (Term, [(Term, Type)])
+    splitAppsh acc (TmApp tm1 tm2 tp2 tp) =
+      splitAppsh ((tm2, tp2) : acc) tm1
+    splitAppsh acc tm = (tm, reverse acc)
+
+joinApps :: Term -> [(Term, Type)] -> Term
+joinApps tm as =
+  let tps = foldr (\ (_, atp) (atp' : atps) -> TpArr atp atp' : atp' : atps) [getType tm] as in
+    h tm as (tail tps)
+  where
+  h :: Term -> [(Term, Type)] -> [Type] -> Term
+  h tm [] [] = tm
+  h tm ((a, atp) : as) (tp : tps) = h (TmApp tm a atp tp) as tps
+
+splitUsApps :: UsTm -> (UsTm, [UsTm])
+splitUsApps = h [] where
+  h as (UsApp tm1 tm2) = h (tm2 : as) tm1
+  h as tm = (tm, as)
+
+joinLams :: [(Var, Type)] -> Term -> Term
+joinLams as tm = fst $ foldr
+  (\ (a, atp) (tm, tp) ->
+    (TmLam a atp tm tp, TpArr atp tp))
+  (tm, getType tm) as
+
+splitLams :: Term -> ([(Var, Type)], Term)
+splitLams (TmLam x tp tm tp') = let (ls, end) = splitLams tm in ((x, tp) : ls, end)
+splitLams tm = ([], tm)
+
+toTermArgs :: [(Var, Type)] -> [(Term, Type)]
+toTermArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
+
+-- Turns a constructor into one with all its args applied
+addArgs :: GlobalVar -> Var -> [(Term, Type)] -> [(Var, Type)] -> Type -> Term
+addArgs gv x tas vas y =
+  foldIf gv (TmVarG gv x (tas ++ map (\ (a, atp) -> (TmVarL a atp, atp)) vas) y) y
+
+-- Eta-expands a constructor with the necessary extra args
+etaExpand :: GlobalVar -> Var -> [(Term, Type)] -> [(Var, Type)] -> Type -> Term
+etaExpand gv x tas vas y =
+  foldr (\ (a, atp) tm -> TmLam a atp tm (getType tm))
+    (addArgs gv x tas vas y) vas

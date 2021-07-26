@@ -4,6 +4,7 @@ import Data.List
 import Ctxt
 import Util
 import Exprs
+import Show
 
 {- ====== JSON Functions ====== -}
 

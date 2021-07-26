@@ -7,6 +7,8 @@ import Util
 import RuleM
 import Ctxt
 import Free
+import Name
+import Show
 
 -- Local var rule
 var2fgg :: Var -> Type -> RuleM
@@ -111,13 +113,18 @@ term2fgg g (TmVarL x tp) =
   addExt x tp
 term2fgg g (TmFold fuf tm tp) = term2fgg g tm -- TODO: this should cause error
 term2fgg g (TmVarG DefVar x as tp) =
-  error "TODO"
+  map (\ (a, atp) -> term2fgg g a) as +*>= \ xss ->
+  let (ns, [itp] : ias : ixss) = combineExts ([(" 0", tp)] : map (\ (i, (tm, tp)) -> (' ' : show (succ i), tp)) (enumerate as) : xss)
+      es = Edge (ias ++ [itp]) x : map (\ ((atm, atp), ia, ixs) -> Edge (ixs ++ [ia]) (show atm)) (zip3 as ias ixss)
+      xs = nub (concat ixss) ++ [itp]
+  in
+    addRule' (TmVarG DefVar x as tp) (map snd ns) es xs
 term2fgg g (TmVarG CtorVar x as y) =
   map (\ (a, atp) -> term2fgg g a) as +*>= \ xss ->
   let (ns, [iy] : ias : ixss) = combineExts ([(" 0", y)] : map (\ (i, (tm, tp)) -> (' ' : show (succ i), tp)) (enumerate as) : xss)
       es = Edge (ias ++ [iy]) (ctorFactorNameDefault x (map snd as) y) :
            map (\ (ixs, (a, _), itp) -> Edge (ixs ++ [itp]) (show a)) (zip3 ixss as ias)
-      xs = concat ixss ++ [iy]
+      xs = nub (concat ixss) ++ [iy]
       Just cs = ctxtLookupType' g y
       cix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0 in
   addRule' (TmVarG CtorVar x as y) (map snd ns) es xs
@@ -151,10 +158,10 @@ term2fgg g (TmLet x xtm xtp tm tp) =
 
 -- Adds the rules for a Prog
 prog2fgg :: Ctxt -> Prog -> RuleM
-prog2fgg g (ProgFun x tp tm) =
+prog2fgg g (ProgFun x ps tm tp) =
   -- TODO: args
   term2fgg g tm +> addRule' (TmVarG DefVar x [] tp) [tp] [Edge [0] (show tm)] [0]
-prog2fgg g (ProgExtern x xp tp) =
+prog2fgg g (ProgExtern x xp ps tp) =
   -- TODO: args
   let ws = ThisWeight (fmap (const 0) (vectorWeight (domainValues g tp))) in
   addRule' (TmVarG DefVar x [] tp) [tp] [Edge [0] xp] [0] +>
@@ -245,8 +252,8 @@ getPolyInstsType pis (TpMaybe tp) = piAppend tpMaybeName [tp] (getPolyInstsType 
 
 -- Retrives all instantiations of polymorphic types (e.g. Maybe [...]) in a Prog
 getPolyInstsProg :: Map.Map Var [[Type]] -> Prog -> Map.Map Var [[Type]]
-getPolyInstsProg pis (ProgFun x tp tm) = getPolyInstsTerm pis tm
-getPolyInstsProg pis (ProgExtern x xp tp) = getPolyInstsType pis tp
+getPolyInstsProg pis (ProgFun x ps tm tp) = foldl getPolyInstsType (getPolyInstsTerm pis tm) (map snd ps)
+getPolyInstsProg pis (ProgExtern x xp ps tp) = foldl getPolyInstsType (getPolyInstsType pis tp) ps
 getPolyInstsProg pis (ProgData y cs) = foldl (\ pis (Ctor x as) -> foldl getPolyInstsType pis as) pis cs
 
 getPolyInstsProgs :: Map.Map Var [[Type]] -> Progs -> Map.Map Var [[Type]]
