@@ -3,7 +3,6 @@ import Ctxt
 import Free
 import Exprs
 import Util
-import RecType
 
 --            (message, history)
 type ErrMsg = (String, [String])
@@ -163,45 +162,29 @@ checkCasesh g (ct : cts) (c : cs) tp =
   return (c' : cs')
 checkCasesh g _ _ tp = err "Incorrect number of cases"
 
-
--- Check and elaborate a program under a context
-checkProgs :: UsProgs -> Either ErrMsg Progs
-
-checkProgs' ds g (UsProgExec tm) =
+-- Check an elaborate a program under a context and a list of already-defined vars
+checkProgs :: [Var] -> Ctxt -> UsProgs -> Either ErrMsg Progs
+checkProgs ds g (UsProgExec tm) =
   checkTerm g tm >>= \ (tm', tp') ->
   return (Progs [] tm')
 
-checkProgs' ds g (UsProgFun x tp tm ps) =
+checkProgs ds g (UsProgFun x tp tm ps) =
   declErr x (ifBound ds x >> checkType g tp >> checkTerm g tm) >>= \ (tm', tp') ->
   ifErr (tp /= tp')
     ("Expected type of function '" ++ x ++ "' does not match computed type") >>
-  checkProgs' (x : ds) g ps >>= \ (Progs ps' end) ->
+  checkProgs (x : ds) g ps >>= \ (Progs ps' end) ->
   return (Progs (ProgFun x tp tm' : ps') end)
 
-checkProgs' ds g (UsProgExtern x tp ps) =
+checkProgs ds g (UsProgExtern x tp ps) =
   declErr x (ifBound ds x >> checkType g tp) >>
-  checkProgs' (x : ds) g ps >>= \ (Progs ps' end) ->
+  checkProgs (x : ds) g ps >>= \ (Progs ps' end) ->
   return (Progs (ProgExtern x "0" tp : ps') end)
 
-checkProgs' ds g (UsProgData x cs ps) =
+checkProgs ds g (UsProgData x cs ps) =
   declErr x (ifBound ds x >> foldr (\ (Ctor x tps) r -> r >>= \ ds -> ifBound ds x >> foldr (\ tp r -> checkType g tp >> ifErr (hasArr tp) ("Constructor " ++ x ++ " has an arg with an arrow type, which is not allowed") >> r) okay tps >> return (x : ds)) (return (x : ds)) cs) >>= \ ds' ->
-  checkProgs' ds' g ps >>= \ (Progs ps' end) ->
+  checkProgs ds' g ps >>= \ (Progs ps' end) ->
   return (Progs (ProgData x cs : ps') end)
 
-checkProgs ps =
-  let g = ctxtDefUsProgs ps in
-    checkProgs' [] g (alphaRenameUs g ps)
-
-postprocess :: (Ctxt -> Progs -> a) -> Progs -> a
-postprocess f ps = f (ctxtDefProgs ps) ps
-
--- Check a program, returning either an error message
--- or the elaborated program
-checkFile :: UsProgs -> Either String (Ctxt, Progs)
-checkFile ps =
-  pickErrHist $
-  checkProgs ps >>= \ ps2 ->
-  let (ps3, apply_fs) = postprocess disentangle ps2
-      ps4 = postprocess aff2lin ps3
-      ps5 = postprocess alphaRename ps4 in
-  return (ctxtDefProgs ps5, ps5)
+-- Check and elaborate a file
+checkFile :: UsProgs -> Either String Progs
+checkFile ps = pickErrHist (checkProgs [] (ctxtDefUsProgs ps) ps)

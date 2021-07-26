@@ -220,12 +220,12 @@ alphaRename' :: Ctxt -> RenameM a -> a
 alphaRename' g (RenameM f) = fst $ f $ Map.mapWithKey const g
 
 -- Alpha-rename a raw file
-alphaRenameUs :: Ctxt -> UsProgs -> UsProgs
-alphaRenameUs g = alphaRename' g . renameUsProgs
+alphaRenameUsFile :: UsProgs -> UsProgs
+alphaRenameUsFile ps = alphaRename' (ctxtDefUsProgs ps) (renameUsProgs ps)
 
 -- Alpha-rename an elaborated file
-alphaRename :: Ctxt -> Progs -> Progs
-alphaRename g = alphaRename' g . renameProgs
+alphaRenameFile :: Progs -> Progs
+alphaRenameFile ps = alphaRename' (ctxtDefProgs ps) (renameProgs ps)
 
 
 {- ====== Affine to Linear Functions ====== -}
@@ -349,8 +349,10 @@ aff2linProg g (ProgData y cs) =
   ProgData y (map (\ (Ctor x as) -> Ctor x (map aff2linTp as)) cs)
 
 -- Make an affine file linear
-aff2lin :: Ctxt -> Progs -> Progs
-aff2lin g (Progs ps end) = Progs (map (aff2linProg g) ps) (aff2linTerm g end)
+aff2linFile :: Progs -> Progs
+aff2linFile (Progs ps end) =
+  let g = ctxtDefProgs (Progs ps end) in
+    Progs (map (aff2linProg g) ps) (aff2linTerm g end)
 
 
 

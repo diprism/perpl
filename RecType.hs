@@ -136,6 +136,8 @@ disentangleTerm recs = h where
     pure (TmLam x tp) <*> h tm <*> pure tp'
   h (TmApp tm1 tm2 tp2 tp) =
     pure TmApp <*> h tm1 <*> h tm2 <*> pure tp2 <*> pure tp
+  h (TmLet x xtm xtp tm tp) =
+    pure (TmLet x) <*> h xtm <*> pure xtp <*> h tm <*> pure tp
   h (TmCase tm tp1 cs tp2)
     | tp1 `elem` recs =
       h tm >>= \ tm' ->
@@ -191,8 +193,9 @@ disentangleProgs recs p =
 disentangleRun :: [Type] -> ([Type] -> a -> DisentangleM a) -> a -> (a, DisentangleState)
 disentangleRun recs f a = fmap reverse (State.runState (f recs a) [])
 
-disentangle :: Ctxt -> Progs -> (Progs, [Var])
-disentangle g ps =
-  let recs = map TpVar (getRecTypes g ps) in
+disentangleFile :: Progs -> (Progs, [Var])
+disentangleFile ps =
+  let g = ctxtDefProgs ps
+      recs = map TpVar (getRecTypes g ps) in
     fmap (map (\ (_, name, _, _, _) -> name))
          (disentangleRun recs disentangleProgs ps)

@@ -209,8 +209,9 @@ addInternalFactors g ps =
              foldr (\ as rm' -> if len == length as then addFs g as +> rm' else error msg) rm tps) returnRule internals
 
 -- Converts an elaborated program into an FGG
-file2fgg :: Ctxt -> Progs -> FGG_JSON
-file2fgg g ps =
-  let Progs _ end = ps
+file2fgg :: Progs -> FGG_JSON
+file2fgg ps =
+  let g = ctxtDefProgs ps
+      Progs _ end = ps
       RuleM rs xs nts fs = addInternalFactors g ps +> progs2fgg g ps in
     rulesToFGG (domainValues g) (show end) (reverse rs) nts fs
