@@ -162,3 +162,9 @@ sortCases ctors cases = map snd $ sortBy (\ (a, _) (b, _) -> compare a b) (label
     | otherwise = getIdx (succ i) x cs
 
   label = map $ \ (CaseUs x as tm) -> (getIdx 0 x ctors, CaseUs x as tm)
+
+applyName :: Int -> Var
+applyName i = "%apply%" ++ show i
+
+applyTargetName :: Int -> Var
+applyTargetName i = "%unfold%" ++ show i

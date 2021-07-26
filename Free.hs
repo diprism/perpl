@@ -198,7 +198,7 @@ renameType TpBool = pure TpBool
 
 -- Alpha-rename a constructor definition
 renameCtor :: Ctor -> RenameM Ctor
-renameCtor (Ctor x tps) = pure (Ctor x) <*> foldr (\ tp tps' -> pure (:) <*> renameType tp <*> tps') (return []) tps
+renameCtor (Ctor x tps) = pure (Ctor x) <*> mapM renameType tps
 
 -- Alpha-rename an entire user-program
 renameUsProgs :: UsProgs -> RenameM UsProgs
@@ -332,12 +332,27 @@ aff2linh g (TmFold fuf tm tp) =
     (TmFold fuf tm' (aff2linTp tp), fvs)
 
 -- Makes an affine term linear
-aff2lin :: Ctxt -> Term -> Term
-aff2lin g tm =
+aff2linTerm :: Ctxt -> Term -> Term
+aff2linTerm g tm =
   let (tm', fvs) = aff2linh g tm in
     if Map.null fvs
       then tm'
       else error ("in aff2lin, remaining free vars: " ++ show (Map.keys fvs))
+
+-- Make an affine Prog linear
+aff2linProg :: Ctxt -> Prog -> Prog
+aff2linProg g (ProgFun x tp tm) =
+  ProgFun x (aff2linTp tp) (aff2linTerm g tm)
+aff2linProg g (ProgExtern x xp tp) =
+  ProgExtern x xp (aff2linTp tp)
+aff2linProg g (ProgData y cs) =
+  ProgData y (map (\ (Ctor x as) -> Ctor x (map aff2linTp as)) cs)
+
+-- Make an affine file linear
+aff2lin :: Ctxt -> Progs -> Progs
+aff2lin g (Progs ps end) = Progs (map (aff2linProg g) ps) (aff2linTerm g end)
+
+
 
 -- Records an instantiation of a polymorphic type
 piAppend :: Var -> [Type] -> Map.Map Var [[Type]] -> Map.Map Var [[Type]]

@@ -57,3 +57,20 @@ ctxtLookupType' g (TpMaybe tp) = Just (maybeCtors tp)
 -- Is this var bound in this context?
 ctxtBinds :: Ctxt -> Var -> Bool
 ctxtBinds = flip Map.member
+
+ctxtDefProg :: Ctxt -> Prog -> Ctxt
+ctxtDefProg g (ProgFun x tp tm) = ctxtDefTerm g x tp
+ctxtDefProg g (ProgExtern x xp tp) = ctxtDefTerm g x tp
+ctxtDefProg g (ProgData y cs) = ctxtDeclType g y cs
+
+ctxtDefProgs :: Progs -> Ctxt
+ctxtDefProgs (Progs ps end) = foldl ctxtDefProg emptyCtxt ps
+
+ctxtDefUsProgs' :: Ctxt -> UsProgs -> Ctxt
+ctxtDefUsProgs' g (UsProgFun x tp tm ps) = ctxtDefUsProgs' (ctxtDefTerm g x tp) ps
+ctxtDefUsProgs' g (UsProgExtern x tp ps) = ctxtDefUsProgs' (ctxtDefTerm g x tp) ps
+ctxtDefUsProgs' g (UsProgData y cs ps) = ctxtDefUsProgs' (ctxtDeclType g y cs) ps
+ctxtDefUsProgs' g (UsProgExec tm) = g
+
+ctxtDefUsProgs :: UsProgs -> Ctxt
+ctxtDefUsProgs = ctxtDefUsProgs' emptyCtxt
