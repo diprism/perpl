@@ -13,16 +13,16 @@ import Rename
 import AffLin
 
 --process :: Show a => String -> a
-processContents s =
-  lexFile s         >>=
-  parseFile         >>=
-  alphaRenameUsFile >>=
-  checkFile         >>=
-  disentangleFile   >>=
-  elimRecTypes      >>=
-  aff2linFile       >>=
-  alphaRenameFile   >>=
-  compileFile
+processContents s = return s
+  >>= lexFile           -- String to list of tokens
+  >>= parseFile         -- List of tokens to UsProgs
+  >>= alphaRenameUsFile -- Pick a unique name for each bound var
+  >>= checkFile         -- Type check the file
+  >>= disentangleFile   -- Abstract recursive case-ofs to their own functions
+  >>= elimRecTypes      -- Eliminate recursive types (de/refunctionalization)
+  >>= aff2linFile       -- Convert terms from affine to linear
+  >>= alphaRenameFile   -- Pick a unique name for each bound var (again)
+  >>= compileFile       -- Compile to FGG
 
 -- Parse a file, check and elaborate it, then compile to FGG and output it
 main :: IO ()
