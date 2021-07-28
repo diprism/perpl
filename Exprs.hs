@@ -13,6 +13,9 @@ data Ctor = Ctor Var [Type]
 
 type Var = String
 
+type Param = (Var, Type)
+type Arg = (Term, Type)
+
 data Dist =
     DistFail
   | DistUni
@@ -30,7 +33,7 @@ data GlobalVar = CtorVar | DefVar
 
 data Term =
     TmVarL Var Type -- Local var
-  | TmVarG GlobalVar Var [(Term, Type)] Type -- Global var
+  | TmVarG GlobalVar Var [Arg] Type -- Global var
   | TmLam Var Type Term Type
   | TmApp Term Term Type {- -> -} Type
   | TmLet Var Term Type Term Type
@@ -50,7 +53,7 @@ data Type =
 
 data CaseUs = CaseUs Var [Var] UsTm
 
-data Case = Case Var [(Var, Type)] Term
+data Case = Case Var [Param] Term
 
 tpMaybeName   = "%Maybe%"
 tpBoolName    = "%Bool%"

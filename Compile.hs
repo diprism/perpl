@@ -18,7 +18,7 @@ var2fgg x tp =
   addRule' (TmVarL x tp) [tp, tp] [Edge [0, 1] fac] [0, 1]
 
 -- Bind a list of external nodes, and add rules for them
-bindExts :: Bool -> [(Var, Type)] -> RuleM -> RuleM
+bindExts :: Bool -> [Param] -> RuleM -> RuleM
 bindExts addVarRules xs' (RuleM rs xs nts fs) =
   let keep = not . flip elem (map fst xs') . fst
       rm = RuleM rs (filter keep xs) nts fs in
@@ -60,7 +60,7 @@ ctorRules g (Ctor x as) y cs =
   let ix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0
       as' = map (\ (i, a) -> (etaName x i, a)) (enumerate as) -- zip (map (etaName x) [0..length as - 1]) as
       (ns, [ias, [iy]]) = combineExts [as', [(" 0", y)]]
-      fac = ctorFactorName x (toTermArgs as') y
+      fac = ctorFactorName x (paramsToArgs as') y
       es = [Edge (ias ++ [iy]) fac]
       xs = ias ++ [iy]
       tm = TmVarG CtorVar x (map (\ (a, atp) -> (TmVarL a atp, atp)) as') y in
@@ -76,14 +76,14 @@ ctorsRules g cs y =
   addFactor (typeFactorName y) (getCtorEqWeights (domainSize g y))
 
 -- Add a rule for this particular case in a case-of statement
-caseRule :: Ctxt -> [(Var, Type)] -> Term -> Case -> RuleM
+caseRule :: Ctxt -> [Param] -> Term -> Case -> RuleM
 caseRule g xs_ctm (TmCase ctm y cs tp) (Case x as xtm) =
   --(\ _ -> error (show (Case x as xtm) ++ ", " ++ show tp)) $
   let g' = ctxtDeclArgs g as in
   --bindExts True as (term2fgg g' xtm) +>= \ xs_xtm ->
   bindExts True as $
   term2fgg g' xtm +>= \ xs_xtm_as ->
-  let fac = ctorFactorName x (toTermArgs (getArgs x (map snd as))) y
+  let fac = ctorFactorName x (paramsToArgs (nameParams x (map snd as))) y
       (ns, [[ictm, ixtm], ixs_xtm_as, ixs_ctm]) =
         combineExts [[(" 0", y), (" 1", tp)], xs_xtm_as, xs_ctm]
       (ixs_xtm, ixs_as) = foldr (\ (a, i) (ixs_xtm, ixs_as) -> if elem (fst a) (map fst as) then (ixs_xtm, i : ixs_as) else (i : ixs_xtm, ixs_as)) ([], []) (zip xs_xtm_as ixs_xtm_as)

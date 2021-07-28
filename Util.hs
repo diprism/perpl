@@ -88,21 +88,21 @@ joinArrows :: [Type] -> Type -> Type
 joinArrows tps end = foldr TpArr end tps
 
 -- Splits tm1 tm2 tm3 ... tmn into (tm1, [(tm2, tp2), (tm3, tp3), ..., (tmn, tpn)])
-splitApps :: Term -> (Term, [(Term, Type)])
+splitApps :: Term -> (Term, [Arg])
 splitApps = splitAppsh []
   where
-    splitAppsh :: [(Term, Type)] -> Term -> (Term, [(Term, Type)])
+    splitAppsh :: [Arg] -> Term -> (Term, [Arg])
     splitAppsh acc (TmApp tm1 tm2 tp2 tp) =
       splitAppsh ((tm2, tp2) : acc) tm1
     splitAppsh acc tm = (tm, reverse acc)
 
 joinApps' :: Term -> [Term] -> Term
 joinApps' tm as = fst (h as) where
-  h :: [Term] -> (Term, Type)
+  h :: [Term] -> Arg
   h [] = (tm, getType tm)
   h (a : as) = let (tm', TpArr tp1 tp2) = h as in (TmApp tm' a tp1 tp2, tp2)
 
-joinApps :: Term -> [(Term, Type)] -> Term
+joinApps :: Term -> [Arg] -> Term
 joinApps tm as = joinApps' tm (map fst as)
 
 splitUsApps :: UsTm -> (UsTm, [UsTm])
@@ -110,26 +110,26 @@ splitUsApps = h [] where
   h as (UsApp tm1 tm2) = h (tm2 : as) tm1
   h as tm = (tm, as)
 
-joinLams :: [(Var, Type)] -> Term -> Term
+joinLams :: [Param] -> Term -> Term
 joinLams as tm = fst $ foldr
   (\ (a, atp) (tm, tp) ->
     (TmLam a atp tm tp, TpArr atp tp))
   (tm, getType tm) as
 
-splitLams :: Term -> ([(Var, Type)], Term)
+splitLams :: Term -> ([Param], Term)
 splitLams (TmLam x tp tm tp') = let (ls, end) = splitLams tm in ((x, tp) : ls, end)
 splitLams tm = ([], tm)
 
-toTermArgs :: [(Var, Type)] -> [(Term, Type)]
-toTermArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
+paramsToArgs :: [Param] -> [Arg]
+paramsToArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
 
 -- Turns a constructor into one with all its args applied
-addArgs :: GlobalVar -> Var -> [(Term, Type)] -> [(Var, Type)] -> Type -> Term
+addArgs :: GlobalVar -> Var -> [Arg] -> [Param] -> Type -> Term
 addArgs gv x tas vas y =
   foldIf gv (TmVarG gv x (tas ++ map (\ (a, atp) -> (TmVarL a atp, atp)) vas) y) y
 
 -- Eta-expands a constructor with the necessary extra args
-etaExpand :: GlobalVar -> Var -> [(Term, Type)] -> [(Var, Type)] -> Type -> Term
+etaExpand :: GlobalVar -> Var -> [Arg] -> [Param] -> Type -> Term
 etaExpand gv x tas vas y =
   foldr (\ (a, atp) tm -> TmLam a atp tm (getType tm))
     (addArgs gv x tas vas y) vas

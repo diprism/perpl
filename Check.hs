@@ -48,7 +48,7 @@ checkTermVar eta g (UsVar x) = maybe2 (ctxtLookupTerm g x)
     (_, ScopeLocal) -> return (TmVarL x tp)
     (True, sc) ->
       let (tps, TpVar y) = splitArrows tp in
-        return (etaExpand (if sc == ScopeGlobal then DefVar else CtorVar) x [] (getArgs x tps) (TpVar y))
+        return (etaExpand (if sc == ScopeGlobal then DefVar else CtorVar) x [] (nameParams x tps) (TpVar y))
     (False, sc) -> return (TmVarG (if sc == ScopeGlobal then DefVar else CtorVar) x [] tp)
 checkTermVar eta g tm = checkTermh g tm
 
@@ -82,7 +82,7 @@ checkTermh g (UsApp tm1 tm2) =
       sequence (map (\ ((a, atp), tp) -> ifErr (atp /= tp) (expVsActTpMsg tp atp)) (zip as' tps')) >>
       case hd' of
         (TmVarG gv x [] tp) ->
-          let etas = getArgs x tps
+          let etas = nameParams x tps
               etas' = drop (length as') etas in
           return (etaExpand gv x as' etas' end)
           --return (joinApps (etaExpand x [] etas y) as' end')

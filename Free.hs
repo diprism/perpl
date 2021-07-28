@@ -37,7 +37,7 @@ freeVars' (TmVarG gv x as tp) = Map.unions (map (freeVars' . fst) as)
 freeVars' (TmLam x tp tm tp') = Map.delete x $ freeVars' tm
 freeVars' (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars' tm1) (freeVars' tm2)
 freeVars' (TmLet x xtm xtp tm tp) = Map.union (freeVars' xtm) (Map.delete x (freeVars' tm))
-freeVars' (TmCase tm tp cs tp') = foldr (Map.union . freeVarsCase') (freeVars' tm) cs
+freeVars' (TmCase tm tp cs tp') = Map.union (freeVars' tm) (freeVarsCases' cs)
 freeVars' (TmSamp d tp) = Map.empty
 freeVars' (TmFold fuf tm tp) = freeVars' tm
 
@@ -46,6 +46,9 @@ freeVarsCase (CaseUs c xs tm) = foldr Map.delete (freeVars tm) xs
 
 freeVarsCase' :: Case -> Map.Map Var Type
 freeVarsCase' (Case c as tm) = foldr (Map.delete . fst) (freeVars' tm) as
+
+freeVarsCases' :: [Case] -> Map.Map Var Type
+freeVarsCases' = foldr (Map.union . freeVarsCase') Map.empty
 
 
 -- Returns the (max) number of occurrences of x in tm

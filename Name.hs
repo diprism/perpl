@@ -31,12 +31,12 @@ aff2linName :: Var -> Var
 aff2linName x = '%' : x
 
 -- Returns the names of the args for a constructor
-getArgs :: Var -> [Type] -> [(Var, Type)]
-getArgs x tps =
+nameParams :: Var -> [Type] -> [Param]
+nameParams x tps =
   zip (map (etaName x) [0..length tps - 1]) tps
 
 ctorDefault :: Var -> [Type] -> Type -> Term
-ctorDefault x as y = TmVarG CtorVar x (map (\ (a, atp) -> (TmVarL a atp, atp)) (getArgs x as)) y
+ctorDefault x as y = TmVarG CtorVar x (map (\ (a, atp) -> (TmVarL a atp, atp)) (nameParams x as)) y
 
 applyName :: Int -> Var
 applyName i = "%apply%" ++ show i

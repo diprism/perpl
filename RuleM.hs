@@ -30,7 +30,7 @@ rs +*>= rf =
     r +> rf xss
 
 -- Add a list of external nodes
-addExts :: [(Var, Type)] -> RuleM
+addExts :: [External] -> RuleM
 addExts xs = RuleM [] xs [] []
 
 -- Add a single external node

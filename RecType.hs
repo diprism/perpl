@@ -69,7 +69,7 @@ disentangleTerm recs = h where
           fvs' = Map.toList fvs
           --ptp = joinArrows (map snd fvs') tp2
           name = applyName (length unfolds)
-          rtm = TmVarG DefVar name ((tm', tp1) : toTermArgs fvs') tp2 in
+          rtm = TmVarG DefVar name ((tm', tp1) : paramsToArgs fvs') tp2 in
         State.put ((fvs, name, tp1, cs', tp2) : unfolds) >>
         pure rtm
     | otherwise =

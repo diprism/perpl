@@ -26,7 +26,7 @@ discard g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
   $ \ cs ->
       TmCase (TmVarL x (TpVar y)) (TpVar y)
         (map (\ (Ctor x' as) ->
-                let as' = getArgs x' as in
+                let as' = nameParams x' as in
                   Case x' as' (foldr (uncurry $ discard g) tm as'))
           cs) (getType tm)
 discard g x (TpMaybe tp) tm =
@@ -131,7 +131,7 @@ aff2linProg g (ProgFun x [] tm tp) =
       endtm' = aff2linTerm g' endtm
       endtp' = aff2linTp endtp -- This may not be necessary, but is future-proof
   in
-    ProgFun x (ls' ++ etas) (joinApps endtm' (toTermArgs etas)) endtp'
+    ProgFun x (ls' ++ etas) (joinApps endtm' (paramsToArgs etas)) endtp'
 aff2linProg g (ProgExtern x xp [] tp) =
   let (as, end) = splitArrows tp
       as' = map aff2linTp as in
