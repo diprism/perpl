@@ -133,3 +133,25 @@ etaExpand :: GlobalVar -> Var -> [Arg] -> [Param] -> Type -> Term
 etaExpand gv x tas vas y =
   foldr (\ (a, atp) tm -> TmLam a atp tm (getType tm))
     (addArgs gv x tas vas y) vas
+
+-- Maps over the terms in a list of args
+mapArgsM :: Monad m => (Term -> m Term) -> [Arg] -> m [Arg]
+mapArgsM f = mapM $ \ (atm, atp) -> pure (,) <*> f atm <*> pure atp
+
+-- Maps over the terms in a list of cases
+mapCasesM :: Monad m => ([Param] -> Term -> m Term) -> [Case] -> m [Case]
+mapCasesM f = mapM $ \ (Case x ps tm) -> pure (Case x ps) <*> f ps tm
+
+-- Maps over the terms in a Prog
+mapProgM :: Monad m => (Term -> m Term) -> Prog -> m Prog
+mapProgM f (ProgFun x ps tm tp) =
+  pure (ProgFun x ps) <*> f tm <*> pure tp
+mapProgM mtm (ProgExtern x xp ps tp) =
+  pure (ProgExtern x xp ps tp)
+mapProgM mtm (ProgData y cs) =
+  pure (ProgData y cs)
+
+-- Maps over the terms in Progs
+mapProgsM :: Monad m => (Term -> m Term) -> Progs -> m Progs
+mapProgsM f (Progs ps end) =
+  pure Progs <*> mapM (mapProgM f) ps <*> f end

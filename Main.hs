@@ -18,7 +18,6 @@ processContents s = return s
   >>= parseFile         -- List of tokens to UsProgs
   >>= alphaRenameUsFile -- Pick a unique name for each bound var
   >>= checkFile         -- Type check the file
-  >>= disentangleFile   -- Abstract recursive case-ofs to their own functions
   >>= elimRecTypes      -- Eliminate recursive types (de/refunctionalization)
   >>= aff2linFile       -- Convert terms from affine to linear
   >>= alphaRenameFile   -- Pick a unique name for each bound var (again)
