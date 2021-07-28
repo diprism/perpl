@@ -110,7 +110,7 @@ renameTerm :: Term -> RenameM Term
 renameTerm (TmVarL x tp) =
   pure TmVarL <*> getVar x <*> renameType tp
 renameTerm (TmVarG gv x as y) =
-  pure (TmVarG gv) <*> getVar x <*> mapM (renameArg renameTerm) as <*> renameType y
+  pure (TmVarG gv) <*> getVar x <*> renameArgs as <*> renameType y
 renameTerm (TmLam x tp tm tp') =
   bindVar x (pure (flip TmLam) <*> renameType tp <*> newVar x <*> renameTerm tm) <*> renameType tp'
 renameTerm (TmApp tm1 tm2 tp2 tp) =
@@ -125,13 +125,15 @@ renameTerm (TmFold fuf tm tp) =
   pure (TmFold fuf) <*> renameTerm tm <*> renameType tp
 
 -- Alpha-rename an arg, given a function that alpha-renames its value
-renameArg :: (a -> RenameM a) -> (a, Type) -> RenameM (a, Type)
-renameArg f (a, atp) = pure (,) <*> f a <*> renameType atp
+renameArg' :: (a -> RenameM a) -> (a, Type) -> RenameM (a, Type)
+renameArg' f (a, atp) = pure (,) <*> f a <*> renameType atp
+renameArgs = mapM (renameArg' renameTerm)
+renameParams = mapM (renameArg' newVar)
 
 -- Alpha-rename a case
 renameCase :: Case -> RenameM Case
 renameCase (Case x as tm) =
-  bindVars (map fst as) $ pure Case <*> getVar x <*> mapM (renameArg newVar) as <*> renameTerm tm
+  bindVars (map fst as) $ pure Case <*> getVar x <*> renameParams as <*> renameTerm tm
 
 -- Alpha-rename a user-case
 renameCaseUs :: CaseUs -> RenameM CaseUs
@@ -157,7 +159,7 @@ renameUsProgs (UsProgExtern x tp ps) = pure (UsProgExtern x) <*> renameType tp <
 renameUsProgs (UsProgData y cs ps) = pure (UsProgData y) <*> mapM renameCtor cs <*> renameUsProgs ps
 
 renameProg :: Prog -> RenameM Prog
-renameProg (ProgFun x ps tm tp) = bindVars (map fst ps) $ pure (ProgFun x) <*> mapM (renameArg newVar) ps <*> renameTerm tm <*> renameType tp
+renameProg (ProgFun x ps tm tp) = bindVars (map fst ps) $ pure (ProgFun x) <*> renameParams ps <*> renameTerm tm <*> renameType tp
 renameProg (ProgExtern x xp ps tp) = pure (ProgExtern x) <*> (bindVar xp $ newVar xp) <*> mapM renameType ps <*> renameType tp
 renameProg (ProgData y cs) = pure (ProgData y) <*> mapM renameCtor cs
 
@@ -175,3 +177,7 @@ alphaRenameUsFile ps = return (alphaRename' (ctxtDefUsProgs ps) (renameUsProgs p
 -- Alpha-rename an elaborated file
 alphaRenameFile :: Progs -> Either String Progs
 alphaRenameFile ps = return (alphaRename' (ctxtDefProgs ps) (renameProgs ps))
+
+-- Rename all occurrences of xi to xf in something
+subst :: Ctxt -> Var -> Var -> RenameM a -> a
+subst g xi xf (RenameM f) = fst $ f $ Map.insert xi xf (Map.mapWithKey const g)
