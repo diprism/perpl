@@ -119,8 +119,8 @@ aff2linTerm g tm = fst (aff2linh g tm)
 
 -- Make an affine Prog linear
 aff2linProg :: Ctxt -> Prog -> Prog
-aff2linProg g (ProgFun x (_ : _) tm tp) = error "ProgFun should not have params before aff2lin"
-aff2linProg g (ProgExtern x xp (_ : _) tp) = error "ProgExtern should not have params before aff2lin"
+aff2linProg g (ProgFun x (p : ps) tm tp) = aff2linProg g (ProgFun x [] (joinLams (p : ps) tm) (joinArrows (map snd (p : ps)) tp))
+aff2linProg g (ProgExtern x xp (p : ps) tp) = aff2linProg g (ProgExtern x xp [] (joinArrows (p : ps) tp))
 aff2linProg g (ProgFun x [] tm tp) =
   let (as, endtp) = splitArrows tp
       (ls, endtm) = splitLams tm

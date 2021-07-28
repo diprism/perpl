@@ -179,5 +179,12 @@ alphaRenameFile :: Progs -> Either String Progs
 alphaRenameFile ps = return (alphaRename' (ctxtDefProgs ps) (renameProgs ps))
 
 -- Rename all occurrences of xi to xf in something
-subst :: Ctxt -> Var -> Var -> RenameM a -> a
-subst g xi xf (RenameM f) = fst $ f $ Map.insert xi xf (Map.mapWithKey const g)
+--subst :: Ctxt -> Var -> Var -> RenameM a -> a
+--subst g xi xf (RenameM f) = fst $ f $ Map.insert xi xf (Map.mapWithKey const g)
+
+-- Rename all occurrences of xi to xf in a type
+substType :: Var -> Var -> Type -> Type
+substType xi xf (TpVar y) = TpVar (if xi == y then xf else y)
+substType xi xf (TpArr tp1 tp2) = TpArr (substType xi xf tp1) (substType xi xf tp2)
+substType xi xf (TpMaybe tp) = TpMaybe (substType xi xf tp)
+substType xi xf TpBool = TpBool

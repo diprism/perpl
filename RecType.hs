@@ -6,6 +6,7 @@ import Util
 import Free
 import Ctxt
 import Name
+import Rename
 
 
 isRecType' :: Ctxt -> Var -> [Type] -> Bool
@@ -84,6 +85,7 @@ disentangleTerm recs = h where
   h (TmFold fuf tm tp) =
     pure (TmFold fuf) <*> h tm <*> pure tp
 
+-- Preprocessing step of refunctionalization
 -- Abstracts each unfold of a recursive datatype to its own function
 disentangleFile :: Progs -> Either String (Progs, [Prog])
 disentangleFile ps =
@@ -136,6 +138,7 @@ makeDefold tp tms =
   in
     (tp, ProgData tname ctors, ProgFun fname ps tm tp)
 
+-- Preprocessing step of defunctionalization
 -- Abstracts the folds for each recursive datatype into an apply function for each datatype
 -- returns (modified progs, (OrigTp, data Fold = ..., apply : Fold -> OrigTp = ...))
 defoldFile :: Progs -> Either String (Progs, [(Type, Prog, Prog)])
@@ -148,17 +151,107 @@ defoldFile ps =
   in
     return (ps', new_ps)
 
+{-
 defoldAndDisentangle :: Progs -> Either String Progs
 defoldAndDisentangle ps =
   disentangleFile ps >>= \ (Progs ps' end', new_ps) ->
   defoldFile (Progs (ps' ++ new_ps) end') >>= \ (Progs ps'' end'', new_ps') ->
   return (Progs (ps'' ++ concat (map (\ (_, p1, p2) -> [p1, p2]) new_ps')) end'')
+-}
 
-defunctionalize :: Type -> Progs -> Progs
-defunctionalize tp ps = ps
+defunSubst :: Var -> Type -> Type
+defunSubst rtp = substType rtp (foldTypeName (TpVar rtp))
 
-refunctionalize :: Type -> Progs -> Progs
-refunctionalize tp ps = ps
+drDefun = True
+drRefun = False
+defunTerm g rtp = derefunTerm drDefun g (rtp, foldTypeName (TpVar rtp)) (applyName (TpVar rtp))
+refunTerm g rtp = derefunTerm drRefun g (rtp, unfoldTypeName (TpVar rtp)) (error "TODO: merge function name")
 
+derefunTerm :: Bool -> Ctxt -> (Var, Var) -> Var -> Term -> Term
+derefunTerm dr g (rtp, ntp) f = fst . h where
+
+  sub = substType rtp ntp
+
+  h_ps :: [Param] -> [Param]
+  h_ps = map (fmap sub)
+  h_as :: [Arg] -> [Arg]
+  h_as = map (h . fst)
+  
+  h :: Term -> (Term, Type)
+  h (TmVarL x tp) = let tp' = sub tp in (TmVarL x tp', tp')
+--  h (TmVarG CtorVar x as (TpMaybe tp)) =
+--    let tp' = sub tp in (TmVarG CtorVar x (h_as as) (TpMaybe tp'), tp')
+  h (TmVarG gv x as tp)
+    | dr == drRefun && x == f =
+      let ((TmFold False tm _, tp') : fvs) = as in
+        -- TODO: sub tp or tp? ---------------------vv (or something else?)
+        (joinApps (TmVarL f (joinArrows (map snd as) tp)) ((tm, tp') : fvs), TpVar ntp)
+    | otherwise =
+      let tp' = maybe (error ("unknown global var " ++ x)) (\ (_, tp') -> tp')
+                (ctxtLookupTerm g x)
+          (tps, end) = splitArrows tp'
+          tp'' = sub (joinArrows (drop (length as) tps) end) in
+        (TmVarG gv x (h_as as) tp'', tp'')
+  h (TmLam x tp1 tm tp2) =
+    let tp1' = sub tp1
+        (tm', tp2') = h tm in
+      (TmLam x tp1' tm' tp2', TpArr tp1' tp2')
+  h (TmApp tm1 tm2 tp2 tp) =
+    let (tm1', _) = h tm1
+        (tm2', tp2') = h tm2
+        tp' = sub tp in
+      (TmApp tm1' tm2' tp2' tp', tp')
+  h (TmLet x xtm xtp tm tp) =
+    let (xtm', xtp') = h xtm
+        (tm', tp') = h tm in
+    (TmLet x xtm' xtp' tm' tp', tp')
+  h (TmCase tm1 tp1 cs tp2) =
+    let (tm1', tp1') = h tm1
+        cs' = map (\ (Case x ps xtm) -> Case x (h_ps ps) (fst (h xtm))) cs
+        tp2' = sub tp2 in
+      (TmCase tm1' tp1' cs' tp2', tp2')
+  h (TmSamp d tp)
+    | isRecType' g rtp [tp] =
+      error ("Can't sample from type " ++ show tp ++
+              " containing recursive datatype " ++ rtp)
+    | otherwise = (TmSamp d tp, tp)
+  h (TmFold fuf tm tp)
+    | tp == TpVar rtp =
+      if dr == drDefun then
+        (if fuf then (let (TmVarG DefVar _ [(etm, etp)] _) = tm in h etm) else (TmVarG DefVar f [h tm] (TpVar ntp), TpVar ntp))
+      else
+        error "TODO"
+    | otherwise = let (tm', tp') = h tm in (TmFold fuf tm' tp', tp')
+
+
+defunProg :: Ctxt -> Var -> Prog -> Prog
+defunProg g rtp (ProgFun x ps tm tp)
+  | x == applyName (TpVar rtp) = ProgFun x ps tm tp
+  | otherwise = ProgFun x (map (fmap (defunSubst rtp)) ps) tm (defunSubst rtp tp)
+defunProg g rtp (ProgExtern x xp ps tp)
+  | isRecType' g rtp (tp : ps) = error "Extern defs can't use recursive datatypes"
+  | otherwise = ProgExtern x xp ps tp
+defunProg g rtp (ProgData y cs)
+  | y == rtp = ProgData y (map (\ (Ctor x tps) -> Ctor x (map (defunSubst rtp) tps)) cs)
+  | otherwise = ProgData y cs
+
+defun :: Var -> Progs -> Progs
+defun rtp (Progs ps end) =
+  let g = ctxtDefProgs (Progs ps end)
+      ps' = Progs (map (defunProg g rtp) ps) end
+      g' = ctxtDefProgs ps'
+      Just ps'' = mapProgsM (Just . defunTerm g rtp) ps'
+  in
+    ps''
+
+-- TODO: merge unfold functions
+refun :: Type -> Progs -> Progs
+refun tp ps = ps
+
+-- TODO: figure out naming of fold/unfold functions (fold/apply or apply/unfold?)
 elimRecTypes :: Progs -> Either String Progs
-elimRecTypes ps = return ps
+elimRecTypes ps =
+  disentangleFile ps >>= \ (Progs ps' end', new_ps) ->
+  defoldFile (Progs (ps' ++ new_ps) end') >>= \ (Progs ps'' end'', new_ps') ->
+  let ps3 = Progs (ps'' ++ concat (map (\ (_, p1, p2) -> [p1, p2]) new_ps')) end'' in
+    return (foldr (\ (tp, _, _) -> defun (show tp)) ps3 new_ps')

@@ -52,3 +52,6 @@ foldCtorName tp i = "%fold" ++ show tp ++ "%" ++ show i
 
 foldTypeName :: Type -> Var
 foldTypeName y = "%Fold" ++ show y ++ "%"
+
+unfoldTypeName :: Type -> Var
+unfoldTypeName y = "%Unfold" ++ show y ++ "%"
