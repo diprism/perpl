@@ -41,8 +41,8 @@ ctorDefault x as y = TmVarG CtorVar x (map (\ (a, atp) -> (TmVarL a atp, atp)) (
 applyName :: Type -> Var
 applyName tp = "%apply" ++ show tp ++ "%"
 
-unfoldName :: Int -> Var
-unfoldName i = "%unfold%" ++ show i
+unfoldName :: Type -> Var
+unfoldName tp = "%unfold" ++ show tp ++ "%"
 
 targetName :: Var
 targetName = "%this%"

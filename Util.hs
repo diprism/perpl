@@ -64,7 +64,7 @@ hasArr (TpMaybe tp) = hasArr tp
 hasArr TpBool = False
 
 foldIf :: GlobalVar -> Term -> Type -> Term
-foldIf CtorVar = TmFold True
+foldIf CtorVar = const -- TmFold True
 foldIf DefVar = const
 
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]

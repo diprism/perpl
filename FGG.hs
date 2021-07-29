@@ -149,6 +149,9 @@ scalarPreWeight = ThisWeight . scalarWeight
 vectorPreWeight = ThisWeight . vectorWeight
 matrixPreWeight = ThisWeight . matrixWeight
 
+-- Should the compiler make sure there aren't conflicting nonterminal domains?
+checkDomsEq = False
+
 -- Construct an FGG from a list of rules, a start symbol,
 -- and a function that gives the possible values of each type
 rulesToFGG :: (Type -> [String]) -> String -> [Rule] -> [Nonterminal] -> [Factor] -> FGG_JSON
@@ -156,11 +159,14 @@ rulesToFGG doms start rs nts facs =
   let rs' = nub rs
       ds  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
                      foldr (\ n -> Map.insert (show n) (doms n)) m ns) Map.empty rs'
+      domsEq = \ x d1 d2 -> if not checkDomsEq || d1 == d2 then d1 else error
+        ("Conflicting domains for nonterminal " ++ x ++ ": " ++
+          show d1 ++ " vs " ++ show d2)
       nts'' = foldr (\ (x, tp) -> Map.insert x [show tp]) Map.empty nts
       nts' = foldr (\ (Rule lhs (HGF ns _ xs)) ->
-                      Map.insert lhs (map (\ i -> show $ ns !! i) xs)) nts'' rs'
+                      Map.insertWith (domsEq lhs) lhs (map (\ i -> show $ ns !! i) xs)) nts'' rs'
       facs' = map (\ (x, w) -> (x, preWeightToWeight ds w)) facs
-      getFac = \ l lhs -> maybe (error ("In rulesToFGG, in the rule " ++ lhs ++ ", no factor named " ++ l ++ " (factor names: " ++ show (map fst facs) ++ ", nts:" ++ show (Map.keys nts') ++ ")"))
+      getFac = \ l lhs -> maybe (error ("In the rule " ++ lhs ++ ", no factor named " ++ l))
                         id $ lookup l facs'
       fs  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
                      foldr (\ (Edge atts l) -> let lnodes = map ((!!) ns) atts in
