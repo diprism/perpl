@@ -52,7 +52,7 @@ disentangleMake :: Int -> DisentangleResult -> Prog
 disentangleMake i (fvs, name, tp, cs, tp') =
   let as = (targetName, tp) : Map.toList fvs
       rtm = TmCase (TmVarL targetName tp) tp cs tp' in
-    ProgFun name as rtm tp
+    ProgFun name as rtm tp'
 
 -- See `disentangleFile`
 disentangleTerm :: [Type] -> Term -> DisentangleM Term
@@ -170,6 +170,7 @@ refunTerm g rtp = derefunTerm drRefun g (rtp, unfoldTypeName (TpVar rtp)) (error
 derefunTerm :: Bool -> Ctxt -> (Var, Var) -> Var -> Term -> Term
 derefunTerm dr g (rtp, ntp) f = fst . h where
 
+  -- TODO: need to subst inside other datatypes that mention rtp! (Or create new copies?)
   sub = substType rtp ntp
 
   h_ps :: [Param] -> [Param]
