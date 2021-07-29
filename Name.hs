@@ -38,20 +38,20 @@ nameParams x tps =
 ctorDefault :: Var -> [Type] -> Type -> Term
 ctorDefault x as y = TmVarG CtorVar x (map (\ (a, atp) -> (TmVarL a atp, atp)) (nameParams x as)) y
 
-applyName :: Type -> Var
-applyName tp = "%apply" ++ show tp ++ "%"
+applyName :: Var -> Var
+applyName y = "%apply" ++ y ++ "%"
 
-unfoldName :: Type -> Var
-unfoldName tp = "%unfold" ++ show tp ++ "%"
+unfoldName :: Var -> Var
+unfoldName y = "%unfold" ++ y ++ "%"
 
 targetName :: Var
 targetName = "%this%"
 
-foldCtorName :: Type -> Int -> Var
-foldCtorName tp i = "%fold" ++ show tp ++ "%" ++ show i
+foldCtorName :: Var -> Int -> Var
+foldCtorName y i = "%fold" ++ y ++ "%" ++ show i
 
-foldTypeName :: Type -> Var
-foldTypeName y = "%Fold" ++ show y ++ "%"
+foldTypeName :: Var -> Var
+foldTypeName y = "%Fold" ++ y ++ "%"
 
-unfoldTypeName :: Type -> Var
-unfoldTypeName y = "%Unfold" ++ show y ++ "%"
+unfoldTypeName :: Var -> Var
+unfoldTypeName y = "%Unfold" ++ y ++ "%"

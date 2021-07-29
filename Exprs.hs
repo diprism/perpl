@@ -30,6 +30,7 @@ data UsTm = -- User Term
   | UsLet Var UsTm UsTm
 
 data GlobalVar = CtorVar | DefVar
+  deriving Eq
 
 data Term =
     TmVarL Var Type -- Local var

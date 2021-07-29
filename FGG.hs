@@ -6,6 +6,9 @@ import Util
 import Exprs
 import Show
 
+-- Should the compiler make sure there aren't conflicting nonterminal domains?
+checkDomsEq = True
+
 {- ====== JSON Functions ====== -}
 
 data JSON =
@@ -148,9 +151,6 @@ matrixWeight = WeightsDims . WeightsDims . WeightsData
 scalarPreWeight = ThisWeight . scalarWeight
 vectorPreWeight = ThisWeight . vectorWeight
 matrixPreWeight = ThisWeight . matrixWeight
-
--- Should the compiler make sure there aren't conflicting nonterminal domains?
-checkDomsEq = False
 
 -- Construct an FGG from a list of rules, a start symbol,
 -- and a function that gives the possible values of each type

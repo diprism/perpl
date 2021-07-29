@@ -39,9 +39,13 @@ getRecTypes' g (ProgFun x ps tm tp : ds) = getRecTypes' g ds
 getRecTypes' g (ProgExtern x xp ps tp : ds) = getRecTypes' g ds
 getRecTypes' g [] = []
 
-getRecTypes :: Progs -> [Type]
+getRecTypes :: Progs -> [Var]
 getRecTypes (Progs ds end) =
-  map TpVar (getRecTypes' (ctxtDefProgs (Progs ds end)) ds)
+  getRecTypes' (ctxtDefProgs (Progs ds end)) ds
+
+elemRecs :: Type -> [Var] -> Bool
+elemRecs (TpVar y) recs = y `elem` recs
+elemRecs _ _ = False
 
 
 -- N.B. state list is in reverse order
@@ -50,13 +54,13 @@ type DisentangleResult = [(Map.Map Var Type, Var, [Case], Type)]
 
 disentangleMake :: Var -> DisentangleResult -> Prog
 disentangleMake y ((fvs, name, cs, tp') : []) =
-  let as = (targetName, TpVar y) : Map.toList fvs
+  let ps = (targetName, TpVar y) : Map.toList fvs
       rtm = TmCase (TmVarL targetName (TpVar y)) (TpVar y) cs tp' in
-    ProgFun name as rtm tp'
+    ProgFun name [] (joinLams ps rtm) (joinArrows (map snd ps) tp')
 disentangleMake y us = error "TODO: Multiple unfolds not implemented yet"
 
 -- See `disentangleFile`
-disentangleTerm :: [Type] -> Term -> DisentangleM Term
+disentangleTerm :: [Var] -> Term -> DisentangleM Term
 disentangleTerm recs = h where
   h :: Term -> DisentangleM Term
   h (TmVarL x tp) = pure (TmVarL x tp)
@@ -69,16 +73,17 @@ disentangleTerm recs = h where
   h (TmLet x xtm xtp tm tp) =
     pure (TmLet x) <*> h xtm <*> pure xtp <*> h tm <*> pure tp
   h (TmCase tm tp1 cs tp2)
-    | tp1 `elem` recs =
+    | tp1 `elemRecs` recs =
       h tm >>= \ tm' ->
       mapCasesM (const h) cs >>= \ cs' ->
       State.get >>= \ unfolds ->
-      let tp1_us = maybe [] id (Map.lookup (show tp1) unfolds)
-          fvs = freeVars' (TmCase (TmVarG DefVar "" [] tp1) tp1 cs' tp2)
+      let TpVar y = tp1
+          y_us = maybe [] id (Map.lookup y unfolds)
+          fvs = freeVars' (TmCase (TmVarG DefVar "" [] (TpVar y)) (TpVar y) cs' tp2)
           fvs' = Map.toList fvs
-          name = unfoldName tp1
-          rtm = TmVarG DefVar name ((tm', tp1) : paramsToArgs fvs') tp2 in
-        State.put (Map.insert (show tp1) ((fvs, name, cs', tp2) : tp1_us) unfolds) >>
+          name = unfoldName y
+          rtm = TmVarG DefVar name ((tm', TpVar y) : paramsToArgs fvs') tp2 in
+        State.put (Map.insert y ((fvs, name, cs', tp2) : y_us) unfolds) >>
         pure rtm
     | otherwise =
       pure TmCase <*> h tm <*> pure tp1 <*> mapCasesM (const h) cs <*> pure tp2
@@ -99,22 +104,33 @@ disentangleFile ps =
   in
   return (ps', us')
 
-
-
 type DefoldM a = State.State (Map.Map Var [Term]) a
 
-defoldTerm :: [Type] -> Term -> DefoldM Term
+defoldTerm :: [Var] -> Term -> DefoldM Term
 defoldTerm recs = h where
   h :: Term -> DefoldM Term
   h (TmVarL x tp) = pure (TmVarL x tp)
-  h (TmVarG gv x as tp) = pure (TmVarG gv x) <*> mapArgsM h as <*> pure tp
+  h (TmVarG gv x as tp)
+    | gv == CtorVar && tp `elemRecs` recs =
+        mapArgsM h as >>= \ as' ->
+        State.get >>= \ fs ->
+        let TpVar y = tp
+            fvs = Map.toList (freeVarsArgs' as')
+            cname = foldCtorName y (maybe 0 length (Map.lookup y fs))
+            tname = foldTypeName y
+            aname = applyName y
+            fld = TmVarG CtorVar cname (paramsToArgs fvs) (TpVar tname)
+        in
+          State.put (Map.insertWith (flip (++)) y [TmVarG CtorVar x as' (TpVar y)] fs) >>
+          return (TmVarG DefVar aname [(fld, TpVar tname)] (TpVar y))
+    | otherwise = pure (TmVarG gv x) <*> mapArgsM h as <*> pure tp
   h (TmLam x tp tm tp') = pure (TmLam x tp) <*> h tm <*> pure tp'
   h (TmApp tm1 tm2 tp2 tp) = pure TmApp <*> h tm1 <*> h tm2 <*> pure tp2 <*> pure tp
   h (TmLet x xtm xtp tm tp) = pure (TmLet x) <*> h xtm <*> pure xtp <*> h tm <*> pure tp
   h (TmCase tm tp1 cs tp2) = pure TmCase <*> h tm <*> pure tp1 <*> mapCasesM (const h) cs <*> pure tp2
   h (TmSamp d tp) = pure (TmSamp d tp) -- TODO: anything here?
-  h (TmFold fuf tm tp)
-    | fuf && tp `elem` recs =
+  h (TmFold fuf tm tp) = pure (TmFold fuf) <*> h tm <*> pure tp
+    {-| fuf && tp `elem` recs =
       h tm >>= \ tm' ->
       State.get >>= \ fs ->
       let fvs = Map.toList (freeVars' tm')
@@ -125,33 +141,33 @@ defoldTerm recs = h where
       in
         State.put (Map.insertWith (\ new old -> old ++ new) (show tp) [tm'] fs) >>
         return (TmFold fuf (TmVarG DefVar aname [(fld, TpVar tname)] tp) tp)
-    | otherwise = pure (TmFold fuf) <*> h tm <*> pure tp
+    | otherwise = pure (TmFold fuf) <*> h tm <*> pure tp-}
 
 --defoldProgs :: [Type] -> Progs -> DefoldM Progs
 --defoldProgs = mapProgsM . defoldTerm
 
-makeDefold :: Type -> [Term] -> (Type, Prog, Prog)
-makeDefold tp tms =
-  let fname = applyName tp
-      tname = foldTypeName tp
+makeDefold :: Var -> [Term] -> (Var, Prog, Prog)
+makeDefold y tms =
+  let fname = applyName y
+      tname = foldTypeName y
       ftp = TpVar tname
       ps = [(targetName, ftp)]
-      casesf = \ (i, tm) -> Case (foldCtorName tp i) (Map.toList (freeVars' tm)) tm
+      casesf = \ (i, tm) -> Case (foldCtorName y i) (Map.toList (freeVars' tm)) tm
       cases = map casesf (enumerate tms)
       ctors = map (\ (Case x ps tm) -> Ctor x (map snd ps)) cases
-      tm = TmCase (TmVarL targetName ftp) ftp cases tp
+      tm = TmCase (TmVarL targetName ftp) ftp cases (TpVar y)
   in
-    (tp, ProgData tname ctors, ProgFun fname [] (joinLams ps tm) (joinArrows (map snd ps) tp))
+    (y, ProgData tname ctors, ProgFun fname [] (joinLams ps tm) (joinArrows (map snd ps) (TpVar y)))
 
 -- Preprocessing step of defunctionalization
 -- Abstracts the folds for each recursive datatype into an apply function for each datatype
 -- returns (modified progs, (OrigTp, data Fold = ..., apply : Fold -> OrigTp = ...))
-defoldFile :: Progs -> Either String (Progs, [(Type, Prog, Prog)])
+defoldFile :: Progs -> Either String (Progs, [(Var, Prog, Prog)])
 defoldFile ps =
   let recs = getRecTypes ps
       dm = mapProgsM (defoldTerm recs) ps
       (ps', fs) = State.runState dm Map.empty
-      fs' = map (\ tp -> Map.lookup (show tp) fs >>= Just . makeDefold tp) recs
+      fs' = map (\ y -> Map.lookup y fs >>= Just . makeDefold y) recs
       new_ps = foldr (maybe id (:)) [] fs'
   in
     return (ps', new_ps)
@@ -165,17 +181,15 @@ defoldAndDisentangle ps =
 -}
 
 defunSubst :: Var -> Type -> Type
-defunSubst rtp = substType rtp (foldTypeName (TpVar rtp))
+defunSubst rtp = substType rtp (foldTypeName rtp)
 
 drDefun = True
 drRefun = False
-defunTerm g rtp = derefunTerm drDefun g (rtp, foldTypeName (TpVar rtp)) (applyName (TpVar rtp))
-refunTerm g rtp = derefunTerm drRefun g (rtp, unfoldTypeName (TpVar rtp)) (unfoldName (TpVar rtp))
+defunTerm g rtp = derefunTerm drDefun g (rtp, foldTypeName rtp) (applyName rtp)
+refunTerm g rtp = derefunTerm drRefun g (rtp, unfoldTypeName rtp) (unfoldName rtp)
 
 derefunTerm :: Bool -> Ctxt -> (Var, Var) -> Var -> Term -> Term
 derefunTerm dr g (rtp, ntp) f = fst . h where
-
-  -- TODO: need to subst inside other datatypes that mention rtp! (Or create new copies?)
   sub = substType rtp ntp
 
   h_ps :: [Param] -> [Param]
@@ -188,14 +202,15 @@ derefunTerm dr g (rtp, ntp) f = fst . h where
 --  h (TmVarG CtorVar x as (TpMaybe tp)) =
 --    let tp' = sub tp in (TmVarG CtorVar x (h_as as) (TpMaybe tp'), tp')
   h (TmVarG gv x as tp)
-    | dr == drRefun && x == f =
-      let ((TmFold False tm _, tp') : fvs) = as in
-        -- TODO: sub tp or tp? ---------------------vv (or something else?)
-        (joinApps (TmVarL f (joinArrows (map snd as) tp)) ((tm, tp') : fvs), TpVar ntp)
---    | dr == drDefun && x == f =
+    | dr == drRefun && gv == DefVar && x == f =
+        let ((tm, tp') : fvs) = as in
+          -- TODO: sub tp or tp? ----------------------vv (or something else?)
+          (joinApps (TmVarL f (joinArrows (map snd as) tp)) ((tm, tp') : fvs), TpVar ntp)
+    | dr == drDefun && gv == DefVar && x == f =
+        let [(etm, etp)] = as in h etm
     | otherwise =
       let tp' = maybe (error ("unknown global var " ++ x)) (\ (_, tp') -> tp')
-                (ctxtLookupTerm g x)
+                  (ctxtLookupTerm g x)
           (tps, end) = splitArrows tp'
           tp'' = joinArrows (drop (length as) tps) end in
         (TmVarG gv x (h_as as) tp'', tp'')
@@ -212,29 +227,36 @@ derefunTerm dr g (rtp, ntp) f = fst . h where
     let (xtm', xtp') = h xtm
         (tm', tp') = h tm in
     (TmLet x xtm' xtp' tm' tp', tp')
-  h (TmCase tm1 tp1 cs tp2) =
-    let (tm1', tp1') = h tm1
-        cs' = map (\ (Case x ps xtm) -> Case x (h_ps ps) (fst (h xtm))) cs
-        tp2' = sub tp2 in
-      (TmCase tm1' tp1' cs' tp2', tp2')
+  h (TmCase tm1 tp1 cs tp2)
+    | dr == drDefun && tp1 == TpVar rtp =
+        let (tm1', tp1') = h tm1
+            cs' = map (\ (Case x ps xtm) -> Case x (h_ps ps) (fst (h xtm))) cs
+            tp2' = sub tp2 in
+          (TmCase (TmVarG DefVar f [(tm1', tp1')] (TpVar ntp)) (TpVar rtp) cs' tp2', tp2')
+    | otherwise =
+        let (tm1', tp1') = h tm1
+            cs' = map (\ (Case x ps xtm) -> Case x (h_ps ps) (fst (h xtm))) cs
+            tp2' = sub tp2 in
+          (TmCase tm1' tp1' cs' tp2', tp2')
   h (TmSamp d tp)
     | isRecType' g rtp [tp] =
       error ("Can't sample from type " ++ show tp ++
               " containing recursive datatype " ++ rtp)
     | otherwise = (TmSamp d tp, tp)
-  h (TmFold fuf tm tp)
+  h (TmFold fuf tm tp) = let (tm', tp') = h tm in (TmFold fuf tm' tp', tp')
+{-  h (TmFold fuf tm tp)
     | tp == TpVar rtp =
       if dr == drDefun then
         (if fuf then (let (TmVarG DefVar _ [(etm, etp)] _) = tm in h etm) else (TmVarG DefVar f [h tm] (TpVar ntp), TpVar ntp))
       else
         error "TODO"
-    | otherwise = let (tm', tp') = h tm in (TmFold fuf tm' tp', tp')
+    | otherwise = let (tm', tp') = h tm in (TmFold fuf tm' tp', tp')-}
 
 
 
 defunProg :: Ctxt -> Var -> Prog -> Prog
 defunProg g rtp (ProgFun x ps tm tp)
-  | x `elem` [applyName (TpVar rtp), unfoldName (TpVar rtp)] = ProgFun x ps tm tp
+  | x `elem` [applyName rtp {-, unfoldName (TpVar rtp) -}] = ProgFun x ps tm tp
   | otherwise = ProgFun x (map (fmap (defunSubst rtp)) ps) tm (defunSubst rtp tp)
 defunProg g rtp (ProgExtern x xp ps tp)
   | isRecType' g rtp (tp : ps) = error "Extern defs can't use recursive datatypes"
@@ -261,7 +283,7 @@ elimRecTypes ps =
   disentangleFile ps >>= \ (Progs ps' end', new_ps) ->
   defoldFile (Progs (ps' ++ new_ps) end') >>= \ (Progs ps'' end'', new_ps') ->
   let ps3 = Progs (ps'' ++ concat (map (\ (_, p1, p2) -> [p1, p2]) new_ps')) end'' in
-    return (retypeProgs (foldr (\ (tp, _, _) -> defun (show tp)) ps3 new_ps'))
+    return (retypeProgs (foldr (\ (tp, _, _) -> defun tp) ps3 new_ps'))
 
 
 
@@ -289,7 +311,9 @@ retypeTerm g (TmLet x xtm xtp tm tp) =
 retypeTerm g (TmCase tm tp cs tp') =
   -- TODO: tm's synthesized type needs to equal tp
   -- TODO: should tp' stay the same?
-  TmCase (retypeTerm g tm) tp (map (\ (Case x ps xtm) -> Case x ps (retypeTerm (ctxtDeclArgs g ps) xtm)) cs) tp'
+  let cs' = map (\ (Case x ps xtm) -> Case x ps (retypeTerm (ctxtDeclArgs g ps) xtm)) cs
+      tp'' = case cs of { (Case x ps xtm : _) -> getType xtm; _ -> tp' } in
+  TmCase (retypeTerm g tm) tp cs' tp''
 retypeTerm g (TmSamp d tp) = TmSamp d tp
 retypeTerm g (TmFold fuf tm tp) =
   uncurry (TmFold fuf) (retypeTmTp g tm)
