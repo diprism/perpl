@@ -1,0 +1,23 @@
+data Bool = F | T;
+data Symbol = Sym0 | Sym1;
+data State = q1 | q2 | q3;
+data SymbolState = SSpair Symbol State;
+data String = Nil | Cons Symbol String;
+
+extern transition : State -> SymbolState;
+extern transition' : SymbolState -> State;
+extern in_accept : State -> Bool;
+extern in_accept' : State -> Bool;
+extern q0 : State;
+extern q0' : State;
+
+define gen : State -> String = \ q : State. case in_accept q of
+  | T -> Nil
+  | F -> (case transition q of SSpair w x -> Cons w (gen x));
+
+define rec : State -> String -> Bool =
+  \ q' : State. \ ws : String. case ws of
+    | Nil -> in_accept' q'
+    | Cons w ws -> rec (transition' (SSpair w q')) ws;
+
+rec q0' (gen q0)
