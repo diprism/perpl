@@ -173,37 +173,6 @@ rulesToFGG doms start rs nts facs =
                                if Map.member l nts' then id else
                                  Map.insert l (map show lnodes, getFac l lhs))
                            m es)
-                  Map.empty rs' in
+                  Map.empty rs'
+  in
     FGG_JSON ds fs nts' start rs'
-
-
-{-example_ctxt :: Ctxt
-example_ctxt = ctxtDeclType (ctxtDeclType emptyCtxt "W" (map (\ x -> Ctor x []) ["the", "cat", "sat", "on", "mat"])) "T" (map (\ x -> Ctor x []) ["DT", "NN", "VBD", "IN", "BOS", "EOS"])
-
-example_rule1 = Rule "S"
-  (HGF ["T"] [Edge [0] "is_bos",
-              Edge [0] "X"] [])
-example_rule2 = Rule "X"
-  (HGF ["T", "T", "W"] [Edge [0, 1] "transition",
-                        Edge [1, 2] "emission",
-                        Edge [1] "X"] [0])
-example_rule3 = Rule "X"
-  (HGF ["T", "T"] [Edge [0, 1] "transition",
-                   Edge [1] "is_eos"] [0])
-
-example_fgg = rulesToFGG (maybe [] (map $ \ (Ctor x as) -> x) . ctxtLookupType example_ctxt) "S" [example_rule1, example_rule2, example_rule3]
--}
-{-
-example_fgg :: FGG_JSON
-example_fgg = FGG_JSON
-  (Map.fromList [("T", ["DT", "NN", "VBD", "IN", "BOS", "EOS"]), ("W", ["the", "cat", "sat", "on", "mat"])])
-  (Map.fromList [("transition", (["T", "T"], WeightsDims (WeightsDims (WeightsData [[0, 1, 0, 0, 0, 0],[0, 0.25, 0.25, 0.25, 0, 0.25],[0.3, 0, 0, 0.3, 0, 0.4],[1, 0, 0, 0, 0, 0],[0.8, 0, 0, 0.2, 0, 0],[0, 0, 0, 0, 0, 0]])))),
-                 ("emission", (["T", "W"], WeightsDims (WeightsDims (WeightsData [[1, 0, 0, 0, 0], [0, 0.5, 0, 0, 0.5], [0, 0, 1, 0, 0], [0, 0, 0, 1, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]])))),
-                 ("is_bos", (["T"], WeightsDims (WeightsData [0, 0, 0, 0, 1, 0]))),
-                 ("is_eos", (["T"], WeightsDims (WeightsData [0, 0, 0, 0, 0, 1])))])
-  (Map.fromList [("S", []), ("X", ["T"])])
-  "S"
-  [Rule "S" (HGF ["T"] [Edge [0] "is_bos", Edge [0] "X"] []),
-   Rule "X" (HGF ["T", "T", "W"] [Edge [0, 1] "transition", Edge [1, 2] "emission", Edge [1] "X"] [0]),
-   Rule "X" (HGF ["T", "T"] [Edge [0, 1] "transition", Edge [1] "is_eos"] [0])]
--}
