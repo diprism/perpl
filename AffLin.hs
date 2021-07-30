@@ -132,10 +132,11 @@ aff2linProg g (ProgFun x [] tm tp) =
       ls' = map (fmap aff2linTp) ls
       etas = map (\ (i, atp) -> (etaName x i, atp)) (drop (length ls') (enumerate as'))
       g' = ctxtDeclArgs g ls'
-      endtm' = aff2linTerm g' endtm
+      (endtm', fvs) = aff2linh g' endtm
+      endtm'' = discards g' (Map.difference (Map.fromList ls') fvs) endtm'
       endtp' = aff2linTp endtp -- This may not be necessary, but is future-proof
   in
-    ProgFun x (ls' ++ etas) (joinApps endtm' (paramsToArgs etas)) endtp'
+    ProgFun x (ls' ++ etas) (joinApps endtm'' (paramsToArgs etas)) endtp'
 aff2linProg g (ProgExtern x xp [] tp) =
   let (as, end) = splitArrows tp
       as' = map aff2linTp as in
