@@ -11,6 +11,16 @@ import Name
 import Show
 import Polymorphism
 
+
+-- If the start term is just a factor (has no rule), then we need to
+-- add a rule [%start%]-(v) -> [tm]-(v)
+addStartRuleIfNecessary :: Term -> RuleM -> (String, RuleM)
+addStartRuleIfNecessary tm rm =
+  let stm = show tm
+      tp = getType tm in
+    if isRule stm rm then (stm, rm) else
+      (startName, addRule' (TmVarL startName tp) [tp] [Edge [0] stm] [0] +> rm)
+
 -- Local var rule
 var2fgg :: Var -> Type -> RuleM
 var2fgg x tp =
@@ -194,7 +204,9 @@ prog2fgg g (ProgData y cs) =
 
 -- Goes through a program and adds all the rules for it
 progs2fgg :: Ctxt -> Progs -> RuleM
-progs2fgg g (Progs ps tm) = foldr (\ p rm -> rm +> prog2fgg g p) (term2fgg g tm) ps
+progs2fgg g (Progs ps tm) =
+  foldr (\ p rm -> rm +> prog2fgg g p) (term2fgg g tm) ps
+  
 
 -- Computes a list of all the possible inhabitants of a type
 domainValues :: Ctxt -> Type -> [String]
@@ -244,5 +256,6 @@ compileFile :: Progs -> Either String FGG_JSON
 compileFile ps =
   let g = ctxtDefProgs ps
       Progs _ end = ps
-      RuleM rs xs nts fs = addInternalFactors g ps +> progs2fgg g ps in
-    return (rulesToFGG (domainValues g) (show end) (reverse rs) nts fs)
+      rm = addInternalFactors g ps +> progs2fgg g ps
+      (end', RuleM rs xs nts fs) = addStartRuleIfNecessary end rm in
+    return (rulesToFGG (domainValues g) end' (reverse rs) nts fs)

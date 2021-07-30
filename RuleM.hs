@@ -71,6 +71,8 @@ getRules (RuleM rs xs nts fs) = rs
 resetExts :: RuleM -> RuleM
 resetExts (RuleM rs xs nts fs) = RuleM rs [] nts fs
 
+isRule :: String -> RuleM -> Bool
+isRule lhs (RuleM rs xs nts fs) = any (\ (Rule lhs' _) -> lhs == lhs') rs
 
 
 getPairWeights :: Type -> Type -> PreWeight
@@ -169,3 +171,4 @@ combineExts = h Map.empty 0 where
         is = map (\ (a, _) -> ixs' Map.! a) as
         (rs, ms) = h ixs' (i + length as') rest in
       (as' ++ rs, is : ms)
+

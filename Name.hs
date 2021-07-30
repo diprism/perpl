@@ -55,3 +55,6 @@ foldTypeName y = "%Fold" ++ y ++ "%"
 
 unfoldTypeName :: Var -> Var
 unfoldTypeName y = "%Unfold" ++ y ++ "%"
+
+startName :: Var
+startName = "%start%"
