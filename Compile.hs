@@ -68,7 +68,7 @@ tmapp2fgg g (TmApp tm1 tm2 tp2 tp) =
 ctorRules :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
 ctorRules g (Ctor x as) y cs =
   let ix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0
-      as' = map (\ (i, a) -> (etaName x i, a)) (enumerate as) -- zip (map (etaName x) [0..length as - 1]) as
+      as' = map (\ (i, a) -> (etaName x i, a)) (enumerate as)
       (ns, [ias, [iy]]) = combineExts [as', [(" 0", y)]]
       fac = ctorFactorName x (paramsToArgs as') y
       es = [Edge (ias ++ [iy]) fac]
@@ -88,9 +88,7 @@ ctorsRules g cs y =
 -- Add a rule for this particular case in a case-of statement
 caseRule :: Ctxt -> [Param] -> Term -> Case -> RuleM
 caseRule g xs_ctm (TmCase ctm y cs tp) (Case x as xtm) =
-  --(\ _ -> error (show (Case x as xtm) ++ ", " ++ show tp)) $
   let g' = ctxtDeclArgs g as in
-  --bindExts True as (term2fgg g' xtm) +>= \ xs_xtm ->
   bindExts True as $
   term2fgg g' xtm +>= \ xs_xtm_as ->
   let fac = ctorFactorName x (paramsToArgs (nameParams x (map snd as))) y
@@ -124,13 +122,7 @@ term2fgg g (TmVarL x tp) =
   addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp)) +>
   addExt x tp
 term2fgg g (TmFold fuf tm tp) = term2fgg g tm -- TODO: this should cause error
-{-term2fgg g (TmVarG DefVar x as tp) =
-  map (\ (a, atp) -> term2fgg g a) as +*>= \ xss ->
-  let (ns, [iy] : ias : ixss) = combineExts ([(" 0", tp)] : map (\ (i, (tm, tp)) -> (' ' : show (succ i), tp)) (enumerate as) : xss)
-      es = Edge (ias ++ [iy]) x : map (\ ((atm, atp), ia, ixs) -> Edge (ixs ++ [ia]) (show atm)) (zip3 as ias ixss)
-      xs = nub (concat ixss) ++ [iy]
-  in
-    addRule' (TmVarG DefVar x as tp) (map snd ns) es xs-}
+term2fgg g (TmVarG gv x [] y) = returnRule -- If this is a ctor/def with no args, we already add its rule when it gets defined
 term2fgg g (TmVarG gv x as y) =
   map (\ (a, atp) -> term2fgg g a) (reverse as) +*>= \ xss' ->
   -- TODO: instead of reversing, just have (+*>=) do that
@@ -144,10 +136,6 @@ term2fgg g (TmVarG gv x as y) =
       xs = nub (concat ixss) ++ [iy]
   in
     addRule' (TmVarG gv x as y) (map snd ns) es xs
-{-    if gv == CtorVar then
---          Just cs = ctxtLookupType' g y
---          cix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0 in
-        addRule' (TmVarG CtorVar x as y) (map snd ns) es xs -}
 term2fgg g (TmLam x tp tm tp') =
   lamRule True x tp tm tp' (term2fgg (ctxtDeclTerm g x tp) tm)
 term2fgg g (TmApp tm1 tm2 tp2 tp) =
@@ -163,10 +151,8 @@ term2fgg g (TmSamp d tp) =
       addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 0) dvws))
     DistUni  ->
       addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const (1.0 / fromIntegral (length dvs))) dvws))
-      -- +> addRule' (TmSamp d tp) [tp] [] [0]
     DistAmb  -> -- TODO: is this fine, or do we need to add a rule with one node and one edge (that has the factor below)?
       addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 1) dvws))
-      -- +> addRule' (TmSamp d tp) [tp] [] [0]
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm +>= \ xtmxs ->
   bindExt True x xtp $
@@ -194,9 +180,7 @@ prog2fgg g (ProgExtern x xp ps tp) =
       es = [Edge (ixs ++ [itp]) xp]
       xs = ixs ++ [itp]
       ws = getExternWeights (domainValues g) ps tp
---      ws = ThisWeight (fmap (const 0) (vectorWeight (domainValues g tp)))
   in
-  --addRule' (TmVarG DefVar x [] tp) [tp] [Edge [0] xp] [0] +>
     addRule' (TmVarG DefVar x [] tp) (map snd ns) es xs +>
     addFactor xp ws
 prog2fgg g (ProgData y cs) =
