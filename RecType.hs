@@ -9,7 +9,6 @@ import Name
 import Rename
 import Show
 
-
 isRecType' :: Ctxt -> Var -> [Type] -> Bool
 isRecType' g y = h [] where
   h :: [Var] -> [Type] -> Bool
@@ -129,7 +128,7 @@ defoldTerm recs = h where
   h (TmApp tm1 tm2 tp2 tp) = pure TmApp <*> h tm1 <*> h tm2 <*> pure tp2 <*> pure tp
   h (TmLet x xtm xtp tm tp) = pure (TmLet x) <*> h xtm <*> pure xtp <*> h tm <*> pure tp
   h (TmCase tm tp1 cs tp2) = pure TmCase <*> h tm <*> pure tp1 <*> mapCasesM (const h) cs <*> pure tp2
-  h (TmSamp d tp) = pure (TmSamp d tp) -- TODO: anything here?
+  h (TmSamp d tp) = pure (TmSamp d tp)
   h (TmFold fuf tm tp) = pure (TmFold fuf) <*> h tm <*> pure tp
     {-| fuf && tp `elem` recs =
       h tm >>= \ tm' ->
@@ -143,9 +142,6 @@ defoldTerm recs = h where
         State.put (Map.insertWith (\ new old -> old ++ new) (show tp) [tm'] fs) >>
         return (TmFold fuf (TmVarG DefVar aname [(fld, TpVar tname)] tp) tp)
     | otherwise = pure (TmFold fuf) <*> h tm <*> pure tp-}
-
---defoldProgs :: [Type] -> Progs -> DefoldM Progs
---defoldProgs = mapProgsM . defoldTerm
 
 makeDefold :: Var -> [Term] -> (Var, Prog, Prog)
 makeDefold y tms =
@@ -240,17 +236,13 @@ derefunTerm dr g (rtp, ntp) = fst . h where
             cs' = map (\ (Case x ps xtm) -> Case x (h_ps ps) (fst (h xtm))) cs
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> getType xtm in
           (TmCase tm1' tp1' cs' tp2', tp2')
-  h (TmSamp d tp)
-    | isRecType' g rtp [tp] =
-      error ("Can't sample from type " ++ show tp ++
-              " containing recursive datatype " ++ rtp)
-    | otherwise = (TmSamp d tp, tp)
+  h (TmSamp d tp) = (TmSamp d tp, tp)
   h (TmFold fuf tm tp) = let (tm', tp') = h tm in (TmFold fuf tm' tp', tp')
 
 
 defunProg :: Ctxt -> Var -> Prog -> Prog
 defunProg g rtp (ProgFun x ps tm tp)
-  | x `elem` [applyName rtp {-, unfoldName (TpVar rtp) -}] = ProgFun x ps tm tp
+  | x == applyName rtp = ProgFun x ps tm tp
   | otherwise = ProgFun x (map (fmap (defunSubst rtp)) ps) tm (defunSubst rtp tp)
 defunProg g rtp (ProgExtern x xp ps tp)
   | isRecType' g rtp (tp : ps) = error "Extern defs can't use recursive datatypes"

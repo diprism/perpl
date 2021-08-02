@@ -86,4 +86,13 @@ isLin x tm = h tm == LinYes where
   h (UsLet x' tm tm') =
     if x == x' then h tm else linIf' (h tm) (linIf' (h tm') LinErr LinYes) (h tm')
 
-
+typeIsRecursive :: Ctxt -> Type -> Bool
+typeIsRecursive g = h [] where
+  h visited (TpVar y) =
+    y `elem` visited ||
+      maybe False
+        (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps)
+        (ctxtLookupType g y)
+  h visited (TpArr tp1 tp2) = h visited tp1 || h visited tp2
+  h visited (TpMaybe tp) = h visited tp
+  h visited TpBool = False

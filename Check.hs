@@ -100,6 +100,8 @@ checkTermh g (UsCase tm cs) =
 
 checkTermh g (UsSamp d tp) =
   checkType g tp >>
+  ifErr (typeIsRecursive g tp)
+    "Can't sample from a type with an infinite domain" >>
   return (TmSamp d tp)
 
 checkTermh g (UsLet x ltm tm) =
@@ -169,6 +171,7 @@ checkCasesh g _ _ tp = err "Incorrect number of cases"
 checkProgs :: [Var] -> Ctxt -> UsProgs -> Either ErrMsg Progs
 checkProgs ds g (UsProgExec tm) =
   checkTerm g tm >>= \ (tm', tp') ->
+  ifErr (typeIsRecursive g tp') "Start term can't have an infinite domain" >>
   return (Progs [] tm')
 
 checkProgs ds g (UsProgFun x tp tm ps) =
@@ -179,7 +182,10 @@ checkProgs ds g (UsProgFun x tp tm ps) =
   return (Progs (ProgFun x [] tm' tp : ps') end)
 
 checkProgs ds g (UsProgExtern x tp ps) =
-  declErr x (ifBound ds x >> checkType g tp) >>
+  declErr x (ifBound ds x >>
+             checkType g tp >>
+             ifErr (typeIsRecursive g tp)
+               "external definitions can't have infinite domains") >>
   checkProgs (x : ds) g ps >>= \ (Progs ps' end) ->
   return (Progs (ProgExtern x "0" [] tp : ps') end)
 
