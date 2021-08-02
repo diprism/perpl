@@ -7,6 +7,7 @@ import Free
 import Ctxt
 import Name
 import Rename
+import Show
 
 
 isRecType' :: Ctxt -> Var -> [Type] -> Bool
@@ -185,11 +186,17 @@ defunSubst rtp = substType rtp (foldTypeName rtp)
 
 drDefun = True
 drRefun = False
-defunTerm g rtp = derefunTerm drDefun g (rtp, foldTypeName rtp) (applyName rtp)
-refunTerm g rtp = derefunTerm drRefun g (rtp, unfoldTypeName rtp) (unfoldName rtp)
+defunTerm g rtp = derefunTerm drDefun g (rtp, foldTypeName rtp) -- (applyName rtp)
+refunTerm g rtp = derefunTerm drRefun g (rtp, unfoldTypeName rtp) -- (unfoldName rtp)
 
-derefunTerm :: Bool -> Ctxt -> (Var, Var) -> Var -> Term -> Term
-derefunTerm dr g (rtp, ntp) f = fst . h where
+derefunTerm :: Bool -> Ctxt -> (Var, Var) -> Term -> Term
+derefunTerm dr g (rtp, ntp) = fst . h where
+
+  foldTypeN = foldTypeName rtp
+  applyN = applyName rtp
+  unfoldN = unfoldName rtp
+  unfoldTypeN = unfoldTypeN
+  
   sub = substType rtp ntp
 
   h_ps :: [Param] -> [Param]
@@ -199,29 +206,24 @@ derefunTerm dr g (rtp, ntp) f = fst . h where
   
   h :: Term -> (Term, Type)
   h (TmVarL x tp) = let tp' = sub tp in (TmVarL x tp', tp')
---  h (TmVarG CtorVar x as (TpMaybe tp)) =
---    let tp' = sub tp in (TmVarG CtorVar x (h_as as) (TpMaybe tp'), tp')
   h (TmVarG gv x as tp)
-    | dr == drRefun && gv == DefVar && x == f =
-        let ((tm, tp') : fvs) = as in
-          -- TODO: sub tp or tp? ----------------------vv (or something else?)
-          (joinApps (TmVarL f (joinArrows (map snd as) tp)) ((tm, tp') : fvs), TpVar ntp)
-    | dr == drDefun && gv == DefVar && x == f =
+    | dr == drRefun && gv == DefVar && x == unfoldN =
+        error "TODO"
+    | dr == drDefun && gv == DefVar && x == applyN =
         let [(etm, etp)] = as in h etm
     | otherwise =
       let tp' = maybe (error ("unknown global var " ++ x)) (\ (_, tp') -> tp')
                   (ctxtLookupTerm g x)
           (tps, end) = splitArrows tp'
-          tp'' = joinArrows (drop (length as) tps) end in
+          tp'' = joinArrows (map sub (drop (length as) tps)) (if gv == CtorVar then end else sub end) in
         (TmVarG gv x (h_as as) tp'', tp'')
   h (TmLam x tp1 tm tp2) =
     let tp1' = sub tp1
         (tm', tp2') = h tm in
       (TmLam x tp1' tm' tp2', TpArr tp1' tp2')
   h (TmApp tm1 tm2 tp2 tp) =
-    let (tm1', _) = h tm1
-        (tm2', tp2') = h tm2
-        tp' = sub tp in
+    let (tm1', TpArr _ tp') = h tm1
+        (tm2', tp2') = h tm2 in
       (TmApp tm1' tm2' tp2' tp', tp')
   h (TmLet x xtm xtp tm tp) =
     let (xtm', xtp') = h xtm
@@ -231,12 +233,12 @@ derefunTerm dr g (rtp, ntp) f = fst . h where
     | dr == drDefun && tp1 == TpVar rtp =
         let (tm1', tp1') = h tm1
             cs' = map (\ (Case x ps xtm) -> Case x (h_ps ps) (fst (h xtm))) cs
-            tp2' = sub tp2 in
-          (TmCase (TmVarG DefVar f [(tm1', tp1')] (TpVar ntp)) (TpVar rtp) cs' tp2', tp2')
+            tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> getType xtm in
+          (TmCase (TmVarG DefVar applyN [(tm1', tp1')] (TpVar rtp)) (TpVar rtp) cs' tp2', tp2')
     | otherwise =
         let (tm1', tp1') = h tm1
             cs' = map (\ (Case x ps xtm) -> Case x (h_ps ps) (fst (h xtm))) cs
-            tp2' = sub tp2 in
+            tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> getType xtm in
           (TmCase tm1' tp1' cs' tp2', tp2')
   h (TmSamp d tp)
     | isRecType' g rtp [tp] =
@@ -244,14 +246,6 @@ derefunTerm dr g (rtp, ntp) f = fst . h where
               " containing recursive datatype " ++ rtp)
     | otherwise = (TmSamp d tp, tp)
   h (TmFold fuf tm tp) = let (tm', tp') = h tm in (TmFold fuf tm' tp', tp')
-{-  h (TmFold fuf tm tp)
-    | tp == TpVar rtp =
-      if dr == drDefun then
-        (if fuf then (let (TmVarG DefVar _ [(etm, etp)] _) = tm in h etm) else (TmVarG DefVar f [h tm] (TpVar ntp), TpVar ntp))
-      else
-        error "TODO"
-    | otherwise = let (tm', tp') = h tm in (TmFold fuf tm' tp', tp')-}
-
 
 
 defunProg :: Ctxt -> Var -> Prog -> Prog
@@ -283,49 +277,5 @@ elimRecTypes ps =
   disentangleFile ps >>= \ (Progs ps' end', new_ps) ->
   defoldFile (Progs (ps' ++ new_ps) end') >>= \ (Progs ps'' end'', new_ps') ->
   let ps3 = Progs (ps'' ++ concat (map (\ (_, p1, p2) -> [p1, p2]) new_ps')) end'' in
-    return (retypeProgs (foldr (\ (tp, _, _) -> defun tp) ps3 new_ps'))
-
-
-
-retypeTmTp :: Ctxt -> Term -> (Term, Type)
-retypeTmTp g tm = let tm' = retypeTerm g tm in (tm', getType tm')
-
--- TODO: should probably ensure this remains / becomes well-typed
-retypeTerm :: Ctxt -> Term -> Term
-retypeTerm g (TmVarL x tp) =
-  maybe (error ("unknown local var " ++ x)) (TmVarL x . snd) (ctxtLookupTerm g x)
-retypeTerm g (TmVarG gv x as tp) =
-  let tp' = maybe (error ("unknown global var " ++ x)) (snd . splitArrows . snd) (ctxtLookupTerm g x)
-      as' = map (\ (atm, atp) -> retypeTmTp g atm) as in
-    TmVarG gv x as' tp'
-retypeTerm g (TmLam x tp tm tp') =
-  uncurry (TmLam x tp) (retypeTmTp (ctxtDeclTerm g x tp) tm)
-retypeTerm g (TmApp tm1 tm2 tp2 tp) =
-  case retypeTmTp g tm1 of
-    (tm1', TpArr tp2' tp') ->
-      TmApp tm1' (retypeTerm g tm2) tp2' tp'
-    (tm1', tp12') -> error "Retyping term app where the head is not an arrow type"
-retypeTerm g (TmLet x xtm xtp tm tp) =
-  let (xtm', xtp') = retypeTmTp g xtm in
-    uncurry (TmLet x xtm' xtp') (retypeTmTp (ctxtDeclTerm g x xtp') tm)
-retypeTerm g (TmCase tm tp cs tp') =
-  -- TODO: tm's synthesized type needs to equal tp
-  -- TODO: should tp' stay the same?
-  let cs' = map (\ (Case x ps xtm) -> Case x ps (retypeTerm (ctxtDeclArgs g ps) xtm)) cs
-      tp'' = case cs of { (Case x ps xtm : _) -> getType xtm; _ -> tp' } in
-  TmCase (retypeTerm g tm) tp cs' tp''
-retypeTerm g (TmSamp d tp) = TmSamp d tp
-retypeTerm g (TmFold fuf tm tp) =
-  uncurry (TmFold fuf) (retypeTmTp g tm)
-
-retypeProg :: Ctxt -> Prog -> Prog
-retypeProg g (ProgFun x ps tm tp) =
-  ProgFun x ps (retypeTerm (ctxtDeclArgs g ps) tm) tp
-retypeProg g (ProgExtern x xp ps tp) = ProgExtern x xp ps tp
-retypeProg g (ProgData y cs) = ProgData y cs
-
-retypeProgs :: Progs -> Progs
-retypeProgs ps =
-  let g = ctxtDefProgs ps
-      Progs ds end = ps in
-    Progs (map (retypeProg g) ds) (retypeTerm g end)
+    --Left (showProgsV (foldr (\ (tp, _, _) -> defun tp) ps3 new_ps'))
+    return (foldr (\ (tp, _, _) -> defun tp) ps3 new_ps')
