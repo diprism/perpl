@@ -236,10 +236,10 @@ addInternalFactors g ps =
              foldr (\ as rm' -> if len == length as then addFs g as +> rm' else error msg) rm tps) returnRule internals
 
 -- Converts an elaborated program into an FGG
-compileFile :: Progs -> Either String FGG_JSON
+compileFile :: Progs -> Either String String
 compileFile ps =
   let g = ctxtDefProgs ps
       Progs _ end = ps
       rm = addInternalFactors g ps +> progs2fgg g ps
       (end', RuleM rs xs nts fs) = addStartRuleIfNecessary end rm in
-    return (rulesToFGG (domainValues g) end' (reverse rs) nts fs)
+    return (show (rulesToFGG (domainValues g) end' (reverse rs) nts fs))
