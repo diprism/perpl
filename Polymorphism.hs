@@ -20,7 +20,6 @@ getPolyInstsTerm pis (TmCase tm y cs tp) =
   foldl (\ pis (Case x as ctm) -> getPolyInstsTerm pis ctm)
     (getPolyInstsType (getPolyInstsTerm pis tm) y) cs
 getPolyInstsTerm pis (TmSamp d tp) = getPolyInstsType pis tp
-getPolyInstsTerm pis (TmFold fuf tm tp) = getPolyInstsTerm pis tm
 
 -- Retrives all instantiations of polymorphic types (e.g. Maybe [...]) in a type
 getPolyInstsType :: Map.Map Var [[Type]] -> Type -> Map.Map Var [[Type]]

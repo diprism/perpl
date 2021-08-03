@@ -121,7 +121,6 @@ term2fgg :: Ctxt -> Term -> RuleM
 term2fgg g (TmVarL x tp) =
   addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp)) +>
   addExt x tp
-term2fgg g (TmFold fuf tm tp) = term2fgg g tm -- TODO: this should cause error
 term2fgg g (TmVarG gv x [] y) = returnRule -- If this is a ctor/def with no args, we already add its rule when it gets defined
 term2fgg g (TmVarG gv x as y) =
   map (\ (a, atp) -> term2fgg g a) (reverse as) +*>= \ xss' ->

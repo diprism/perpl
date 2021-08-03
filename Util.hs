@@ -55,11 +55,6 @@ getType (TmApp tm1 tm2 tp2 tp) = tp
 getType (TmLet x xtm xtp tm tp) = tp
 getType (TmCase ctm ctp cs tp) = tp
 getType (TmSamp d tp) = tp
-getType (TmFold fuf tm tp) = tp
-
-foldIf :: GlobalVar -> Term -> Type -> Term
-foldIf CtorVar = const -- TmFold True
-foldIf DefVar = const
 
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
 sortCases ctors cases = map snd $ sortBy (\ (a, _) (b, _) -> compare a b) (label cases) where
@@ -120,7 +115,7 @@ paramsToArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
 -- Turns a constructor into one with all its args applied
 addArgs :: GlobalVar -> Var -> [Arg] -> [Param] -> Type -> Term
 addArgs gv x tas vas y =
-  foldIf gv (TmVarG gv x (tas ++ map (\ (a, atp) -> (TmVarL a atp, atp)) vas) y) y
+  TmVarG gv x (tas ++ map (\ (a, atp) -> (TmVarL a atp, atp)) vas) y
 
 -- Eta-expands a constructor with the necessary extra args
 etaExpand :: GlobalVar -> Var -> [Arg] -> [Param] -> Type -> Term

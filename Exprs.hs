@@ -40,8 +40,6 @@ data Term =
   | TmLet Var Term Type Term Type
   | TmCase Term Type [Case] Type
   | TmSamp Dist Type
-  | TmFold Bool {- True => Fold; False => Unfold -} Term Type
-
 
 data Type =
     TpArr Type Type

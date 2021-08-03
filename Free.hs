@@ -39,7 +39,6 @@ freeVars' (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars' tm1) (freeVars' tm2)
 freeVars' (TmLet x xtm xtp tm tp) = Map.union (freeVars' xtm) (Map.delete x (freeVars' tm))
 freeVars' (TmCase tm tp cs tp') = Map.union (freeVars' tm) (freeVarsCases' cs)
 freeVars' (TmSamp d tp) = Map.empty
-freeVars' (TmFold fuf tm tp) = freeVars' tm
 
 freeVarsCase :: CaseUs -> Map.Map Var Int
 freeVarsCase (CaseUs c xs tm) = foldr Map.delete (freeVars tm) xs

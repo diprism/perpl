@@ -110,9 +110,6 @@ aff2linh g (TmCase tm y cs tp) =
                   discards (ctxtDeclArgs g as) (Map.difference xsAny xs) tm' in
     (TmCase tm' y cs' (aff2linTp tp), Map.union xsAny tmxs)
 aff2linh g (TmSamp d tp) = (TmSamp d (aff2linTp tp), Map.empty)
-aff2linh g (TmFold fuf tm tp) =
-  let (tm', fvs) = aff2linh g tm in
-    (TmFold fuf tm' (aff2linTp tp), fvs)
 
 -- Makes an affine term linear
 --aff2linTerm :: Ctxt -> Term -> Term

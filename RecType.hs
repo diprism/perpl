@@ -89,8 +89,6 @@ disentangleTerm recs = h where
       pure TmCase <*> h tm <*> pure tp1 <*> mapCasesM (const h) cs <*> pure tp2
   h (TmSamp d tp) =
     pure (TmSamp d tp)
-  h (TmFold fuf tm tp) =
-    pure (TmFold fuf) <*> h tm <*> pure tp
 
 -- Preprocessing step of refunctionalization
 -- Abstracts each unfold of a recursive datatype to its own function
@@ -129,19 +127,6 @@ defoldTerm recs = h where
   h (TmLet x xtm xtp tm tp) = pure (TmLet x) <*> h xtm <*> pure xtp <*> h tm <*> pure tp
   h (TmCase tm tp1 cs tp2) = pure TmCase <*> h tm <*> pure tp1 <*> mapCasesM (const h) cs <*> pure tp2
   h (TmSamp d tp) = pure (TmSamp d tp)
-  h (TmFold fuf tm tp) = pure (TmFold fuf) <*> h tm <*> pure tp
-    {-| fuf && tp `elem` recs =
-      h tm >>= \ tm' ->
-      State.get >>= \ fs ->
-      let fvs = Map.toList (freeVars' tm')
-          cname = foldCtorName tp (maybe 0 length (Map.lookup (show tp) fs))
-          tname = foldTypeName tp
-          aname = applyName tp
-          fld = TmVarG CtorVar cname (paramsToArgs fvs) (TpVar tname)
-      in
-        State.put (Map.insertWith (\ new old -> old ++ new) (show tp) [tm'] fs) >>
-        return (TmFold fuf (TmVarG DefVar aname [(fld, TpVar tname)] tp) tp)
-    | otherwise = pure (TmFold fuf) <*> h tm <*> pure tp-}
 
 makeDefold :: Var -> [Term] -> (Var, Prog, Prog)
 makeDefold y tms =
@@ -237,7 +222,6 @@ derefunTerm dr g (rtp, ntp) = fst . h where
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> getType xtm in
           (TmCase tm1' tp1' cs' tp2', tp2')
   h (TmSamp d tp) = (TmSamp d tp, tp)
-  h (TmFold fuf tm tp) = let (tm', tp') = h tm in (TmFold fuf tm' tp', tp')
 
 
 defunProg :: Ctxt -> Var -> Prog -> Prog
