@@ -10,9 +10,10 @@ type ErrMsg = (String, [String])
 
 -- TODO: make sure x occurs same number of times in each branch of computation
 --       (e.g. case q of false -> q | true -> false)
-checkAffLin :: Var -> Type -> UsTm -> Bool
-checkAffLin x (TpArr _ _) tm = isAff x tm
-checkAffLin x _ tm = True
+checkAffLin :: Ctxt -> Var -> Type -> UsTm -> Either ErrMsg ()
+checkAffLin g x tp tm =
+  ifErr (typeHasArr g tp && not (isAff x tm))
+    ("Bound variable '" ++ x ++ "' is not affine in the body")
 
 -- Return error
 err :: String -> Either ErrMsg a
@@ -60,8 +61,7 @@ checkTerm g tm =
 checkTermh g (UsVar x) = checkTermVar True g (UsVar x)
 
 checkTermh g (UsLam x tp tm) =
-  ifErr (not $ checkAffLin x tp tm)
-    ("Bound variable '" ++ x ++ "' is not affine in the body") >>
+  checkAffLin g x tp tm >>
   checkType g tp >>
   checkTerm (ctxtDeclTerm g x tp) tm >>= \ (tm', tp') ->
   return (TmLam x tp tm' tp')
@@ -107,20 +107,8 @@ checkTermh g (UsSamp d tp) =
 checkTermh g (UsLet x ltm tm) =
   checkTerm g ltm >>= \ (ltm', ltp) ->
   checkTerm (ctxtDeclTerm g x ltp) tm >>= \ (tm', tp) ->
-  ifErr (not $ checkAffLin x ltp tm)
-    ("Bound variable '" ++ x ++ "' is not affine in the body") >>
+  checkAffLin g x ltp tm >>
   return (TmLet x ltm' ltp tm' tp)
-
-{-checkTermh g (UsSamp d y) = maybe2 (ctxtLookupType g y)
-  (err ("Type variable '" ++ y ++ "' not in scope"))
-  $ \ cs ->
-    foldr
-      (\ (Ctor x as) r -> r >>
-        ifErr (not $ null as)
-          ("Not sure how to instantiate args for constructor '" ++ x ++ "' when sampling"))
-      okay cs >>
-    return (TmSamp d y)
--}
 
 
 -- Check a type under a context
@@ -142,9 +130,8 @@ checkCase g (Ctor x as) (CaseUs x' as' tm) =
     ("Expected " ++ show (length as) ++ " args for case '" ++
       x ++ "', but got " ++ show (length as')) >>
   let g' = ctxtDeclArgs g (zip as' as)
-      as'' = zip as' as
-      msg = \ a -> "In the case " ++ x' ++ ", arg " ++ a ++ " is not linear in the body" in
-  foldr (\ (a, atp) r -> ifErr (not $ checkAffLin a atp tm) (msg a) >> r) okay as'' >>
+      as'' = zip as' as in
+  mapM (\ (a, atp) -> checkAffLin g a atp tm) as'' >>
   checkTerm g' tm >>= \ (tm', tp) ->
   return (Case x as'' tm', tp)
 
@@ -190,7 +177,7 @@ checkProgs ds g (UsProgExtern x tp ps) =
   return (Progs (ProgExtern x "0" [] tp : ps') end)
 
 checkProgs ds g (UsProgData x cs ps) =
-  declErr x (ifBound ds x >> foldr (\ (Ctor x tps) r -> r >>= \ ds -> ifBound ds x >> foldr (\ tp r -> checkType g tp >> ifErr (hasArr tp) ("Constructor " ++ x ++ " has an arg with an arrow type, which is not allowed") >> r) okay tps >> return (x : ds)) (return (x : ds)) cs) >>= \ ds' ->
+  declErr x (ifBound ds x >> foldr (\ (Ctor x tps) r -> r >>= \ ds -> ifBound ds x >> foldr (\ tp r -> checkType g tp >> r) okay tps >> return (x : ds)) (return (x : ds)) cs) >>= \ ds' ->
   checkProgs ds' g ps >>= \ (Progs ps' end) ->
   return (Progs (ProgData x cs : ps') end)
 

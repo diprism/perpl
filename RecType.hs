@@ -260,8 +260,8 @@ defun rtp (Progs ps end) =
   in
     ps''
 
-refun :: Type -> Progs -> Progs
-refun tp ps = ps
+refun :: Var -> Progs -> Progs
+refun rtp ps = ps
 
 -- TODO: figure out naming of fold/unfold functions (fold/apply or apply/unfold?)
 elimRecTypes :: Progs -> Either String Progs

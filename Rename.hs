@@ -87,6 +87,9 @@ newVar x = RenameM $ \ xs ->
   newVarH xs x =
     if Map.member x xs then h xs (splitVar x) else x
 
+freshVar :: Ctxt -> Var -> Var
+freshVar g x = let RenameM f = newVar x in fst (f (Map.mapWithKey const g))
+
 -- Alpha-rename a user-term
 renameUsTm :: UsTm -> RenameM UsTm
 renameUsTm (UsVar x) =
@@ -179,8 +182,8 @@ alphaRenameFile :: Progs -> Either String Progs
 alphaRenameFile ps = return (alphaRename' (ctxtDefProgs ps) (renameProgs ps))
 
 -- Rename all occurrences of xi to xf in something
---subst :: Ctxt -> Var -> Var -> RenameM a -> a
---subst g xi xf (RenameM f) = fst $ f $ Map.insert xi xf (Map.mapWithKey const g)
+substs :: Ctxt -> [(Var, Var)] -> RenameM a -> a
+substs g subs (RenameM f) = fst $ f $ foldr (uncurry Map.insert) (Map.mapWithKey const g) subs
 
 -- Rename all occurrences of xi to xf in a type
 substType :: Var -> Var -> Type -> Type

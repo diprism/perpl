@@ -5,6 +5,31 @@ import Exprs
 import Ctxt
 import Util
 import Name
+import Rename
+
+
+-- Peels off the lams around a term and substitutes their bound variables for others
+-- Example 1: peelLams g [(x, Bool)] (\ z : Bool. and true z) = (and true x)
+-- Example 2: peelLams g [(x, Bool)] (and true) = (and true x)
+peelLams :: Ctxt -> [Param] -> Term -> Term
+peelLams g ps tm =
+  let (ls, body) = splitLams tm in
+    joinApps
+      (substs g (zip (map fst ls) (map fst ps)) (renameTerm tm)) -- Example 1
+      (paramsToArgs (drop (length ls) ps))                       -- Example 2
+
+peelCase :: Ctxt -> Term -> Term
+peelCase g (TmLam x tp tm tp') =
+  TmLam x tp (peelCase g tm) tp'
+peelCase g (TmCase tm y cs (TpArr tp1 tp2)) =
+  let (ps, end) = splitArrows (TpArr tp1 tp2)
+      g_ps = foldr (\ (Case x xps xtm) g-> ctxtDeclArgs g xps) g cs
+      ps' = reverse $ snd $ foldl (\ (e, ps') p -> let e' = freshVar (ctxtDeclTerm g_ps e (TpVar "")) e in (e', (e', p) : ps')) (etaName "e" 0, []) ps
+      cs' = map (\ (Case x xps xtm) -> Case x xps
+                  (peelLams (ctxtDeclArgs g (ps' ++ xps)) ps' xtm)) cs
+  in
+    joinLams ps' (TmCase tm y cs' end)
+peelCase g tm = tm
 
 
 {- ====== Affine to Linear Functions ====== -}
@@ -20,7 +45,8 @@ type FreeVars = Map.Map Var Type
 -- case x of false -> tm | true -> tm
 discard :: Ctxt -> Var -> Type -> Term -> Term
 discard g x (TpArr tp1 tp2) tm =
-  error "This shouldn't happen" -- Should be TpMaybe if it is an arrow type
+  error ("discard " ++ show (TpArr tp1 tp2))
+--  error "This shouldn't happen" -- Should be TpMaybe if it is an arrow type
 discard g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
   (error ("In Free.hs/discard, unknown type var " ++ y))
   $ \ cs ->
@@ -51,11 +77,12 @@ aff2linTp tp = error ("aff2linTp shouldn't see a " ++ show tp)
 
 -- Make a case linear, returning the local vars that occur free in it
 aff2linCase :: Ctxt -> Case -> (Case, FreeVars)
-aff2linCase g (Case x as tm) =
-  let (tm', fvs) = aff2linh (ctxtDeclArgs g as) tm
-      -- Need to discard all "as" that do not occur free in "tm"
-      tm'' = discards g (Map.difference (Map.fromList as) fvs) tm' in
-    (Case x as tm'', foldr (Map.delete . fst) fvs as)
+aff2linCase g (Case x ps tm) =
+  let ps' = map (\ (a, atp) -> (a, aff2linTp atp)) ps
+      (tm', fvs) = aff2linh (ctxtDeclArgs g ps') tm
+      -- Need to discard all "ps" that do not occur free in "tm"
+      tm'' = discards g (Map.difference (Map.fromList ps') fvs) tm' in
+    (Case x ps' tm'', foldr (Map.delete . fst) fvs ps')
 
 -- Make a term linear, returning the local vars that occur free in it
 aff2linh :: Ctxt -> Term -> (Term, FreeVars)
@@ -95,13 +122,15 @@ aff2linh g (TmLet x xtm xtp tm tp) =
       tm'' = if Map.member x fvs then tm' else discard g x xtp' tm'
   in
     (TmLet x xtm' xtp' tm'' tp', Map.union fvsx (Map.delete x fvs))
+aff2linh g (TmCase tm y cs (TpArr tp1 tp2)) =
+  aff2linh g (peelCase g (TmCase tm y cs (TpArr tp1 tp2)))
 aff2linh g (TmCase tm y cs tp) =
   let csxs = map (aff2linCase g) cs
       xsAny = Map.unions (map snd csxs)
       (tm', tmxs) = aff2linh g tm
       cs' = flip map csxs $ \ (Case x as tm', xs) -> Case x as $
-                  -- Need to discard any vars that occur free in other cases, but
-                  -- not in this one bc all cases must have same set of free vars
+                  -- Need to discard any vars that occur free in other cases, but that
+                  -- don't in this one bc all cases must have same set of free vars
                   discards (ctxtDeclArgs g as) (Map.difference xsAny xs) tm' in
     (TmCase tm' y cs' (aff2linTp tp), Map.union xsAny tmxs)
 aff2linh g (TmSamp d tp) = (TmSamp d (aff2linTp tp), Map.empty)
@@ -110,8 +139,8 @@ aff2linh g (TmFold fuf tm tp) =
     (TmFold fuf tm' (aff2linTp tp), fvs)
 
 -- Makes an affine term linear
-aff2linTerm :: Ctxt -> Term -> Term
-aff2linTerm g tm = fst (aff2linh g tm)
+--aff2linTerm :: Ctxt -> Term -> Term
+--aff2linTerm g tm = fst (aff2linh g tm)
 {-  let (tm', fvs) = aff2linh g tm in
     if Map.null fvs
       then tm'
@@ -127,7 +156,7 @@ aff2linProg g (ProgExtern x xp (p : ps) tp) =
 --  aff2linProg g (ProgExtern x xp [] (joinArrows (p : ps) tp))
 aff2linProg g (ProgFun x [] tm tp) =
   let (as, endtp) = splitArrows tp
-      (ls, endtm) = splitLams tm
+      (ls, endtm) = splitLams (peelCase g tm)
       as' = map aff2linTp as
       ls' = map (fmap aff2linTp) ls
       etas = map (\ (i, atp) -> (etaName x i, atp)) (drop (length ls') (enumerate as'))
@@ -136,6 +165,7 @@ aff2linProg g (ProgFun x [] tm tp) =
       endtm'' = discards g' (Map.difference (Map.fromList ls') fvs) endtm'
       endtp' = aff2linTp endtp -- This may not be necessary, but is future-proof
   in
+--    error ("ProgFun " ++ x ++ ", " ++ show ls' ++ ", " ++ show etas ++ ", " ++ show endtm'' ++ ", " ++ show (paramsToArgs etas) ++ ", " ++ show endtp')
     ProgFun x (ls' ++ etas) (joinApps endtm'' (paramsToArgs etas)) endtp'
 aff2linProg g (ProgExtern x xp [] tp) =
   let (as, end) = splitArrows tp
@@ -147,5 +177,7 @@ aff2linProg g (ProgData y cs) =
 -- Make an affine file linear
 aff2linFile :: Progs -> Either String Progs
 aff2linFile (Progs ps end) =
-  let g = ctxtDefProgs (Progs ps end) in
-    return (Progs (map (aff2linProg g) ps) (aff2linTerm g end))
+  let g = ctxtDefProgs (Progs ps end)
+      (ls, endtm) = splitLams (peelCase g end) in
+--    return (Progs (map (aff2linProg g) ps) (aff2linTerm g end))
+    return (Progs (map (aff2linProg g) ps) (joinLams ls (fst (aff2linh g endtm))))

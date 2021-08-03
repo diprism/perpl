@@ -57,12 +57,6 @@ getType (TmCase ctm ctp cs tp) = tp
 getType (TmSamp d tp) = tp
 getType (TmFold fuf tm tp) = tp
 
-hasArr :: Type -> Bool
-hasArr (TpVar x) = False -- assuming datatype x can't have arrows
-hasArr (TpArr tp1 tp2) = True
-hasArr (TpMaybe tp) = hasArr tp
-hasArr TpBool = False
-
 foldIf :: GlobalVar -> Term -> Type -> Term
 foldIf CtorVar = const -- TmFold True
 foldIf DefVar = const
