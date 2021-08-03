@@ -20,7 +20,7 @@ type FreeVars = Map.Map Var Type
 -- case x of false -> tm | true -> tm
 discard :: Ctxt -> Var -> Type -> Term -> Term
 discard g x (TpArr tp1 tp2) tm =
-  error ("discard " ++ show (TpArr tp1 tp2))
+  error ("Can't discard " ++ x ++ " : " ++ show (TpArr tp1 tp2))
 --  error "This shouldn't happen" -- Should be TpMaybe if it is an arrow type
 discard g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
   (error ("In Free.hs/discard, unknown type var " ++ y))
@@ -86,14 +86,13 @@ aff2linh g (TmVarG gv x as y) =
 aff2linh g (TmLam x tp tm tp') =
   let ltp = aff2linTp tp
       ltp' = aff2linTp tp'
+      tparr = TpArr ltp ltp'
       (tm', fvs) = aff2linh (ctxtDeclTerm g x ltp) tm
       fvs' = Map.delete x fvs
       tm'' = if Map.member x fvs then tm' else discard g x ltp tm'
-      jtm = TmVarG CtorVar tmJustName
-              [(TmLam x ltp tm'' ltp', TpArr ltp ltp')] (TpMaybe (TpArr ltp ltp'))
-      ntm = discards g fvs'
-              (TmVarG CtorVar tmNothingName [] (TpMaybe (TpArr ltp ltp'))) in
-    (tmIf (TmSamp DistAmb TpBool) jtm ntm (TpMaybe (TpArr ltp ltp')), fvs')
+      jtm = tmMaybe (Just (TmLam x ltp tm'' ltp')) tparr
+      ntm = discards g fvs' (tmMaybe Nothing tparr) in
+    (tmIf (TmSamp DistAmb TpBool) jtm ntm (TpMaybe tparr), fvs')
 aff2linh g (TmApp tm1 tm2 tp2 tp) = -- TODO: pass number of args (increment here), so we don't necessarily need to do this amb stuff? And what about if tm2 has arrow type but is always used in tm1?
   let (tm1', fvs1) = aff2linh g tm1
       (tm2', fvs2) = aff2linh g tm2
