@@ -27,7 +27,7 @@ discard g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
   $ \ cs ->
       TmCase (TmVarL x (TpVar y)) (TpVar y)
         (map (\ (Ctor x' as) ->
-                let as' = nameParams x' as in
+                let as' = nameParams x' (map aff2linTp as) in
                   Case x' as' (foldr (uncurry $ discard g) tm as'))
           cs) (getType tm)
 discard g x (TpMaybe tp) tm =
@@ -55,7 +55,7 @@ aff2linCase :: Ctxt -> Case -> (Case, FreeVars)
 aff2linCase g (Case x ps tm) =
   let ps' = map (\ (a, atp) -> (a, aff2linTp atp)) ps
       (tm', fvs) = aff2linh (ctxtDeclArgs g ps') tm
-      -- Need to discard all "ps" that do not occur free in "tm"
+      -- Need to discard all ps' that do not occur free in tm'
       tm'' = discards g (Map.difference (Map.fromList ps') fvs) tm' in
     (Case x ps' tm'', foldr (Map.delete . fst) fvs ps')
 

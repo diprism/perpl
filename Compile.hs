@@ -108,9 +108,11 @@ caseRule g xs _ (Case x as xtm) =
 -- Add a rule for a lambda term
 lamRule :: Bool -> Var -> Type -> Term -> Type -> RuleM -> RuleM
 lamRule addVarRule x tp tm tp' rm =
-  bindExt addVarRule x tp rm +>= \ xs' ->
-  let (ns, [[itp, itp', iarr], ixs']) = combineExts [[(" 0", tp), (" 1", tp'), (" 2", TpArr tp tp')], xs']
-      es = [Edge (ixs' ++ [itp, itp']) (show tm),
+  bindExt addVarRule x tp $
+  rm +>= \ tmxs ->
+  let (ns, [[itp, itp', iarr], ixs]) = combineExts [[(x, tp), (" 1", tp'), (" 2", TpArr tp tp')], tmxs]
+      ixs' = delete itp ixs
+      es = [Edge (ixs ++ [itp']) (show tm),
             Edge [itp, itp', iarr] (pairFactorName tp tp')]
       xs = ixs' ++ [iarr] in
     addRule' (TmLam x tp tm tp') (map snd ns) es xs +>
