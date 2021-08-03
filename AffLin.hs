@@ -6,31 +6,7 @@ import Ctxt
 import Util
 import Name
 import Rename
-
-
--- Peels off the lams around a term and substitutes their bound variables for others
--- Example 1: peelLams g [(x, Bool)] (\ z : Bool. and true z) = (and true x)
--- Example 2: peelLams g [(x, Bool)] (and true) = (and true x)
-peelLams :: Ctxt -> [Param] -> Term -> Term
-peelLams g ps tm =
-  let (ls, body) = splitLams tm in
-    joinApps
-      (substs g (zip (map fst ls) (map fst ps)) (renameTerm body)) -- Example 1
-      (paramsToArgs (drop (length ls) ps))                         -- Example 2
-
-peelCase :: Ctxt -> Term -> Term
-peelCase g (TmLam x tp tm tp') =
-  TmLam x tp (peelCase g tm) tp'
-peelCase g (TmCase tm y cs (TpArr tp1 tp2)) =
-  let (ps, end) = splitArrows (TpArr tp1 tp2)
-      g_ps = foldr (\ (Case x xps xtm) g-> ctxtDeclArgs g xps) g cs
-      ps' = reverse $ snd $ foldl (\ (e, ps') p -> let e' = freshVar (ctxtDeclTerm g_ps e (TpVar "")) e in (e', (e', p) : ps')) (etaName "e" 0, []) ps
-      cs' = map (\ (Case x xps xtm) -> Case x xps
-                  (peelLams (ctxtDeclArgs g (ps' ++ xps)) ps' xtm)) cs
-  in
-    joinLams ps' (TmCase tm y cs' end)
-peelCase g tm = tm
-
+import Optimize
 
 {- ====== Affine to Linear Functions ====== -}
 -- These functions convert affine terms to
@@ -123,7 +99,7 @@ aff2linh g (TmLet x xtm xtp tm tp) =
   in
     (TmLet x xtm' xtp' tm'' tp', Map.union fvsx (Map.delete x fvs))
 aff2linh g (TmCase tm y cs (TpArr tp1 tp2)) =
-  aff2linh g (peelCase g (TmCase tm y cs (TpArr tp1 tp2)))
+  aff2linh g (liftCase g (TmCase tm y cs (TpArr tp1 tp2)))
 aff2linh g (TmCase tm y cs tp) =
   let csxs = map (aff2linCase g) cs
       xsAny = Map.unions (map snd csxs)
@@ -156,7 +132,7 @@ aff2linProg g (ProgExtern x xp (p : ps) tp) =
 --  aff2linProg g (ProgExtern x xp [] (joinArrows (p : ps) tp))
 aff2linProg g (ProgFun x [] tm tp) =
   let (as, endtp) = splitArrows tp
-      (ls, endtm) = splitLams (peelCase g tm)
+      (ls, endtm) = splitLams (liftCase g tm)
       as' = map aff2linTp as
       ls' = map (fmap aff2linTp) ls
       etas = map (\ (i, atp) -> (etaName x i, atp)) (drop (length ls') (enumerate as'))
@@ -178,6 +154,6 @@ aff2linProg g (ProgData y cs) =
 aff2linFile :: Progs -> Either String Progs
 aff2linFile (Progs ps end) =
   let g = ctxtDefProgs (Progs ps end)
-      (ls, endtm) = splitLams (peelCase g end) in
+      (ls, endtm) = splitLams (liftCase g end) in
 --    return (Progs (map (aff2linProg g) ps) (aff2linTerm g end))
     return (Progs (map (aff2linProg g) ps) (joinLams ls (fst (aff2linh g endtm))))
