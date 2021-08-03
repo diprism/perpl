@@ -13,16 +13,18 @@ import RecType
 import Free
 import Rename
 import AffLin
+import Optimize
 
 data Options = Options {
   optCompile :: Bool,
   optDefun :: Bool,
   optRefun :: Bool,
   optLin :: Bool,
-  optAlpha :: Bool
+  optAlpha :: Bool,
+  optOptimize :: Bool
 }
 
-optionsDefault = Options True True True True True
+optionsDefault = Options True True True True True True
 
 putStrLnErr :: String -> IO ()
 putStrLnErr = hPutStrLn stderr
@@ -35,7 +37,8 @@ help = getProgName >>= \ name -> return $
   " -d Y/N, --defunctionalize=Y/N    Defunctionalize recursive datatypes\n" ++
   " -r Y/N, --refunctionalize=Y/N    Refunctionalize recursive datatypes\n" ++
   " -l Y/N, --linearize=Y/N          Linearize the file (from affine)\n" ++
-  " -a Y/N, --alpha=Y/N              Alpha-rename"
+  " -a Y/N, --alpha=Y/N              Alpha-rename\n" ++
+  " -o Y/N, --optimize=Y/N           Apply optimizations"
 
 noStrings  = ["no",  "No",  "NO",  "N", "n", "0", "false", "False", "FALSE", "F", "f", "off", "Off", "OFF"]
 yesStrings = ["yes", "Yes", "YES", "Y", "y", "1", "true",  "True",  "TRUE",  "T", "t", "on",  "On",  "ON" ]
@@ -52,12 +55,13 @@ isLongArg (c : s) = fmap (\ (a, yn) -> (c : a, yn)) (isLongArg s)
 
 processArgs'' :: String -> String -> Options -> Maybe Options
 processArgs'' a yn o = processYN yn >>= h a o where
-  h arg (Options c d r l a) yn
-    | arg `elem` ["-c", "--compile"]         = Just (Options yn d r l a)
-    | arg `elem` ["-d", "--defunctionalize"] = Just (Options c yn r l a)
-    | arg `elem` ["-r", "--refunctionalize"] = Just (Options c d yn l a)
-    | arg `elem` ["-l", "--linearize"]       = Just (Options c d r yn a)
-    | arg `elem` ["-a", "--alpha"]           = Just (Options c d r l yn)
+  h arg (Options c d r l a o) yn
+    | arg `elem` ["-c", "--compile"]         = Just (Options yn d r l a o)
+    | arg `elem` ["-d", "--defunctionalize"] = Just (Options c yn r l a o)
+    | arg `elem` ["-r", "--refunctionalize"] = Just (Options c d yn l a o)
+    | arg `elem` ["-l", "--linearize"]       = Just (Options c d r yn a o)
+    | arg `elem` ["-a", "--alpha"]           = Just (Options c d r l yn o)
+    | arg `elem` ["-o", "--optimize"]        = Just (Options c d r l a yn)
     | otherwise = Nothing
 
 processArgs' :: Options -> [String] -> Maybe Options
@@ -81,7 +85,7 @@ showFile :: Progs -> Either String String
 showFile = return . show
 
 --process :: Show a => Options -> String -> a
-processContents (Options c d r l a) s = return s
+processContents (Options c d r l a o) s = return s
   -- String to list of tokens
   >>= lexFile
   -- List of tokens to UsProgs
@@ -90,11 +94,15 @@ processContents (Options c d r l a) s = return s
   >>= doIf a alphaRenameUsFile
   -- Type check the file (:: UsProgs -> Progs)
   >>= checkFile
+  -- Apply various optimizations
+  >>= doIf o optimizeFile
   -- Eliminate recursive types (de/refunctionalization)
   -- TODO: d and r
   >>= doIf d elimRecTypes
   -- Convert terms from affine to linear
   >>= doIf l aff2linFile
+  -- Apply various optimizations (again) (disabled for now; joinApps problem after aff2lin introduces maybe types)
+--  >>= doIf o optimizeFile
   -- Pick a unique name for each bound var (again)
   >>= doIf a alphaRenameFile
   -- Compile to FGG

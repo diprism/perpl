@@ -33,37 +33,60 @@ Notes:
 -}
 
 -- TODO: implement these optimizations
+-- TODO: Opts (1) & (2) should check for lets: ((let x = t1 in \y. t2) t3) -> (let x = t1 in t2[y := t3])    (maybe just push lets down as far as possible, stopping at case-ofs/vars?)
 
 -- Peels off the lams around a term and substitutes their bound variables for others
 -- Example 1: peelLams g [(x, Bool)] (\ z : Bool. and true z) = (and true x)
 -- Example 2: peelLams g [(x, Bool)] (and true) = (and true x)
 peelLams :: Ctxt -> [Param] -> Term -> Term
+peelLams g [] tm = tm
 peelLams g ps tm =
   let (ls, body) = splitLams tm in
     joinApps
       (substs g (zip (map fst ls) (map fst ps)) (renameTerm body)) -- Example 1
       (paramsToArgs (drop (length ls) ps))                         -- Example 2
 
-liftCase :: Ctxt -> Term -> Term
-liftCase g (TmLam x tp tm tp') =
-  TmLam x tp (liftCase g tm) tp'
-liftCase g (TmApp tm1 tm2 tp2 tp) =
+optimizeArgs :: Ctxt -> [Arg] -> [Arg]
+optimizeArgs g = map (\ (atm, atp) -> (optimizeTerm g atm, atp))
+
+optimizeTerm :: Ctxt -> Term -> Term
+optimizeTerm g (TmVarL x tp) = TmVarL x tp
+optimizeTerm g (TmVarG gv x as tp) =
+  TmVarG gv x (optimizeArgs g as) tp
+optimizeTerm g (TmLet x xtm xtp tm tp) =
+  TmLet x (optimizeTerm g xtm) xtp (optimizeTerm (ctxtDeclTerm g x xtp) tm) tp
+optimizeTerm g (TmSamp d tp) = TmSamp d tp
+optimizeTerm g (TmLam x tp tm tp') =
+  TmLam x tp (optimizeTerm (ctxtDeclTerm g x tp) tm) tp'
+optimizeTerm g (TmApp tm1 tm2 tp2 tp) =
   let (body, as) = splitApps (TmApp tm1 tm2 tp2 tp)
-      body' = liftCase g body
-      (ls, body'') = splitLams body'
-      lets = zip ls as
-      rem_as = drop (length lets) as
+      body1 = optimizeTerm g body
+      as' = optimizeArgs g as
+      (ds, body2) = splitLets body1
+      (ls, body3) = splitLams body2
+      lets = map (\ ((lx, ltp), (atm, atp)) -> (lx, atm, atp)) (zip ls as')
+      rem_as = drop (length lets) as'
       rem_ls = drop (length lets) ls
-      let_tm = foldr (\ ((lx, ltp), (atm, atp)) bdy -> TmLet lx atm atp bdy (getType bdy)) body'' lets
+      let_tm = joinLets (ds ++ lets) body3
   in
     -- Either rem_as or rem_ls must be [], so just expand with both:
     joinLams rem_ls (joinApps let_tm rem_as)
-liftCase g (TmCase tm y cs (TpArr tp1 tp2)) =
-  let (ps, end) = splitArrows (TpArr tp1 tp2)
-      g_ps = foldr (\ (Case x xps xtm) g-> ctxtDeclArgs g xps) g cs
-      ps' = reverse $ snd $ foldl (\ (e, ps') p -> let e' = freshVar (ctxtDeclTerm g_ps e (TpVar "")) e in (e', (e', p) : ps')) (etaName "e" 0, []) ps
-      cs' = map (\ (Case x xps xtm) -> Case x xps
-                  (peelLams (ctxtDeclArgs g (ps' ++ xps)) ps' xtm)) cs
+optimizeTerm g (TmCase tm y cs tp) =
+  let (ps, end) = splitArrows tp
+      g_ps = foldr (\ (Case x xps xtm) g -> ctxtDeclArgs g xps) g cs
+      (_, _, rps') = foldl (\ (e, g', ps') p ->
+                              let e' = freshVar g' e in
+                                (e', ctxtDeclTerm g' e' p, (e', p) : ps'))
+                           (etaName "e" 0, g_ps, []) ps
+      ps' = reverse rps'
+      cs' = map (\ (Case x xps xtm) ->
+                   let g' = ctxtDeclArgs g (ps' ++ xps) in
+                     Case x xps (peelLams g' ps' (optimizeTerm g' xtm))) cs
+      tm' = optimizeTerm g tm
   in
-    joinLams ps' (TmCase tm y cs' end)
-liftCase g tm = tm
+    joinLams ps' (TmCase tm' y cs' end)
+
+optimizeFile :: Progs -> Either String Progs
+optimizeFile ps =
+  let g = ctxtDefProgs ps in
+    mapProgsM (return . optimizeTerm g) ps

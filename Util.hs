@@ -109,6 +109,17 @@ splitLams :: Term -> ([Param], Term)
 splitLams (TmLam x tp tm tp') = let (ls, end) = splitLams tm in ((x, tp) : ls, end)
 splitLams tm = ([], tm)
 
+joinLets :: [(Var, Term, Type)] -> Term -> Term
+joinLets ds tm = h ds where
+  tp = getType tm
+  h [] = tm
+  h ((x, xtm, xtp) : ds) = TmLet x xtm xtp (h ds) tp
+
+splitLets :: Term -> ([(Var, Term, Type)], Term)
+splitLets (TmLet x xtm xtp tm tp) =
+  let (ds, end) = splitLets tm in ((x, xtm, xtp) : ds, end)
+splitLets tm = ([], tm)
+
 paramsToArgs :: [Param] -> [Arg]
 paramsToArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
 

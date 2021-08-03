@@ -6,7 +6,6 @@ import Ctxt
 import Util
 import Name
 import Rename
-import Optimize
 
 {- ====== Affine to Linear Functions ====== -}
 -- These functions convert affine terms to
@@ -60,6 +59,21 @@ aff2linCase g (Case x ps tm) =
       tm'' = discards g (Map.difference (Map.fromList ps') fvs) tm' in
     (Case x ps' tm'', foldr (Map.delete . fst) fvs ps')
 
+aff2linUnfoldMaybe :: Term -> Term
+aff2linUnfoldMaybe tm = case getType tm of
+  TpMaybe tp ->
+    let jx = etaName tmJustName 0 in
+      tmElimMaybe tm tp (TmSamp DistFail tp) (jx, TmVarL jx tp) tp
+  tp -> tm
+
+aff2linJoinApps :: Term -> [Arg] -> Term
+aff2linJoinApps tm as = foldl
+  (\ tm (atm, atp) ->
+     let tm' = aff2linUnfoldMaybe tm
+         TpArr tp1 tp2 = getType tm'
+     in
+       TmApp tm' atm tp1 tp2) tm as
+
 -- Make a term linear, returning the local vars that occur free in it
 aff2linh :: Ctxt -> Term -> (Term, FreeVars)
 aff2linh g (TmVarL x tp) =
@@ -80,16 +94,13 @@ aff2linh g (TmLam x tp tm tp') =
       ntm = discards g fvs'
               (TmVarG CtorVar tmNothingName [] (TpMaybe (TpArr ltp ltp'))) in
     (tmIf (TmSamp DistAmb TpBool) jtm ntm (TpMaybe (TpArr ltp ltp')), fvs')
-aff2linh g (TmApp tm1 tm2 tp2 tp) =
+aff2linh g (TmApp tm1 tm2 tp2 tp) = -- TODO: pass number of args (increment here), so we don't necessarily need to do this amb stuff? And what about if tm2 has arrow type but is always used in tm1?
   let (tm1', fvs1) = aff2linh g tm1
       (tm2', fvs2) = aff2linh g tm2
-      ltp2 = aff2linTp tp2
-      ltp = aff2linTp tp
-      fvs = Map.union fvs1 fvs2
-      ntm = TmApp (TmSamp DistFail (TpArr ltp2 ltp)) tm2' ltp2 ltp
-      jx = etaName tmJustName 0
-      jtm = TmApp (TmVarL jx (TpArr ltp2 ltp)) tm2' ltp2 ltp in
-    (tmElimMaybe tm1' (TpArr ltp2 ltp) ntm (jx, jtm) ltp, fvs)
+      tm1'' = aff2linUnfoldMaybe tm1'
+      TpArr ltp2 ltp = getType tm1''
+  in
+    (TmApp tm1'' tm2' ltp2 ltp, Map.union fvs1 fvs2)
 aff2linh g (TmLet x xtm xtp tm tp) =
   let xtp' = aff2linTp xtp
       tp' = aff2linTp tp
@@ -98,8 +109,6 @@ aff2linh g (TmLet x xtm xtp tm tp) =
       tm'' = if Map.member x fvs then tm' else discard g x xtp' tm'
   in
     (TmLet x xtm' xtp' tm'' tp', Map.union fvsx (Map.delete x fvs))
-aff2linh g (TmCase tm y cs (TpArr tp1 tp2)) =
-  aff2linh g (liftCase g (TmCase tm y cs (TpArr tp1 tp2)))
 aff2linh g (TmCase tm y cs tp) =
   let csxs = map (aff2linCase g) cs
       xsAny = Map.unions (map snd csxs)
@@ -129,7 +138,7 @@ aff2linProg g (ProgExtern x xp (p : ps) tp) =
 --  aff2linProg g (ProgExtern x xp [] (joinArrows (p : ps) tp))
 aff2linProg g (ProgFun x [] tm tp) =
   let (as, endtp) = splitArrows tp
-      (ls, endtm) = splitLams (liftCase g tm)
+      (ls, endtm) = splitLams tm
       as' = map aff2linTp as
       ls' = map (fmap aff2linTp) ls
       etas = map (\ (i, atp) -> (etaName x i, atp)) (drop (length ls') (enumerate as'))
@@ -139,7 +148,7 @@ aff2linProg g (ProgFun x [] tm tp) =
       endtp' = aff2linTp endtp -- This may not be necessary, but is future-proof
   in
 --    error ("ProgFun " ++ x ++ ", " ++ show ls' ++ ", " ++ show etas ++ ", " ++ show endtm'' ++ ", " ++ show (paramsToArgs etas) ++ ", " ++ show endtp')
-    ProgFun x (ls' ++ etas) (joinApps endtm'' (paramsToArgs etas)) endtp'
+    ProgFun x (ls' ++ etas) (aff2linJoinApps endtm'' (paramsToArgs etas)) endtp'
 aff2linProg g (ProgExtern x xp [] tp) =
   let (as, end) = splitArrows tp
       as' = map aff2linTp as in
@@ -151,6 +160,6 @@ aff2linProg g (ProgData y cs) =
 aff2linFile :: Progs -> Either String Progs
 aff2linFile (Progs ps end) =
   let g = ctxtDefProgs (Progs ps end)
-      (ls, endtm) = splitLams (liftCase g end) in
+      (ls, endtm) = splitLams end in
 --    return (Progs (map (aff2linProg g) ps) (aff2linTerm g end))
     return (Progs (map (aff2linProg g) ps) (joinLams ls (fst (aff2linh g endtm))))
