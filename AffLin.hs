@@ -15,8 +15,8 @@ peelLams :: Ctxt -> [Param] -> Term -> Term
 peelLams g ps tm =
   let (ls, body) = splitLams tm in
     joinApps
-      (substs g (zip (map fst ls) (map fst ps)) (renameTerm tm)) -- Example 1
-      (paramsToArgs (drop (length ls) ps))                       -- Example 2
+      (substs g (zip (map fst ls) (map fst ps)) (renameTerm body)) -- Example 1
+      (paramsToArgs (drop (length ls) ps))                         -- Example 2
 
 peelCase :: Ctxt -> Term -> Term
 peelCase g (TmLam x tp tm tp') =
