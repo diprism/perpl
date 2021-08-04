@@ -42,7 +42,7 @@ applyName :: Var -> Var
 applyName y = "%apply" ++ y ++ "%"
 
 unfoldName :: Var -> Var
-unfoldName y = "%unfold" ++ y ++ "%"
+unfoldName y = "%unapply" ++ y ++ "%"
 
 targetName :: Var
 targetName = "%this%"
@@ -55,6 +55,9 @@ foldTypeName y = "%Fold" ++ y ++ "%"
 
 unfoldTypeName :: Var -> Var
 unfoldTypeName y = "%Unfold" ++ y ++ "%"
+
+unfoldCtorName :: Var -> Var
+unfoldCtorName y = "%unfold" ++ y ++ "%"
 
 startName :: Var
 startName = "%start%"
