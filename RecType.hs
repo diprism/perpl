@@ -53,21 +53,6 @@ type DisentangleM a = State.State (Map.Map Var DisentangleResult) a
 type DisentangleResult = [(Map.Map Var Type, [Case], Type)]
 
 disentangleMake :: Ctxt -> Var -> DisentangleResult -> (Prog, Prog)
-{-disentangleMake g y ((fvs, name, cs, tp') : []) =
-  let utpn = unfoldTypeName y
-      uctn = unfoldCtorName y
-      ps' = Map.toList fvs
-      ps = (targetName, TpVar y) : ps'
---      rtm = TmCase (TmVarL targetName (TpVar y)) (TpVar y) cs tp'
-      arrtp = joinArrows (map snd ps') tp'
-      csf = \ (Case x xps xtm) -> Case x xps $ TmVarG CtorVar uctn [(joinLams ps' xtm, arrtp)] (TpVar utpn)
-      rtm = TmCase (TmVarL targetName (TpVar y)) (TpVar y) (map csf cs) (TpVar utpn)
-
---      fun = ProgFun name [] (joinLams ps rtm) (joinArrows (map snd ps) tp')
-      fun = ProgFun name [] (TmLam targetName (TpVar y) rtm (TpVar utpn)) (TpArr (TpVar y) (TpVar utpn))
-      dat = ProgData utpn [Ctor uctn [arrtp]] in
-    (fun, dat)
--}
 disentangleMake g y ((fvs, cs, tp') : []) =
   let utpn = unfoldTypeName y
       uctn = unfoldCtorName y
@@ -111,18 +96,6 @@ disentangleTerm recs = h where
       in
         State.put (Map.insert y ((fvs, cs', tp2) : y_us) unfolds) >>
         pure rtm
-{-    | tp1 `elemRecs` recs =
-      h tm >>= \ tm' ->
-      mapCasesM (const h) cs >>= \ cs' ->
-      State.get >>= \ unfolds ->
-      let TpVar y = tp1
-          y_us = maybe [] id (Map.lookup y unfolds)
-          fvs = freeVars' (TmCase (TmVarG DefVar "" [] (TpVar y)) (TpVar y) cs' tp2)
-          fvs' = Map.toList fvs
-          name = unfoldName y
-          rtm = TmVarG DefVar name ((tm', TpVar y) : paramsToArgs fvs') tp2 in
-        State.put (Map.insert y ((fvs, name, cs', tp2) : y_us) unfolds) >>
-        pure rtm-}
     | otherwise =
       pure TmCase <*> h tm <*> pure tp1 <*> mapCasesM (const h) cs <*> pure tp2
   h (TmSamp d tp) =
@@ -223,23 +196,14 @@ derefunTerm dr g rtp = fst . h where
   h :: Term -> (Term, Type)
   h (TmVarL x tp) = let tp' = sub tp in (TmVarL x tp', tp')
   h (TmVarG gv x as tp)
-{-    | dr == Refun && gv == DefVar && x == unfoldN =
-      let ((ctm, ctp) : as') = h_as as
-          x' = targetName
-          arrtp = joinArrows (map snd as') tp
-          (ptm, ptp) = h (joinApps (TmVarL x' arrtp) as')
-      in
-        (TmCase ctm ctp [Case (unfoldCtorName rtp) [(x', arrtp)] ptm] ptp, ptp)-}
     | dr == Refun && gv == CtorVar && tp == TpVar rtp =
       (TmVarG DefVar unfoldN [(TmVarG gv x (h_as as) tp, tp)] (TpVar unfoldTypeN), TpVar unfoldTypeN)
     | dr == Defun && gv == DefVar && x == applyN =
       let [(etm, etp)] = as in h etm
     | otherwise =
-      let tp' = maybe (error ("unknown global var " ++ x)) (\ (_, tp') -> tp')
-                  (ctxtLookupTerm g x)
-          (tps, end) = splitArrows tp'
+      maybe2 (ctxtLookupTerm g x) (TmVarG gv x (h_as as) tp, tp) $ \ (_, tp') ->
+      let (tps, end) = splitArrows tp'
           tp'' = joinArrows (drop (length as) tps) end in
---          tp'' = joinArrows (map sub (drop (length as) tps)) (if gv == CtorVar then end else sub end) in
         (TmVarG gv x (h_as as) tp'', tp'')
   h (TmLam x tp1 tm tp2) =
     let tp1' = sub tp1
@@ -259,11 +223,6 @@ derefunTerm dr g rtp = fst . h where
             cs' = map (\ (Case x ps xtm) -> Case x (h_ps ps) (fst (h xtm))) cs
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> getType xtm in
           (TmCase (TmVarG DefVar applyN [(tm1', tp1')] (TpVar rtp)) (TpVar rtp) cs' tp2', tp2')
-{-    | dr == Refun && tp1 == TpVar rtp =
-        let (tm1', tp1') = h tm1
-            cs' = map (\ (Case x ps xtm) -> Case x (h_ps ps) (fst (h xtm))) cs
-            tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> getType xtm in
-          (TmCase tm1' tp1' cs' tp2', tp2') -} -- Same as otherwise
     | otherwise =
         let (tm1', tp1') = h tm1
             cs' = map (\ (Case x ps xtm) -> Case x (h_ps ps) (fst (h xtm))) cs
@@ -283,29 +242,18 @@ derefunProgsTypes :: DeRe -> Var -> Progs -> Progs
 derefunProgsTypes dr rtp (Progs ps end) =
   Progs (map (derefunProgTypes dr rtp) ps) end
 
+
+-- TODO: need to derefunTerm on the definition of unfoldName rtp, but only inside the cases
+-- define (unfoldName rtp) : rtp -> %Unfoldrtp% = \ %this%. case %this% of Case1 ps -> tm...
+-- We should only derefunTerm on each case's tm (and add its ps to ctxt)
 derefunProg' :: DeRe -> Ctxt -> Var -> Prog -> Prog
-derefunProg' dr g rtp (ProgFun x ps tm tp)
-{-  | (dr == Defun && x == applyName rtp) =
-    let tm' = derefunTerm dr g rtp tm in
-      ProgFun x ps tm' tp
-  | (dr == Refun && x == unfoldName rtp) =
-    let tm' = tm in -- TODO?
-      ProgFun x ps tm' tp-}
-  | otherwise = ProgFun x
---      (map (fmap (derefunSubst dr rtp)) ps)
-      ps
-      (derefunTerm dr g rtp tm)
-      tp
---      (derefunSubst dr rtp tp)
+derefunProg' dr g rtp (ProgFun x ps tm tp) = ProgFun x ps (derefunTerm dr g rtp tm) tp
 derefunProg' dr g rtp (ProgExtern x xp ps tp) = ProgExtern x xp ps tp
-derefunProg' dr g rtp (ProgData y cs)
---  | y == rtp = ProgData y (map (\ (Ctor x tps) -> Ctor x (map (derefunSubst dr rtp) tps)) cs) -- anyways, we'd need to substitute in this to change things that reference String to %UnfoldString% or whatever
-  | otherwise = ProgData y cs
+derefunProg' dr g rtp (ProgData y cs) = ProgData y cs
 
 derefun :: DeRe -> Var -> [Prog] -> Progs -> Progs
 derefun dr rtp new_ps (Progs ps end) =
-  let --g = ctxtDefProgs (Progs (ps ++ new_ps) end)
-      g = ctxtDefProgs (Progs (ps ++ new_ps) end)
+  let g = ctxtDefProgs (Progs (ps ++ new_ps) end)
       ps' = Progs (map (derefunProg' dr g rtp) ps) (derefunTerm dr g rtp end)
   in
     ps'
@@ -331,11 +279,3 @@ elimRecTypes ps =
     (if dr == Defun then defoldFile else disentangleFile) ps >>= \ (ps', new_ps) ->
     let new_ps' = concat (map (\ (_, p1, p2) -> [p1, p2]) new_ps) in
       return (insertProgs (foldr (\ (tp, _, _) -> derefun dr tp new_ps') ps' new_ps) new_ps)
-
-{-  -- Only necessary when refunctionalizing
-  disentangleFile ps >>= \ (Progs ps' end', new_ps) ->
-  -- Only necessary when defunctionalizing
-  defoldFile (Progs (ps' ++ new_ps) end') >>= \ (Progs ps'' end'', new_ps') ->
-  let ps3 = Progs (ps'' ++ concat (map (\ (_, p1, p2) -> [p1, p2]) new_ps')) end'' in
-    return (foldr (\ (tp, _, _) -> refun tp) ps3 new_ps')
--}
