@@ -47,7 +47,7 @@ freeVarsCase' :: Case -> Map.Map Var Type
 freeVarsCase' (Case c as tm) = foldr (Map.delete . fst) (freeVars' tm) as
 
 freeVarsCases' :: [Case] -> Map.Map Var Type
-freeVarsCases' = foldr (Map.union . freeVarsCase') Map.empty
+freeVarsCases' = foldl (\ fvs c -> Map.union (freeVarsCase' c) fvs) Map.empty
 
 freeVarsArgs' :: [Arg] -> Map.Map Var Type
 freeVarsArgs' = Map.unions . map (freeVars' . fst)
