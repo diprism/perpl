@@ -20,7 +20,7 @@ kronpos :: [[a]] -> [[(Int, Int, a)]]
 kronpos = kronall . map (\ as -> map (\ (i, a) -> (i, length as, a)) (enumerate as))
 
 enumerate :: [a] -> [(Int, a)]
-enumerate as = zip [0..length as - 1] as
+enumerate = zip [0..]
 
 weightsRow :: Num n => Int {- Index -} -> Int {- Length -} -> [n]
 weightsRow i l = [if j == i then 1 else 0 | j <- [0..l-1]] --map (\ j -> if j == i then 1 else 0) [0..l-1]
