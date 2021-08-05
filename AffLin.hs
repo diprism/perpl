@@ -6,6 +6,7 @@ import Ctxt
 import Util
 import Name
 import Rename
+import Free
 
 {- ====== Affine to Linear Functions ====== -}
 -- These functions convert affine terms to
@@ -13,7 +14,6 @@ import Rename
 -- every bound var occurs at most once, and a
 -- linear term is one where every bound var
 -- occurs exactly once
-type FreeVars = Map.Map Var Type
 
 -- Uses x without changing the value or type of a term
 -- For example, take x : Bool and some term tm that becomes
@@ -48,6 +48,7 @@ discards g fvs tm = Map.foldrWithKey (discard g) tm fvs
 aff2linTp :: Type -> Type
 aff2linTp (TpVar y) = TpVar y
 aff2linTp (TpArr tp1 tp2) = TpMaybe (TpArr (aff2linTp tp1) (aff2linTp tp2))
+aff2linTp TpBool = TpBool
 aff2linTp tp = error ("aff2linTp shouldn't see a " ++ show tp)
 
 -- Make a case linear, returning the local vars that occur free in it

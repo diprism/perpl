@@ -32,8 +32,7 @@ aff2linName x = '%' : x
 
 -- Returns the names of the args for a constructor
 nameParams :: Var -> [Type] -> [Param]
-nameParams x tps =
-  zip (map (etaName x) [0..length tps - 1]) tps
+nameParams x = zip (map (etaName x) [0..])
 
 ctorDefault :: Var -> [Type] -> Type -> Term
 ctorDefault x as y = TmVarG CtorVar x (map (\ (a, atp) -> (TmVarL a atp, atp)) (nameParams x as)) y
@@ -48,7 +47,7 @@ targetName :: Var
 targetName = "%this%"
 
 foldCtorName :: Var -> Int -> Var
-foldCtorName y i = "%fold" ++ y ++ "%" ++ show i
+foldCtorName y i = "%fold" ++ y ++ "%" ++ show i ++ "%"
 
 foldTypeName :: Var -> Var
 foldTypeName y = "%Fold" ++ y ++ "%"
@@ -56,8 +55,8 @@ foldTypeName y = "%Fold" ++ y ++ "%"
 unfoldTypeName :: Var -> Var
 unfoldTypeName y = "%Unfold" ++ y ++ "%"
 
-unfoldCtorName :: Var -> Var
-unfoldCtorName y = "%unfold" ++ y ++ "%"
+unfoldCtorName :: Var -> Int -> Var
+unfoldCtorName y i = "%unfold" ++ y ++ "%" ++ show i ++ "%"
 
 startName :: Var
 startName = "%start%"

@@ -31,7 +31,9 @@ freeVars (UsCase tm cs) = foldr (Map.unionWith max . freeVarsCase) (freeVars tm)
 freeVars (UsSamp d tp) = Map.empty
 freeVars (UsLet x tm tm') = Map.unionWith max (freeVars tm) (Map.delete x $ freeVars tm')
 
-freeVars' :: Term -> Map.Map Var Type
+type FreeVars = Map.Map Var Type
+
+freeVars' :: Term -> FreeVars
 freeVars' (TmVarL x tp) = Map.singleton x tp
 freeVars' (TmVarG gv x as tp) = freeVarsArgs' as
 freeVars' (TmLam x tp tm tp') = Map.delete x $ freeVars' tm
@@ -43,13 +45,13 @@ freeVars' (TmSamp d tp) = Map.empty
 freeVarsCase :: CaseUs -> Map.Map Var Int
 freeVarsCase (CaseUs c xs tm) = foldr Map.delete (freeVars tm) xs
 
-freeVarsCase' :: Case -> Map.Map Var Type
+freeVarsCase' :: Case -> FreeVars
 freeVarsCase' (Case c as tm) = foldr (Map.delete . fst) (freeVars' tm) as
 
-freeVarsCases' :: [Case] -> Map.Map Var Type
+freeVarsCases' :: [Case] -> FreeVars
 freeVarsCases' = foldl (\ fvs c -> Map.union (freeVarsCase' c) fvs) Map.empty
 
-freeVarsArgs' :: [Arg] -> Map.Map Var Type
+freeVarsArgs' :: [Arg] -> FreeVars
 freeVarsArgs' = Map.unions . map (freeVars' . fst)
 
 
