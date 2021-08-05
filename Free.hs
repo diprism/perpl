@@ -49,7 +49,7 @@ freeVarsCase' :: Case -> FreeVars
 freeVarsCase' (Case c as tm) = foldr (Map.delete . fst) (freeVars' tm) as
 
 freeVarsCases' :: [Case] -> FreeVars
-freeVarsCases' = foldl (\ fvs c -> Map.union (freeVarsCase' c) fvs) Map.empty
+freeVarsCases' = Map.unions . map (freeVarsCase')
 
 freeVarsArgs' :: [Arg] -> FreeVars
 freeVarsArgs' = Map.unions . map (freeVars' . fst)
