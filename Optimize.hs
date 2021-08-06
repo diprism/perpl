@@ -1,10 +1,12 @@
 module Optimize where
 import Data.List
+import qualified Data.Map as Map
 import Exprs
 import Ctxt
 import Util
 import Name
 import Rename
+import Free
 
 {- Provides various optimizations:
 1. (case t of C1 a* -> \x. t1 | C2 b* -> \y. t2 | C3 c* -> t3)
@@ -41,20 +43,48 @@ Notes:
 peelLams :: Ctxt -> [Param] -> Term -> Term
 peelLams g [] tm = tm
 peelLams g ps tm =
-  let (ls, body) = splitLams tm in
-    joinApps
-      (substs g (zip (map fst ls) (map fst ps)) (renameTerm body)) -- Example 1
-      (paramsToArgs (drop (length ls) ps))                         -- Example 2
+  let (ls, body) = splitLams tm
+      subs = zip (map fst ls) (map (Left . fst) (paramsToArgs ps))
+      -- See examples above
+      example1 = substs g subs (renameTerm body)
+      example2 = joinApps example1 (paramsToArgs (drop (length ls) ps)) in
+    example2
 
 optimizeArgs :: Ctxt -> [Arg] -> [Arg]
 optimizeArgs g = map (\ (atm, atp) -> (optimizeTerm g atm, atp))
+
+-- Returns whether or not it is safe to substitute a term into another
+-- More specifically, returns true when there are no global vars (excluding ctors),
+-- no free vars that aren't also free in the other term, and no ambs/fails/uniforms
+safe2sub :: Ctxt -> Var -> Term -> Term -> Bool
+safe2sub g x xtm tm =
+  isLin' x tm || (noDefsSamps xtm && fvsOkay (freeVars' xtm))
+  where
+    fvsOkay :: FreeVars -> Bool
+    -- TODO: don't need to check typeIsRecursive g tp, once we can copy terms with recursive datatypes
+    fvsOkay fvs = all (\ (_, tp) -> not (typeHasArr g tp || typeIsRecursive g tp)) (Map.toList fvs)
+    
+    -- Returns if there are no global def vars or ambs/fails/uniforms
+    noDefsSamps :: Term -> Bool
+    noDefsSamps (TmVarL x tp) = True
+    noDefsSamps (TmVarG DefVar x as tp) = False
+    noDefsSamps (TmVarG CtorVar x as tp) = all (noDefsSamps . fst) as
+    noDefsSamps (TmLam x tp tm tp') = noDefsSamps tm
+    noDefsSamps (TmApp tm1 tm2 tp2 tp) = noDefsSamps tm1 && noDefsSamps tm2
+    noDefsSamps (TmLet x xtm xtp tm tp) = noDefsSamps xtm && noDefsSamps tm
+    noDefsSamps (TmCase tm tp cs tp') = noDefsSamps tm && all (\ (Case x xps xtm) -> noDefsSamps xtm) cs
+    noDefsSamps (TmSamp d tp) = False
 
 optimizeTerm :: Ctxt -> Term -> Term
 optimizeTerm g (TmVarL x tp) = TmVarL x tp
 optimizeTerm g (TmVarG gv x as tp) =
   TmVarG gv x (optimizeArgs g as) tp
 optimizeTerm g (TmLet x xtm xtp tm tp) =
-  TmLet x (optimizeTerm g xtm) xtp (optimizeTerm (ctxtDeclTerm g x xtp) tm) tp
+  let xtm' = optimizeTerm g xtm
+      tm' = optimizeTerm (ctxtDeclTerm g x xtp) tm in
+  if safe2sub g x xtm' tm'
+    then optimizeTerm g (substs g [(x, Left xtm')] (renameTerm tm'))
+    else TmLet x xtm' xtp tm' tp
 optimizeTerm g (TmSamp d tp) = TmSamp d tp
 optimizeTerm g (TmLam x tp tm tp') =
   TmLam x tp (optimizeTerm (ctxtDeclTerm g x tp) tm) tp'
@@ -68,9 +98,10 @@ optimizeTerm g (TmApp tm1 tm2 tp2 tp) =
       rem_as = drop (length lets) as'
       rem_ls = drop (length lets) ls
       let_tm = joinLets (ds ++ lets) body3
+      -- Either rem_as or rem_ls must be [], so just expand with both:
+      rtm = joinLams rem_ls (joinApps let_tm rem_as)
   in
-    -- Either rem_as or rem_ls must be [], so just expand with both:
-    joinLams rem_ls (joinApps let_tm rem_as)
+    if null lets then rtm else optimizeTerm g rtm
 optimizeTerm g (TmCase tm y cs tp) =
   let (ps, end) = splitArrows tp
       g_ps = foldr (\ (Case x xps xtm) g -> ctxtDeclArgs g xps) g cs

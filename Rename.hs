@@ -1,5 +1,6 @@
 module Rename where
 import Data.Char
+import qualified Control.Monad.State.Lazy as State
 import qualified Data.Map as Map
 import Ctxt
 import Exprs
@@ -10,45 +11,20 @@ import Exprs
 -- to unique names that don't occur anywhere
 -- else in the entire program.
 
-type VarMap = Map.Map Var Var
-newtype RenameM a = RenameM (VarMap -> (a, VarMap))
-instance Functor RenameM where
-  fmap f (RenameM r) = RenameM $ \ xs -> let (a, xs') = r xs in (f a, xs')
-instance Applicative RenameM where
-  pure a = RenameM $ \ xs -> (a, xs)
-  (RenameM fab) <*> (RenameM fa) =
-    RenameM $ \ xs ->
-      let (ab, xs') = fab xs
-          (a, xs'') = fa xs' in
-      (ab a, xs'')
-instance Monad RenameM where
-  (RenameM fa) >>= g = RenameM $ \ xs ->
-    let (a, xs') = fa xs
-        (RenameM fb) = g a in
-      fb xs'
+data SubTo tm = SubVar Var | SubTm tm | SubTp Type
 
--- Lookup x in the renaming map
-getVar :: Var -> RenameM Var
-getVar x = RenameM $ \ xs -> (Map.findWithDefault x x xs, xs)
-
--- Add x->x to the renaming map
-bindVar :: Var -> RenameM a -> RenameM a
-bindVar x (RenameM fa) = RenameM $ \ xs ->
-  let x' = Map.findWithDefault x x xs
-      (a, xs') = fa xs in
-    (a, Map.insert x x' xs')
-
--- Bind a list of vars (c.f. bindVar)
-bindVars :: [Var] -> RenameM a -> RenameM a
-bindVars = flip (foldr bindVar)
-
+type VarMap tm = Map.Map Var (SubTo tm)
+--newtype RenameM' tm a = RenameM (VarMap tm -> (a, VarMap tm))
+type RenameM' tm a = State.State (VarMap tm) a
+type RenameM a = RenameM' Term a
+type RenameUsM a = RenameM' UsTm a
 
 data SplitVar = SplitVar String Int String
 succSplitVar (SplitVar pre i suf) = SplitVar pre (succ i) suf
 instance Show SplitVar where
   show (SplitVar pre i suf) = pre ++ show i ++ suf
 
--- Splits abc14'' into ("abc", 14, "\'\'")
+-- Splits abc14'' into SplitVar "abc" 14 "\'\'"
 splitVar :: Var -> SplitVar
 splitVar x =
   let (pre, i, suf) = h True (reverse x)
@@ -71,32 +47,68 @@ splitVar x =
           (pre, c : i, suf)
       | otherwise = (c : cs, "", "")
 
-
+newVar' :: Var -> Map.Map Var a -> Var
+newVar' x xs = if Map.member x xs then h xs (splitVar x) else x
+  where
+    h xs x = let x' = show x in if Map.member x' xs then h xs (succSplitVar x) else x'
 
 -- Pick a new name, if necessary
-newVar :: Var -> RenameM Var
-newVar x = RenameM $ \ xs ->
-  let x' = newVarH xs x in
-    (x', Map.insert x x' (Map.insert x' x' xs))
-  where  
-  h xs x =
-    let x' = show x in
-      if Map.member x' xs
-        then h xs (succSplitVar x)
-        else x'
-  newVarH xs x =
-    if Map.member x xs then h xs (splitVar x) else x
+newVar :: Var -> RenameM' tm Var
+newVar x = State.get >>= return . newVar' x
+
+ctxtToTermMap :: Ctxt -> VarMap Term
+ctxtToTermMap = Map.mapWithKey $ \ x d -> SubVar x
+
+ctxtToUsTmMap :: Ctxt -> VarMap UsTm
+ctxtToUsTmMap = Map.mapWithKey $ \ x d -> SubVar x
 
 freshVar :: Ctxt -> Var -> Var
-freshVar g x = let RenameM f = newVar x in fst (f (Map.mapWithKey const g))
+freshVar g x = fst $ State.runState (newVar x) (ctxtToUsTmMap g)
+
+
+-- Lookup x in the renaming map
+lookupTerm :: Var -> (Var -> tm) -> RenameM' tm tm
+lookupTerm x elsetm = State.get >>= \ xs -> return (case Map.lookup x xs of { Just (SubTm tm) -> tm; Just (SubVar x') -> elsetm x'; _ -> elsetm x })
+lookupType :: Var -> (Var -> Type) -> RenameM' tm Type
+lookupType x elsetp = State.get >>= \ xs -> return (case Map.lookup x xs of { Just (SubTp tp) -> tp; Just (SubVar x') -> elsetp x'; _ -> elsetp x })
+
+bindTwo :: Ord k => k -> k -> v -> Map.Map k v -> Map.Map k v
+bindTwo k1 k2 v = Map.insert k1 v . Map.insert k2 v
+
+bindVar' :: Var -> Type -> (Var -> Type -> RenameM' tm a) -> RenameM' tm a
+bindVar' x tp f = renameType tp >>= bindVar x . flip f
+
+bindVar :: Var -> (Var -> RenameM' tm a) -> RenameM' tm a
+bindVar x f =
+  newVar x >>= \ x' ->
+  State.get >>= \ xs ->
+  let ox = Map.lookup x xs in
+    State.modify (bindTwo x x' (SubVar x')) >>
+    f x' >>= \ a ->
+    State.modify (maybe id (Map.insert x) ox) >>
+    return a
+
+--bindTpVar :: Var -> (Var -> RenameM' tm a) -> RenameM' tm a
+--bindTpVar x f = newVar x >>= \ x' -> local (bindTwo x x' (Right (TpVar x'))) (f x')
+
+bindVars :: [Param] -> ([Param] -> RenameM a) -> RenameM a
+bindVars [] f = f []
+bindVars ((x, tp) : ps) f =
+  bindVar' x tp $ \ x' tp' ->
+  bindVars ps (\ ps -> f ((x', tp') : ps))
+
+bindUsVars :: [Var] -> ([Var] -> RenameUsM a) -> RenameUsM a
+bindUsVars [] f = f []
+bindUsVars (x : ps) f =
+  bindVar x $ \ x' ->
+  bindUsVars ps (\ ps -> f (x' : ps))
 
 -- Alpha-rename a user-term
-renameUsTm :: UsTm -> RenameM UsTm
-renameUsTm (UsVar x) =
-  pure UsVar <*> getVar x
+renameUsTm :: UsTm -> RenameUsM UsTm
+renameUsTm (UsVar x) = lookupTerm x UsVar
 renameUsTm (UsLam x tp tm) =
-  -- flipped so that newVar x doesn't rename inside tp (future-proof)
-  bindVar x $ pure (flip UsLam) <*> renameType tp <*> newVar x <*> renameUsTm tm
+  renameType tp >>= \ tp' ->
+  bindVar x $ \ x' -> pure (UsLam x' tp') <*> renameUsTm tm
 renameUsTm (UsApp tm1 tm2) =
   pure UsApp <*> renameUsTm tm1 <*> renameUsTm tm2
 renameUsTm (UsCase tm cs) =
@@ -105,21 +117,25 @@ renameUsTm (UsCase tm cs) =
     <*> mapM renameCaseUs cs
 renameUsTm (UsSamp d tp) =
   pure (UsSamp d) <*> renameType tp
-renameUsTm (UsLet x tm tm') =
-  bindVar x $ pure (flip UsLet) <*> renameUsTm tm <*> newVar x <*> renameUsTm tm'
+renameUsTm (UsLet x xtm tm) =
+  renameUsTm xtm >>= \ xtm' ->
+  bindVar x $ \ x' -> pure (UsLet x' xtm') <*> renameUsTm tm
 
 -- Alpha-rename a term
+-- Note that this does NOT allow you to substitute global term vars (defines / ctors)
 renameTerm :: Term -> RenameM Term
 renameTerm (TmVarL x tp) =
-  pure TmVarL <*> getVar x <*> renameType tp
+  renameType tp >>= \ tp' ->
+  lookupTerm x (flip TmVarL tp')
 renameTerm (TmVarG gv x as y) =
-  pure (TmVarG gv) <*> getVar x <*> renameArgs as <*> renameType y
-renameTerm (TmLam x tp tm tp') =
-  bindVar x (pure (flip TmLam) <*> renameType tp <*> newVar x <*> renameTerm tm) <*> renameType tp'
+  pure (TmVarG gv x) <*> renameArgs as <*> renameType y
+renameTerm (TmLam x tp1 tm tp2) =
+  bindVar' x tp1 (\ x' tp1' -> pure (TmLam x' tp1') <*> renameTerm tm) <*> renameType tp2
 renameTerm (TmApp tm1 tm2 tp2 tp) =
   pure TmApp <*> renameTerm tm1 <*> renameTerm tm2 <*> renameType tp2 <*> renameType tp
 renameTerm (TmLet x xtm xtp tm tp) =
-  bindVar x (pure (\ x tm tp xtm xtp -> TmLet x xtm xtp tm tp) <*> newVar x <*> renameTerm tm <*> renameType tp) <*> renameTerm xtm <*> renameType xtp
+  renameTerm xtm >>= \ xtm' ->
+  bindVar' x xtp (\ x' xtp' -> pure (TmLet x' xtm' xtp') <*> renameTerm tm) <*> renameType tp
 renameTerm (TmCase tm y cs tp) =
   pure TmCase <*> renameTerm tm <*> renameType y <*> mapM renameCase cs <*> renameType tp
 renameTerm (TmSamp d tp) =
@@ -129,59 +145,62 @@ renameTerm (TmSamp d tp) =
 renameArg' :: (a -> RenameM a) -> (a, Type) -> RenameM (a, Type)
 renameArg' f (a, atp) = pure (,) <*> f a <*> renameType atp
 renameArgs = mapM (renameArg' renameTerm)
-renameParams = mapM (renameArg' newVar)
+--renameParams = mapM (renameArg' newVar)
 
 -- Alpha-rename a case
 renameCase :: Case -> RenameM Case
-renameCase (Case x as tm) =
-  bindVars (map fst as) $ pure Case <*> getVar x <*> renameParams as <*> renameTerm tm
+renameCase (Case x ps tm) =
+  bindVars ps $ \ ps' -> pure (Case x ps') <*> renameTerm tm
 
 -- Alpha-rename a user-case
-renameCaseUs :: CaseUs -> RenameM CaseUs
-renameCaseUs (CaseUs x as tm) =
-  bindVars as $ pure CaseUs <*> getVar x <*> mapM newVar as <*> renameUsTm tm
+renameCaseUs :: CaseUs -> RenameUsM CaseUs
+renameCaseUs (CaseUs x ps tm) =
+  bindUsVars ps $ \ ps' -> pure (CaseUs x ps') <*> renameUsTm tm
 
 -- Alpha-rename a type
-renameType :: Type -> RenameM Type
-renameType (TpVar y) = pure TpVar <*> getVar y
+renameType :: Type -> RenameM' tm Type
+renameType (TpVar y) = lookupType y TpVar
 renameType (TpArr tp1 tp2) = pure TpArr <*> renameType tp1 <*> renameType tp2
 renameType (TpMaybe tp) = pure TpMaybe <*> renameType tp
 renameType TpBool = pure TpBool
 
 -- Alpha-rename a constructor definition
-renameCtor :: Ctor -> RenameM Ctor
+renameCtor :: Ctor -> RenameM' tm Ctor
 renameCtor (Ctor x tps) = pure (Ctor x) <*> mapM renameType tps
 
 -- Alpha-rename an entire user-program
-renameUsProgs :: UsProgs -> RenameM UsProgs
+renameUsProgs :: UsProgs -> RenameUsM UsProgs
 renameUsProgs (UsProgExec tm) = pure UsProgExec <*> renameUsTm tm
 renameUsProgs (UsProgFun x tp tm ps) = pure (UsProgFun x) <*> renameType tp <*> renameUsTm tm <*> renameUsProgs ps
 renameUsProgs (UsProgExtern x tp ps) = pure (UsProgExtern x) <*> renameType tp <*> renameUsProgs ps
 renameUsProgs (UsProgData y cs ps) = pure (UsProgData y) <*> mapM renameCtor cs <*> renameUsProgs ps
 
 renameProg :: Prog -> RenameM Prog
-renameProg (ProgFun x ps tm tp) = bindVars (map fst ps) $ pure (ProgFun x) <*> renameParams ps <*> renameTerm tm <*> renameType tp
-renameProg (ProgExtern x xp ps tp) = pure (ProgExtern x) <*> (bindVar xp $ newVar xp) <*> mapM renameType ps <*> renameType tp
+renameProg (ProgFun x ps tm tp) = bindVars ps (\ ps' -> pure (ProgFun x ps') <*> renameTerm tm) <*> renameType tp
+renameProg (ProgExtern x xp ps tp) = pure (ProgExtern x) <*> bindVar xp return <*> mapM renameType ps <*> renameType tp
 renameProg (ProgData y cs) = pure (ProgData y) <*> mapM renameCtor cs
 
 renameProgs :: Progs -> RenameM Progs
 renameProgs (Progs ps tm) = pure Progs <*> mapM renameProg ps <*> renameTerm tm
 
 -- Auxiliary helper
-alphaRename' :: Ctxt -> RenameM a -> a
-alphaRename' g (RenameM f) = fst $ f $ Map.mapWithKey const g
+alphaRename :: Ctxt -> RenameM a -> a
+alphaRename g m = fst $ State.runState m $ ctxtToTermMap g
+
+alphaRenameUs :: Ctxt -> RenameUsM a -> a
+alphaRenameUs g m = fst $ State.runState m $ ctxtToUsTmMap g
 
 -- Alpha-rename a raw file
 alphaRenameUsFile :: UsProgs -> Either String UsProgs
-alphaRenameUsFile ps = return (alphaRename' (ctxtDefUsProgs ps) (renameUsProgs ps))
+alphaRenameUsFile ps = return (alphaRenameUs (ctxtDefUsProgs ps) (renameUsProgs ps))
 
 -- Alpha-rename an elaborated file
 alphaRenameFile :: Progs -> Either String Progs
-alphaRenameFile ps = return (alphaRename' (ctxtDefProgs ps) (renameProgs ps))
+alphaRenameFile ps = return (alphaRename (ctxtDefProgs ps) (renameProgs ps))
 
 -- Rename all occurrences of xi to xf in something
-substs :: Ctxt -> [(Var, Var)] -> RenameM a -> a
-substs g subs (RenameM f) = fst $ f $ foldr (uncurry Map.insert) (Map.mapWithKey const g) subs
+substs :: Ctxt -> [(Var, Either Term Type)] -> RenameM a -> a
+substs g subs m = fst $ State.runState m $ foldr (uncurry Map.insert) (ctxtToTermMap g) $ map (fmap (either SubTm SubTp)) subs
 
 -- Rename all occurrences of xi to xf in a type
 substType :: Var -> Var -> Type -> Type
