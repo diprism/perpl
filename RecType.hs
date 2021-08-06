@@ -62,6 +62,8 @@ collectUnfolds rtp (TmCase tm tp1 cs tp2) =
       ++ concatMap (\ (Case cx cps ctm) -> collectUnfolds rtp ctm) cs
       ++ this
 collectUnfolds rtp (TmSamp d tp) = []
+collectUnfolds rtp (TmDiscard dtm tm tp) = collectUnfolds rtp dtm ++ collectUnfolds rtp tm
+collectUnfolds rtp (TmAmb tms tp) = concatMap (collectUnfolds rtp) tms
 
 collectFolds :: Var -> Term -> [(Var, FreeVars)]
 collectFolds rtp (TmVarL x tp) = []
@@ -73,6 +75,8 @@ collectFolds rtp (TmApp tm1 tm2 tp2 tp) = collectFolds rtp tm1 ++ collectFolds r
 collectFolds rtp (TmLet x xtm xtp tm tp) = collectFolds rtp xtm ++ collectFolds rtp tm
 collectFolds rtp (TmCase tm tp cs tp') = collectFolds rtp tm ++ concatMap (\ (Case cx cps ctm) -> collectFolds rtp ctm) cs
 collectFolds rtp (TmSamp d tp) = []
+collectFolds rtp (TmDiscard dtm tm tp) = collectFolds rtp dtm ++ collectFolds rtp tm
+collectFolds rtp (TmAmb tms tp) = concatMap (collectFolds rtp) tms
 
 collectProg :: (Term -> [a]) -> Prog -> [a]
 collectProg f (ProgFun _ _ tm _) = f tm
@@ -94,7 +98,8 @@ makeFoldDatatype y = ProgData (foldTypeName y) . map (\ (i, (x, fvs)) -> Ctor (f
 ambAll :: [Term] -> Type -> Term
 ambAll [] tp = TmSamp DistFail tp
 ambAll [tm] tp = tm
-ambAll (tm : tms) tp = tmIf (TmSamp DistAmb TpBool) (ambAll tms tp) tm tp
+ambAll tms tp = TmAmb tms tp
+--ambAll (tm : tms) tp = tmIf (TmSamp DistAmb TpBool) (ambAll tms tp) tm tp
 
 makeDisentangle :: Ctxt -> Var -> [(FreeVars, Type)] -> [[Case]] -> (Prog, Prog)
 makeDisentangle g y us css =
@@ -147,6 +152,8 @@ disentangleTerm rtp cases = h where
       pure TmCase <*> h tm <*> pure tp1 <*> mapCasesM (const h) cs <*> pure tp2
   h (TmSamp d tp) =
     pure (TmSamp d tp)
+  h (TmDiscard dtm tm tp) = pure TmDiscard <*> h dtm <*> h tm <*> pure tp
+  h (TmAmb tms tp) = pure TmAmb <*> mapM h tms <*> pure tp
 
 type DefoldM a = State.State [Term] a
 
@@ -172,6 +179,9 @@ defoldTerm rtp = h where
   h (TmLet x xtm xtp tm tp) = pure (TmLet x) <*> h xtm <*> pure xtp <*> h tm <*> pure tp
   h (TmCase tm tp1 cs tp2) = pure TmCase <*> h tm <*> pure tp1 <*> mapCasesM (const h) cs <*> pure tp2
   h (TmSamp d tp) = pure (TmSamp d tp)
+  h (TmDiscard dtm tm tp) = pure TmDiscard <*> h dtm <*> h tm <*> pure tp
+  h (TmAmb tms tp) = pure TmAmb <*> mapM h tms <*> pure tp
+
 
 makeDefold :: Ctxt  -> Var -> [Term] -> (Prog, Prog)
 makeDefold g y tms =
@@ -275,6 +285,14 @@ derefunTerm dr g rtp = fst . h where
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> getType xtm in
           (TmCase tm1' tp1' cs' tp2', tp2')
   h (TmSamp d tp) = (TmSamp d tp, tp)
+  h (TmDiscard dtm tm tp) =
+    let (tm', tp') = h tm in
+      (TmDiscard (fst (h dtm)) tm' tp', tp')
+  h (TmAmb tms tp) =
+    let tms' = map h tms
+        tp' = if null tms' then sub tp else snd (head tms') in
+      (TmAmb (map fst tms') tp', tp')
+
 
 
 derefunProgTypes :: DeRe -> Var -> Prog -> Prog

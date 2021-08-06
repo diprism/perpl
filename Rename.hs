@@ -140,6 +140,10 @@ renameTerm (TmCase tm y cs tp) =
   pure TmCase <*> renameTerm tm <*> renameType y <*> mapM renameCase cs <*> renameType tp
 renameTerm (TmSamp d tp) =
   pure (TmSamp d) <*> renameType tp
+renameTerm (TmDiscard dtm tm tp) =
+  pure TmDiscard <*> renameTerm dtm <*> renameTerm tm <*> renameType tp
+renameTerm (TmAmb tms tp) =
+  pure TmAmb <*> mapM renameTerm tms <*> renameType tp
 
 -- Alpha-rename an arg, given a function that alpha-renames its value
 renameArg' :: (a -> RenameM a) -> (a, Type) -> RenameM (a, Type)

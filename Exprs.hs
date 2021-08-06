@@ -40,6 +40,8 @@ data Term =
   | TmLet Var Term Type Term Type
   | TmCase Term Type [Case] Type
   | TmSamp Dist Type
+  | TmDiscard Term Term Type
+  | TmAmb [Term] Type
 
 data Type =
     TpArr Type Type

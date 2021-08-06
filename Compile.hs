@@ -154,6 +154,14 @@ term2fgg g (TmSamp d tp) =
       addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const (1.0 / fromIntegral (length dvs))) dvws))
     DistAmb  -> -- TODO: is this fine, or do we need to add a rule with one node and one edge (that has the factor below)?
       addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 1) dvws))
+term2fgg g (TmAmb tms tp) =
+  bindCases $ flip map tms $ \ tm ->
+  term2fgg g tm +>= \ tmxs ->
+  let (ns, [itp : ixs]) = combineExts [(" 0", tp) : tmxs]
+      es = [Edge (ixs ++ [itp]) (show tm)]
+      xs = ixs ++ [itp]
+  in
+    addRule' (TmAmb tms tp) (map snd ns) es xs
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm +>= \ xtmxs ->
   bindExt True x xtp $

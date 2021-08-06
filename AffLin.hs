@@ -15,6 +15,12 @@ import Free
 -- linear term is one where every bound var
 -- occurs exactly once
 
+{-discard' :: Ctxt -> Term -> Type -> Term -> Term
+discard' g dtm (TmMaybe dtp) tm = error "TODO"
+discard' g dtm dtp tm
+  | typeHasArr g dtp = error "TODO"
+  | otherwise = error "TODO"-}
+
 -- Uses x without changing the value or type of a term
 -- For example, take x : Bool and some term tm that becomes
 -- case x of false -> tm | true -> tm
@@ -93,7 +99,8 @@ aff2linh g (TmLam x tp tm tp') =
       tm'' = if Map.member x fvs then tm' else discard g x ltp tm'
       jtm = tmMaybe (Just (TmLam x ltp tm'' ltp')) tparr
       ntm = discards g fvs' (tmMaybe Nothing tparr) in
-    (tmIf (TmSamp DistAmb TpBool) jtm ntm (TpMaybe tparr), fvs')
+    (TmAmb [ntm, jtm] (TpMaybe tparr), fvs')
+--    (tmIf (TmSamp DistAmb TpBool) jtm ntm (TpMaybe tparr), fvs')
 aff2linh g (TmApp tm1 tm2 tp2 tp) = -- TODO: pass number of args (increment here), so we don't necessarily need to do this amb stuff? And what about if tm2 has arrow type but is always used in tm1?
   let (tm1', fvs1) = aff2linh g tm1
       (tm2', fvs2) = aff2linh g tm2
@@ -119,6 +126,13 @@ aff2linh g (TmCase tm y cs tp) =
                   discards (ctxtDeclArgs g as) (Map.difference xsAny xs) tm' in
     (TmCase tm' y cs' (aff2linTp tp), Map.union xsAny tmxs)
 aff2linh g (TmSamp d tp) = (TmSamp d (aff2linTp tp), Map.empty)
+aff2linh g (TmDiscard dtm tm tp) = error "TODO"
+aff2linh g (TmAmb tms tp) =
+  let tfvs = map (aff2linh g) tms
+      all_fvs = Map.unions (map snd tfvs)
+      tms' = map (\ (tm', fvs) -> discards g (Map.difference all_fvs fvs) tm') tfvs
+  in
+    (TmAmb tms' (aff2linTp tp), all_fvs)
 
 -- Makes an affine term linear
 --aff2linTerm :: Ctxt -> Term -> Term

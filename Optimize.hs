@@ -13,7 +13,7 @@ import Free
      -> (\x. case t of C1 a* -> t1 | C2 b* -> t2[y := x] | C3 c* -> t3 x)
 2. (\ x. f) t   ->   (let x = t in f)
 3. (case C4 t* of C1 a* -> t1 | ... | C4 d* -> t4 | ...) -> (let d* = t* in t4)
-4. (let x = t1 in t2) -> (t2[x := t1])     where x occurs *exactly* once in t2
+4. (let x = t1 in t2) -> (t2[x := t1])     where x occurs once-ish in t2 (see note below)
 5. (define y = \ a*. x a*; ...) -> ...[y := x]
 
 Notes:
@@ -21,7 +21,8 @@ Notes:
   an arrow type.
 
 - Optimization (4) only happens when the let-bound variable occurs exactly once in its
-  body. Consider if we did this unconditionally:
+  body, or when the let-definition has no global defs (excluding ctors), free local
+  functions, or ambs/fails/uniforms in it. Consider if we did this unconditionally:
                       (let x = t1 in t2) -> (t2[x := t1]).
   This becomes problematic if, say, you have (let x = amb : Bool in t2) and t2 uses
   x twice because originally both uses of x were guaranteed to be the same, but when
@@ -103,19 +104,27 @@ optimizeTerm g (TmApp tm1 tm2 tp2 tp) =
   in
     if null lets then rtm else optimizeTerm g rtm
 optimizeTerm g (TmCase tm y cs tp) =
-  let (ps, end) = splitArrows tp
-      g_ps = foldr (\ (Case x xps xtm) g -> ctxtDeclArgs g xps) g cs
-      (_, _, rps') = foldl (\ (e, g', ps') p ->
-                              let e' = freshVar g' e in
-                                (e', ctxtDeclTerm g' e' p, (e', p) : ps'))
+  let tm' = optimizeTerm g tm in
+    case splitLets tm' of
+      (ds, TmVarG CtorVar x as _) ->
+        let [Case _ cps ctm] = filter (\ (Case x' _ _) -> x == x') cs
+            p_a_ds = zipWith (\ (tm, _) (x', tp) -> (x', tm, tp)) as cps in
+          optimizeTerm g (joinLets (ds ++ p_a_ds) ctm)
+      _ ->
+        let (ps, end) = splitArrows tp
+            g_ps = foldr (\ (Case x xps xtm) g -> ctxtDeclArgs g xps) g cs
+            (_, _, rps') = foldl (\ (e, g', ps') p ->
+                                    let e' = freshVar g' e in
+                                      (e', ctxtDeclTerm g' e' p, (e', p) : ps'))
                            (etaName "e" 0, g_ps, []) ps
-      ps' = reverse rps'
-      cs' = map (\ (Case x xps xtm) ->
-                   let g' = ctxtDeclArgs g (ps' ++ xps) in
-                     Case x xps (peelLams g' ps' (optimizeTerm g' xtm))) cs
-      tm' = optimizeTerm g tm
-  in
-    joinLams ps' (TmCase tm' y cs' end)
+            ps' = reverse rps'
+            cs' = map (\ (Case x xps xtm) ->
+                         let g' = ctxtDeclArgs g (ps' ++ xps) in
+                           Case x xps (peelLams g' ps' (optimizeTerm g' xtm))) cs
+        in
+          joinLams ps' (TmCase tm' y cs' end)
+optimizeTerm g (TmDiscard dtm tm tp) = error "TODO"
+optimizeTerm g (TmAmb tms tp) = TmAmb (map (optimizeTerm g) tms) tp
 
 optimizeFile :: Progs -> Either String Progs
 optimizeFile ps =

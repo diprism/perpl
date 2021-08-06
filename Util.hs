@@ -55,6 +55,8 @@ getType (TmApp tm1 tm2 tp2 tp) = tp
 getType (TmLet x xtm xtp tm tp) = tp
 getType (TmCase ctm ctp cs tp) = tp
 getType (TmSamp d tp) = tp
+getType (TmDiscard dtm tm tp) = tp
+getType (TmAmb tms tp) = tp
 
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
 sortCases ctors cases = map snd $ sortBy (\ (a, _) (b, _) -> compare a b) (label cases) where

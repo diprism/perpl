@@ -102,7 +102,7 @@ processContents (Options c d r l a o) s = return s
   -- Convert terms from affine to linear
   >>= doIf l aff2linFile
   -- Apply various optimizations (again) (disabled for now; joinApps problem after aff2lin introduces maybe types)
---  >>= doIf o optimizeFile
+  >>= doIf o optimizeFile
   -- Pick a unique name for each bound var (again)
   >>= doIf a alphaRenameFile
   -- Compile to FGG

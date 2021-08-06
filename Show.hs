@@ -13,6 +13,9 @@ toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
+-- TODO: better pretty printing of these
+toUsTm (TmDiscard dtm tm tp) = UsVar $ "(discard " ++ show (toUsTm dtm) ++ " in " ++ show (toUsTm tm)  ++  ")"
+toUsTm (TmAmb tms tp) = UsVar $ "(amb [" ++ foldl (\ s tm' -> s ++ ", " ++ show tm') (show (head tms)) (tail tms) ++ "])"
 
 toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)

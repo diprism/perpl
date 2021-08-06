@@ -41,6 +41,8 @@ freeVars' (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars' tm1) (freeVars' tm2)
 freeVars' (TmLet x xtm xtp tm tp) = Map.union (freeVars' xtm) (Map.delete x (freeVars' tm))
 freeVars' (TmCase tm tp cs tp') = Map.union (freeVars' tm) (freeVarsCases' cs)
 freeVars' (TmSamp d tp) = Map.empty
+freeVars' (TmDiscard dtm tm tp) = Map.union (freeVars' dtm) (freeVars' tm)
+freeVars' (TmAmb tms tp) = Map.unions (map freeVars' tms)
 
 freeVarsCase :: CaseUs -> Map.Map Var Int
 freeVarsCase (CaseUs c xs tm) = foldr Map.delete (freeVars tm) xs
@@ -105,6 +107,8 @@ isLin' x = (LinYes ==) . h where
     -- make sure x is linear in all the cases, or in none of the cases
     (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
   h (TmSamp d tp) = LinNo
+  h (TmDiscard dtm tm tp) = linIf' (h dtm) (linIf' (h tm) LinErr LinYes) (h tm)
+  h (TmAmb tms tp) = foldr (\ tm l -> linIf' l (linIf' (h tm) LinErr LinYes) (h tm)) LinNo tms
 
 
 typeIsRecursive :: Ctxt -> Type -> Bool
