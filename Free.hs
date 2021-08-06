@@ -90,14 +90,15 @@ isLin x tm = h tm == LinYes where
 isLin' :: Var -> Term -> Bool
 isLin' x = (LinYes ==) . h where
   linCase :: Case -> Lin
-  linCase (Case x ps tm) = if any ((x ==) . fst) ps then LinNo else h tm
+  linCase (Case x' ps tm) = if any ((x ==) . fst) ps then LinNo else h tm
 
   h :: Term -> Lin
   h (TmVarL x' tp) = if x == x' then LinYes else LinNo
-  h (TmVarG gv x' as tp) = foldr (\ (atm, atp) -> linIf' (h atm) LinErr) LinNo as
+  h (TmVarG gv x' as tp) = foldr (\ (atm, atp) l -> linIf' l (linIf' (h atm) LinErr LinYes) (h atm)) LinNo as
   h (TmLam x' tp tm tp') = if x == x' then LinNo else h tm
   h (TmApp tm1 tm2 tp2 tp) = linIf' (h tm1) (linIf' (h tm2) LinErr LinYes) (h tm2)
   h (TmLet x' xtm xtp tm tp) = if x == x' then h xtm else linIf' (h xtm) (linIf' (h tm) LinErr LinYes) (h tm)
+  h (TmCase tm tp [] tp') = h tm
   h (TmCase tm tp cs tp') = linIf' (h tm)
     -- make sure x is not in any of the cases
     (foldr (\ c -> linIf' (linCase c) LinErr) LinYes cs)
