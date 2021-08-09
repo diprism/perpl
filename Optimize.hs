@@ -35,6 +35,76 @@ Notes:
 - Optimization (5) just gets rid of synonym definitions
 -}
 
+splitAmbs :: Term -> [Term]
+splitAmbs (TmAmb tms tp) = tms
+splitAmbs tm = [tm]
+
+joinAmbs :: [Term] -> Type -> Term
+joinAmbs [] tp = TmSamp DistFail tp
+joinAmbs (tm : []) tp = tm
+joinAmbs tms tp = TmAmb tms tp
+
+liftAmb :: Term -> Term
+liftAmb (TmVarL x tp) = TmVarL x tp
+liftAmb (TmVarG gv x as tp) =
+  let as' = map (\ (atm, atp) ->
+                    map (\ atm' -> (atm', atp))
+                      (splitAmbs (liftAmb atm))) as in
+    joinAmbs (map (\ as -> TmVarG gv x as tp) (kronall as')) tp
+liftAmb (TmLam x tp tm tp') =
+  joinAmbs (map (\ tm -> TmLam x tp tm tp') (splitAmbs (liftAmb tm))) (TpArr tp tp') 
+liftAmb (TmApp tm1 tm2 tp2 tp) =
+  joinAmbs (kronwith (\ tm1' tm2' -> TmApp tm1' tm2' tp2 tp)
+             (splitAmbs (liftAmb tm1))
+             (splitAmbs (liftAmb tm2))) tp
+liftAmb (TmLet x xtm xtp tm tp) =
+  joinAmbs (kronwith (\ xtm' tm' -> TmLet x xtm' xtp tm' tp)
+             (splitAmbs (liftAmb xtm))
+             (splitAmbs (liftAmb tm))) tp
+liftAmb (TmCase tm tp cs tp') =
+  let cs' = map (\ (Case x xps xtm) -> map (Case x xps) (splitAmbs (liftAmb xtm))) cs in
+    joinAmbs (map (\ (tm, cs) -> TmCase tm tp cs tp')
+               (concat (kronecker (splitAmbs (liftAmb tm)) (kronall cs')))) tp'
+liftAmb (TmSamp d tp) = TmSamp d tp
+liftAmb (TmDiscard dtm tm tp) =
+  joinAmbs (kronwith (\ dtm' tm' -> TmDiscard dtm' tm' tp)
+             (splitAmbs (liftAmb dtm))
+             (splitAmbs (liftAmb tm))) tp
+liftAmb (TmAmb tms tp) =
+  TmAmb (concatMap (splitAmbs . liftAmb) tms) tp
+
+
+liftFail'' :: (Term, Maybe Term) -> Term
+--liftFail'' (tm, Nothing) = error "TODO: discard tm in fail, but more efficient" -- TmDiscard tm (TmSamp DistFail (getType tm))
+liftFail'' (tm, Nothing) = let tp = getType tm in TmDiscard tm (TmSamp DistFail tp) tp
+liftFail'' (tm, Just tm') = tm'
+
+liftFail' :: Term -> Maybe Term
+liftFail' (TmSamp DistFail tp) = Nothing
+liftFail' (TmSamp d tp) = pure (TmSamp d tp)
+liftFail' (TmVarL x tp) = pure (TmVarL x tp)
+liftFail' (TmVarG gv x as tp) =
+  pure (TmVarG gv x) <*> mapM (\ (atm, atp) -> fmap (\ atm -> (atm, atp)) (liftFail' atm)) as <*> pure tp
+liftFail' (TmLam x tp tm tp') = pure (TmLam x tp) <*> liftFail' tm <*> pure tp'
+liftFail' (TmApp tm1 tm2 tp2 tp) = pure TmApp <*> liftFail' tm1 <*> liftFail' tm2 <*> pure tp2 <*> pure tp
+liftFail' (TmLet x xtm xtp tm tp) =
+  pure (TmLet x) <*> liftFail' xtm <*> pure xtp <*> liftFail' tm <*> pure tp
+liftFail' (TmCase tm tp cs tp') =
+  let cs' = map (\ (Case x ps tm) -> pure (Case x ps) <*> liftFail' tm) cs
+      all_fail = all (maybe True (const False)) cs'
+  in
+    if all_fail then Nothing else
+      pure TmCase <*> liftFail' tm <*> pure tp
+        <*> pure (map (\ (Case x xps xtm) -> Case x xps (liftFail xtm)) cs) <*> pure tp'
+liftFail' (TmDiscard dtm tm tp) =
+  pure TmDiscard <*> liftFail' dtm <*> liftFail' tm <*> pure tp
+liftFail' (TmAmb tms tp) =
+  let tms' = concatMap (maybe [] (\ tm -> [tm]) . liftFail') tms in
+    if null tms' then Nothing else pure (joinAmbs tms' tp)
+
+liftFail :: Term -> Term
+liftFail tm = liftFail'' (tm, liftFail' tm)
+
 -- TODO: implement these optimizations
 -- TODO: Opts (1) & (2) should check for lets: ((let x = t1 in \y. t2) t3) -> (let x = t1 in t2[y := t3])    (maybe just push lets down as far as possible, stopping at case-ofs/vars?)
 
@@ -123,10 +193,10 @@ optimizeTerm g (TmCase tm y cs tp) =
                            Case x xps (peelLams g' ps' (optimizeTerm g' xtm))) cs
         in
           joinLams ps' (TmCase tm' y cs' end)
-optimizeTerm g (TmDiscard dtm tm tp) = error "TODO"
+optimizeTerm g (TmDiscard dtm tm tp) = TmDiscard (optimizeTerm g dtm) (optimizeTerm g tm) tp
 optimizeTerm g (TmAmb tms tp) = TmAmb (map (optimizeTerm g) tms) tp
 
 optimizeFile :: Progs -> Either String Progs
 optimizeFile ps =
   let g = ctxtDefProgs ps in
-    mapProgsM (return . optimizeTerm g) ps
+    mapProgsM (return . optimizeTerm g . liftFail . liftAmb) ps
