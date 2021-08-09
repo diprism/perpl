@@ -71,6 +71,10 @@ getRules (RuleM rs xs nts fs) = rs
 resetExts :: RuleM -> RuleM
 resetExts (RuleM rs xs nts fs) = RuleM rs [] nts fs
 
+-- Overrides the external nodes from a RuleM
+setExts :: [External] -> RuleM -> RuleM
+setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
+
 isRule :: String -> RuleM -> Bool
 isRule lhs (RuleM rs xs nts fs) = any (\ (Rule lhs' _) -> lhs == lhs') rs
 

@@ -67,6 +67,8 @@ freshVar g x = fst $ State.runState (newVar x) (ctxtToUsTmMap g)
 
 
 -- Lookup x in the renaming map
+--lookupVar :: Var -> RenameM' tm Var
+--lookupVar x = State.get >>= \ xs -> return (case Map.lookup x xs of { Just (SubVar x') -> x'; _ -> x })
 lookupTerm :: Var -> (Var -> tm) -> RenameM' tm tm
 lookupTerm x elsetm = State.get >>= \ xs -> return (case Map.lookup x xs of { Just (SubTm tm) -> tm; Just (SubVar x') -> elsetm x'; _ -> elsetm x })
 lookupType :: Var -> (Var -> Type) -> RenameM' tm Type
@@ -140,8 +142,6 @@ renameTerm (TmCase tm y cs tp) =
   pure TmCase <*> renameTerm tm <*> renameType y <*> mapM renameCase cs <*> renameType tp
 renameTerm (TmSamp d tp) =
   pure (TmSamp d) <*> renameType tp
-renameTerm (TmDiscard dtm tm tp) =
-  pure TmDiscard <*> renameTerm dtm <*> renameTerm tm <*> renameType tp
 renameTerm (TmAmb tms tp) =
   pure TmAmb <*> mapM renameTerm tms <*> renameType tp
 

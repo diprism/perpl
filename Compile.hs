@@ -10,7 +10,7 @@ import Free
 import Name
 import Show
 import Polymorphism
-
+-- TODO: use Map for externals, so we don't really need to keep track of order outside of doing combineExts?
 
 -- If the start term is just a factor (has no rule), then we need to
 -- add a rule [%start%]-(v) -> [tm]-(v)
@@ -43,10 +43,18 @@ bindExt addVarRule x tp = bindExts addVarRule [(x, tp)]
 -- Only takes the external nodes from one of the cases,
 -- because they should all have the same externals and
 -- we don't want to include them more than once.
-bindCases :: [RuleM] -> RuleM
-bindCases =
-  foldr (\ rm rm' -> rm +> resetExts rm') returnRule
+bindCases :: [External] -> [RuleM] -> RuleM
+bindCases xs =
+  setExts xs . foldr (\ rm rm' -> rm +> {-resetExts-} rm') returnRule
 
+discardEdges :: [Var] -> [Int] -> [Int] -> [Edge]
+discardEdges xs i_xs i_ns = map (\ (x, i_x, i_n) -> Edge [i_x, i_n] x) (zip3 xs i_xs i_ns)
+
+newName :: Int -> Var
+newName i = " " ++ show i
+
+newNames :: Int -> [a] -> [Var]
+newNames i as = map newName [i..length as - 1 + i]
 
 -- Add rule for a term application
 tmapp2fgg :: Ctxt -> Term -> RuleM
@@ -86,28 +94,41 @@ ctorsRules g cs y =
   addFactor (typeFactorName y) (getCtorEqWeights (domainSize g y))
 
 -- Add a rule for this particular case in a case-of statement
-caseRule :: Ctxt -> [Param] -> Term -> Case -> RuleM
-caseRule g xs_ctm (TmCase ctm y cs tp) (Case x as xtm) =
-  let g' = ctxtDeclArgs g as in
+caseRule :: Ctxt -> FreeVars -> [External] -> Term -> Type -> [Case] -> Type -> Case -> RuleM
+caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
   bindExts True as $
-  term2fgg g' xtm +>= \ xs_xtm_as ->
-  let fac = ctorFactorName x (paramsToArgs (nameParams x (map snd as))) y
-      (ns, [[ictm, ixtm], ixs_xtm_as, ixs_ctm]) =
-        combineExts [[(" 0", y), (" 1", tp)], xs_xtm_as, xs_ctm]
+  term2fgg (ctxtDeclArgs g as) xtm +>= \ xs_xtm_as ->
+  let all_xs = Map.toList all_fvs
+      (d_xs, d_tps) = unzip (Map.toList (Map.difference all_fvs (Map.fromList xs_xtm_as)))
+      d_ns = newNames 2 d_xs
+      fac = ctorFactorName x (paramsToArgs (nameParams x (map snd as))) y
+      
+      (ns, [[ictm, ixtm], ixs_xtm_as, ixs_as, ixs_ctm, all_ixs, d_ixs, d_ins]) =
+        combineExts [[(" 0", y), (" 1", tp)], xs_xtm_as, as, xs_ctm, all_xs, zip d_xs d_tps, zip d_ns d_tps]
       (ixs_xtm, ixs_as') = foldr (\ (a, i) (ixs_xtm, ixs_as) -> if elem (fst a) (map fst as) then (ixs_xtm, (fst a, i) : ixs_as) else (i : ixs_xtm, ixs_as)) ([], []) (zip xs_xtm_as ixs_xtm_as)
-      ixs_as = map snd ixs_as'
-      ixs_as_ordered = map (\ (a, _) -> maybe (-1) id (lookup a ixs_as')) as
-      es = [Edge (ixs_ctm ++ [ictm]) (show ctm),
-            Edge (ixs_xtm_as ++ [ixtm]) (show xtm),
-            Edge (ixs_as_ordered ++ [ictm]) fac]
-      xs = nub (ixs_ctm ++ ixs_xtm ++ [ixtm]) in
+      es = Edge (ixs_ctm ++ [ictm]) (show ctm) :
+           Edge (ixs_xtm_as ++ [ixtm]) (show xtm) :
+           Edge (ixs_as ++ [ictm]) fac :
+           discardEdges d_xs d_ixs d_ins
+      xs = nub (ixs_ctm ++ all_ixs ++ [ixtm]) in
     addRule' (TmCase ctm y cs tp) (map snd ns) es xs
-caseRule g xs _ (Case x as xtm) =
-  error "caseRule expected a TmCase, but got something else"
+
+ambRule :: Ctxt -> FreeVars -> [Term] -> Type -> Term -> RuleM
+ambRule g all_fvs tms tp tm =
+  term2fgg g tm +>= \ tmxs ->
+  let all_xs = Map.toList all_fvs
+      (d_xs, d_tps) = unzip (Map.toList (Map.difference all_fvs (Map.fromList tmxs))) -- discard these
+      d_ns = newNames 1 d_xs
+      (ns, [itp : ixs, all_ixs, d_ixs, d_ins]) =
+        combineExts [(newName 0, tp) : tmxs, all_xs, zip d_xs d_tps, zip d_ns d_tps]
+      es = Edge (ixs ++ [itp]) (show tm) : discardEdges d_xs d_ixs d_ins
+      xs = all_ixs ++ [itp]
+  in
+    addRule' (TmAmb tms tp) (map snd ns) es xs
 
 -- Add a rule for a lambda term
 lamRule :: Bool -> Var -> Type -> Term -> Type -> RuleM -> RuleM
-lamRule addVarRule x tp tm tp' rm =
+lamRule addVarRule x tp tm tp' rm = -- TODO: new discard rule stuff?
   bindExt addVarRule x tp $
   rm +>= \ tmxs ->
   let (ns, [[itp, itp', iarr], ixs]) = combineExts [[(x, tp), (" 1", tp'), (" 2", TpArr tp tp')], tmxs]
@@ -143,7 +164,8 @@ term2fgg g (TmApp tm1 tm2 tp2 tp) =
   tmapp2fgg g (TmApp tm1 tm2 tp2 tp)
 term2fgg g (TmCase tm y cs tp) =
   term2fgg g tm +>= \ xs ->
-  bindCases (map (caseRule g xs (TmCase tm y cs tp)) cs)
+  let fvs = freeVarsCases' cs in
+    bindCases (Map.toList (Map.union (freeVars' tm) fvs)) (map (caseRule g fvs xs tm y cs tp) cs)
 term2fgg g (TmSamp d tp) =
   let dvs = domainValues g tp
       dvws = vectorWeight dvs in
@@ -155,13 +177,8 @@ term2fgg g (TmSamp d tp) =
     DistAmb  -> -- TODO: is this fine, or do we need to add a rule with one node and one edge (that has the factor below)?
       addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 1) dvws))
 term2fgg g (TmAmb tms tp) =
-  bindCases $ flip map tms $ \ tm ->
-  term2fgg g tm +>= \ tmxs ->
-  let (ns, [itp : ixs]) = combineExts [(" 0", tp) : tmxs]
-      es = [Edge (ixs ++ [itp]) (show tm)]
-      xs = ixs ++ [itp]
-  in
-    addRule' (TmAmb tms tp) (map snd ns) es xs
+  let fvs = Map.unions (map freeVars' tms) in
+    bindCases (Map.toList fvs) (map (ambRule g fvs tms tp) tms)
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm +>= \ xtmxs ->
   bindExt True x xtp $
@@ -177,11 +194,11 @@ term2fgg g (TmLet x xtm xtp tm tp) =
 prog2fgg :: Ctxt -> Prog -> RuleM
 prog2fgg g (ProgFun x ps tm tp) =
   bindExts True ps $ term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
-  let (ns, [[itp], ixs]) = combineExts [[(" 0", tp)], tmxs]
-      es = [Edge (ixs ++ [itp]) (show tm)]
-      ixsMap = zip (map fst tmxs) ixs
-      ixs_ord = map (\ (p, _) -> maybe (-1) id (lookup p ixsMap)) ps
-      xs = ixs_ord ++ [itp]
+  let (unused_x, unused_tp) = unzip (Map.toList (Map.difference (Map.fromList ps) (Map.fromList tmxs)))
+      unused_n = map (\ i -> " " ++ show (i + 1)) [0..length unused_x - 1]
+      (ns, [[itp], ixs, ips, un_n_ixs, un_x_ixs]) = combineExts [[(" 0", tp)], tmxs, ps, zip unused_n unused_tp, zip unused_x unused_tp]
+      es = Edge (ixs ++ [itp]) (show tm) : discardEdges unused_x un_x_ixs un_n_ixs
+      xs = ips ++ [itp]
   in
     addRule' (TmVarG DefVar x [] tp) (map snd ns) es xs
 prog2fgg g (ProgExtern x xp ps tp) =

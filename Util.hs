@@ -55,7 +55,6 @@ getType (TmApp tm1 tm2 tp2 tp) = tp
 getType (TmLet x xtm xtp tm tp) = tp
 getType (TmCase ctm ctp cs tp) = tp
 getType (TmSamp d tp) = tp
-getType (TmDiscard dtm tm tp) = tp
 getType (TmAmb tms tp) = tp
 
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
@@ -85,13 +84,14 @@ splitApps = splitAppsh []
     splitAppsh :: [Arg] -> Term -> (Term, [Arg])
     splitAppsh acc (TmApp tm1 tm2 tp2 tp) =
       splitAppsh ((tm2, tp2) : acc) tm1
-    splitAppsh acc tm = (tm, reverse acc)
+    splitAppsh acc tm = (tm, acc)
 
 joinApps' :: Term -> [Term] -> Term
-joinApps' tm as = fst (h as) where
-  h :: [Term] -> Arg
-  h [] = (tm, getType tm)
-  h (a : as) = let (tm', TpArr tp1 tp2) = h as in (TmApp tm' a tp1 tp2, tp2)
+joinApps' tm = h (tm, getType tm) where
+  h :: (Term, Type) -> [Term] -> Term
+  h (tm1, tp) [] = tm1
+  h (tm1, TpArr tp2 tp) (tm2 : as) = h (TmApp tm1 tm2 tp2 tp, tp) as
+  h (tm1, tp) (tm2 : as) = error "internal error: in joinApps', trying to apply to non-arrow type"
 
 joinApps :: Term -> [Arg] -> Term
 joinApps tm as = joinApps' tm (map fst as)

@@ -62,7 +62,6 @@ collectUnfolds rtp (TmCase tm tp1 cs tp2) =
       ++ concatMap (\ (Case cx cps ctm) -> collectUnfolds rtp ctm) cs
       ++ this
 collectUnfolds rtp (TmSamp d tp) = []
-collectUnfolds rtp (TmDiscard dtm tm tp) = collectUnfolds rtp dtm ++ collectUnfolds rtp tm
 collectUnfolds rtp (TmAmb tms tp) = concatMap (collectUnfolds rtp) tms
 
 collectFolds :: Var -> Term -> [(Var, FreeVars)]
@@ -75,7 +74,6 @@ collectFolds rtp (TmApp tm1 tm2 tp2 tp) = collectFolds rtp tm1 ++ collectFolds r
 collectFolds rtp (TmLet x xtm xtp tm tp) = collectFolds rtp xtm ++ collectFolds rtp tm
 collectFolds rtp (TmCase tm tp cs tp') = collectFolds rtp tm ++ concatMap (\ (Case cx cps ctm) -> collectFolds rtp ctm) cs
 collectFolds rtp (TmSamp d tp) = []
-collectFolds rtp (TmDiscard dtm tm tp) = collectFolds rtp dtm ++ collectFolds rtp tm
 collectFolds rtp (TmAmb tms tp) = concatMap (collectFolds rtp) tms
 
 collectProg :: (Term -> [a]) -> Prog -> [a]
@@ -142,7 +140,7 @@ disentangleTerm rtp cases = h where
       State.get >>= \ unfolds ->
       let i = length unfolds
           x' = "%def" -- targetName -- TODO
-          cs'' = map (\ (j, (cfvs, ctp2)) -> let ps = Map.toList cfvs; arrtp = joinArrows (map snd ps) ctp2 in Case (unfoldCtorName rtp j) [(x', arrtp)] (if i == j then (joinApps (TmVarL x' arrtp) (paramsToArgs ps)) else TmApp (TmSamp DistFail (TpArr arrtp ctp2)) (TmVarL x' arrtp) arrtp ctp2))
+          cs'' = map (\ (j, (cfvs, ctp2)) -> let ps = Map.toList cfvs; arrtp = joinArrows (map snd ps) ctp2 in Case (unfoldCtorName rtp j) [(x', arrtp)] (if i == j then (joinApps (TmVarL x' arrtp) (paramsToArgs ps)) else TmSamp DistFail tp2 {-TmApp (TmSamp DistFail (TpArr arrtp tp2)) (TmVarL x' arrtp) arrtp tp2-}))
                     (enumerate cases)
           rtm = TmCase tm (TpVar (unfoldTypeName rtp)) cs'' tp2
       in
@@ -152,7 +150,6 @@ disentangleTerm rtp cases = h where
       pure TmCase <*> h tm <*> pure tp1 <*> mapCasesM (const h) cs <*> pure tp2
   h (TmSamp d tp) =
     pure (TmSamp d tp)
-  h (TmDiscard dtm tm tp) = pure TmDiscard <*> h dtm <*> h tm <*> pure tp
   h (TmAmb tms tp) = pure TmAmb <*> mapM h tms <*> pure tp
 
 type DefoldM a = State.State [Term] a
@@ -179,7 +176,6 @@ defoldTerm rtp = h where
   h (TmLet x xtm xtp tm tp) = pure (TmLet x) <*> h xtm <*> pure xtp <*> h tm <*> pure tp
   h (TmCase tm tp1 cs tp2) = pure TmCase <*> h tm <*> pure tp1 <*> mapCasesM (const h) cs <*> pure tp2
   h (TmSamp d tp) = pure (TmSamp d tp)
-  h (TmDiscard dtm tm tp) = pure TmDiscard <*> h dtm <*> h tm <*> pure tp
   h (TmAmb tms tp) = pure TmAmb <*> mapM h tms <*> pure tp
 
 
@@ -285,9 +281,6 @@ derefunTerm dr g rtp = fst . h where
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> getType xtm in
           (TmCase tm1' tp1' cs' tp2', tp2')
   h (TmSamp d tp) = (TmSamp d tp, tp)
-  h (TmDiscard dtm tm tp) =
-    let (tm', tp') = h tm in
-      (TmDiscard (fst (h dtm)) tm' tp', tp')
   h (TmAmb tms tp) =
     let tms' = map h tms
         tp' = if null tms' then sub tp else snd (head tms') in
@@ -331,8 +324,8 @@ insertProgs rtp dat fun (Progs ds end) = Progs (insertProgs' rtp dat fun ds) end
 whichDR :: Progs -> [(Var, DeRe)]
 whichDR ps =
   let recs = getRecTypes ps in
-    map (\ rtp -> (rtp, Defun)) recs -- TODO
---    zip recs [Defun, Refun]
+--    map (\ rtp -> (rtp, Refun)) recs -- TODO
+    zip recs [Defun, Refun]
 
 -- TODO: figure out naming of fold/unfold functions (fold/apply or apply/unfold?)
 elimRecTypes :: Progs -> Either String Progs

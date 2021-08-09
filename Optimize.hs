@@ -62,21 +62,18 @@ liftAmb (TmLet x xtm xtp tm tp) =
              (splitAmbs (liftAmb xtm))
              (splitAmbs (liftAmb tm))) tp
 liftAmb (TmCase tm tp cs tp') =
-  let cs' = map (\ (Case x xps xtm) -> map (Case x xps) (splitAmbs (liftAmb xtm))) cs in
-    joinAmbs (map (\ (tm, cs) -> TmCase tm tp cs tp')
-               (concat (kronecker (splitAmbs (liftAmb tm)) (kronall cs')))) tp'
+  -- TODO: can't bring ambs outside of a case?
+  joinAmbs (map (\ tm -> TmCase tm tp cs tp') (splitAmbs (liftAmb tm))) tp'
+--  let cs' = map (\ (Case x xps xtm) -> map (Case x xps) (splitAmbs (liftAmb xtm))) cs in
+--    joinAmbs (map (\ (tm, cs) -> TmCase tm tp cs tp')
+--               (concat (kronecker (splitAmbs (liftAmb tm)) (kronall cs')))) tp'
 liftAmb (TmSamp d tp) = TmSamp d tp
-liftAmb (TmDiscard dtm tm tp) =
-  joinAmbs (kronwith (\ dtm' tm' -> TmDiscard dtm' tm' tp)
-             (splitAmbs (liftAmb dtm))
-             (splitAmbs (liftAmb tm))) tp
 liftAmb (TmAmb tms tp) =
   TmAmb (concatMap (splitAmbs . liftAmb) tms) tp
 
 
 liftFail'' :: (Term, Maybe Term) -> Term
---liftFail'' (tm, Nothing) = error "TODO: discard tm in fail, but more efficient" -- TmDiscard tm (TmSamp DistFail (getType tm))
-liftFail'' (tm, Nothing) = let tp = getType tm in TmDiscard tm (TmSamp DistFail tp) tp
+liftFail'' (tm, Nothing) = TmSamp DistFail (getType tm) -- TODO: what if tm has an arrow, and this is done during the post-aff2lin optimization step?
 liftFail'' (tm, Just tm') = tm'
 
 liftFail' :: Term -> Maybe Term
@@ -96,8 +93,6 @@ liftFail' (TmCase tm tp cs tp') =
     if all_fail then Nothing else
       pure TmCase <*> liftFail' tm <*> pure tp
         <*> pure (map (\ (Case x xps xtm) -> Case x xps (liftFail xtm)) cs) <*> pure tp'
-liftFail' (TmDiscard dtm tm tp) =
-  pure TmDiscard <*> liftFail' dtm <*> liftFail' tm <*> pure tp
 liftFail' (TmAmb tms tp) =
   let tms' = concatMap (maybe [] (\ tm -> [tm]) . liftFail') tms in
     if null tms' then Nothing else pure (joinAmbs tms' tp)
@@ -193,7 +188,6 @@ optimizeTerm g (TmCase tm y cs tp) =
                            Case x xps (peelLams g' ps' (optimizeTerm g' xtm))) cs
         in
           joinLams ps' (TmCase tm' y cs' end)
-optimizeTerm g (TmDiscard dtm tm tp) = TmDiscard (optimizeTerm g dtm) (optimizeTerm g tm) tp
 optimizeTerm g (TmAmb tms tp) = TmAmb (map (optimizeTerm g) tms) tp
 
 optimizeFile :: Progs -> Either String Progs

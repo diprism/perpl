@@ -13,8 +13,7 @@ toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
--- TODO: better pretty printing of these
-toUsTm (TmDiscard dtm tm tp) = UsVar $ "(discard " ++ show (toUsTm dtm) ++ " in " ++ show (toUsTm tm)  ++  ")"
+-- TODO: better pretty printing of this
 toUsTm (TmAmb tms tp) = UsVar $ "(amb [" ++ foldl (\ s tm' -> s ++ ", " ++ show tm') (show (head tms)) (tail tms) ++ "])"
 
 toCaseUs :: Case -> CaseUs
@@ -82,7 +81,7 @@ showTermh :: UsTm -> String
 showTermh (UsVar x) = x
 showTermh (UsLam x tp tm) = "\\ " ++ x ++ " : " ++ show tp ++ ". " ++ showTerm tm ShowNone
 showTermh (UsApp tm1 tm2) = showTerm tm1 ShowAppL ++ " " ++ showTerm tm2 ShowAppR
-showTermh (UsCase tm cs) = "case " ++ showTerm tm ShowNone ++ " of " ++ showCasesCtors cs
+showTermh (UsCase tm cs) = "case " ++ showTerm tm ShowCase ++ " of " ++ showCasesCtors cs
 showTermh (UsSamp d tp) = "sample " ++ show d ++ " : " ++ show tp
 showTermh (UsLet x tm tm') = "let " ++ x ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
 

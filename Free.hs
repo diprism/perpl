@@ -41,7 +41,6 @@ freeVars' (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars' tm1) (freeVars' tm2)
 freeVars' (TmLet x xtm xtp tm tp) = Map.union (freeVars' xtm) (Map.delete x (freeVars' tm))
 freeVars' (TmCase tm tp cs tp') = Map.union (freeVars' tm) (freeVarsCases' cs)
 freeVars' (TmSamp d tp) = Map.empty
-freeVars' (TmDiscard dtm tm tp) = Map.union (freeVars' dtm) (freeVars' tm)
 freeVars' (TmAmb tms tp) = Map.unions (map freeVars' tms)
 
 freeVarsCase :: CaseUs -> Map.Map Var Int
@@ -107,7 +106,6 @@ isLin' x = (LinYes ==) . h where
     -- make sure x is linear in all the cases, or in none of the cases
     (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
   h (TmSamp d tp) = LinNo
-  h (TmDiscard dtm tm tp) = linIf' (h dtm) (linIf' (h tm) LinErr LinYes) (h tm)
   h (TmAmb tms tp) = foldr (\ tm l -> linIf' l (linIf' (h tm) LinErr LinYes) (h tm)) LinNo tms
 
 
@@ -127,4 +125,11 @@ typeHasArr g = h [] where
   h visited (TpVar y) = not (y `elem` visited) && maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (ctxtLookupType g y)
   h visited (TpArr _ _) = True
   h visited (TpMaybe tp) = h visited tp
+  h visited TpBool = False
+
+typeHasMaybe :: Ctxt -> Type -> Bool
+typeHasMaybe g = h [] where
+  h visited (TpVar y) = not (y `elem` visited) && maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (ctxtLookupType g y)
+  h visited (TpArr tp1 tp2) = h visited tp1 || h visited tp2
+  h visited (TpMaybe tp) = True
   h visited TpBool = False
