@@ -1,0 +1,18 @@
+data Bool = False | True;
+data Paren = L | R;
+data Word = Nil | Cons Paren Word; -- D
+data Nat = Zero | Succ Nat; -- R
+
+define recognize : Word -> Bool =
+  \ ps : Word. run ps Zero;
+
+define run : Word -> Nat -> Bool =
+  \ ps : Word, c : Nat. case ps of
+    | Nil -> (case c of Zero -> True | Succ c -> False)
+    | Cons p ps -> (case p of
+      | L -> run ps (Succ c)
+      | R -> (case c of Zero -> False | Succ c -> run ps c));
+
+-- (()(()))
+recognize (Cons L (Cons L (Cons R (Cons L (Cons L (Cons R (Cons R (Cons R Nil))))))));
+
