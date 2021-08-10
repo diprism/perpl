@@ -1,0 +1,42 @@
+-- Recognizes the language { 0^n 1^n }
+
+data Bool = F | T;
+data WSymbol = WSym0 | WSym1;
+data ZSymbol = ZSym0 | ZDollar;
+data State = q0s | q1s | sink;
+data String = WNil | WCons WSymbol String;
+data Stack = ZNil | ZCons ZSymbol Stack;
+data Action = Pop State | Push State ZSymbol;
+
+define transition' : State -> WSymbol -> ZSymbol -> Action =
+  \ q : State. \ w : WSymbol. \ z : ZSymbol. case q of
+    | q0s -> (case w of
+      | WSym0 -> Push q0s ZSym0
+      | WSym1 -> Pop (case z of ZSym0 -> q1s | ZDollar -> sink))
+    | q1s -> (case w of
+      | WSym0 -> Pop sink
+      | WSym1 -> Pop (case z of ZSym0 -> q1s | ZDollar -> sink))
+    | sink -> Pop sink;
+
+define in_accept' : State -> ZSymbol -> Bool =
+  \ q : State. \ z : ZSymbol. case q of
+    | q0s -> F
+    | q1s -> (case z of ZSym0 -> F | ZDollar -> T)
+    | sink -> F;
+
+define rec_pda : State -> String -> Stack -> Bool =
+  \ q' : State. \ ws : String. \ zs : Stack. case zs of
+    | ZNil -> F
+    | ZCons z zs -> (case ws of
+      | WNil -> in_accept' q' z
+      | WCons w ws -> (case transition' q' w z of
+        | Pop r' -> rec_pda r' ws zs
+        | Push r' znew -> rec_pda r' ws (ZCons znew (ZCons z zs))
+      )
+    );
+
+define q0 : State  = q0s;
+define w0 : String = WCons WSym0 (WCons WSym0 (WCons WSym1 (WCons WSym1 WNil)));
+define z0 : Stack  = ZCons ZDollar ZNil;
+
+rec_pda q0 w0 z0;
