@@ -302,8 +302,12 @@ derefunProg' dr g rtp (ProgData y cs) = ProgData y cs
 
 derefun :: DeRe -> Var -> [Prog] -> Progs -> Progs
 derefun dr rtp new_ps (Progs ps end) =
-  let g = ctxtDefProgs (Progs (ps ++ new_ps) end) in
-    Progs (map (derefunProg' dr g rtp) ps) (derefunTerm dr g rtp end)
+  let g = ctxtDefProgs (Progs (ps ++ new_ps) end)
+      rps = Progs (map (derefunProg' dr g rtp) ps) (derefunTerm dr g rtp end)
+      dr' = if dr == Defun then "defunctionalize" else "refunctionalize"
+      emsg = "Failed to " ++ dr' ++ " " ++ rtp
+  in
+    if typeIsRecursive (ctxtDefProgs rps) (TpVar rtp) then error emsg else rps
 
 defun :: Var -> [Prog] -> Progs -> Progs
 defun = derefun Defun
