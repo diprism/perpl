@@ -22,7 +22,6 @@ import Free
 discard' :: Ctxt -> Var -> Type -> Term -> Term
 discard' g x (TpArr tp1 tp2) tm =
   error ("Can't discard " ++ x ++ " : " ++ show (TpArr tp1 tp2))
---  error "This shouldn't happen" -- Should be TpMaybe if it is an arrow type
 discard' g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
   (error ("In Free.hs/discard, unknown type var " ++ y))
   $ \ cs ->
@@ -34,14 +33,7 @@ discard' g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
 discard' g x (TpMaybe tp) tm =
   let x' = aff2linName x
       tp' = getType tm in
-    tmElimMaybe (TmVarL x (TpMaybe tp)) tp tm
-      (x', TmSamp DistFail tp' {-TmApp (TmApp (TmSamp DistFail (TpArr tp (TpArr tp' tp')))
-                   (TmVarL x' tp) tp (TpArr tp' tp')) tm tp' tp'-}) tp'
-
--- TODO: instead of discarding like this (polynomial w.r.t number of discarded vars):
---     case b of false -> tm | true -> tm,
--- discard like this (linear w.r.t. number of discarded vars)
---     case (case b of false -> unit | true -> unit) of unit -> tm
+    tmElimMaybe (TmVarL x (TpMaybe tp)) tp tm (x', TmSamp DistFail tp') tp'
 
 discard :: Ctxt -> Var -> Type -> Term -> Term
 discard g x tp tm
@@ -78,21 +70,8 @@ aff2linUnfoldMaybe tm1 tm2 = case getType tm1 of
     TmApp tm1 tm2 tp2 tp
   _ -> error "internal error: aff2linUnfoldMaybe app on non-arrow type"
 
-{-aff2linUnfoldMaybe :: Term -> Term
-aff2linUnfoldMaybe tm = case getType tm of
-  TpMaybe tp ->
-    let jx = etaName tmJustName 0 in
-      tmElimMaybe tm tp (TmSamp DistFail tp) (jx, TmVarL jx tp) tp
-  tp -> tm-}
-
 aff2linJoinApps :: Term -> [Arg] -> Term
-aff2linJoinApps tm as = foldl
-  (\ tm (atm, atp) ->
-     aff2linUnfoldMaybe tm atm) tm as
-     {-let tm' = aff2linUnfoldMaybe tm
-         TpArr tp1 tp2 = getType tm'
-     in
-       TmApp tm' atm tp1 tp2) tm as-}
+aff2linJoinApps = foldl (\ tm (atm, atp) -> aff2linUnfoldMaybe tm atm)
 
 -- Make a term linear, returning the local vars that occur free in it
 aff2linh :: Ctxt -> Term -> (Term, FreeVars)
@@ -116,10 +95,7 @@ aff2linh g (TmLam x tp tm tp') =
 aff2linh g (TmApp tm1 tm2 tp2 tp) = -- TODO: pass number of args (increment here), so we don't necessarily need to do this amb stuff? And what about if tm2 has arrow type but is always used in tm1?
   let (tm1', fvs1) = aff2linh g tm1
       (tm2', fvs2) = aff2linh g tm2
---      tm1'' = aff2linUnfoldMaybe tm1'
---      TpArr ltp2 ltp = getType tm1''
   in
---    (TmApp tm1'' tm2' ltp2 ltp, Map.union fvs1 fvs2)
     (aff2linUnfoldMaybe tm1' tm2', Map.union fvs1 fvs2)
 aff2linh g (TmLet x xtm xtp tm tp) =
   let xtp' = aff2linTp xtp
@@ -146,22 +122,12 @@ aff2linh g (TmAmb tms tp) =
   in
     (TmAmb tms' (aff2linTp tp), all_fvs)
 
--- Makes an affine term linear
---aff2linTerm :: Ctxt -> Term -> Term
---aff2linTerm g tm = fst (aff2linh g tm)
-{-  let (tm', fvs) = aff2linh g tm in
-    if Map.null fvs
-      then tm'
-      else error ("in aff2lin, remaining free vars: " ++ show (Map.keys fvs))-}
-
 -- Make an affine Prog linear
 aff2linProg :: Ctxt -> Prog -> Prog
 aff2linProg g (ProgFun x (p : ps) tm tp) =
-  error "Function shouldn't have params before affine-to-linear conversion"
---  aff2linProg g (ProgFun x [] (joinLams (p : ps) tm) (joinArrows (map snd (p : ps)) tp))
+  error "Function shouldn't have params before affine-to-linear transformation"
 aff2linProg g (ProgExtern x xp (p : ps) tp) =
-  error "Extern shouldn't have params before affine-to-linear conversion"
---  aff2linProg g (ProgExtern x xp [] (joinArrows (p : ps) tp))
+  error "Extern shouldn't have params before affine-to-linear transformation"
 aff2linProg g (ProgFun x [] tm tp) =
   let (as, endtp) = splitArrows tp
       (ls, endtm) = splitLams tm
@@ -173,7 +139,6 @@ aff2linProg g (ProgFun x [] tm tp) =
       endtm'' = discards g' (Map.difference (Map.fromList ls') fvs) endtm'
       endtp' = aff2linTp endtp -- This may not be necessary, but is future-proof
   in
---    error ("ProgFun " ++ x ++ ", " ++ show ls' ++ ", " ++ show etas ++ ", " ++ show endtm'' ++ ", " ++ show (paramsToArgs etas) ++ ", " ++ show endtp')
     ProgFun x (ls' ++ etas) (aff2linJoinApps endtm'' (paramsToArgs etas)) endtp'
 aff2linProg g (ProgExtern x xp [] tp) =
   let (as, end) = splitArrows tp
