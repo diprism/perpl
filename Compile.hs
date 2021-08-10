@@ -192,7 +192,7 @@ term2fgg g (TmLet x xtm xtp tm tp) =
 
 -- Adds the rules for a Prog
 prog2fgg :: Ctxt -> Prog -> RuleM
-prog2fgg g (ProgFun x ps tm tp) =
+prog2fgg g (ProgFun x ps tm tp) = -- TODO: add factor for joinArrows ps tp
   bindExts True ps $ term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
   let (unused_x, unused_tp) = unzip (Map.toList (Map.difference (Map.fromList ps) (Map.fromList tmxs)))
       unused_n = map (\ i -> " " ++ show (i + 1)) [0..length unused_x - 1]
@@ -234,7 +234,6 @@ domainValues g = tpVals where
         foldl (kronwith $ \ d da -> d ++ " " ++ parens da)
           [x] (map tpVals as)
   tpVals (TpArr tp1 tp2) = uncurry arrVals (splitArrows (TpArr tp1 tp2))
-  tpVals TpBool = [tmFalseName, tmTrueName]
   tpVals (TpMaybe tp) =
     tmNothingName : map (\ tp -> "(" ++ tmJustName ++ " " ++ tp ++ ")") (tpVals tp)
 
@@ -244,16 +243,12 @@ domainSize g = length . domainValues g
 addMaybeFactors :: Ctxt -> [Type] -> RuleM
 addMaybeFactors g (tp : []) = ctorsRules g (maybeCtors tp) (TpMaybe tp)
 
-addBoolFactors :: Ctxt -> [Type] -> RuleM
-addBoolFactors g [] = ctorsRules g boolCtors TpBool
-
 data InternalCtor = InternalCtor String (Ctxt -> [Type] -> RuleM) Int {- Num of type args -}
-boolInternalCtor = InternalCtor tpBoolName addBoolFactors 0
 maybeInternalCtor = InternalCtor tpMaybeName addMaybeFactors 1
 
 addInternalFactors :: Ctxt -> Progs -> RuleM
 addInternalFactors g ps =
-  let internals = [boolInternalCtor, maybeInternalCtor]
+  let internals = [maybeInternalCtor]
       insts = getPolyInsts ps in
   foldr (\ (InternalCtor name addFs len) rm ->
            let tps = insts name

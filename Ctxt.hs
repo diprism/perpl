@@ -55,7 +55,6 @@ ctxtLookupType' :: Ctxt -> Type -> Maybe [Ctor]
 ctxtLookupType' g (TpVar y) = Map.lookup y g >>= \ vd -> case vd of
   DefData cs -> Just cs
   _ -> Nothing
-ctxtLookupType' g TpBool = Just boolCtors
 ctxtLookupType' g (TpMaybe tp) = Just (maybeCtors tp)
 
 -- Is this var bound in this context?

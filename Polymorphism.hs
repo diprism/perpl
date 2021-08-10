@@ -26,7 +26,6 @@ getPolyInstsTerm pis (TmAmb tms tp) = foldl (\ pis tm -> getPolyInstsTerm pis tm
 getPolyInstsType :: Map.Map Var [[Type]] -> Type -> Map.Map Var [[Type]]
 getPolyInstsType pis (TpVar y) = pis
 getPolyInstsType pis (TpArr tp1 tp2) = getPolyInstsType (getPolyInstsType pis tp1) tp2
-getPolyInstsType pis TpBool = piAppend tpBoolName [] pis
 getPolyInstsType pis (TpMaybe tp) = piAppend tpMaybeName [tp] (getPolyInstsType pis tp)
 
 -- Retrives all instantiations of polymorphic types (e.g. Maybe [...]) in a Prog

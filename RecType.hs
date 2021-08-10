@@ -22,7 +22,6 @@ isRecType' g y = h [] where
       (\ cs -> h (y' : hist) (foldr (\ (Ctor x as) tps -> as ++ tps) tps cs))
       (ctxtLookupType g y')
   h hist (TpMaybe tp : tps) = h hist (tp : tps)
-  h hist (TpBool : tps) = h hist tps
 
 isRecDatatype :: Ctxt -> Var -> Bool
 isRecDatatype g y =
@@ -97,7 +96,6 @@ ambAll :: [Term] -> Type -> Term
 ambAll [] tp = TmSamp DistFail tp
 ambAll [tm] tp = tm
 ambAll tms tp = TmAmb tms tp
---ambAll (tm : tms) tp = tmIf (TmSamp DistAmb TpBool) (ambAll tms tp) tm tp
 
 makeDisentangle :: Ctxt -> Var -> [(FreeVars, Type)] -> [[Case]] -> (Prog, Prog)
 makeDisentangle g y us css =

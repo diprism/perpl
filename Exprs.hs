@@ -47,7 +47,6 @@ data Type =
   | TpVar Var
   -- For internal use only
   | TpMaybe Type
-  | TpBool
 --  | TpMeas Var
   deriving Eq
 
@@ -56,11 +55,10 @@ data CaseUs = CaseUs Var [Var] UsTm
 data Case = Case Var [Param] Term
 
 tpMaybeName   = "%Maybe%"
-tpBoolName    = "%Bool%"
+tpUnitName    = "%Unit%"
 tmNothingName = "%nothing%"
 tmJustName    = "%just%"
-tmTrueName    = "%true%"
-tmFalseName   = "%false%"
+tmUnitName    = "%unit%"
 
 tmMaybe :: Maybe Term -> Type -> Term
 tmMaybe Nothing tp = TmVarG CtorVar tmNothingName [] (TpMaybe tp)
@@ -68,12 +66,12 @@ tmMaybe (Just tm) tp = TmVarG CtorVar tmJustName [(tm, tp)] (TpMaybe tp)
 tmElimMaybe :: Term -> Type -> Term -> (Var, Term) -> Type -> Term
 tmElimMaybe tm tp ntm (jx, jtm) tp' =
   TmCase tm (TpMaybe tp) [Case tmNothingName [] ntm, Case tmJustName [(jx, tp)] jtm] tp'
-tmBool :: Bool -> Term
-tmBool b = TmVarG CtorVar (if b then tmTrueName else tmFalseName) [] TpBool
-tmIf :: Term -> Term -> Term -> Type -> Term
-tmIf iftm thentm elsetm tp =
-  TmCase iftm TpBool [Case tmFalseName [] elsetm, Case tmTrueName [] thentm] tp
+tmUnit :: Term
+tmUnit = TmVarG CtorVar tmUnitName [] tpUnit
+tpUnit = TpVar tpUnitName
+tmElimUnit :: Term -> Term -> Type -> Term
+tmElimUnit utm tm tp = TmCase utm tpUnit [Case tmUnitName [] tm] tp
 
-boolCtors = [Ctor tmFalseName [], Ctor tmTrueName []]
+unitCtors = [Ctor tmUnitName []]
 maybeCtors tp = [Ctor tmNothingName [], Ctor tmJustName [tp]]
 

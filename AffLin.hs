@@ -18,7 +18,7 @@ import Free
 
 -- Uses x without changing the value or type of a term
 -- For example, take x : Bool and some term tm that becomes
--- case x of false -> tm | true -> tm
+-- case (case x of false -> unit | true -> unit) of unit -> tm
 discard' :: Ctxt -> Var -> Type -> Term -> Term
 discard' g x (TpArr tp1 tp2) tm =
   error ("Can't discard " ++ x ++ " : " ++ show (TpArr tp1 tp2))
@@ -37,8 +37,6 @@ discard' g x (TpMaybe tp) tm =
     tmElimMaybe (TmVarL x (TpMaybe tp)) tp tm
       (x', TmSamp DistFail tp' {-TmApp (TmApp (TmSamp DistFail (TpArr tp (TpArr tp' tp')))
                    (TmVarL x' tp) tp (TpArr tp' tp')) tm tp' tp'-}) tp'
-discard' g x TpBool tm =
-  tmIf (TmVarL x TpBool) tm tm (getType tm)
 
 -- TODO: instead of discarding like this (polynomial w.r.t number of discarded vars):
 --     case b of false -> tm | true -> tm,
@@ -47,7 +45,7 @@ discard' g x TpBool tm =
 
 discard :: Ctxt -> Var -> Type -> Term -> Term
 discard g x tp tm
-  | typeHasArr g tp = discard' g x tp tm
+  | typeHasArr g tp = tmElimUnit (discard' g x tp tmUnit) tm (getType tm)
   | otherwise = tm
 
 -- Discard a set of variables
@@ -59,7 +57,6 @@ discards g fvs tm = Map.foldrWithKey (discard g) tm fvs
 aff2linTp :: Type -> Type
 aff2linTp (TpVar y) = TpVar y
 aff2linTp (TpArr tp1 tp2) = TpMaybe (TpArr (aff2linTp tp1) (aff2linTp tp2))
-aff2linTp TpBool = TpBool
 aff2linTp tp = error ("aff2linTp shouldn't see a " ++ show tp)
 
 -- Make a case linear, returning the local vars that occur free in it
@@ -185,10 +182,13 @@ aff2linProg g (ProgExtern x xp [] tp) =
 aff2linProg g (ProgData y cs) =
   ProgData y (map (\ (Ctor x as) -> Ctor x (map aff2linTp as)) cs)
 
+unitProg :: Prog
+unitProg = ProgData tpUnitName unitCtors
+
 -- Make an affine file linear
 aff2linFile :: Progs -> Either String Progs
 aff2linFile (Progs ps end) =
-  let g = ctxtDefProgs (Progs ps end)
+  let ps' = ps ++ [unitProg]
+      g = ctxtDefProgs (Progs ps' end)
       (ls, endtm) = splitLams end in
---    return (Progs (map (aff2linProg g) ps) (aff2linTerm g end))
-    return (Progs (map (aff2linProg g) ps) (joinLams ls (fst (aff2linh g endtm))))
+    return (Progs (map (aff2linProg g) ps') (joinLams ls (fst (aff2linh g endtm))))

@@ -166,7 +166,6 @@ renameType :: Type -> RenameM' tm Type
 renameType (TpVar y) = lookupType y TpVar
 renameType (TpArr tp1 tp2) = pure TpArr <*> renameType tp1 <*> renameType tp2
 renameType (TpMaybe tp) = pure TpMaybe <*> renameType tp
-renameType TpBool = pure TpBool
 
 -- Alpha-rename a constructor definition
 renameCtor :: Ctor -> RenameM' tm Ctor
@@ -211,4 +210,3 @@ substType :: Var -> Var -> Type -> Type
 substType xi xf (TpVar y) = TpVar (if xi == y then xf else y)
 substType xi xf (TpArr tp1 tp2) = TpArr (substType xi xf tp1) (substType xi xf tp2)
 substType xi xf (TpMaybe tp) = TpMaybe (substType xi xf tp)
-substType xi xf TpBool = TpBool

@@ -118,12 +118,10 @@ typeIsRecursive g = h [] where
         (ctxtLookupType g y)
   h visited (TpArr tp1 tp2) = h visited tp1 || h visited tp2
   h visited (TpMaybe tp) = h visited tp
-  h visited TpBool = False
 
 typeHasArr :: Ctxt -> Type -> Bool
 typeHasArr g = h [] where
   h visited (TpVar y) = not (y `elem` visited) && maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (ctxtLookupType g y)
   h visited (TpArr _ _) = True
   h visited (TpMaybe tp) = h visited tp
-  h visited TpBool = False
 

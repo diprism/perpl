@@ -90,7 +90,6 @@ showTypeh :: Type -> String
 showTypeh (TpVar y) = y
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
 showTypeh (TpMaybe tp) = tpMaybeName ++ " [" ++ showType tp ShowNone ++ "]"
-showTypeh TpBool = tpBoolName
 
 -- Show a term, given its parent for parentheses
 showTerm :: UsTm -> ShowHist -> String
