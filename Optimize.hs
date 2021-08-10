@@ -44,6 +44,15 @@ joinAmbs [] tp = TmSamp DistFail tp
 joinAmbs (tm : []) tp = tm
 joinAmbs tms tp = TmAmb tms tp
 
+-- note: (case b of false -> x | true -> amb y z)
+-- becomes
+-- amb (case b of false ->    x | true -> fail)
+--     (case b of false -> fail | true ->    y)
+--     (case b of false -> fail | true ->    z)
+-- This way it keeps the same probabilities:
+-- p(result==x) = p(b==false)
+-- p(result==y) = p(b==true)
+-- p(result==z) = p(b==true)
 liftAmb :: Term -> Term
 liftAmb (TmVarL x tp) = TmVarL x tp
 liftAmb (TmVarG gv x as tp) =
@@ -62,11 +71,12 @@ liftAmb (TmLet x xtm xtp tm tp) =
              (splitAmbs (liftAmb xtm))
              (splitAmbs (liftAmb tm))) tp
 liftAmb (TmCase tm tp cs tp') =
-  -- TODO: can't bring ambs outside of a case?
-  joinAmbs (map (\ tm -> TmCase tm tp cs tp') (splitAmbs (liftAmb tm))) tp'
---  let cs' = map (\ (Case x xps xtm) -> map (Case x xps) (splitAmbs (liftAmb xtm))) cs in
---    joinAmbs (map (\ (tm, cs) -> TmCase tm tp cs tp')
---               (concat (kronecker (splitAmbs (liftAmb tm)) (kronall cs')))) tp'
+  let tms = splitAmbs (liftAmb tm)
+      cs1 = map (\ (Case x xps xtm) -> (x, xps, splitAmbs (liftAmb xtm))) cs
+      cs2 = concatMap (\ (x, xps, xtms) -> map (\ xtm -> map (\ (Case x' xps' _) -> Case x' xps' (if x == x' then xtm else TmSamp DistFail tp')) cs) xtms) cs1
+      cs3 = if any (\ (x, xps, xtms) -> length xtms > 1) cs1 then cs2 else [cs]
+  in
+    joinAmbs (kronwith (\ tm cs -> TmCase tm tp cs tp') tms cs3) tp'
 liftAmb (TmSamp d tp) = TmSamp d tp
 liftAmb (TmAmb tms tp) =
   TmAmb (concatMap (splitAmbs . liftAmb) tms) tp
@@ -87,10 +97,8 @@ liftFail' (TmApp tm1 tm2 tp2 tp) = pure TmApp <*> liftFail' tm1 <*> liftFail' tm
 liftFail' (TmLet x xtm xtp tm tp) =
   pure (TmLet x) <*> liftFail' xtm <*> pure xtp <*> liftFail' tm <*> pure tp
 liftFail' (TmCase tm tp cs tp') =
-  let cs' = map (\ (Case x ps tm) -> pure (Case x ps) <*> liftFail' tm) cs
-      all_fail = all (maybe True (const False)) cs'
-  in
-    if all_fail then Nothing else
+  let cs' = map (\ (Case x ps tm) -> pure (Case x ps) <*> liftFail' tm) cs in
+    if all null cs' then Nothing else
       pure TmCase <*> liftFail' tm <*> pure tp
         <*> pure (map (\ (Case x xps xtm) -> Case x xps (liftFail xtm)) cs) <*> pure tp'
 liftFail' (TmAmb tms tp) =

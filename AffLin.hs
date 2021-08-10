@@ -47,7 +47,7 @@ discard' g x TpBool tm =
 
 discard :: Ctxt -> Var -> Type -> Term -> Term
 discard g x tp tm
-  | typeHasMaybe g tp = discard' g x tp tm
+  | typeHasArr g tp = discard' g x tp tm
   | otherwise = tm
 
 -- Discard a set of variables
