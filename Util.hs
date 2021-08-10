@@ -122,6 +122,16 @@ splitLets (TmLet x xtm xtp tm tp) =
   let (ds, end) = splitLets tm in ((x, xtm, xtp) : ds, end)
 splitLets tm = ([], tm)
 
+splitAmbs :: Term -> [Term]
+splitAmbs (TmAmb tms tp) = tms
+splitAmbs tm = [tm]
+
+joinAmbs :: [Term] -> Type -> Term
+joinAmbs [] tp = TmSamp DistFail tp
+joinAmbs (tm : []) tp = tm
+joinAmbs tms tp = TmAmb tms tp
+
+
 paramsToArgs :: [Param] -> [Arg]
 paramsToArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
 

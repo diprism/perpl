@@ -35,15 +35,6 @@ Notes:
 - Optimization (5) just gets rid of synonym definitions
 -}
 
-splitAmbs :: Term -> [Term]
-splitAmbs (TmAmb tms tp) = tms
-splitAmbs tm = [tm]
-
-joinAmbs :: [Term] -> Type -> Term
-joinAmbs [] tp = TmSamp DistFail tp
-joinAmbs (tm : []) tp = tm
-joinAmbs tms tp = TmAmb tms tp
-
 -- note: (case b of false -> x | true -> amb y z)
 -- becomes
 -- amb (case b of false ->    x | true -> fail)
@@ -109,7 +100,6 @@ liftFail :: Term -> Term
 liftFail tm = liftFail'' (tm, liftFail' tm)
 
 -- TODO: implement these optimizations
--- TODO: Opts (1) & (2) should check for lets: ((let x = t1 in \y. t2) t3) -> (let x = t1 in t2[y := t3])    (maybe just push lets down as far as possible, stopping at case-ofs/vars?)
 
 -- Peels off the lams around a term and substitutes their bound variables for others
 -- Example 1: peelLams g [(x, Bool)] (\ z : Bool. and true z) = (and true x)
