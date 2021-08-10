@@ -211,13 +211,14 @@ derefoldThis Refun rtp ps =
   in
     (ps'', dat, fun)
 
-derefoldThis' :: DeRe -> Var -> Progs -> Progs
+derefoldThis' :: DeRe -> Var -> Progs -> Either String Progs
 derefoldThis' dr rtp ps =
   let (ps', dat, fun) = derefoldThis dr rtp ps in
-    insertProgs rtp dat fun (derefun dr rtp [dat, fun] ps')
+    derefun dr rtp [dat, fun] ps' >>=
+    return . insertProgs rtp dat fun 
 
-derefoldThese :: [(Var, DeRe)] -> Progs -> Progs
-derefoldThese = flip $ foldl $ \ ps (rtp, dr) -> derefoldThis' dr rtp ps
+derefoldThese :: [(Var, DeRe)] -> Progs -> Either String Progs
+derefoldThese recs ps = foldl (\ ps (rtp, dr) -> ps >>= derefoldThis' dr rtp) (return ps) recs
 
 data DeRe = Defun | Refun
   deriving Eq
@@ -300,20 +301,15 @@ derefunProg' dr g rtp (ProgFun x ps tm tp) = ProgFun x ps (derefunTerm dr g rtp 
 derefunProg' dr g rtp (ProgExtern x xp ps tp) = ProgExtern x xp ps tp
 derefunProg' dr g rtp (ProgData y cs) = ProgData y cs
 
-derefun :: DeRe -> Var -> [Prog] -> Progs -> Progs
+derefun :: DeRe -> Var -> [Prog] -> Progs -> Either String Progs
 derefun dr rtp new_ps (Progs ps end) =
   let g = ctxtDefProgs (Progs (ps ++ new_ps) end)
-      rps = Progs (map (derefunProg' dr g rtp) ps) (derefunTerm dr g rtp end)
+      rps = (map (derefunProg' dr g rtp) ps)
+      rtm = (derefunTerm dr g rtp end)
       dr' = if dr == Defun then "defunctionalize" else "refunctionalize"
       emsg = "Failed to " ++ dr' ++ " " ++ rtp
   in
-    if typeIsRecursive (ctxtDefProgs rps) (TpVar rtp) then error emsg else rps
-
-defun :: Var -> [Prog] -> Progs -> Progs
-defun = derefun Defun
-
-refun :: Var -> [Prog] -> Progs -> Progs
-refun = derefun Refun
+    if typeIsRecursive (ctxtDefProgs (Progs (rps ++ new_ps) rtm)) (TpVar rtp) then Left emsg else return (Progs rps rtm)
 
 insertProgs' :: Var -> Prog -> Prog -> [Prog] -> [Prog]
 insertProgs' rtp dat fun [] = []
@@ -323,12 +319,17 @@ insertProgs' rtp dat fun (d : ds) = d : insertProgs' rtp dat fun ds
 insertProgs :: Var -> Prog -> Prog -> Progs -> Progs
 insertProgs rtp dat fun (Progs ds end) = Progs (insertProgs' rtp dat fun ds) end
 
-whichDR :: Progs -> [(Var, DeRe)]
-whichDR ps =
+whichDR' :: [Var] -> Progs -> [(Var, DeRe)]
+whichDR' recs ps = map (\ rtp -> (rtp, Defun)) recs -- TODO
+
+whichDR :: [Var] -> [Var] -> Progs -> [(Var, DeRe)]
+whichDR explicit_ds explicit_rs ps =
   let recs = getRecTypes ps in
---    map (\ rtp -> (rtp, Refun)) recs -- TODO
-    zip recs [Defun, Refun]
+       map (\ rtp -> (rtp, Defun)) explicit_ds
+    ++ map (\ rtp -> (rtp, Refun)) explicit_rs
+    ++ whichDR' (filter (\ rtp -> not (rtp `elem` explicit_ds ++ explicit_rs)) recs) ps
 
 -- TODO: figure out naming of fold/unfold functions (fold/apply or apply/unfold?)
-elimRecTypes :: Progs -> Either String Progs
-elimRecTypes ps = return (derefoldThese (whichDR ps) ps)
+elimRecTypes :: [Var] -> [Var] -> Progs -> Either String Progs
+elimRecTypes explicit_ds explicit_rs ps =
+  derefoldThese (whichDR explicit_ds explicit_rs ps) ps
