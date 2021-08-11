@@ -17,14 +17,13 @@ import Optimize
 
 data Options = Options {
   optCompile :: Bool,
-  optDefun :: [Var],
-  optRefun :: [Var],
+  optDerefun :: [(Var, DeRe)],
   optLin :: Bool,
   optAlpha :: Bool,
   optOptimize :: Bool
 }
 
-optionsDefault = Options True [] [] True True True
+optionsDefault = Options True [] True True True
 
 putStrLnErr :: String -> IO ()
 putStrLnErr = hPutStrLn stderr
@@ -55,19 +54,19 @@ isLongArg (c : s) = fmap (\ (a, yn) -> (c : a, yn)) (isLongArg s)
 
 processArgs'' :: String -> String -> Options -> Maybe Options
 processArgs'' a val o = h a o where
-  h arg (Options c d r l a o)
+  h arg (Options c dr l a o)
     | arg `elem` ["-c", "--compile"] =
-        processYN val >>= \ yn -> Just (Options yn d r l a o)
+        processYN val >>= \ yn -> Just (Options yn dr l a o)
     | arg `elem` ["-d", "--defunctionalize"] =
-        Just (Options c (d ++ [val]) r l a o)
+        Just (Options c (dr ++ [(val, Defun)]) l a o)
     | arg `elem` ["-r", "--refunctionalize"] =
-        Just (Options c d (r ++ [val]) l a o)
+        Just (Options c (dr ++ [(val, Refun)]) l a o)
     | arg `elem` ["-l", "--linearize"] =
-        processYN val >>= \ yn -> Just (Options c d r yn a o)
+        processYN val >>= \ yn -> Just (Options c dr yn a o)
     | arg `elem` ["-a", "--alpha"] =
-        processYN val >>= \ yn -> Just (Options c d r l yn o)
+        processYN val >>= \ yn -> Just (Options c dr l yn o)
     | arg `elem` ["-o", "--optimize"] =
-        processYN val >>= \ yn -> Just (Options c d r l a yn)
+        processYN val >>= \ yn -> Just (Options c dr l a yn)
     | otherwise = Nothing
 
 processArgs' :: Options -> [String] -> Maybe Options
@@ -91,7 +90,7 @@ showFile :: Progs -> Either String String
 showFile = return . show
 
 --process :: Show a => Options -> String -> a
-processContents (Options c d r l a o) s = return s
+processContents (Options c dr l a o) s = return s
   -- String to list of tokens
   >>= lexFile
   -- List of tokens to UsProgs
@@ -103,7 +102,7 @@ processContents (Options c d r l a o) s = return s
   -- Apply various optimizations
   >>= doIf o optimizeFile
   -- Eliminate recursive types (de/refunctionalization)
-  >>= elimRecTypes d r
+  >>= elimRecTypes dr
   -- Convert terms from affine to linear
   >>= doIf l aff2linFile
   -- Apply various optimizations (again) (disabled for now; joinApps problem after aff2lin introduces maybe types)
