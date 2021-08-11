@@ -29,6 +29,13 @@ weightsRow i l = [if j == i then 1 else 0 | j <- [0..l-1]] --map (\ j -> if j ==
 maybe2 :: Maybe a -> b -> (a -> b) -> b
 maybe2 m n j = maybe n j m
 
+maybe_or :: Maybe a -> Maybe a -> Maybe a
+maybe_or (Just a) m = Just a
+maybe_or Nothing m = m
+
+infixr 2 |?|
+(|?|) = maybe_or
+
 okay :: Monad m => m ()
 okay = return ()
 
