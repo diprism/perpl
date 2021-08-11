@@ -31,6 +31,9 @@ freeVars (UsCase tm cs) = foldr (Map.unionWith max . freeVarsCase) (freeVars tm)
 freeVars (UsSamp d tp) = Map.empty
 freeVars (UsLet x tm tm') = Map.unionWith max (freeVars tm) (Map.delete x $ freeVars tm')
 
+freeVarsCase :: CaseUs -> Map.Map Var Int
+freeVarsCase (CaseUs c xs tm) = foldr Map.delete (freeVars tm) xs
+
 type FreeVars = Map.Map Var Type
 
 freeVars' :: Term -> FreeVars
@@ -42,9 +45,6 @@ freeVars' (TmLet x xtm xtp tm tp) = Map.union (freeVars' xtm) (Map.delete x (fre
 freeVars' (TmCase tm tp cs tp') = Map.union (freeVars' tm) (freeVarsCases' cs)
 freeVars' (TmSamp d tp) = Map.empty
 freeVars' (TmAmb tms tp) = Map.unions (map freeVars' tms)
-
-freeVarsCase :: CaseUs -> Map.Map Var Int
-freeVarsCase (CaseUs c xs tm) = foldr Map.delete (freeVars tm) xs
 
 freeVarsCase' :: Case -> FreeVars
 freeVarsCase' (Case c as tm) = foldr (Map.delete . fst) (freeVars' tm) as
@@ -124,4 +124,3 @@ typeHasArr g = h [] where
   h visited (TpVar y) = not (y `elem` visited) && maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (ctxtLookupType g y)
   h visited (TpArr _ _) = True
   h visited (TpMaybe tp) = h visited tp
-
