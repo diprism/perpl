@@ -7,7 +7,7 @@ Run tests:
 `make tests`
 
 Example: Remove recursive datatypes from code/pda2.ppl
-`./compiler.exe --defunctionalize=String --refunctionalize=Stack --linearize=no --compile=no < code/pda2.ppl`
+`./compiler.exe --linearize=no --compile=no < code/pda2.ppl`
 
 
 
