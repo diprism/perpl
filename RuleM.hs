@@ -24,6 +24,7 @@ RuleM rs xs nts fs +>= g =
 (+>) :: RuleM -> RuleM -> RuleM
 r1 +> r2 = r1 +>= \ _ -> r2
 
+-- Sequence together RuleMs, collecting each's externals
 (+*>=) :: [RuleM] -> ([[External]] -> RuleM) -> RuleM
 rs +*>= rf =
   let (r, xss) = foldr (\ r' (r, xss) -> let RuleM rs' xs' nts' fs' = r' in (r +> r', xs' : xss)) (returnRule, []) rs in
@@ -75,14 +76,16 @@ resetExts (RuleM rs xs nts fs) = RuleM rs [] nts fs
 setExts :: [External] -> RuleM -> RuleM
 setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
 
+-- Returns if this lhs is already used
 isRule :: String -> RuleM -> Bool
 isRule lhs (RuleM rs xs nts fs) = any (\ (Rule lhs' _) -> lhs == lhs') rs
 
-
+-- Returns the PreWeights for a function tp1 -> tp2
 getPairWeights :: Type -> Type -> PreWeight
 getPairWeights tp1 tp2 = PairWeight (show tp1, show tp2)
 
-
+-- Returns the ctors to the left and to the right of one named x
+-- (but discards the ctor named x itself)
 splitCtorsAt :: [Ctor] -> Var -> ([Ctor], [Ctor])
 splitCtorsAt [] x = ([], [])
 splitCtorsAt (Ctor x' as : cs) x
@@ -91,18 +94,22 @@ splitCtorsAt (Ctor x' as : cs) x
     let (b, a) = splitCtorsAt cs x in
       (Ctor x' as : b, a)
 
+-- Pulls the data from a WeightsH
 invWeightsData :: WeightsH a -> a
 invWeightsData (WeightsData ws) = ws
 invWeightsData (WeightsDims ws) = error "In invWeightsData, expected WeightsData"
 
+-- Takes the dims from a WeightsH
 invWeightsDims :: WeightsH a -> WeightsH [a]
 invWeightsDims (WeightsDims ws) = ws
 invWeightsDims (WeightsData ws) = error "In invWeightsDims, expected WeightsDims"
 
+-- Pushes WeightsH into each of its elements
 weightsPush :: WeightsH [a] -> [WeightsH a]
 weightsPush (WeightsData ws) = map WeightsData ws
 weightsPush (WeightsDims ws) = map WeightsDims (weightsPush ws)
 
+-- Pulls a the weights from a list into a WeightsH
 weightsPull :: [WeightsH a] -> WeightsH [a]
 --weightsPull [] = ???
 weightsPull (WeightsData ws : ws') =
@@ -111,12 +118,14 @@ weightsPull (WeightsDims ws : ws') =
   let ws'' = map invWeightsDims (WeightsDims ws : ws') in
   WeightsDims $ weightsPull ws''
 
+-- Computes the weights for a function with params ps and return type tp
 getExternWeights :: (Type -> [String]) -> [Type] -> Type -> PreWeight
 getExternWeights dom ps tp =
   let rep = \ tp a -> WeightsDims (weightsPull (replicate (length (dom tp)) a))
       iws = rep tp (WeightsData 0) in
     ThisWeight $ foldr rep iws ps
 
+-- Computes the weights for a list of constructors
 getCtorWeightsAll :: (Type -> [String]) -> [Ctor] -> Type -> [(String, PreWeight)]
 getCtorWeightsAll dom cs y =
   concat $ flip map cs $ \ (Ctor x as) ->
@@ -124,6 +133,7 @@ getCtorWeightsAll dom cs y =
       let as'' = map (\ (x, atp) -> (TmVarL x atp, atp)) (zip as' as) in
         (ctorFactorName x as'' y, ws)
 
+-- Computes the weights for a specific constructor
 getCtorWeights :: (Type -> [String]) -> Ctor -> [Ctor] -> [([String], PreWeight)]
 getCtorWeights dom (Ctor x as) cs =
   let (cs_before, cs_after) = splitCtorsAt cs x
@@ -137,6 +147,7 @@ getCtorWeights dom (Ctor x as) cs =
           row = WeightsDims $ WeightsData $ mkrow (weightsRow pos out) in
       foldr (\ (i, o, a) ws -> WeightsDims $ weightsPull [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]]) row as'
 
+-- Computes the weights for a specific constructor (can't remember how this is different from getCtorWeights above :P)
 getCtorWeightsFlat :: (Type -> [String]) -> Ctor -> [Ctor] -> PreWeight
 getCtorWeightsFlat dom (Ctor x as) cs =
   let (cs_before, cs_after) = splitCtorsAt cs x
@@ -158,7 +169,12 @@ getCtorEqWeights cs =
     ThisWeight $ fmap (\ (i, j) -> if i == j then 1 else 0) $
       matrixWeight $ kronecker is is
 
-
+-- Given a set of external nodes, this returns a pair where the first
+-- is basically just the nub of the concatenated nodes, and the second
+-- is a mapping from each node's original position to its new one in
+-- the first part.
+-- It takes a list of lists to allow you to more easily keep track of
+-- where an arbitrary number of externals went.
 combineExts :: Ord a => [[(a, x)]] -> ([(a, x)], [[Int]])
 combineExts = h Map.empty 0 where
 

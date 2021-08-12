@@ -17,21 +17,20 @@ internalFactorName tm = "v=" ++ show tm
 ctorFactorName :: Var -> [(Term, Type)] -> Type -> String
 ctorFactorName x as tp = internalFactorName (TmVarG CtorVar x as tp)
 
+-- FGG factor name for the default ctor rule
 ctorFactorNameDefault :: Var -> [Type] -> Type -> String
 ctorFactorNameDefault x as = ctorFactorName x (map (\ (i, a) -> (TmVarL (etaName x i) a, a)) (enumerate as))
 
 -- Establishes naming convention for eta-expanding a constructor/global def.
 etaName x i = "?" ++ x ++ show i
 
-affLinName x = '%' : x
-
 -- Returns the names of the args for a constructor
 nameParams :: Var -> [Type] -> [Param]
 nameParams x = zip (map (etaName x) [0..])
 
-ctorDefault :: Var -> [Type] -> Type -> Term
-ctorDefault x as y = TmVarG CtorVar x (map (\ (a, atp) -> (TmVarL a atp, atp)) (nameParams x as)) y
+startName = "%start%"
 
+-- Names used for de-/refunctionalization
 applyName y = "%apply" ++ y ++ "%"
 unfoldName y = "%unapply" ++ y ++ "%"
 targetName = "%this%"
@@ -39,14 +38,17 @@ foldCtorName y i = "%fold" ++ y ++ "_" ++ show i ++ "%"
 foldTypeName y = "%Fold" ++ y ++ "%"
 unfoldTypeName y = "%Unfold" ++ y ++ "%"
 unfoldCtorName y i = "%unfold" ++ y ++ "_" ++ show i ++ "%"
-startName = "%start%"
+
+
+-- Names used for affLin
+affLinName x = '%' : x
 tpUnitName = "%Unit%"
 tmUnitName = "%unit%"
 tmNothingName i = "%nothing" ++ show i ++ "%"
 tmJustName i = "%just" ++ show i ++ "%"
 tpMaybeName i = "%Maybe" ++ show i ++ "%"
 
-
+-- Constructors and case-ofs for affLin-generated datatypes
 tmNothing :: Int -> Term
 tmNothing i = TmVarG CtorVar (tmNothingName i) [] (tpMaybe i)
 

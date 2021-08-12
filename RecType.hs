@@ -12,6 +12,7 @@ import Show
 
 --------------------------------------------------
 
+-- Returns if any of a list of types end up referencing a var
 isRecType' :: Ctxt -> Var -> [Type] -> Bool
 isRecType' g y = h [] where
   h :: [Var] -> [Type] -> Bool
@@ -25,14 +26,17 @@ isRecType' g y = h [] where
       (\ cs -> h (y' : hist) (foldr (\ (Ctor x as) tps -> as ++ tps) tps cs))
       (ctxtLookupType g y')
 
+-- Returns if y is a recursive datatype
 isRecDatatype :: Ctxt -> Var -> Bool
 isRecDatatype g y =
   maybe False (isRecType' g y . concatMap (\ (Ctor _ tps) -> tps)) (ctxtLookupType g y)
 
+-- Returns if a type is a recursive datatype var
 isRecType :: Ctxt -> Type -> Bool
 isRecType g (TpVar y) = isRecDatatype g y
 isRecType g _ = False
 
+-- Returns the recursive datatypes in a file
 getRecTypes' :: Ctxt -> [Prog] -> [Var]
 getRecTypes' g (ProgData y cs : ds) =
   if isRecDatatype g y then y : getRecTypes' g ds else getRecTypes' g ds
@@ -40,12 +44,15 @@ getRecTypes' g (ProgFun x ps tm tp : ds) = getRecTypes' g ds
 getRecTypes' g (ProgExtern x xp ps tp : ds) = getRecTypes' g ds
 getRecTypes' g [] = []
 
+-- Returns the recursive datatypes in a file
 getRecTypes :: Progs -> [Var]
 getRecTypes (Progs ds end) =
   getRecTypes' (ctxtDefProgs (Progs ds end)) ds
 
 --------------------------------------------------
 
+-- Collects the free variables of all the cases in
+-- a case-of over something with type rtp
 collectUnfolds :: Var -> Term -> [(FreeVars, Type)]
 collectUnfolds rtp (TmVarL x tp) = []
 collectUnfolds rtp (TmVarG gv x as tp) = concatMap (\ (atm, atp) -> collectUnfolds rtp atm) as
@@ -61,6 +68,9 @@ collectUnfolds rtp (TmCase tm y cs tp) =
 collectUnfolds rtp (TmSamp d tp) = []
 collectUnfolds rtp (TmAmb tms tp) = concatMap (collectUnfolds rtp) tms
 
+-- Collects all the usages of constructors for type rtp,
+-- returning the ctor name along with the free vars used
+-- in its args
 collectFolds :: Var -> Term -> [(Var, FreeVars)]
 collectFolds rtp (TmVarL x tp) = []
 collectFolds rtp (TmVarG gv x as tp) =
@@ -73,22 +83,30 @@ collectFolds rtp (TmCase tm y cs tp) = collectFolds rtp tm ++ concatMap (\ (Case
 collectFolds rtp (TmSamp d tp) = []
 collectFolds rtp (TmAmb tms tp) = concatMap (collectFolds rtp) tms
 
+-- Runs collect[Un]folds on a Prog
 collectProg :: (Term -> [a]) -> Prog -> [a]
 collectProg f (ProgFun _ _ tm _) = f tm
 collectProg f _ = []
 
+-- Runs collect[Un]folds on a file
 collectFile :: (Term -> [a]) -> Progs -> [a]
 collectFile f (Progs ps end) = concatMap (collectProg f) ps ++ f end
 
+-- See collectUnfolds
 collectUnfoldsFile = collectFile . collectUnfolds
+
+-- See collectFolds
 collectFoldsFile = collectFile . collectFolds
 
+-- Makes the %UnfoldY% datatype, given results from collectUnfolds
 makeUnfoldDatatype :: Var -> [(FreeVars, Type)] -> Prog
 makeUnfoldDatatype y = ProgData (unfoldTypeName y) . map (\ (i, (fvs, tp)) -> Ctor (unfoldCtorName y i) [joinArrows (Map.elems fvs) tp]) . enumerate
 
+-- Makes the %FoldY% datatype, given results from collectFolds
 makeFoldDatatype :: Var -> [(Var, FreeVars)] -> Prog
 makeFoldDatatype y = ProgData (foldTypeName y) . map (\ (i, (x, fvs)) -> Ctor (foldCtorName y i) (map snd (Map.toList fvs))) . enumerate
 
+-- Makes the "unapply" function and Unfold datatype
 makeDisentangle :: Ctxt -> Var -> [(FreeVars, Type)] -> [[Case]] -> (Prog, Prog)
 makeDisentangle g y us css =
   let ytp = TpVar y
@@ -110,6 +128,7 @@ makeDisentangle g y us css =
   in
     (dat, fun)
 
+-- Makes the "apply" function and Fold datatype
 makeDefold :: Ctxt  -> Var -> [Term] -> (Prog, Prog)
 makeDefold g y tms =
   let fname = applyName y
@@ -127,6 +146,8 @@ makeDefold g y tms =
 
 --------------------------------------------------
 
+-- Replaces all case-ofs on a certain datatype with calls to
+-- its "unapply" function
 type DisentangleM a = State.State [[Case]] a
 
 -- See `disentangleFile`
@@ -163,6 +184,8 @@ disentangleTerm rtp cases = h where
 
 --------------------------------------------------
 
+-- Replaces all constructor calls for a certain datatype with calls
+-- to its "apply" function
 type DefoldM a = State.State [Term] a
 
 defoldTerm :: Var -> Term -> DefoldM Term
@@ -179,7 +202,7 @@ defoldTerm rtp = h where
             aname = applyName rtp
             fld = TmVarG CtorVar cname (paramsToArgs fvs) (TpVar tname)
         in
-          State.put (fs ++ [TmVarG CtorVar x as' (TpVar rtp)]) >> -- TODO: maybe switch fs ++ [new] to [new] ++ fs
+          State.put (fs ++ [TmVarG CtorVar x as' (TpVar rtp)]) >>
           return (TmVarG DefVar aname [(fld, TpVar tname)] (TpVar rtp))
     | otherwise = pure (TmVarG gv x) <*> mapArgsM h as <*> pure tp
   h (TmLam x tp tm tp') = pure (TmLam x tp) <*> h tm <*> pure tp'
@@ -194,12 +217,14 @@ defoldTerm rtp = h where
 data DeRe = Defun | Refun
   deriving (Eq, Show)
 
+-- Substitute from a type var to its Unfold/Fold datatype
 derefunSubst :: DeRe -> Var -> Type -> Type
 derefunSubst dr rtp = substType rtp (if dr == Defun then foldTypeName rtp else unfoldTypeName rtp)
 
 defunTerm = derefunTerm Defun
 refunTerm = derefunTerm Refun
 
+-- De- or refunctionalizes a term (see examples at EOF for more info)
 derefunTerm :: DeRe -> Ctxt -> Var -> Term -> Term
 derefunTerm dr g rtp = fst . h where
 
@@ -311,10 +336,13 @@ insertProgs' rtp dat fun [] = []
 insertProgs' rtp dat fun (ProgData y cs : ds) = if y == rtp then ProgData y cs : dat : fun : ds else ProgData y cs : insertProgs' rtp dat fun ds
 insertProgs' rtp dat fun (d : ds) = d : insertProgs' rtp dat fun ds
 
+-- Inserts new Fold/Unfold progs right after the datatype they correspond to
 insertProgs :: Var -> Prog -> Prog -> Progs -> Progs
 insertProgs rtp dat fun (Progs ds end) = Progs (insertProgs' rtp dat fun ds) end
 
 --------------------------------------------------
+
+-- Computes whether to de- or refunctionalize each recursive datatype
 
 data RecDeps = RecDeps { defunDeps :: [Var], refunDeps :: [Var] }
   deriving Show
@@ -380,6 +408,8 @@ spanGraph explicit_drs = h [] where
           return (pickNextDR explicit_drs res chosen) >>= \ (rtp, dr) ->
         h ((rtp, dr) : chosen) (Map.delete rtp res)
 
+-- Given some explicit datatypes to de- or refun, compute which to
+-- do on the rest
 whichDR :: [(Var, DeRe)] -> Progs -> Either String [(Var, DeRe)]
 whichDR explicit_drs ps =
   spanGraph explicit_drs (initGraph (ctxtDefProgs ps) ps (getRecTypes ps))
@@ -388,7 +418,78 @@ whichDR explicit_drs ps =
 --------------------------------------------------
 
 -- TODO: figure out naming of fold/unfold functions (fold/apply or apply/unfold?)
+-- Eliminates the recursive datatypes in a file, by de- or refunctionalizing them
 elimRecTypes :: [(Var, DeRe)] -> Progs -> Either String Progs
 elimRecTypes explicit_drs ps =
   whichDR explicit_drs ps >>=
   derefunThese ps
+
+
+
+{- ======== Example ========
+======== Original File ========
+
+data Nat = zero | succ Nat;
+data Bool = false | true;
+
+define even : Nat -> Bool = \ n : Nat. case n of
+  | zero -> true
+  | succ n' -> (case n' of
+    | zero -> false
+    | succ n'' -> even n''
+  );
+
+even (succ (succ (succ zero)));
+
+======== Defunctionalized File ========
+
+data Nat = zero | succ FoldNat;
+
+data FoldNat = foldNat_0 | foldNat_1 | foldNat_2 | foldNat_3;
+
+define applyNat : FoldNat -> Nat = \ n : FoldNat. case n of
+  | foldNat_0 -> zero
+  | foldNat_1 -> succ foldNat_0
+  | foldNat_2 -> succ foldNat_1
+  | foldNat_3 -> succ foldNat_2;
+
+data Bool = false | true;
+
+define even : FoldNat -> Bool = \ n : FoldNat. case applyNat n of
+  | zero -> true
+  | succ n' -> (case applyNat n' of
+    | zero -> false
+    | succ n'' -> even n''
+  );
+
+even foldNat_3
+
+======== Refunctionalized File ========
+
+data Nat = zero | succ UnfoldNat;
+
+data UnfoldNat = unfoldNat_0 Bool | unfoldNat_1 Bool;
+
+define unapplyNat : Nat -> UnfoldNat =
+  \ n : Nat. case sample amb : Bool of
+    | false -> unfoldNat_0 (case n of
+      | zero -> false
+      | succ n'' -> even n''
+    )
+    | true  -> unfoldNat_1 (case n of
+      | zero -> true
+      | succ n' -> (case n' of
+        | unfoldNat_0 b -> b
+        | unfoldNat_1 b -> sample fail : Bool
+      )
+    );
+
+data Bool = false | true;
+
+define even : UnfoldNat -> Bool = \ n : UnfoldNat. case n of
+  | unfoldNat_0 b -> sample fail : Bool
+  | unfoldNat_1 b -> b;
+
+even (unapplyNat (succ (unapplyNat (succ (unapplyNat (succ (unapplyNat zero)))))))
+
+-}

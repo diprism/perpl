@@ -17,30 +17,6 @@ import Free
 -- linear term is one where every bound var
 -- occurs exactly once
 
-{-data AffLinM a = AffLinM (Ctxt -> [Type] -> (Ctxt, [Type], FreeVars, a))
-instance Functor AffLinM where
-  fmap f (AffLinM m) = AffLinM $ \ g mtps -> fmap f (m g mtps)
-instance Applicative AffLinM where
-  pure a = AffLinM $ \ g mtps -> (mtps, a)
-  AffLinM mab <*> AffLinM ma =
-    AffLinM $ \ g mtps ->
-      let (g', mtps', fvs', ab) = mab g mtps
-          (g'', mtps'', fvs'', a) = ma g' mtps' in
-        (g'', mtps'', Map.union fvs fvs'', ab a)
-instance Monad AffLinM where
-  AffLinM ma >>= f =
-    AffLinM $ \ g mtps ->
-      let (g', mtps', fvs', a) = ma g mtps
-          AffLinM mb = f a in
-        mb g mtps'
-
-readCtxt :: AffLinM Ctxt
-readCtxt = AffLinM $ \ g mtps -> (mtps, g)
-
-readMaybes :: AffLinM [Type]
-readMaybes = AffLinM $ \ g mtps -> (mtps, mtps)
--}
-
 -- Reader, Writer, State monad
 type AffLinM a = RWS Ctxt FreeVars [Type] a
 -- Let m = monad type, r = reader type, w = writer type, and s = state type. Then
@@ -75,19 +51,34 @@ addMaybe tp =
   put (mtps ++ [tp]) >>
   return (length mtps)
 
+-- If tp already has a Maybe, return its index.
+-- Otherwise add a new Maybe and return its index.
 getMaybe :: Type -> AffLinM Int
 getMaybe tp =
   getToMaybe tp >>= maybe (addMaybe tp) return
 
+-- Bind x : tp inside an AffLinM
 alBind :: Var -> Type -> AffLinM Term -> AffLinM Term
 alBind x tp m =
   censor (Map.delete x)
          (listen (local (\ g -> ctxtDeclTerm g x tp) m) >>= \ (tm, fvs) ->
             if Map.member x fvs then return tm else discard x tp tm)
 
+-- Bind a list of params inside an AffLinM
 alBinds :: [Param] -> AffLinM Term -> AffLinM Term
 alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
 
+
+-- Computes if a type has an arrow / Maybe type somewhere in it
+typeHasArr' :: Type -> AffLinM Bool
+typeHasArr' (TpVar y) =
+  getFromMaybe y >>= maybe
+    (ask >>= \ g -> maybe
+      (return False)
+      (\ cs -> mapM (\ (Ctor x tps) -> mapM typeHasArr' tps >>= return . or) cs >>= return . or)
+      (ctxtLookupType g y))
+    (\ (i, tp') -> return True)
+typeHasArr' (TpArr tp1 tp2) = error "Hmm... This shouldn't happen"
 
 -- Maps something to Unit
 -- For example, take x : Bool, which becomes
@@ -110,20 +101,13 @@ discard' x (TpVar y) =
        Case (tmJustName i) [("_", tp')] (TmSamp DistFail tpUnit)]) >>= \ cs' ->
   return (TmCase (TmVarL x (TpVar y)) y cs' tpUnit)
 
-typeHasArr' :: Type -> AffLinM Bool
-typeHasArr' (TpVar y) =
-  getFromMaybe y >>= maybe
-    (ask >>= \ g -> maybe
-      (return False)
-      (\ cs -> mapM (\ (Ctor x tps) -> mapM typeHasArr' tps >>= return . or) cs >>= return . or)
-      (ctxtLookupType g y))
-    (\ (i, tp') -> return True)
-typeHasArr' (TpArr tp1 tp2) = error "Hmm... This shouldn't happen"
-
+-- If x : tp contains an affinely-used function, we sometimes need to discard
+-- it to maintain correct probabilities, but without changing the value or type
+-- of some term. This maps x to Unit, then case-splits on it.
+-- So to discard x : MaybeA2B in tm, this returns
+-- case (case x of nothing -> unit | just a2b -> fail) of unit -> tm
 discard :: Var -> Type -> Term -> AffLinM Term
 discard x tp tm =
---  ask >>= \ g ->
---  if typeHasArr g tp
   typeHasArr' tp >>= \ has_arr ->
   if has_arr
     then (discard' x tp >>= \ dtm -> return (tmElimUnit dtm tm (getType tm)))
@@ -137,11 +121,6 @@ discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm
 -- That is, recursively change every T1 -> T2 to be Maybe (T1 -> T2)
 affLinTp :: Type -> AffLinM Type
 affLinTp (TpVar y) = return (TpVar y)
-{-affLinTp (TpArr tp1 tp2) =
-  affLinTp tp1 >>= \ tp1' ->
-  affLinTp tp2 >>= \ tp2' ->
-  getMaybe (TpArr tp1' tp2') >>= \ i ->
-  return (tpMaybe i)-}
 affLinTp arrtp =
   let (tps, end) = splitArrows arrtp in
     mapM affLinTp tps >>= \ tps' ->
@@ -207,14 +186,10 @@ affLin (TmVarG gv x as y) =
 affLin (TmLam x tp tm tp') =
   affLinLams (TmLam x tp tm tp') >>= \ (lps, body, fvs) ->
   ambFun (joinLams lps body) fvs
-affLin (TmApp tm1 tm2 tp2 tp) = -- TODO: pass number of args (increment here), so we don't necessarily need to do this amb stuff? And what about if tm2 has arrow type but is always used in tm1?
+affLin (TmApp tm1 tm2 tp2 tp) =
   let (tm, as) = splitApps (TmApp tm1 tm2 tp2 tp) in
     listen (pure (,) <*> affLin tm <*> affLinArgs as) >>= \ ((tm', as'), fvs) ->
     ambElim tm' (\ tm -> ambFun (joinApps tm as') fvs)
-{-  affLin tm1 >>= \ tm1' ->
-  affLin tm2 >>= \ tm2' ->
-  affLinTp tp >>= \ tp' ->
-  ambElim tm1' (\ tm1'' -> return (TmApp tm1'' tm2' (getType tm2') tp'))-}
 affLin (TmLet x xtm xtp tm tp) =
   affLin xtm >>= \ xtm' ->
   let xtp' = getType xtm' in
@@ -258,7 +233,7 @@ affLinProg (ProgExtern x xp [] tp) =
 affLinProg (ProgData y cs) =
   pure (ProgData y) <*> mapM (\ (Ctor x as) -> pure (Ctor x) <*> mapM affLinTp as) cs
 
-
+-- Helper
 affLinDefine :: Prog -> AffLinM Prog
 affLinDefine (ProgData y cs) =
   pure (ProgData y) <*> mapM (\ (Ctor x as) -> pure (Ctor x) <*> mapM affLinTp as) cs
@@ -271,11 +246,13 @@ affLinDefine (ProgExtern x xp [] tp) =
     mapM affLinTp as >>= \ as' ->
     return (ProgExtern x xp [] (joinArrows as' tp))
 
+-- Adds all the definitions in a file to context, after replacing arrows with Maybes
 affLinDefines :: Progs -> AffLinM Ctxt
 affLinDefines (Progs ps end) =
   mapM affLinDefine ps >>= \ ps' ->
   return (ctxtDefProgs (Progs ps' end))
 
+-- We need this to discard Maybes
 unitProg :: Prog
 unitProg = ProgData tpUnitName unitCtors
 

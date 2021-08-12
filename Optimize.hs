@@ -74,7 +74,7 @@ liftAmb (TmAmb tms tp) =
 
 
 liftFail'' :: (Term, Maybe Term) -> Term
-liftFail'' (tm, Nothing) = TmSamp DistFail (getType tm) -- TODO: what if tm has an arrow, and this is done during the post-aff2lin optimization step?
+liftFail'' (tm, Nothing) = TmSamp DistFail (getType tm)
 liftFail'' (tm, Just tm') = tm'
 
 liftFail' :: Term -> Maybe Term
@@ -96,6 +96,9 @@ liftFail' (TmAmb tms tp) =
   let tms' = concatMap (maybe [] (\ tm -> [tm]) . liftFail') tms in
     if null tms' then Nothing else pure (joinAmbs tms' tp)
 
+-- If a term inevitably fails, just replace it with fail.
+-- For example, (sample fail : tp1 -> tp2) tm1 is the same
+-- as just having sample fail : tp2
 liftFail :: Term -> Term
 liftFail tm = liftFail'' (tm, liftFail' tm)
 
@@ -113,9 +116,6 @@ peelLams g ps tm =
       example1 = substs g subs (renameTerm body)
       example2 = joinApps example1 (paramsToArgs (drop (length ls) ps)) in
     example2
-
-optimizeArgs :: Ctxt -> [Arg] -> [Arg]
-optimizeArgs g = map (\ (atm, atp) -> (optimizeTerm g atm, atp))
 
 -- Returns whether or not it is safe to substitute a term into another
 -- More specifically, returns true when there are no global vars (excluding ctors),
@@ -139,6 +139,7 @@ safe2sub g x xtm tm =
     noDefsSamps (TmCase tm y cs tp) = noDefsSamps tm && all (\ (Case x xps xtm) -> noDefsSamps xtm) cs
     noDefsSamps (TmSamp d tp) = False
 
+-- Applies various optimizations to a term
 optimizeTerm :: Ctxt -> Term -> Term
 optimizeTerm g (TmVarL x tp) = TmVarL x tp
 optimizeTerm g (TmVarG gv x as tp) =
@@ -188,6 +189,11 @@ optimizeTerm g (TmCase tm y cs tp) =
           joinLams ps' (TmCase tm' y cs' end)
 optimizeTerm g (TmAmb tms tp) = TmAmb (map (optimizeTerm g) tms) tp
 
+-- Applies various optimizations to a list of args
+optimizeArgs :: Ctxt -> [Arg] -> [Arg]
+optimizeArgs g = map (\ (atm, atp) -> (optimizeTerm g atm, atp))
+
+-- Applies the optimizations specified at the BOF to a program
 optimizeFile :: Progs -> Either String Progs
 optimizeFile ps =
   let g = ctxtDefProgs ps in

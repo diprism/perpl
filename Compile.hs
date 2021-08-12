@@ -9,7 +9,6 @@ import Ctxt
 import Free
 import Name
 import Show
---import Polymorphism
 -- TODO: use Map for externals, so we don't really need to keep track of order outside of doing combineExts?
 
 -- If the start term is just a factor (has no rule), then we need to
@@ -238,28 +237,11 @@ domainValues g = tpVals where
 domainSize :: Ctxt -> Type -> Int
 domainSize g = length . domainValues g
 
-{-addMaybeFactors :: Ctxt -> [Type] -> RuleM
-addMaybeFactors g (tp : []) = ctorsRules g (maybeCtors tp) (TpMaybe tp)
-
-data InternalCtor = InternalCtor String (Ctxt -> [Type] -> RuleM) Int {- Num of type args -}
-maybeInternalCtor = InternalCtor tpMaybeName addMaybeFactors 1
-
-addInternalFactors :: Ctxt -> Progs -> RuleM
-addInternalFactors g ps =
-  let internals = [maybeInternalCtor]
-      insts = getPolyInsts ps in
-  foldr (\ (InternalCtor name addFs len) rm ->
-           let tps = insts name
-               msg = ("Expected " ++ show len ++ " type args for "
-                        ++ name ++ ", but got " ++ show (length tps)) in
-             foldr (\ as rm' -> if len == length as then addFs g as +> rm' else error msg) rm tps) returnRule internals-}
-
 -- Converts an elaborated program into an FGG
 compileFile :: Progs -> Either String String
 compileFile ps =
   let g = ctxtDefProgs ps
       Progs _ end = ps
---      rm = addInternalFactors g ps +> progs2fgg g ps
       rm = progs2fgg g ps
       (end', RuleM rs xs nts fs) = addStartRuleIfNecessary end rm in
     return (show (rulesToFGG (domainValues g) end' (reverse rs) nts fs))

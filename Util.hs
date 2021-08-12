@@ -10,48 +10,42 @@ mapLeft f (Right c) = Right c
 kronecker :: [a] -> [b] -> [[(a, b)]]
 kronecker as bs = map (\ a -> map (\ b -> (a, b)) bs) as
 
+-- Calls a function for each possible combination of elements from two lists,
+-- collecting into a list of results
 kronwith :: (a -> b -> c) -> [a] -> [b] -> [c]
 kronwith f as bs = map (uncurry f) $ concat $ kronecker as bs
 
+-- n-dimensional Kronecker product
 kronall :: [[a]] -> [[a]]
 kronall = foldr (\ vs ws -> [ (v : xs) | v <- vs, xs <- ws ]) [[]]
 
+-- kronall, but keeps track of the position (row, col) each element came from
 kronpos :: [[a]] -> [[(Int, Int, a)]]
 kronpos = kronall . map (\ as -> map (\ (i, a) -> (i, length as, a)) (enumerate as))
 
+-- [a, b, c, ...] -> [(0, a), (1, b), (2, c), ...]
 enumerate :: [a] -> [(Int, a)]
 enumerate = zip [0..]
 
+-- Returns row i of an l x l identity matrix (so for i=1 and l=6, [0, 1, 0, 0, 0, 0])
 weightsRow :: Num n => Int {- Index -} -> Int {- Length -} -> [n]
-weightsRow i l = [if j == i then 1 else 0 | j <- [0..l-1]] --map (\ j -> if j == i then 1 else 0) [0..l-1]
+weightsRow i l = [if j == i then 1 else 0 | j <- [0..l-1]]
 
 -- Argument-reordered version of maybe
 maybe2 :: Maybe a -> b -> (a -> b) -> b
 maybe2 m n j = maybe n j m
 
+-- Returns the first if it is Just, otherwise the second
 maybe_or :: Maybe a -> Maybe a -> Maybe a
 maybe_or (Just a) m = Just a
 maybe_or Nothing m = m
 
+-- Infix notation for maybe_or
 infixr 2 |?|
 (|?|) = maybe_or
 
 okay :: Monad m => m ()
 okay = return ()
-
-plus_l :: Num a => a -> [a] -> [a]
-a `plus_l` as = map ((+) a) as
-
-
-{- -- Concatenates a list of lists, returning that and a
--- list mapping original positions to their new indices
--- within the concatenated list
-combine :: [[a]] -> ([a], [[Int]])
-combine as =
-  (concat as,
-   foldr (\ as' is i -> [i..i + length as' - 1] : is (i + length as'))
-     (const []) as 0)-}
-
 
 -- Gets the type of an elaborated term in O(1) time
 getType :: Term -> Type
@@ -64,6 +58,7 @@ getType (TmCase ctm y cs tp) = tp
 getType (TmSamp d tp) = tp
 getType (TmAmb tms tp) = tp
 
+-- Sorts cases according to the order they are appear in the datatype definition
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
 sortCases ctors cases = map snd $ sortBy (\ (a, _) (b, _) -> compare a b) (label cases) where
   getIdx :: Int -> Var -> [Ctor] -> Int
@@ -93,6 +88,7 @@ splitApps = splitAppsh []
       splitAppsh ((tm2, tp2) : acc) tm1
     splitAppsh acc tm = (tm, acc)
 
+-- Joins (tm1, [tm2, tm3, ..., tmn]) into tm1 tm2 tm3 ... tmn
 joinApps' :: Term -> [Term] -> Term
 joinApps' tm = h (tm, getType tm) where
   h :: (Term, Type) -> [Term] -> Term
@@ -100,45 +96,55 @@ joinApps' tm = h (tm, getType tm) where
   h (tm1, TpArr tp2 tp) (tm2 : as) = h (TmApp tm1 tm2 tp2 tp, tp) as
   h (tm1, tp) (tm2 : as) = error "internal error: in joinApps', trying to apply to non-arrow type"
 
+-- Joins (tm1, [(tm2, tp2), (tm3, tp3), ..., (tmn, tpn)]) into tm1 tm2 tm3 ... tmn
 joinApps :: Term -> [Arg] -> Term
 joinApps tm as = joinApps' tm (map fst as)
 
+-- splitApps, but for UsTms
 splitUsApps :: UsTm -> (UsTm, [UsTm])
 splitUsApps = h [] where
   h as (UsApp tm1 tm2) = h (tm2 : as) tm1
   h as tm = (tm, as)
 
+-- Splits \ x1 : tp1. \ x2 : tp2. ... \ xn : tpn. tm into ([(x1, tp1), (x2, tp2), ..., (xn, tpn)], tm)
+splitLams :: Term -> ([Param], Term)
+splitLams (TmLam x tp tm tp') = let (ls, end) = splitLams tm in ((x, tp) : ls, end)
+splitLams tm = ([], tm)
+
+-- Joins ([(x1, tp1), (x2, tp2), ..., (xn, tpn)], tm) into \ x1 : tp1. \ x2 : tp2. ... \ xn : tpn. tm
 joinLams :: [Param] -> Term -> Term
 joinLams as tm = fst $ foldr
   (\ (a, atp) (tm, tp) ->
     (TmLam a atp tm tp, TpArr atp tp))
   (tm, getType tm) as
 
-splitLams :: Term -> ([Param], Term)
-splitLams (TmLam x tp tm tp') = let (ls, end) = splitLams tm in ((x, tp) : ls, end)
-splitLams tm = ([], tm)
+-- Splits let x2 = tm2 in let x3 = tm3 in ... let xn = tmn in tm1 into ([(x2, tm2, tp2), (x3, tm3, tp3), ..., (xn, tmn, tpn)], tm1)
+splitLets :: Term -> ([(Var, Term, Type)], Term)
+splitLets (TmLet x xtm xtp tm tp) =
+  let (ds, end) = splitLets tm in ((x, xtm, xtp) : ds, end)
+splitLets tm = ([], tm)
 
+-- Joins ([(x2, tm2, tp2), (x3, tm3, tp3), ..., (xn, tmn, tpn)], tm1) into let x2 = tm2 in let x3 = tm3 in ... let xn = tmn in tm1
 joinLets :: [(Var, Term, Type)] -> Term -> Term
 joinLets ds tm = h ds where
   tp = getType tm
   h [] = tm
   h ((x, xtm, xtp) : ds) = TmLet x xtm xtp (h ds) tp
 
-splitLets :: Term -> ([(Var, Term, Type)], Term)
-splitLets (TmLet x xtm xtp tm tp) =
-  let (ds, end) = splitLets tm in ((x, xtm, xtp) : ds, end)
-splitLets tm = ([], tm)
-
+-- Returns the amb branches, or just a singleton of the term if it is not TmAmb
 splitAmbs :: Term -> [Term]
 splitAmbs (TmAmb tms tp) = tms
 splitAmbs tm = [tm]
 
+-- Joins a list of terms into a TmAmb if there are >= 2 branches
+-- If there is only one branch, return it
+-- If there are no branches, return fail
 joinAmbs :: [Term] -> Type -> Term
 joinAmbs [] tp = TmSamp DistFail tp
 joinAmbs (tm : []) tp = tm
 joinAmbs tms tp = TmAmb tms tp
 
-
+-- Converts Params [(Var, Type)] to Args [(Term, Type)]
 paramsToArgs :: [Param] -> [Arg]
 paramsToArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
 

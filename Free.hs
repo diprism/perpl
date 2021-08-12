@@ -34,6 +34,8 @@ freeVars (UsLet x tm tm') = Map.unionWith max (freeVars tm) (Map.delete x $ free
 freeVarsCase :: CaseUs -> Map.Map Var Int
 freeVarsCase (CaseUs c xs tm) = foldr Map.delete (freeVars tm) xs
 
+
+-- Returns the local vars that occur free in a term, along with their types
 type FreeVars = Map.Map Var Type
 
 freeVars' :: Term -> FreeVars
@@ -68,7 +70,7 @@ isFree x tm = Map.member x (freeVars tm)
 isAff :: Var -> UsTm -> Bool
 isAff x tm = freeOccurrences x tm <= 1
 
--- Returns if x appears exactly once in tm
+-- Returns if x appears exactly once in a user-term
 isLin :: Var -> UsTm -> Bool
 isLin x tm = h tm == LinYes where
   linCase :: CaseUs -> Lin
@@ -88,6 +90,7 @@ isLin x tm = h tm == LinYes where
   h (UsLet x' tm tm') =
     if x == x' then h tm else linIf' (h tm) (linIf' (h tm') LinErr LinYes) (h tm')
 
+-- Returns if x appears exactly once in a term
 isLin' :: Var -> Term -> Bool
 isLin' x = (LinYes ==) . h where
   linCase :: Case -> Lin
@@ -108,7 +111,7 @@ isLin' x = (LinYes ==) . h where
   h (TmSamp d tp) = LinNo
   h (TmAmb tms tp) = foldr (\ tm l -> linIf' l (linIf' (h tm) LinErr LinYes) (h tm)) LinNo tms
 
-
+-- Returns if a type has an infinite domain (i.e. it contains (mutually) recursive datatypes anywhere in it)
 typeIsRecursive :: Ctxt -> Type -> Bool
 typeIsRecursive g = h [] where
   h visited (TpVar y) =
@@ -118,6 +121,7 @@ typeIsRecursive g = h [] where
         (ctxtLookupType g y)
   h visited (TpArr tp1 tp2) = h visited tp1 || h visited tp2
 
+-- Returns if a type has an arrow anywhere in it
 typeHasArr :: Ctxt -> Type -> Bool
 typeHasArr g = h [] where
   h visited (TpVar y) = not (y `elem` visited) && maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (ctxtLookupType g y)

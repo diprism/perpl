@@ -55,19 +55,23 @@ ctxtLookupType g x = Map.lookup x g >>= \ vd -> case vd of
 ctxtBinds :: Ctxt -> Var -> Bool
 ctxtBinds = flip Map.member
 
+-- Adds all definitions from a file to context
 ctxtDefProg :: Ctxt -> Prog -> Ctxt
 ctxtDefProg g (ProgFun x ps tm tp) = ctxtDefTerm g x (joinArrows (map snd ps) tp)
 ctxtDefProg g (ProgExtern x xp ps tp) = ctxtDefTerm g x (joinArrows ps tp)
 ctxtDefProg g (ProgData y cs) = ctxtDeclType g y cs
 
+-- Populates a context with the definitions from a file
 ctxtDefProgs :: Progs -> Ctxt
 ctxtDefProgs (Progs ps end) = foldl ctxtDefProg emptyCtxt ps
 
+-- Adds all definitions from a raw file to context
 ctxtDefUsProgs' :: Ctxt -> UsProgs -> Ctxt
 ctxtDefUsProgs' g (UsProgFun x tp tm ps) = ctxtDefUsProgs' (ctxtDefTerm g x tp) ps
 ctxtDefUsProgs' g (UsProgExtern x tp ps) = ctxtDefUsProgs' (ctxtDefTerm g x tp) ps
 ctxtDefUsProgs' g (UsProgData y cs ps) = ctxtDefUsProgs' (ctxtDeclType g y cs) ps
 ctxtDefUsProgs' g (UsProgExec tm) = g
 
+-- Populates a context with the definitions from a raw file
 ctxtDefUsProgs :: UsProgs -> Ctxt
 ctxtDefUsProgs = ctxtDefUsProgs' emptyCtxt
