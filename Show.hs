@@ -7,7 +7,7 @@ import Util
 toUsTm :: Term -> UsTm
 toUsTm (TmVarL x _) = UsVar x
 toUsTm (TmVarG gv x as tp) =
-  foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (varTypeInst gv x tp) as
+  foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar x) as
 toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
@@ -27,20 +27,6 @@ toUsProgs' [] end = UsProgExec end
 
 toUsProgs :: Progs -> UsProgs
 toUsProgs (Progs ps tm) = toUsProgs' ps (toUsTm tm)
-
-
-
-addTypeInst :: Var -> [Type] -> UsTm
-addTypeInst x [] = UsVar x
-addTypeInst x (tp : tps) = UsApp (UsVar x) (UsVar ("[" ++ foldl (\ s tp' -> s ++ ", " ++ show tp') (show tp) tps ++ "]"))
-
-getTypeInst :: GlobalVar -> Type -> [Type]
-getTypeInst CtorVar (TpMaybe tp) = [tp]
-getTypeInst _ _ = []
-
-varTypeInst :: GlobalVar -> Var -> Type -> UsTm
-varTypeInst gv x = addTypeInst x . getTypeInst gv
-
 
 
 {- Show Instances -}
@@ -73,7 +59,6 @@ showTermParens _             _        = False
 showTypeParens :: Type -> ShowHist -> Bool
 showTypeParens (TpArr _ _) ShowArrL = True
 showTypeParens (TpArr _ _) ShowTypeArg = True
-showTypeParens (TpMaybe _) ShowTypeArg = True
 showTypeParens _ _ = False
 
 -- Term show helper (ignoring parentheses)
@@ -89,7 +74,6 @@ showTermh (UsLet x tm tm') = "let " ++ x ++ " = " ++ showTerm tm ShowNone ++ " i
 showTypeh :: Type -> String
 showTypeh (TpVar y) = y
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
-showTypeh (TpMaybe tp) = tpMaybeName ++ " [" ++ showType tp ShowNone ++ "]"
 
 -- Show a term, given its parent for parentheses
 showTerm :: UsTm -> ShowHist -> String

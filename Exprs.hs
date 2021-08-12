@@ -38,40 +38,15 @@ data Term =
   | TmLam Var Type Term Type
   | TmApp Term Term Type {- -> -} Type
   | TmLet Var Term Type Term Type
-  | TmCase Term Type [Case] Type
+  | TmCase Term Var [Case] Type
   | TmSamp Dist Type
   | TmAmb [Term] Type
 
 data Type =
     TpArr Type Type
   | TpVar Var
-  -- For internal use only
-  | TpMaybe Type
---  | TpMeas Var
-  deriving Eq
+  deriving (Eq, Ord)
 
 data CaseUs = CaseUs Var [Var] UsTm
 
 data Case = Case Var [Param] Term
-
-tpMaybeName   = "%Maybe%"
-tpUnitName    = "%Unit%"
-tmNothingName = "%nothing%"
-tmJustName    = "%just%"
-tmUnitName    = "%unit%"
-
-tmMaybe :: Maybe Term -> Type -> Term
-tmMaybe Nothing tp = TmVarG CtorVar tmNothingName [] (TpMaybe tp)
-tmMaybe (Just tm) tp = TmVarG CtorVar tmJustName [(tm, tp)] (TpMaybe tp)
-tmElimMaybe :: Term -> Type -> Term -> (Var, Term) -> Type -> Term
-tmElimMaybe tm tp ntm (jx, jtm) tp' =
-  TmCase tm (TpMaybe tp) [Case tmNothingName [] ntm, Case tmJustName [(jx, tp)] jtm] tp'
-tmUnit :: Term
-tmUnit = TmVarG CtorVar tmUnitName [] tpUnit
-tpUnit = TpVar tpUnitName
-tmElimUnit :: Term -> Term -> Type -> Term
-tmElimUnit utm tm tp = TmCase utm tpUnit [Case tmUnitName [] tm] tp
-
-unitCtors = [Ctor tmUnitName []]
-maybeCtors tp = [Ctor tmNothingName [], Ctor tmJustName [tp]]
-

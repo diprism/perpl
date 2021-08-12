@@ -42,7 +42,7 @@ freeVars' (TmVarG gv x as tp) = freeVarsArgs' as
 freeVars' (TmLam x tp tm tp') = Map.delete x $ freeVars' tm
 freeVars' (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars' tm1) (freeVars' tm2)
 freeVars' (TmLet x xtm xtp tm tp) = Map.union (freeVars' xtm) (Map.delete x (freeVars' tm))
-freeVars' (TmCase tm tp cs tp') = Map.union (freeVars' tm) (freeVarsCases' cs)
+freeVars' (TmCase tm y cs tp') = Map.union (freeVars' tm) (freeVarsCases' cs)
 freeVars' (TmSamp d tp) = Map.empty
 freeVars' (TmAmb tms tp) = Map.unions (map freeVars' tms)
 
@@ -99,8 +99,8 @@ isLin' x = (LinYes ==) . h where
   h (TmLam x' tp tm tp') = if x == x' then LinNo else h tm
   h (TmApp tm1 tm2 tp2 tp) = linIf' (h tm1) (linIf' (h tm2) LinErr LinYes) (h tm2)
   h (TmLet x' xtm xtp tm tp) = if x == x' then h xtm else linIf' (h xtm) (linIf' (h tm) LinErr LinYes) (h tm)
-  h (TmCase tm tp [] tp') = h tm
-  h (TmCase tm tp cs tp') = linIf' (h tm)
+  h (TmCase tm y [] tp) = h tm
+  h (TmCase tm y cs tp) = linIf' (h tm)
     -- make sure x is not in any of the cases
     (foldr (\ c -> linIf' (linCase c) LinErr) LinYes cs)
     -- make sure x is linear in all the cases, or in none of the cases
@@ -117,10 +117,8 @@ typeIsRecursive g = h [] where
         (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps)
         (ctxtLookupType g y)
   h visited (TpArr tp1 tp2) = h visited tp1 || h visited tp2
-  h visited (TpMaybe tp) = h visited tp
 
 typeHasArr :: Ctxt -> Type -> Bool
 typeHasArr g = h [] where
   h visited (TpVar y) = not (y `elem` visited) && maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (ctxtLookupType g y)
   h visited (TpArr _ _) = True
-  h visited (TpMaybe tp) = h visited tp

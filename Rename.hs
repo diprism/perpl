@@ -67,8 +67,8 @@ freshVar g x = fst $ State.runState (newVar x) (ctxtToUsTmMap g)
 
 
 -- Lookup x in the renaming map
---lookupVar :: Var -> RenameM' tm Var
---lookupVar x = State.get >>= \ xs -> return (case Map.lookup x xs of { Just (SubVar x') -> x'; _ -> x })
+lookupVar :: Var -> RenameM' tm Var
+lookupVar x = State.get >>= \ xs -> return (case Map.lookup x xs of { Just (SubVar x') -> x'; _ -> x })
 lookupTerm :: Var -> (Var -> tm) -> RenameM' tm tm
 lookupTerm x elsetm = State.get >>= \ xs -> return (case Map.lookup x xs of { Just (SubTm tm) -> tm; Just (SubVar x') -> elsetm x'; _ -> elsetm x })
 lookupType :: Var -> (Var -> Type) -> RenameM' tm Type
@@ -139,7 +139,7 @@ renameTerm (TmLet x xtm xtp tm tp) =
   renameTerm xtm >>= \ xtm' ->
   bindVar' x xtp (\ x' xtp' -> pure (TmLet x' xtm' xtp') <*> renameTerm tm) <*> renameType tp
 renameTerm (TmCase tm y cs tp) =
-  pure TmCase <*> renameTerm tm <*> renameType y <*> mapM renameCase cs <*> renameType tp
+  pure TmCase <*> renameTerm tm <*> lookupVar y <*> mapM renameCase cs <*> renameType tp
 renameTerm (TmSamp d tp) =
   pure (TmSamp d) <*> renameType tp
 renameTerm (TmAmb tms tp) =
@@ -165,7 +165,6 @@ renameCaseUs (CaseUs x ps tm) =
 renameType :: Type -> RenameM' tm Type
 renameType (TpVar y) = lookupType y TpVar
 renameType (TpArr tp1 tp2) = pure TpArr <*> renameType tp1 <*> renameType tp2
-renameType (TpMaybe tp) = pure TpMaybe <*> renameType tp
 
 -- Alpha-rename a constructor definition
 renameCtor :: Ctor -> RenameM' tm Ctor
@@ -209,4 +208,3 @@ substs g subs m = fst $ State.runState m $ foldr (uncurry Map.insert) (ctxtToTer
 substType :: Var -> Var -> Type -> Type
 substType xi xf (TpVar y) = TpVar (if xi == y then xf else y)
 substType xi xf (TpArr tp1 tp2) = TpArr (substType xi xf tp1) (substType xi xf tp2)
-substType xi xf (TpMaybe tp) = TpMaybe (substType xi xf tp)

@@ -9,7 +9,7 @@ import Ctxt
 import Free
 import Name
 import Show
-import Polymorphism
+--import Polymorphism
 -- TODO: use Map for externals, so we don't really need to keep track of order outside of doing combineExts?
 
 -- If the start term is just a factor (has no rule), then we need to
@@ -94,17 +94,17 @@ ctorsRules g cs y =
   addFactor (typeFactorName y) (getCtorEqWeights (domainSize g y))
 
 -- Add a rule for this particular case in a case-of statement
-caseRule :: Ctxt -> FreeVars -> [External] -> Term -> Type -> [Case] -> Type -> Case -> RuleM
+caseRule :: Ctxt -> FreeVars -> [External] -> Term -> Var -> [Case] -> Type -> Case -> RuleM
 caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
   bindExts True as $
   term2fgg (ctxtDeclArgs g as) xtm +>= \ xs_xtm_as ->
   let all_xs = Map.toList all_fvs
       (d_xs, d_tps) = unzip (Map.toList (Map.difference all_fvs (Map.fromList xs_xtm_as)))
       d_ns = newNames 2 d_xs
-      fac = ctorFactorName x (paramsToArgs (nameParams x (map snd as))) y
+      fac = ctorFactorName x (paramsToArgs (nameParams x (map snd as))) (TpVar y)
       
       (ns, [[ictm, ixtm], ixs_xtm_as, ixs_as, ixs_ctm, all_ixs, d_ixs, d_ins]) =
-        combineExts [[(" 0", y), (" 1", tp)], xs_xtm_as, as, xs_ctm, all_xs, zip d_xs d_tps, zip d_ns d_tps]
+        combineExts [[(" 0", TpVar y), (" 1", tp)], xs_xtm_as, as, xs_ctm, all_xs, zip d_xs d_tps, zip d_ns d_tps]
       (ixs_xtm, ixs_as') = foldr (\ (a, i) (ixs_xtm, ixs_as) -> if elem (fst a) (map fst as) then (ixs_xtm, (fst a, i) : ixs_as) else (i : ixs_xtm, ixs_as)) ([], []) (zip xs_xtm_as ixs_xtm_as)
       es = Edge (ixs_ctm ++ [ictm]) (show ctm) :
            Edge (ixs_xtm_as ++ [ixtm]) (show xtm) :
@@ -234,13 +234,11 @@ domainValues g = tpVals where
         foldl (kronwith $ \ d da -> d ++ " " ++ parens da)
           [x] (map tpVals as)
   tpVals (TpArr tp1 tp2) = uncurry arrVals (splitArrows (TpArr tp1 tp2))
-  tpVals (TpMaybe tp) =
-    tmNothingName : map (\ tp -> "(" ++ tmJustName ++ " " ++ tp ++ ")") (tpVals tp)
 
 domainSize :: Ctxt -> Type -> Int
 domainSize g = length . domainValues g
 
-addMaybeFactors :: Ctxt -> [Type] -> RuleM
+{-addMaybeFactors :: Ctxt -> [Type] -> RuleM
 addMaybeFactors g (tp : []) = ctorsRules g (maybeCtors tp) (TpMaybe tp)
 
 data InternalCtor = InternalCtor String (Ctxt -> [Type] -> RuleM) Int {- Num of type args -}
@@ -254,13 +252,14 @@ addInternalFactors g ps =
            let tps = insts name
                msg = ("Expected " ++ show len ++ " type args for "
                         ++ name ++ ", but got " ++ show (length tps)) in
-             foldr (\ as rm' -> if len == length as then addFs g as +> rm' else error msg) rm tps) returnRule internals
+             foldr (\ as rm' -> if len == length as then addFs g as +> rm' else error msg) rm tps) returnRule internals-}
 
 -- Converts an elaborated program into an FGG
 compileFile :: Progs -> Either String String
 compileFile ps =
   let g = ctxtDefProgs ps
       Progs _ end = ps
-      rm = addInternalFactors g ps +> progs2fgg g ps
+--      rm = addInternalFactors g ps +> progs2fgg g ps
+      rm = progs2fgg g ps
       (end', RuleM rs xs nts fs) = addStartRuleIfNecessary end rm in
     return (show (rulesToFGG (domainValues g) end' (reverse rs) nts fs))

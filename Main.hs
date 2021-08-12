@@ -104,7 +104,7 @@ processContents (Options c dr l a o) s = return s
   -- Eliminate recursive types (de/refunctionalization)
   >>= elimRecTypes dr
   -- Convert terms from affine to linear
-  >>= doIf l aff2linFile
+  >>= doIf l affLinFile
   -- Apply various optimizations (again) (disabled for now; joinApps problem after aff2lin introduces maybe types)
   >>= doIf o optimizeFile
   -- Pick a unique name for each bound var (again)

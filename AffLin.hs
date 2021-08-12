@@ -1,5 +1,7 @@
 module AffLin where
 import qualified Data.Map as Map
+--import qualified Control.Monad.State as State
+import Control.Monad.RWS
 import Data.List
 import Exprs
 import Ctxt
@@ -15,145 +17,278 @@ import Free
 -- linear term is one where every bound var
 -- occurs exactly once
 
+{-data AffLinM a = AffLinM (Ctxt -> [Type] -> (Ctxt, [Type], FreeVars, a))
+instance Functor AffLinM where
+  fmap f (AffLinM m) = AffLinM $ \ g mtps -> fmap f (m g mtps)
+instance Applicative AffLinM where
+  pure a = AffLinM $ \ g mtps -> (mtps, a)
+  AffLinM mab <*> AffLinM ma =
+    AffLinM $ \ g mtps ->
+      let (g', mtps', fvs', ab) = mab g mtps
+          (g'', mtps'', fvs'', a) = ma g' mtps' in
+        (g'', mtps'', Map.union fvs fvs'', ab a)
+instance Monad AffLinM where
+  AffLinM ma >>= f =
+    AffLinM $ \ g mtps ->
+      let (g', mtps', fvs', a) = ma g mtps
+          AffLinM mb = f a in
+        mb g mtps'
 
--- Uses x without changing the value or type of a term
--- For example, take x : Bool and some term tm that becomes
--- case (case x of false -> unit | true -> unit) of unit -> tm
-discard' :: Ctxt -> Var -> Type -> Term -> Term
-discard' g x (TpArr tp1 tp2) tm =
+readCtxt :: AffLinM Ctxt
+readCtxt = AffLinM $ \ g mtps -> (mtps, g)
+
+readMaybes :: AffLinM [Type]
+readMaybes = AffLinM $ \ g mtps -> (mtps, mtps)
+-}
+
+-- Reader, Writer, State monad
+type AffLinM a = RWS Ctxt FreeVars [Type] a
+-- Let m = monad type, r = reader type, w = writer type, and s = state type. Then
+--
+-- ask :: m r
+-- local :: (r -> r) -> m a -> m a
+--
+-- tell :: w -> m ()
+-- censor :: (w -> w) -> m a -> m a
+-- listen :: m a -> m (a, w)
+--
+-- get :: m s
+-- put :: s -> m ()
+-- modify :: (s -> s) -> m ()
+
+-- Looks up the maybe type for an arrow type
+getToMaybe :: Type -> AffLinM (Maybe Int)
+getToMaybe tp =
+  get >>= \ mtps ->
+  return (lookup tp (zip mtps [0..]))
+
+-- Looks up the original arrow type, given some maybe type
+getFromMaybe :: Var -> AffLinM (Maybe (Int, Type))
+getFromMaybe y =
+  get >>= \ mtps ->
+  return (lookup y (map (\ (tp, i) -> (tpMaybeName i, (i, tp))) (zip mtps [0..])))
+
+-- Adds a new maybe type to the state
+addMaybe :: Type -> AffLinM Int
+addMaybe tp =
+  get >>= \ mtps ->
+  put (mtps ++ [tp]) >>
+  return (length mtps)
+
+getMaybe :: Type -> AffLinM Int
+getMaybe tp =
+  getToMaybe tp >>= maybe (addMaybe tp) return
+
+alBind :: Var -> Type -> AffLinM Term -> AffLinM Term
+alBind x tp m =
+  censor (Map.delete x)
+         (listen (local (\ g -> ctxtDeclTerm g x tp) m) >>= \ (tm, fvs) ->
+            if Map.member x fvs then return tm else discard x tp tm)
+
+alBinds :: [Param] -> AffLinM Term -> AffLinM Term
+alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
+
+
+-- Maps something to Unit
+-- For example, take x : Bool, which becomes
+-- case x of false -> unit | true -> unit
+discard' :: Var -> Type -> AffLinM Term
+discard' x (TpArr tp1 tp2) =
   error ("Can't discard " ++ x ++ " : " ++ show (TpArr tp1 tp2))
-discard' g x (TpVar y) tm = maybe2 (ctxtLookupType g y)
-  (error ("In Free.hs/discard, unknown type var " ++ y))
-  $ \ cs ->
-      TmCase (TmVarL x (TpVar y)) (TpVar y)
-        (map (\ (Ctor x' as) ->
-                let as' = nameParams x' (map aff2linTp as) in
-                  Case x' as' (foldr (uncurry $ discard g) tm as'))
-          cs) (getType tm)
-discard' g x (TpMaybe tp) tm =
-  let x' = aff2linName x
-      tp' = getType tm in
-    tmElimMaybe (TmVarL x (TpMaybe tp)) tp tm (x', TmSamp DistFail tp') tp'
+discard' x (TpVar y) =
+  ask >>= \ g ->
+  getFromMaybe y >>=
+  maybe
+    (maybe2 (ctxtLookupType g y)
+      (error ("In Free.hs/discard, unknown type var " ++ y))
+      (mapM (\ (Ctor x' as) ->
+               let as' = nameParams x' as in
+                 alBinds as' (return tmUnit) >>= \ tm ->
+                 return (Case x' as' tm))))
+    (\ (i, tp') -> return
+      [Case (tmNothingName i) [] tmUnit,
+       Case (tmJustName i) [("_", tp')] (TmSamp DistFail tpUnit)]) >>= \ cs' ->
+  return (TmCase (TmVarL x (TpVar y)) y cs' tpUnit)
 
-discard :: Ctxt -> Var -> Type -> Term -> Term
-discard g x tp tm
-  | typeHasArr g tp = tmElimUnit (discard' g x tp tmUnit) tm (getType tm)
-  | otherwise = tm
+typeHasArr' :: Type -> AffLinM Bool
+typeHasArr' (TpVar y) =
+  getFromMaybe y >>= maybe
+    (ask >>= \ g -> maybe
+      (return False)
+      (\ cs -> mapM (\ (Ctor x tps) -> mapM typeHasArr' tps >>= return . or) cs >>= return . or)
+      (ctxtLookupType g y))
+    (\ (i, tp') -> return True)
+typeHasArr' (TpArr tp1 tp2) = error "Hmm... This shouldn't happen"
+
+discard :: Var -> Type -> Term -> AffLinM Term
+discard x tp tm =
+--  ask >>= \ g ->
+--  if typeHasArr g tp
+  typeHasArr' tp >>= \ has_arr ->
+  if has_arr
+    then (discard' x tp >>= \ dtm -> return (tmElimUnit dtm tm (getType tm)))
+    else return tm
 
 -- Discard a set of variables
-discards :: Ctxt -> FreeVars -> Term -> Term
-discards g fvs tm = Map.foldrWithKey (discard g) tm fvs
+discards :: FreeVars -> Term -> AffLinM Term
+discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm) fvs
 
 -- Convert the type of an affine term to what it will be when linear
 -- That is, recursively change every T1 -> T2 to be Maybe (T1 -> T2)
-aff2linTp :: Type -> Type
-aff2linTp (TpVar y) = TpVar y
-aff2linTp (TpArr tp1 tp2) = TpMaybe (TpArr (aff2linTp tp1) (aff2linTp tp2))
-aff2linTp tp = error ("aff2linTp shouldn't see a " ++ show tp)
+affLinTp :: Type -> AffLinM Type
+affLinTp (TpVar y) = return (TpVar y)
+{-affLinTp (TpArr tp1 tp2) =
+  affLinTp tp1 >>= \ tp1' ->
+  affLinTp tp2 >>= \ tp2' ->
+  getMaybe (TpArr tp1' tp2') >>= \ i ->
+  return (tpMaybe i)-}
+affLinTp arrtp =
+  let (tps, end) = splitArrows arrtp in
+    mapM affLinTp tps >>= \ tps' ->
+    getMaybe (joinArrows tps' end) >>= \ i ->
+    return (tpMaybe i)
 
 -- Make a case linear, returning the local vars that occur free in it
-aff2linCase :: Ctxt -> Case -> (Case, FreeVars)
-aff2linCase g (Case x ps tm) =
-  let ps' = map (\ (a, atp) -> (a, aff2linTp atp)) ps
-      (tm', fvs) = aff2linh (ctxtDeclArgs g ps') tm
-      -- Need to discard all ps' that do not occur free in tm'
-      tm'' = discards g (Map.difference (Map.fromList ps') fvs) tm' in
-    (Case x ps' tm'', foldr (Map.delete . fst) fvs ps')
+affLinCase :: Case -> AffLinM Case
+affLinCase (Case x ps tm) =
+  affLinParams ps >>= \ ps' ->
+  alBinds ps' (affLin tm) >>=
+  return . Case x ps'
 
-aff2linUnfoldMaybe :: Term -> Term -> Term
-aff2linUnfoldMaybe tm1 tm2 = case getType tm1 of
-  TpMaybe (TpArr tp2 tp) ->
-    let jx = etaName tmJustName 0
-        arr = TpArr tp2 tp in
-      tmElimMaybe tm1 arr (TmSamp DistFail tp) (jx, TmApp (TmVarL jx arr) tm2 tp2 tp) tp
-  (TpArr tp2 tp) ->
-    TmApp tm1 tm2 tp2 tp
-  _ -> error "internal error: aff2linUnfoldMaybe app on non-arrow type"
+ambFun :: Term -> FreeVars -> AffLinM Term
+ambFun tm fvs =
+  let tp = getType tm in
+    case tp of
+      TpArr _ _ ->
+        getMaybe tp >>= \ i ->
+        discards fvs (tmNothing i) >>= \ ntm ->
+        return (TmAmb [ntm, tmJust i tm tp] (tpMaybe i))
+      _ -> return tm
 
-aff2linJoinApps :: Term -> [Arg] -> Term
-aff2linJoinApps = foldl (\ tm (atm, atp) -> aff2linUnfoldMaybe tm atm)
+ambElim :: Term -> (Term -> AffLinM Term) -> AffLinM Term
+ambElim tm app =
+  case getType tm of
+     TpVar y ->
+       getFromMaybe y >>= maybe (app tm)
+         (\ (i, tp) ->
+             let x = affLinName (tmJustName i) in
+               app (TmVarL x tp) >>= \ jtm ->
+               let tp' = getType jtm
+                   nc = Case (tmNothingName i) [] (TmSamp DistFail tp')
+                   jc = Case (tmJustName i) [(x, tp)] jtm in
+                 return (TmCase tm y [nc, jc] tp'))
+     _ -> app tm
+
+affLinArgs :: [Arg] -> AffLinM [Arg]
+affLinArgs = mapM $ \ (tm, tp) -> fmap (\ tm' -> (tm', getType tm')) (affLin tm)
+
+affLinParams :: [Param] -> AffLinM [Param]
+affLinParams = mapM $ \ (x, tp) -> fmap (\ tp' -> (x, tp')) (affLinTp tp)
+
+affLinLams :: Term -> AffLinM ([Param], Term, FreeVars)
+affLinLams tm =
+  let (ps, body) = splitLams tm in
+    affLinParams ps >>= \ lps ->
+    listen (alBinds lps (affLin body)) >>= \ (body', fvs) ->
+    ambElim body' return >>= \ body'' ->
+    let endtp = getType body''
+        arrtp = joinArrows (map snd lps) endtp in
+      return (lps, body'', fvs)
 
 -- Make a term linear, returning the local vars that occur free in it
-aff2linh :: Ctxt -> Term -> (Term, FreeVars)
-aff2linh g (TmVarL x tp) =
-  let ltp = aff2linTp tp in
-    (TmVarL x ltp, Map.singleton x ltp)
-aff2linh g (TmVarG gv x as y) =
-  let (as', fvss) = unzip $ flip map as $
-        \ (tm, tp) -> let (tm', xs) = aff2linh g tm in ((tm', aff2linTp tp), xs) in
-  (TmVarG gv x as' y, Map.unions fvss)
-aff2linh g (TmLam x tp tm tp') =
-  let ltp = aff2linTp tp
-      ltp' = aff2linTp tp'
-      tparr = TpArr ltp ltp'
-      (tm', fvs) = aff2linh (ctxtDeclTerm g x ltp) tm
-      fvs' = Map.delete x fvs
-      tm'' = if Map.member x fvs then tm' else discard g x ltp tm'
-      jtm = tmMaybe (Just (TmLam x ltp tm'' ltp')) tparr
-      ntm = discards g fvs' (tmMaybe Nothing tparr) in
-    (TmAmb [ntm, jtm] (TpMaybe tparr), fvs')
-aff2linh g (TmApp tm1 tm2 tp2 tp) = -- TODO: pass number of args (increment here), so we don't necessarily need to do this amb stuff? And what about if tm2 has arrow type but is always used in tm1?
-  let (tm1', fvs1) = aff2linh g tm1
-      (tm2', fvs2) = aff2linh g tm2
-  in
-    (aff2linUnfoldMaybe tm1' tm2', Map.union fvs1 fvs2)
-aff2linh g (TmLet x xtm xtp tm tp) =
-  let xtp' = aff2linTp xtp
-      tp' = aff2linTp tp
-      (xtm', fvsx) = aff2linh g xtm
-      (tm', fvs) = aff2linh (ctxtDeclTerm g x xtp') tm
-      tm'' = if Map.member x fvs then tm' else discard g x xtp' tm'
-  in
-    (TmLet x xtm' xtp' tm'' tp', Map.union fvsx (Map.delete x fvs))
-aff2linh g (TmCase tm y cs tp) =
-  let csxs = map (aff2linCase g) cs
-      xsAny = Map.unions (map snd csxs)
-      (tm', tmxs) = aff2linh g tm
-      cs' = flip map csxs $ \ (Case x as tm', xs) -> Case x as $
-                  -- Need to discard any vars that occur free in other cases, but that
-                  -- don't in this one bc all cases must have same set of free vars
-                  discards (ctxtDeclArgs g as) (Map.difference xsAny xs) tm' in
-    (TmCase tm' y cs' (aff2linTp tp), Map.union xsAny tmxs)
-aff2linh g (TmSamp d tp) = (TmSamp d (aff2linTp tp), Map.empty)
-aff2linh g (TmAmb tms tp) =
-  let tfvs = map (aff2linh g) tms
-      all_fvs = Map.unions (map snd tfvs)
-      tms' = map (\ (tm', fvs) -> discards g (Map.difference all_fvs fvs) tm') tfvs
-  in
-    (TmAmb tms' (aff2linTp tp), all_fvs)
+affLin :: Term -> AffLinM Term
+affLin (TmVarL x tp) =
+  affLinTp tp >>= \ ltp ->
+  tell (Map.singleton x ltp) >>
+  return (TmVarL x ltp)
+affLin (TmVarG gv x as y) =
+  affLinArgs as >>= \ as' ->
+  return (TmVarG gv x as' y)
+affLin (TmLam x tp tm tp') =
+  affLinLams (TmLam x tp tm tp') >>= \ (lps, body, fvs) ->
+  ambFun (joinLams lps body) fvs
+affLin (TmApp tm1 tm2 tp2 tp) = -- TODO: pass number of args (increment here), so we don't necessarily need to do this amb stuff? And what about if tm2 has arrow type but is always used in tm1?
+  let (tm, as) = splitApps (TmApp tm1 tm2 tp2 tp) in
+    listen (pure (,) <*> affLin tm <*> affLinArgs as) >>= \ ((tm', as'), fvs) ->
+    ambElim tm' (\ tm -> ambFun (joinApps tm as') fvs)
+{-  affLin tm1 >>= \ tm1' ->
+  affLin tm2 >>= \ tm2' ->
+  affLinTp tp >>= \ tp' ->
+  ambElim tm1' (\ tm1'' -> return (TmApp tm1'' tm2' (getType tm2') tp'))-}
+affLin (TmLet x xtm xtp tm tp) =
+  affLin xtm >>= \ xtm' ->
+  let xtp' = getType xtm' in
+    alBind x xtp' (affLin tm) >>= \ tm' ->
+    return (TmLet x xtm' xtp' tm' (getType tm'))
+affLin (TmCase tm y cs tp) =
+  affLin tm >>= \ tm' ->
+  listen (mapM (listen . affLinCase) cs) >>= \ (csxs, xsAny) ->
+  mapM (\ (Case x as tm, xs) -> fmap (Case x as)
+             (discards (Map.difference xsAny xs) tm)) csxs >>= \ cs' ->
+  case cs' of
+    [] -> affLinTp tp >>= return . TmCase tm' y cs'
+    (Case _ _ xtm) : rest -> return (TmCase tm' y cs' (getType xtm))
+affLin (TmSamp d tp) =
+  affLinTp tp >>= \ tp' ->
+  return (TmSamp d tp')
+affLin (TmAmb tms tp) =
+  listen (mapM (listen . affLin) tms) >>= \ (tmsxs, xsAny) ->
+  mapM (\ (tm, xs) -> discards (Map.difference xsAny xs) tm) tmsxs >>= \ tms' ->
+  (if null tms' then affLinTp tp else return (getType (head tms'))) >>= \ tp' ->
+  return (TmAmb tms' tp')
 
 -- Make an affine Prog linear
-aff2linProg :: Ctxt -> Prog -> Prog
-aff2linProg g (ProgFun x (p : ps) tm tp) =
+affLinProg :: Prog -> AffLinM Prog
+affLinProg (ProgFun x (p : ps) tm tp) =
   error "Function shouldn't have params before affine-to-linear transformation"
-aff2linProg g (ProgExtern x xp (p : ps) tp) =
+affLinProg (ProgExtern x xp (p : ps) tp) =
   error "Extern shouldn't have params before affine-to-linear transformation"
-aff2linProg g (ProgFun x [] tm tp) =
+affLinProg (ProgFun x [] tm tp) =
   let (as, endtp) = splitArrows tp
-      (ls, endtm) = splitLams tm
-      as' = map aff2linTp as
-      ls' = map (fmap aff2linTp) ls
-      etas = map (\ (i, atp) -> (etaName x i, atp)) (drop (length ls') (enumerate as'))
-      g' = ctxtDeclArgs g ls'
-      (endtm', fvs) = aff2linh g' endtm
-      endtm'' = discards g' (Map.difference (Map.fromList ls') fvs) endtm'
-      endtp' = aff2linTp endtp -- This may not be necessary, but is future-proof
-  in
-    ProgFun x (ls' ++ etas) (aff2linJoinApps endtm'' (paramsToArgs etas)) endtp'
-aff2linProg g (ProgExtern x xp [] tp) =
-  let (as, end) = splitArrows tp
-      as' = map aff2linTp as in
-    ProgExtern x xp as' end
-aff2linProg g (ProgData y cs) =
-  ProgData y (map (\ (Ctor x as) -> Ctor x (map aff2linTp as)) cs)
+      (ls, endtm) = splitLams tm in
+    mapM affLinTp as >>= \ as' ->
+    affLinParams ls >>= \ ls' ->
+    let etas = map (\ (i, atp) -> (etaName x i, atp)) (drop (length ls') (enumerate as')) in
+      alBinds ls' (affLin endtm) >>= \ endtm' ->
+      return (ProgFun x (ls' ++ etas) endtm' (getType endtm'))
+affLinProg (ProgExtern x xp [] tp) =
+  let (as, end) = splitArrows tp in
+    mapM affLinTp as >>= \ as' ->
+    return (ProgExtern x xp as' end)
+affLinProg (ProgData y cs) =
+  pure (ProgData y) <*> mapM (\ (Ctor x as) -> pure (Ctor x) <*> mapM affLinTp as) cs
+
+
+affLinDefine :: Prog -> AffLinM Prog
+affLinDefine (ProgData y cs) =
+  pure (ProgData y) <*> mapM (\ (Ctor x as) -> pure (Ctor x) <*> mapM affLinTp as) cs
+affLinDefine (ProgFun x [] tm tp) =
+  let (as, endtp) = splitArrows tp in
+    mapM affLinTp as >>= \ as' ->
+    return (ProgFun x [] tm (joinArrows as' endtp))
+affLinDefine (ProgExtern x xp [] tp) =
+  let (as, endtp) = splitArrows tp in
+    mapM affLinTp as >>= \ as' ->
+    return (ProgExtern x xp [] (joinArrows as' tp))
+
+affLinDefines :: Progs -> AffLinM Ctxt
+affLinDefines (Progs ps end) =
+  mapM affLinDefine ps >>= \ ps' ->
+  return (ctxtDefProgs (Progs ps' end))
 
 unitProg :: Prog
 unitProg = ProgData tpUnitName unitCtors
 
+affLinProgs :: Progs -> AffLinM Progs
+affLinProgs (Progs ps end) =
+  let ps' = ps ++ [unitProg] in
+  affLinDefines (Progs ps' end) >>= \ g ->
+  local (const g) (pure Progs <*> mapM affLinProg ps' <*> affLin end)
+
+runAffLin :: Progs -> Progs
+runAffLin ps = case runRWS (affLinProgs ps) (ctxtDefProgs ps) [] of
+  (Progs ps' end, mtps, _) -> Progs (ps' ++ map (\ (i, tp) -> ProgData (tpMaybeName i) (maybeCtors i tp)) (enumerate mtps)) end
+
 -- Make an affine file linear
-aff2linFile :: Progs -> Either String Progs
-aff2linFile (Progs ps end) =
-  let ps' = ps ++ [unitProg]
-      g = ctxtDefProgs (Progs ps' end)
-      (ls, endtm) = splitLams end in
-    return (Progs (map (aff2linProg g) ps') (joinLams ls (fst (aff2linh g endtm))))
+affLinFile :: Progs -> Either String Progs
+affLinFile = return . runAffLin

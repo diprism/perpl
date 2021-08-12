@@ -61,13 +61,13 @@ liftAmb (TmLet x xtm xtp tm tp) =
   joinAmbs (kronwith (\ xtm' tm' -> TmLet x xtm' xtp tm' tp)
              (splitAmbs (liftAmb xtm))
              (splitAmbs (liftAmb tm))) tp
-liftAmb (TmCase tm tp cs tp') =
+liftAmb (TmCase tm y cs tp) =
   let tms = splitAmbs (liftAmb tm)
       cs1 = map (\ (Case x xps xtm) -> (x, xps, splitAmbs (liftAmb xtm))) cs
-      cs2 = concatMap (\ (x, xps, xtms) -> map (\ xtm -> map (\ (Case x' xps' _) -> Case x' xps' (if x == x' then xtm else TmSamp DistFail tp')) cs) xtms) cs1
+      cs2 = concatMap (\ (x, xps, xtms) -> map (\ xtm -> map (\ (Case x' xps' _) -> Case x' xps' (if x == x' then xtm else TmSamp DistFail tp)) cs) xtms) cs1
       cs3 = if any (\ (x, xps, xtms) -> length xtms > 1) cs1 then cs2 else [cs]
   in
-    joinAmbs (kronwith (\ tm cs -> TmCase tm tp cs tp') tms cs3) tp'
+    joinAmbs (kronwith (\ tm cs -> TmCase tm y cs tp) tms cs3) tp
 liftAmb (TmSamp d tp) = TmSamp d tp
 liftAmb (TmAmb tms tp) =
   TmAmb (concatMap (splitAmbs . liftAmb) tms) tp
@@ -87,11 +87,11 @@ liftFail' (TmLam x tp tm tp') = pure (TmLam x tp) <*> liftFail' tm <*> pure tp'
 liftFail' (TmApp tm1 tm2 tp2 tp) = pure TmApp <*> liftFail' tm1 <*> liftFail' tm2 <*> pure tp2 <*> pure tp
 liftFail' (TmLet x xtm xtp tm tp) =
   pure (TmLet x) <*> liftFail' xtm <*> pure xtp <*> liftFail' tm <*> pure tp
-liftFail' (TmCase tm tp cs tp') =
+liftFail' (TmCase tm y cs tp) =
   let cs' = map (\ (Case x ps tm) -> pure (Case x ps) <*> liftFail' tm) cs in
     if all null cs' then Nothing else
-      pure TmCase <*> liftFail' tm <*> pure tp
-        <*> pure (map (\ (Case x xps xtm) -> Case x xps (liftFail xtm)) cs) <*> pure tp'
+      pure TmCase <*> liftFail' tm <*> pure y
+        <*> pure (map (\ (Case x xps xtm) -> Case x xps (liftFail xtm)) cs) <*> pure tp
 liftFail' (TmAmb tms tp) =
   let tms' = concatMap (maybe [] (\ tm -> [tm]) . liftFail') tms in
     if null tms' then Nothing else pure (joinAmbs tms' tp)
@@ -136,7 +136,7 @@ safe2sub g x xtm tm =
     noDefsSamps (TmLam x tp tm tp') = noDefsSamps tm
     noDefsSamps (TmApp tm1 tm2 tp2 tp) = noDefsSamps tm1 && noDefsSamps tm2
     noDefsSamps (TmLet x xtm xtp tm tp) = noDefsSamps xtm && noDefsSamps tm
-    noDefsSamps (TmCase tm tp cs tp') = noDefsSamps tm && all (\ (Case x xps xtm) -> noDefsSamps xtm) cs
+    noDefsSamps (TmCase tm y cs tp) = noDefsSamps tm && all (\ (Case x xps xtm) -> noDefsSamps xtm) cs
     noDefsSamps (TmSamp d tp) = False
 
 optimizeTerm :: Ctxt -> Term -> Term
@@ -191,4 +191,4 @@ optimizeTerm g (TmAmb tms tp) = TmAmb (map (optimizeTerm g) tms) tp
 optimizeFile :: Progs -> Either String Progs
 optimizeFile ps =
   let g = ctxtDefProgs ps in
-    mapProgsM (return . optimizeTerm g . liftFail . liftAmb) ps
+    mapProgsM (return . liftFail . optimizeTerm g . liftFail . liftAmb) ps

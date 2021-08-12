@@ -18,7 +18,7 @@ getPolyInstsTerm pis (TmApp tm1 tm2 tp2 tp) = getPolyInstsTerm (getPolyInstsTerm
 getPolyInstsTerm pis (TmLet x xtm xtp tm tp) = getPolyInstsTerm (getPolyInstsTerm pis xtm) tm
 getPolyInstsTerm pis (TmCase tm y cs tp) =
   foldl (\ pis (Case x as ctm) -> getPolyInstsTerm pis ctm)
-    (getPolyInstsType (getPolyInstsTerm pis tm) y) cs
+    (getPolyInstsTerm pis tm) cs
 getPolyInstsTerm pis (TmSamp d tp) = getPolyInstsType pis tp
 getPolyInstsTerm pis (TmAmb tms tp) = foldl (\ pis tm -> getPolyInstsTerm pis tm) (getPolyInstsType pis tp) tms
 

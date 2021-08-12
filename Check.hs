@@ -95,7 +95,7 @@ checkTermh g (UsCase tm cs) =
     (TpVar y) -> maybe2 (ctxtLookupType g y)
       (err "Error in checkTerm UsCase") -- shouldn't happen
       $ \ ycs -> checkCases g ycs (sortCases ycs cs) >>= \ (cs', tp') ->
-        return (TmCase tm' (TpVar y) cs' tp')
+        return (TmCase tm' y cs' tp')
 
 checkTermh g (UsSamp d tp) =
   checkType g tp >>
