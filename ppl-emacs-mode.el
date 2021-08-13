@@ -37,7 +37,7 @@
   '(("{-" . "-}"))
   '()
   '(("--.*" . 'font-lock-comment-face)
-    ("=\\|->\\|;\\|:\\|\\\\\\||" . 'ppl-punct-face)
+    ("=\\|->\\|;\\|:\\|\\.\\|,\\|\\\\\\||" . 'ppl-punct-face)
     ("\\(^\\|[^A-Za-z0-9\\'_]\\)\\(define\\|extern\\|data\\|case\\|of\\|let\\|in\\|sample\\)\\(^\\|[^A-Za-z0-9\\'_]\\)" 2 'ppl-keyword-face)
     ("\\b\\(amb\\|fail\\|uniform\\)\\b" 1 'ppl-dist-face)
     ("\\b\\([A-Za-z0-9\\'_]+\\)\\b" 1 'ppl-var-face)
