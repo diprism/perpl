@@ -9,8 +9,15 @@ Run tests:
 Example: Remove recursive datatypes from code/pda2.ppl
 `./compiler.exe --linearize=no --compile=no < code/pda2.ppl`
 
+## De-/Refunctionalization
+Let `M` be a recursive datatype. Then
+- We can _defunctionalize_ `M` when, for each `M` constructor occurrence, the types of the args it is instantiated with do not depend on `M`.
+- We can _refunctionalize_ `M` when, for each `M` case-of, neither the return type nor the types of the free vars in each case depend on `M`. Note that you _can_ use the constructor args you are given in each case even if their types depend on `M`.
+
+In order to compile, each recursive datatype must satisfy at least one of the two conditions above.
 
 
+## Compilation Stages
 \# | Pipeline Stage            | Description                                     | Flag
 --:| ------------------------- | ----------------------------------------------- | -----
  1 | Lex                       | File contents -> list of tokens                 |
