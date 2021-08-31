@@ -37,7 +37,9 @@ targetName = "%this%"
 foldCtorName y i = "%fold" ++ y ++ "_" ++ show i ++ "%"
 foldTypeName y = "%Fold" ++ y ++ "%"
 unfoldTypeName y = "%Unfold" ++ y ++ "%"
-unfoldCtorName y i = "%unfold" ++ y ++ "_" ++ show i ++ "%"
+unfoldCtorName y = "%unfold" ++ y ++ "%"
+unfoldCtorArgName y i = "%unfold" ++ y ++ "_" ++ show i ++ "%"
+unfoldCtorArgNames y n = [unfoldCtorArgName y i | i <- [0..n-1]]
 
 
 -- Names used for affLin

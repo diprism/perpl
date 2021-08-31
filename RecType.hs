@@ -100,7 +100,8 @@ collectFoldsFile = collectFile . collectFolds
 
 -- Makes the %UnfoldY% datatype, given results from collectUnfolds
 makeUnfoldDatatype :: Var -> [(FreeVars, Type)] -> Prog
-makeUnfoldDatatype y = ProgData (unfoldTypeName y) . map (\ (i, (fvs, tp)) -> Ctor (unfoldCtorName y i) [joinArrows (Map.elems fvs) tp]) . enumerate
+--makeUnfoldDatatype y = ProgData (unfoldTypeName y) . map (\ (i, (fvs, tp)) -> Ctor (unfoldCtorName y i) [joinArrows (Map.elems fvs) tp]) . enumerate
+makeUnfoldDatatype y us = ProgData (unfoldTypeName y) [Ctor (unfoldCtorName y) (map (\ (i, (fvs, tp)) -> TpArr tpUnit (joinArrows (Map.elems fvs) tp)) (enumerate us))]
 
 -- Makes the %FoldY% datatype, given results from collectFolds
 makeFoldDatatype :: Var -> [(Var, FreeVars)] -> Prog
@@ -120,11 +121,9 @@ makeDisentangle g y us css =
                         g' = \ xps -> ctxtDeclArgs g (xps ++ ps)
                         cs' = map (\ (Case cx cps ctm) -> Case cx (sub_ps cps)
                                     (derefunTerm Refun (g' cps) y ctm)) cs in
-                      TmVarG CtorVar (unfoldCtorName y i)
-                        [(joinLams ps
-                           (TmCase (TmVarL x ytp) y cs' tp),
-                          joinArrows (map snd ps) tp)] utp) alls
-      fun = ProgFun (unfoldName y) [] (TmLam x ytp (joinAmbs cscs utp) utp) (TpArr ytp utp)
+                      (joinLams (("_", tpUnit) : ps) (TmCase (TmVarL x ytp) y cs' tp),
+                       joinArrows (tpUnit : map snd ps) tp)) alls
+      fun = ProgFun (unfoldName y) [] (TmLam x ytp (TmVarG CtorVar (unfoldCtorName y) cscs utp) utp) (TpArr ytp utp)
   in
     (dat, fun)
 
@@ -170,8 +169,10 @@ disentangleTerm rtp cases = h where
       State.get >>= \ unfolds ->
       let i = length unfolds
           x' = "%def" -- targetName -- TODO
-          cs'' = map (\ (j, (cfvs, ctp2)) -> let ps = Map.toList cfvs; arrtp = joinArrows (map snd ps) ctp2 in Case (unfoldCtorName rtp j) [(x', arrtp)] (if i == j then (joinApps (TmVarL x' arrtp) (paramsToArgs ps)) else TmSamp DistFail tp))
-                    (enumerate cases)
+          get_ps = \ (cfvs, ctp2) -> ("_", tpUnit) : Map.toList cfvs
+          get_as = \ (cfvs, ctp2) -> (tmUnit, tpUnit) : paramsToArgs (Map.toList cfvs)
+          get_arr = \ (cfvs, ctp2) -> joinArrows (map snd (get_ps (cfvs, ctp2))) ctp2
+          cs'' = [Case (unfoldCtorName rtp) (map (\ (j, cfvstp2) -> (if i == j then x' else "_", get_arr cfvstp2)) (enumerate cases)) (let cfvstp2 = cases !! i in joinApps (TmVarL x' (get_arr cfvstp2)) ((get_as cfvstp2)))]
           rtm = TmCase tm (unfoldTypeName rtp) cs'' tp
       in
         State.put (unfolds ++ [cs']) >>
@@ -417,12 +418,19 @@ whichDR explicit_drs ps =
 
 --------------------------------------------------
 
+unitProg :: Prog
+unitProg = ProgData tpUnitName unitCtors
+
+addUnitProg :: Progs -> Progs
+addUnitProg (Progs ds end) = Progs (unitProg : ds) end
+
 -- TODO: figure out naming of fold/unfold functions (fold/apply or apply/unfold?)
 -- Eliminates the recursive datatypes in a file, by de- or refunctionalizing them
 elimRecTypes :: [(Var, DeRe)] -> Progs -> Either String Progs
 elimRecTypes explicit_drs ps =
-  whichDR explicit_drs ps >>=
-  derefunThese ps
+  let ups = addUnitProg ps in
+  whichDR explicit_drs ups >>=
+  derefunThese ups
 
 
 

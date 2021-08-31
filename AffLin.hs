@@ -252,15 +252,10 @@ affLinDefines (Progs ps end) =
   mapM affLinDefine ps >>= \ ps' ->
   return (ctxtDefProgs (Progs ps' end))
 
--- We need this to discard Maybes
-unitProg :: Prog
-unitProg = ProgData tpUnitName unitCtors
-
 affLinProgs :: Progs -> AffLinM Progs
 affLinProgs (Progs ps end) =
-  let ps' = ps ++ [unitProg] in
-  affLinDefines (Progs ps' end) >>= \ g ->
-  local (const g) (pure Progs <*> mapM affLinProg ps' <*> affLin end)
+  affLinDefines (Progs ps end) >>= \ g ->
+  local (const g) (pure Progs <*> mapM affLinProg ps <*> affLin end)
 
 runAffLin :: Progs -> Progs
 runAffLin ps = case runRWS (affLinProgs ps) (ctxtDefProgs ps) [] of
