@@ -109,6 +109,16 @@ checkTermh g (UsLet x ltm tm) =
   checkAffLin g x ltp tm >>
   return (TmLet x ltm' ltp tm' tp)
 
+checkTermh g (UsAmb tms) =
+  mapM (checkTerm g) tms >>= \ tmtps ->
+  let (tms, tps) = unzip tmtps in
+    case tps of
+      [] -> err "can't use amb with no branches (not sure how to type this term)"
+      (tp : tps) ->
+        foldr (\ tp' me -> me >> ifErr (tp /= tp') "not all branches have same type")
+              okay tps >>
+        return (TmAmb tms tp)
+
 
 -- Check a type under a context
 checkType :: Ctxt -> Type -> Either ErrMsg ()

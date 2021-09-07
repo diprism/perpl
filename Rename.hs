@@ -36,6 +36,8 @@ renameUsTm (UsSamp d tp) =
 renameUsTm (UsLet x xtm tm) =
   renameUsTm xtm >>= \ xtm' ->
   bindVar x $ \ x' -> pure (UsLet x' xtm') <*> renameUsTm tm
+renameUsTm (UsAmb tms) =
+  pure UsAmb <*> mapM renameUsTm tms
 
 -- Alpha-rename a term
 -- Note that this does NOT allow you to substitute global term vars (defines / ctors)
