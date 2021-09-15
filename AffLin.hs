@@ -110,7 +110,7 @@ discard :: Var -> Type -> Term -> AffLinM Term
 discard x tp tm =
   typeHasArr' tp >>= \ has_arr ->
   if has_arr
-    then (discard' x tp >>= \ dtm -> return (tmElimUnit dtm tm (getType tm)))
+    then (discard' x tp >>= \ dtm -> return (TmLet "_" dtm tpUnit tm (getType tm))) -- (tmElimUnit dtm tm (getType tm)))
     else return tm
 
 -- Discard a set of variables
