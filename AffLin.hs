@@ -225,7 +225,7 @@ affLinProg (ProgFun x [] tm tp) =
     affLinParams ls >>= \ ls' ->
     let etas = map (\ (i, atp) -> (etaName x i, atp)) (drop (length ls') (enumerate as')) in
       alBinds ls' (affLin endtm) >>= \ endtm' ->
-      return (ProgFun x (ls' ++ etas) endtm' (getType endtm'))
+      return (ProgFun x (ls' ++ etas) (joinApps endtm' (paramsToArgs etas)) (getType endtm'))
 affLinProg (ProgExtern x xp [] tp) =
   let (as, end) = splitArrows tp in
     mapM affLinTp as >>= \ as' ->
