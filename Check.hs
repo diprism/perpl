@@ -99,8 +99,8 @@ checkTermh g (UsCase tm cs) =
 
 checkTermh g (UsSamp d tp) =
   checkType g tp >>
-  ifErr (typeIsRecursive g tp)
-    "Can't sample from a type with an infinite domain" >>
+--  ifErr (typeIsRecursive g tp)
+--    "Can't sample from a type with an infinite domain" >>
   return (TmSamp d tp)
 
 checkTermh g (UsLet x ltm tm) =
