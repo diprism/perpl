@@ -115,17 +115,18 @@ parseTerm2 = parseSwitch $ \ t -> case t of
     -- parseEat *> pure UsLam <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
 -- sample dist : type
   TkSample -> parseEat *> pure UsSamp <*> parseDist <* parseDrop TkColon <*> parseType1
-
+  TkAmb -> parseEat *> parseAmbs []
   _ -> parseTerm3
 
 -- App
 parseTerm3 :: ParseM UsTm
 parseTerm3 = parseTerm4 >>= parseTermApp
 
-parseAmbs tms =
-  parseElse (UsAmb (reverse tms)) $ parseTerm4 >>= \ tm -> parseAmbs (tm : tms)
 
--- Parse an application spine or list of amb choices
+parseAmbs tms =
+  parseElse (UsAmb (reverse tms)) (parseTerm4 >>= \ tm -> parseAmbs (tm : tms))
+
+-- Parse an application spine
 parseTermApp tm =
   parseElse tm $ parseTerm4 >>= parseTermApp . UsApp tm
 
@@ -133,7 +134,6 @@ parseTermApp tm =
 parseTerm4 :: ParseM UsTm
 parseTerm4 = parseSwitch $ \ t -> case t of
   TkVar v -> parseEat *> pure (UsVar v)
-  TkAmb -> parseEat *> parseAmbs []
   TkParenL -> parseEat *> parseTerm1 <* parseDrop TkParenR
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
