@@ -220,12 +220,15 @@ affLinProg (ProgExtern x xp (p : ps) tp) =
   error "Extern shouldn't have params before affine-to-linear transformation"
 affLinProg (ProgFun x [] tm tp) =
   let (as, endtp) = splitArrows tp
-      (ls, endtm) = splitLams tm in
+      (ls, endtm) = splitLams tm
+      etas = map (\ (i, atp) -> (etaName x i, atp)) (drop (length ls) (enumerate as))
+      endtm_eta = joinApps endtm (paramsToArgs etas)
+      ls_eta = ls ++ etas
+  in
     mapM affLinTp as >>= \ as' ->
-    affLinParams ls >>= \ ls' ->
-    let etas = map (\ (i, atp) -> (etaName x i, atp)) (drop (length ls') (enumerate as')) in
-      alBinds ls' (affLin endtm) >>= \ endtm' ->
-      return (ProgFun x (ls' ++ etas) (joinApps endtm' (paramsToArgs etas)) (getType endtm'))
+    affLinParams ls_eta >>= \ ls' ->
+    alBinds ls' (affLin endtm_eta) >>= \ endtm' ->
+    return (ProgFun x (ls' ++ etas) endtm' (getType endtm'))
 affLinProg (ProgExtern x xp [] tp) =
   let (as, end) = splitArrows tp in
     mapM affLinTp as >>= \ as' ->
