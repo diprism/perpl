@@ -74,7 +74,7 @@ collectUnfolds rtp (TmAmb tms tp) = concatMap (collectUnfolds rtp) tms
 collectFolds :: Var -> Term -> [(Var, FreeVars)]
 collectFolds rtp (TmVarL x tp) = []
 collectFolds rtp (TmVarG gv x as tp) =
-  let this = if TpVar rtp == tp then [(x, freeVarsArgs' as)] else [] in
+  let this = if TpVar rtp == tp && gv == CtorVar then [(x, freeVarsArgs' as)] else [] in
     concatMap (\ (atm, atp) -> collectFolds rtp atm) as ++ this
 collectFolds rtp (TmLam x tp tm tp') = collectFolds rtp tm
 collectFolds rtp (TmApp tm1 tm2 tp2 tp) = collectFolds rtp tm1 ++ collectFolds rtp tm2
