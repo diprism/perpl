@@ -28,6 +28,7 @@ data UsTm = -- User Term
   | UsCase UsTm [CaseUs]
   | UsSamp Dist Type
   | UsLet Var UsTm UsTm
+  | UsAmb [UsTm]
 
 data GlobalVar = CtorVar | DefVar
   deriving Eq

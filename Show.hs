@@ -14,7 +14,7 @@ toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
 -- TODO: better pretty printing of this
-toUsTm (TmAmb tms tp) = UsVar $ "(amb [" ++ foldl (\ s tm' -> s ++ ", " ++ show tm') (show (head tms)) (tail tms) ++ "])"
+toUsTm (TmAmb tms tp) = UsAmb (map toUsTm tms)
 
 toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)
@@ -53,6 +53,9 @@ showTermParens (UsSamp _ _ ) ShowAppL = True
 showTermParens (UsSamp _ _ ) ShowAppR = True
 showTermParens (UsLet _ _ _) ShowAppL = True
 showTermParens (UsLet _ _ _) ShowAppR = True
+showTermParens (UsLet _ _ _) ShowCase = True
+showTermParens (UsAmb _    ) ShowAppL = True
+showTermParens (UsAmb _    ) ShowAppR = True
 showTermParens _             _        = False
 
 -- Should we add parens to this type, given its parent type?
@@ -69,6 +72,7 @@ showTermh (UsApp tm1 tm2) = showTerm tm1 ShowAppL ++ " " ++ showTerm tm2 ShowApp
 showTermh (UsCase tm cs) = "case " ++ showTerm tm ShowCase ++ " of " ++ showCasesCtors cs
 showTermh (UsSamp d tp) = "sample " ++ show d ++ " : " ++ show tp
 showTermh (UsLet x tm tm') = "let " ++ x ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
+showTermh (UsAmb tms) = foldr (\ tm s -> s ++ " " ++ showTerm tm ShowAppR) "amb" tms
 
 -- Type show helper (ignoring parentheses)
 showTypeh :: Type -> String

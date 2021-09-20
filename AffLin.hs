@@ -110,7 +110,7 @@ discard :: Var -> Type -> Term -> AffLinM Term
 discard x tp tm =
   typeHasArr' tp >>= \ has_arr ->
   if has_arr
-    then (discard' x tp >>= \ dtm -> return (tmElimUnit dtm tm (getType tm)))
+    then (discard' x tp >>= \ dtm -> return (TmLet "_" dtm tpUnit tm (getType tm))) -- (tmElimUnit dtm tm (getType tm)))
     else return tm
 
 -- Discard a set of variables
@@ -220,12 +220,15 @@ affLinProg (ProgExtern x xp (p : ps) tp) =
   error "Extern shouldn't have params before affine-to-linear transformation"
 affLinProg (ProgFun x [] tm tp) =
   let (as, endtp) = splitArrows tp
-      (ls, endtm) = splitLams tm in
+      (ls, endtm) = splitLams tm
+      etas = map (\ (i, atp) -> (etaName x i, atp)) (drop (length ls) (enumerate as))
+      endtm_eta = joinApps endtm (paramsToArgs etas)
+      ls_eta = ls ++ etas
+  in
     mapM affLinTp as >>= \ as' ->
-    affLinParams ls >>= \ ls' ->
-    let etas = map (\ (i, atp) -> (etaName x i, atp)) (drop (length ls') (enumerate as')) in
-      alBinds ls' (affLin endtm) >>= \ endtm' ->
-      return (ProgFun x (ls' ++ etas) endtm' (getType endtm'))
+    affLinParams ls_eta >>= \ ls' ->
+    alBinds ls' (affLin endtm_eta) >>= \ endtm' ->
+    return (ProgFun x (ls' ++ etas) endtm' (getType endtm'))
 affLinProg (ProgExtern x xp [] tp) =
   let (as, end) = splitArrows tp in
     mapM affLinTp as >>= \ as' ->
@@ -252,15 +255,10 @@ affLinDefines (Progs ps end) =
   mapM affLinDefine ps >>= \ ps' ->
   return (ctxtDefProgs (Progs ps' end))
 
--- We need this to discard Maybes
-unitProg :: Prog
-unitProg = ProgData tpUnitName unitCtors
-
 affLinProgs :: Progs -> AffLinM Progs
 affLinProgs (Progs ps end) =
-  let ps' = ps ++ [unitProg] in
-  affLinDefines (Progs ps' end) >>= \ g ->
-  local (const g) (pure Progs <*> mapM affLinProg ps' <*> affLin end)
+  affLinDefines (Progs ps end) >>= \ g ->
+  local (const g) (pure Progs <*> mapM affLinProg ps <*> affLin end)
 
 runAffLin :: Progs -> Progs
 runAffLin ps = case runRWS (affLinProgs ps) (ctxtDefProgs ps) [] of

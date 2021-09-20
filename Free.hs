@@ -30,6 +30,7 @@ freeVars (UsApp tm tm') = Map.unionWith (+) (freeVars tm) (freeVars tm')
 freeVars (UsCase tm cs) = foldr (Map.unionWith max . freeVarsCase) (freeVars tm) cs
 freeVars (UsSamp d tp) = Map.empty
 freeVars (UsLet x tm tm') = Map.unionWith max (freeVars tm) (Map.delete x $ freeVars tm')
+freeVars (UsAmb tms) = Map.unions (map freeVars tms)
 
 freeVarsCase :: CaseUs -> Map.Map Var Int
 freeVarsCase (CaseUs c xs tm) = foldr Map.delete (freeVars tm) xs

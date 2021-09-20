@@ -83,7 +83,7 @@ liftFail' (TmSamp d tp) = pure (TmSamp d tp)
 liftFail' (TmVarL x tp) = pure (TmVarL x tp)
 liftFail' (TmVarG gv x as tp) =
   pure (TmVarG gv x) <*> mapM (\ (atm, atp) -> fmap (\ atm -> (atm, atp)) (liftFail' atm)) as <*> pure tp
-liftFail' (TmLam x tp tm tp') = pure (TmLam x tp) <*> liftFail' tm <*> pure tp'
+liftFail' (TmLam x tp tm tp') = pure (TmLam x tp (liftFail tm) tp')
 liftFail' (TmApp tm1 tm2 tp2 tp) = pure TmApp <*> liftFail' tm1 <*> liftFail' tm2 <*> pure tp2 <*> pure tp
 liftFail' (TmLet x xtm xtp tm tp) =
   pure (TmLet x) <*> liftFail' xtm <*> pure xtp <*> liftFail' tm <*> pure tp

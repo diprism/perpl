@@ -99,8 +99,8 @@ checkTermh g (UsCase tm cs) =
 
 checkTermh g (UsSamp d tp) =
   checkType g tp >>
-  ifErr (typeIsRecursive g tp)
-    "Can't sample from a type with an infinite domain" >>
+--  ifErr (typeIsRecursive g tp)
+--    "Can't sample from a type with an infinite domain" >>
   return (TmSamp d tp)
 
 checkTermh g (UsLet x ltm tm) =
@@ -108,6 +108,16 @@ checkTermh g (UsLet x ltm tm) =
   checkTerm (ctxtDeclTerm g x ltp) tm >>= \ (tm', tp) ->
   checkAffLin g x ltp tm >>
   return (TmLet x ltm' ltp tm' tp)
+
+checkTermh g (UsAmb tms) =
+  mapM (checkTerm g) tms >>= \ tmtps ->
+  let (tms, tps) = unzip tmtps in
+    case tps of
+      [] -> err "can't use amb with no branches (not sure how to type this term)"
+      (tp : tps) ->
+        foldr (\ tp' me -> me >> ifErr (tp /= tp') "not all branches have same type")
+              okay tps >>
+        return (TmAmb tms tp)
 
 
 -- Check a type under a context
