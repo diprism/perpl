@@ -192,6 +192,10 @@ term2fgg g (TmLet x xtm xtp tm tp) =
       xs = nub (ixxs ++ ixs') ++ [itp]
   in
     addRule' (TmLet x xtm xtp tm tp) (map snd ns) es xs
+term2fgg g (TmAmpIn as) =
+  error "TODO"
+term2fgg g (TmAmpOut tm tps o) =
+  error "TODO"
 
 -- Adds the rules for a Prog
 prog2fgg :: Ctxt -> Prog -> RuleM

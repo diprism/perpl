@@ -48,6 +48,8 @@ freeVars' (TmLet x xtm xtp tm tp) = Map.union (freeVars' xtm) (Map.delete x (fre
 freeVars' (TmCase tm y cs tp') = Map.union (freeVars' tm) (freeVarsCases' cs)
 freeVars' (TmSamp d tp) = Map.empty
 freeVars' (TmAmb tms tp) = Map.unions (map freeVars' tms)
+freeVars' (TmAmpIn as) = freeVarsArgs' as
+freeVars' (TmAmpOut tm tps o) = freeVars' tm
 
 freeVarsCase' :: Case -> FreeVars
 freeVarsCase' (Case c as tm) = foldr (Map.delete . fst) (freeVars' tm) as
@@ -110,7 +112,9 @@ isLin' x = (LinYes ==) . h where
     -- make sure x is linear in all the cases, or in none of the cases
     (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
   h (TmSamp d tp) = LinNo
-  h (TmAmb tms tp) = foldr (\ tm l -> linIf' l (linIf' (h tm) LinErr LinYes) (h tm)) LinNo tms
+  h (TmAmb tms tp) = foldr (\ tm l -> linIf' l (linIf' (h tm) LinYes LinYes) (h tm)) LinNo tms
+  h (TmAmpIn as) = foldr (\ (tm, _) l -> linIf' l (linIf' (h tm) LinYes LinYes) (h tm)) LinNo as
+  h (TmAmpOut tm tps o) = h tm
 
 -- Returns if a type has an infinite domain (i.e. it contains (mutually) recursive datatypes anywhere in it)
 typeIsRecursive :: Ctxt -> Type -> Bool
@@ -121,9 +125,11 @@ typeIsRecursive g = h [] where
         (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps)
         (ctxtLookupType g y)
   h visited (TpArr tp1 tp2) = h visited tp1 || h visited tp2
+  h visited (TpAmp tps) = any (h visited) tps
 
 -- Returns if a type has an arrow anywhere in it
 typeHasArr :: Ctxt -> Type -> Bool
 typeHasArr g = h [] where
   h visited (TpVar y) = not (y `elem` visited) && maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (ctxtLookupType g y)
   h visited (TpArr _ _) = True
+  h visited (TpAmp tps) = any (h visited) tps

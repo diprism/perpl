@@ -18,6 +18,7 @@ isRecType' g y = h [] where
   h :: [Var] -> [Type] -> Bool
   h hist [] = False
   h hist (TpArr tp1 tp2 : tps) = h hist (tp1 : tp2 : tps)
+  h hist (TpAmp tps' : tps) = h hist (tps' ++ tps)
   h hist (TpVar y' : tps)
     | y == y' = True
     | y' `elem` hist = h hist tps
@@ -67,6 +68,8 @@ collectUnfolds rtp (TmCase tm y cs tp) =
       ++ this
 collectUnfolds rtp (TmSamp d tp) = []
 collectUnfolds rtp (TmAmb tms tp) = concatMap (collectUnfolds rtp) tms
+collectUnfolds rtp (TmAmpIn as) = error "collectUnfolds should not see a TmAmpIn"
+collectUnfolds rtp (TmAmpOut tm tps o) = error "collectUnfolds should not see a TmAmpOut"
 
 -- Collects all the usages of constructors for type rtp,
 -- returning the ctor name along with the free vars used
@@ -82,6 +85,8 @@ collectFolds rtp (TmLet x xtm xtp tm tp) = collectFolds rtp xtm ++ collectFolds 
 collectFolds rtp (TmCase tm y cs tp) = collectFolds rtp tm ++ concatMap (\ (Case cx cps ctm) -> collectFolds rtp ctm) cs
 collectFolds rtp (TmSamp d tp) = []
 collectFolds rtp (TmAmb tms tp) = concatMap (collectFolds rtp) tms
+collectFolds rtp (TmAmpIn as) = error "collectFolds should not see a TmAmpIn"
+collectFolds rtp (TmAmpOut tm tps o) = error "collectFolds should not see a TmAmpOut"
 
 -- Runs collect[Un]folds on a Prog
 collectProg :: (Term -> [a]) -> Prog -> [a]
@@ -165,7 +170,7 @@ disentangleTerm rtp cases = h where
   h (TmCase tm y cs tp)
     | y == rtp =
       h tm >>= \ tm' ->
-      mapCasesM (const h) cs >>= \ cs' ->
+      mapCasesM (\ _ _ -> h) cs >>= \ cs' ->
       State.get >>= \ unfolds ->
       let i = length unfolds
           x' = "%def" -- targetName -- TODO
@@ -178,10 +183,12 @@ disentangleTerm rtp cases = h where
         State.put (unfolds ++ [cs']) >>
         pure rtm
     | otherwise =
-      pure TmCase <*> h tm <*> pure y <*> mapCasesM (const h) cs <*> pure tp
+      pure TmCase <*> h tm <*> pure y <*> mapCasesM (\ _ _ -> h) cs <*> pure tp
   h (TmSamp d tp) =
     pure (TmSamp d tp)
   h (TmAmb tms tp) = pure TmAmb <*> mapM h tms <*> pure tp
+  h (TmAmpIn as) = error "disentangleTerm should not see a TmAmpIn"
+  h (TmAmpOut tm tps o) = error "disentangleTerm should not see a TmAmpOut"
 
 --------------------------------------------------
 
@@ -209,9 +216,11 @@ defoldTerm rtp = h where
   h (TmLam x tp tm tp') = pure (TmLam x tp) <*> h tm <*> pure tp'
   h (TmApp tm1 tm2 tp2 tp) = pure TmApp <*> h tm1 <*> h tm2 <*> pure tp2 <*> pure tp
   h (TmLet x xtm xtp tm tp) = pure (TmLet x) <*> h xtm <*> pure xtp <*> h tm <*> pure tp
-  h (TmCase tm y cs tp) = pure TmCase <*> h tm <*> pure y <*> mapCasesM (const h) cs <*> pure tp
+  h (TmCase tm y cs tp) = pure TmCase <*> h tm <*> pure y <*> mapCasesM (\ _ _ -> h) cs <*> pure tp
   h (TmSamp d tp) = pure (TmSamp d tp)
   h (TmAmb tms tp) = pure TmAmb <*> mapM h tms <*> pure tp
+  h (TmAmpIn as) = error "defoldTerm should not see a TmAmpIn"
+  h (TmAmpOut tm tps o) = error "defoldTerm should not see a TmAmpOut"
 
 --------------------------------------------------
 
@@ -281,6 +290,8 @@ derefunTerm dr g rtp = fst . h where
     let tms' = map h tms
         tp' = if null tms' then sub tp else snd (head tms') in
       (TmAmb (map fst tms') tp', tp')
+  h (TmAmpIn as) = error "derefoldTermTerm should not see a TmAmpIn"
+  h (TmAmpOut tm tps o) = error "derefoldTerm should not see a TmAmpOut"
 
 derefunProgTypes :: DeRe -> Var -> Prog -> Prog
 derefunProgTypes dr rtp (ProgFun x ps tm tp) = ProgFun x (map (fmap (derefunSubst dr rtp)) ps) tm (derefunSubst dr rtp tp)

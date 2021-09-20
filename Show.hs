@@ -13,8 +13,9 @@ toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
--- TODO: better pretty printing of this
 toUsTm (TmAmb tms tp) = UsAmb (map toUsTm tms)
+toUsTm (TmAmpIn as) = error "TODO: show TmAmpIn"
+toUsTm (TmAmpOut tm tps o) = error "TODO: show TmAmpOut"
 
 toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)

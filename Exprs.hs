@@ -42,10 +42,13 @@ data Term =
   | TmCase Term Var [Case] Type
   | TmSamp Dist Type
   | TmAmb [Term] Type
+  | TmAmpIn [Arg]
+  | TmAmpOut Term [Type] Int
 
 data Type =
     TpArr Type Type
   | TpVar Var
+  | TpAmp [Type]
   deriving (Eq, Ord)
 
 data CaseUs = CaseUs Var [Var] UsTm

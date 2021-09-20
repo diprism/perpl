@@ -1,5 +1,6 @@
 module Optimize where
 import Data.List
+import Data.Maybe
 import qualified Data.Map as Map
 import Exprs
 import Ctxt
@@ -71,6 +72,13 @@ liftAmb (TmCase tm y cs tp) =
 liftAmb (TmSamp d tp) = TmSamp d tp
 liftAmb (TmAmb tms tp) =
   TmAmb (concatMap (splitAmbs . liftAmb) tms) tp
+liftAmb (TmAmpIn as) =
+  let as' = map (\ (atm, atp) ->
+                    map (\ atm' -> (atm', atp))
+                      (splitAmbs (liftAmb atm))) as in
+    joinAmbs (map (\ as -> TmAmpIn as) (kronall as')) (TpAmp (map snd as))
+liftAmb (TmAmpOut tm tps o) =
+  joinAmbs (map (\ tm -> TmAmpOut tm tps o) (splitAmbs (liftAmb tm))) (tps !! o)
 
 
 liftFail'' :: (Term, Maybe Term) -> Term
@@ -82,7 +90,7 @@ liftFail' (TmSamp DistFail tp) = Nothing
 liftFail' (TmSamp d tp) = pure (TmSamp d tp)
 liftFail' (TmVarL x tp) = pure (TmVarL x tp)
 liftFail' (TmVarG gv x as tp) =
-  pure (TmVarG gv x) <*> mapM (\ (atm, atp) -> fmap (\ atm -> (atm, atp)) (liftFail' atm)) as <*> pure tp
+  pure (TmVarG gv x) <*> mapArgsM liftFail' as <*> pure tp
 liftFail' (TmLam x tp tm tp') = pure (TmLam x tp (liftFail tm) tp')
 liftFail' (TmApp tm1 tm2 tp2 tp) = pure TmApp <*> liftFail' tm1 <*> liftFail' tm2 <*> pure tp2 <*> pure tp
 liftFail' (TmLet x xtm xtp tm tp) =
@@ -95,6 +103,14 @@ liftFail' (TmCase tm y cs tp) =
 liftFail' (TmAmb tms tp) =
   let tms' = concatMap (maybe [] (\ tm -> [tm]) . liftFail') tms in
     if null tms' then Nothing else pure (joinAmbs tms' tp)
+liftFail' (TmAmpIn as) =
+  let as' = map (mapArgM liftFail') as in
+  if any isJust as' then
+    pure (TmAmpIn (map (\ ((_, tp), ma) -> maybe (TmSamp DistFail tp, tp) id ma) (zip as as')))
+  else
+    Nothing
+liftFail' (TmAmpOut tm tps o) =
+  pure TmAmpOut <*> liftFail' tm <*> pure tps <*> pure o
 
 -- If a term inevitably fails, just replace it with fail.
 -- For example, (sample fail : tp1 -> tp2) tm1 is the same
@@ -188,6 +204,11 @@ optimizeTerm g (TmCase tm y cs tp) =
         in
           joinLams ps' (TmCase tm' y cs' end)
 optimizeTerm g (TmAmb tms tp) = TmAmb (map (optimizeTerm g) tms) tp
+optimizeTerm g (TmAmpIn as) = TmAmpIn (mapArgs (optimizeTerm g) as)
+optimizeTerm g (TmAmpOut tm tps o) =
+  case optimizeTerm g tm of
+    (TmAmpIn as) -> fst (as !! o)
+    tm' -> TmAmpOut tm' tps o
 
 -- Applies various optimizations to a list of args
 optimizeArgs :: Ctxt -> [Arg] -> [Arg]

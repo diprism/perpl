@@ -83,9 +83,10 @@ typeHasArr' (TpArr tp1 tp2) = error "Hmm... This shouldn't happen"
 -- Maps something to Unit
 -- For example, take x : Bool, which becomes
 -- case x of false -> unit | true -> unit
-discard' :: Var -> Type -> AffLinM Term
+discard' :: Term -> Type -> AffLinM Term
 discard' x (TpArr tp1 tp2) =
-  error ("Can't discard " ++ x ++ " : " ++ show (TpArr tp1 tp2))
+  error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
+discard' x (TpAmp tps) = discard' (TmAmpOut x tps 0) (head tps) -- TODO: pick easiest of these to discard? Or with aff-to-lin stuff, does it not matter?
 discard' x (TpVar y) =
   ask >>= \ g ->
   getFromMaybe y >>=
@@ -99,7 +100,7 @@ discard' x (TpVar y) =
     (\ (i, tp') -> return
       [Case (tmNothingName i) [] tmUnit,
        Case (tmJustName i) [("_", tp')] (TmSamp DistFail tpUnit)]) >>= \ cs' ->
-  return (TmCase (TmVarL x (TpVar y)) y cs' tpUnit)
+  return (TmCase x y cs' tpUnit)
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard
 -- it to maintain correct probabilities, but without changing the value or type
@@ -110,7 +111,7 @@ discard :: Var -> Type -> Term -> AffLinM Term
 discard x tp tm =
   typeHasArr' tp >>= \ has_arr ->
   if has_arr
-    then (discard' x tp >>= \ dtm -> return (TmLet "_" dtm tpUnit tm (getType tm))) -- (tmElimUnit dtm tm (getType tm)))
+    then (discard' (TmVarL x tp) tp >>= \ dtm -> return (TmLet "_" dtm tpUnit tm (getType tm))) -- (tmElimUnit dtm tm (getType tm)))
     else return tm
 
 -- Discard a set of variables
@@ -121,6 +122,7 @@ discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm
 -- That is, recursively change every T1 -> T2 to be Maybe (T1 -> T2)
 affLinTp :: Type -> AffLinM Type
 affLinTp (TpVar y) = return (TpVar y)
+affLinTp (TpAmp tps) = pure TpAmp <*> mapM affLinTp tps
 affLinTp arrtp =
   let (tps, end) = splitArrows arrtp in
     mapM affLinTp tps >>= \ tps' ->
@@ -130,7 +132,7 @@ affLinTp arrtp =
 -- Make a case linear, returning the local vars that occur free in it
 affLinCase :: Case -> AffLinM Case
 affLinCase (Case x ps tm) =
-  affLinParams ps >>= \ ps' ->
+  mapParamsM affLinTp ps >>= \ ps' ->
   alBinds ps' (affLin tm) >>=
   return . Case x ps'
 
@@ -158,21 +160,20 @@ ambElim tm app =
                  return (TmCase tm y [nc, jc] tp'))
      _ -> app tm
 
-affLinArgs :: [Arg] -> AffLinM [Arg]
-affLinArgs = mapM $ \ (tm, tp) -> fmap (\ tm' -> (tm', getType tm')) (affLin tm)
-
-affLinParams :: [Param] -> AffLinM [Param]
-affLinParams = mapM $ \ (x, tp) -> fmap (\ tp' -> (x, tp')) (affLinTp tp)
-
 affLinLams :: Term -> AffLinM ([Param], Term, FreeVars)
 affLinLams tm =
   let (ps, body) = splitLams tm in
-    affLinParams ps >>= \ lps ->
+    mapParamsM affLinTp ps >>= \ lps ->
     listen (alBinds lps (affLin body)) >>= \ (body', fvs) ->
     ambElim body' return >>= \ body'' ->
     let endtp = getType body''
         arrtp = joinArrows (map snd lps) endtp in
       return (lps, body'', fvs)
+
+affLinBranches :: (a -> AffLinM b) -> (FreeVars -> b -> AffLinM b) -> [a] -> AffLinM [b]
+affLinBranches alf dscrd als =
+  listen (mapM (listen . alf) als) >>= \ (alxs, xsAny) ->
+  mapM (\ (b, xs) -> dscrd (Map.difference xsAny xs) b) alxs
 
 -- Make a term linear, returning the local vars that occur free in it
 affLin :: Term -> AffLinM Term
@@ -181,14 +182,14 @@ affLin (TmVarL x tp) =
   tell (Map.singleton x ltp) >>
   return (TmVarL x ltp)
 affLin (TmVarG gv x as y) =
-  affLinArgs as >>= \ as' ->
+  mapArgsM affLin as >>= \ as' ->
   return (TmVarG gv x as' y)
 affLin (TmLam x tp tm tp') =
   affLinLams (TmLam x tp tm tp') >>= \ (lps, body, fvs) ->
   ambFun (joinLams lps body) fvs
 affLin (TmApp tm1 tm2 tp2 tp) =
   let (tm, as) = splitApps (TmApp tm1 tm2 tp2 tp) in
-    listen (pure (,) <*> affLin tm <*> affLinArgs as) >>= \ ((tm', as'), fvs) ->
+    listen (pure (,) <*> affLin tm <*> mapArgsM affLin as) >>= \ ((tm', as'), fvs) ->
     ambElim tm' (\ tm -> ambFun (joinApps tm as') fvs)
 affLin (TmLet x xtm xtp tm tp) =
   affLin xtm >>= \ xtm' ->
@@ -197,9 +198,10 @@ affLin (TmLet x xtm xtp tm tp) =
     return (TmLet x xtm' xtp' tm' (getType tm'))
 affLin (TmCase tm y cs tp) =
   affLin tm >>= \ tm' ->
-  listen (mapM (listen . affLinCase) cs) >>= \ (csxs, xsAny) ->
-  mapM (\ (Case x as tm, xs) -> fmap (Case x as)
-             (discards (Map.difference xsAny xs) tm)) csxs >>= \ cs' ->
+--  listen (mapM (listen . affLinCase) cs) >>= \ (csxs, xsAny) ->
+--  mapM (\ (Case x as tm, xs) -> fmap (Case x as)
+--             (discards (Map.difference xsAny xs) tm)) csxs >>= \ cs' ->
+  affLinBranches affLinCase (\ xs (Case x as tm) -> fmap (Case x as) (discards xs tm)) cs >>= \ cs' ->
   case cs' of
     [] -> affLinTp tp >>= return . TmCase tm' y cs'
     (Case _ _ xtm) : rest -> return (TmCase tm' y cs' (getType xtm))
@@ -207,10 +209,15 @@ affLin (TmSamp d tp) =
   affLinTp tp >>= \ tp' ->
   return (TmSamp d tp')
 affLin (TmAmb tms tp) =
-  listen (mapM (listen . affLin) tms) >>= \ (tmsxs, xsAny) ->
-  mapM (\ (tm, xs) -> discards (Map.difference xsAny xs) tm) tmsxs >>= \ tms' ->
+--  listen (mapM (listen . affLin) tms) >>= \ (tmsxs, xsAny) ->
+--  mapM (\ (tm, xs) -> discards (Map.difference xsAny xs) tm) tmsxs >>= \ tms' ->
+  affLinBranches affLin discards tms >>= \ tms' ->
   (if null tms' then affLinTp tp else return (getType (head tms'))) >>= \ tp' ->
   return (TmAmb tms' tp')
+affLin (TmAmpIn as) =
+  pure TmAmpIn <*> affLinBranches (mapArgM affLin) (mapArgM . discards) as
+affLin (TmAmpOut tm tps o) =
+  pure TmAmpOut <*> affLin tm <*> mapM affLinTp tps <*> pure o
 
 -- Make an affine Prog linear
 affLinProg :: Prog -> AffLinM Prog
@@ -226,7 +233,7 @@ affLinProg (ProgFun x [] tm tp) =
       ls_eta = ls ++ etas
   in
     mapM affLinTp as >>= \ as' ->
-    affLinParams ls_eta >>= \ ls' ->
+    mapParamsM affLinTp ls_eta >>= \ ls' ->
     alBinds ls' (affLin endtm_eta) >>= \ endtm' ->
     return (ProgFun x (ls' ++ etas) endtm' (getType endtm'))
 affLinProg (ProgExtern x xp [] tp) =
@@ -234,12 +241,12 @@ affLinProg (ProgExtern x xp [] tp) =
     mapM affLinTp as >>= \ as' ->
     return (ProgExtern x xp as' end)
 affLinProg (ProgData y cs) =
-  pure (ProgData y) <*> mapM (\ (Ctor x as) -> pure (Ctor x) <*> mapM affLinTp as) cs
+  pure (ProgData y) <*> mapCtorsM affLinTp cs
 
 -- Helper
 affLinDefine :: Prog -> AffLinM Prog
 affLinDefine (ProgData y cs) =
-  pure (ProgData y) <*> mapM (\ (Ctor x as) -> pure (Ctor x) <*> mapM affLinTp as) cs
+  pure (ProgData y) <*> mapCtorsM affLinTp  cs
 affLinDefine (ProgFun x [] tm tp) =
   let (as, endtp) = splitArrows tp in
     mapM affLinTp as >>= \ as' ->
