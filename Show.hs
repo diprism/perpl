@@ -53,6 +53,7 @@ showTermParens (UsSamp _ _ ) ShowAppL = True
 showTermParens (UsSamp _ _ ) ShowAppR = True
 showTermParens (UsLet _ _ _) ShowAppL = True
 showTermParens (UsLet _ _ _) ShowAppR = True
+showTermParens (UsLet _ _ _) ShowCase = True
 showTermParens (UsAmb _    ) ShowAppL = True
 showTermParens (UsAmb _    ) ShowAppR = True
 showTermParens _             _        = False
