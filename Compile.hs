@@ -141,6 +141,11 @@ lamRule addVarRule x tp tm tp' rm = -- TODO: new discard rule stuff?
     addRule' (TmLam x tp tm tp') (map snd ns) es xs +>
     addFactor (pairFactorName tp tp') (getPairWeights tp tp')
 
+addAmpFactors :: Ctxt -> [Type] -> RuleM
+addAmpFactors g tps =
+  let tpvs = map (domainValues g) tps in
+    foldr (\ i r -> r +> addFactor (ampFactorName Nothing tps i) (ThisWeight (WeightsDims $ WeightsData (concatMap (\ (j, vs) -> let p = if i == j then 1 else 0 in map (const p) vs) (enumerate tpvs))))) returnRule [0..length tps]
+
 -- Traverse a term and add all rules for subexpressions
 term2fgg :: Ctxt -> Term -> RuleM
 term2fgg g (TmVarL x tp) =
@@ -151,7 +156,7 @@ term2fgg g (TmVarG gv x as y) =
   map (\ (a, atp) -> term2fgg g a) (reverse as) +*>= \ xss' ->
   -- TODO: instead of reversing, just have (+*>=) do that
   let xss = reverse xss'
-      (ns, [iy] : ias : ixss) = combineExts (newNames' [y] : map (\ (i, (tm, tp)) -> (' ' : show (succ i), tp)) (enumerate as) : xss)
+      (ns, (iy : ias) : ixss) = combineExts (newNames' (y : map snd as) : xss)
       es_c = Edge (ias ++ [iy]) (ctorFactorNameDefault x (map snd as) y) :
                  map (\ (ixs, (a, _), itp) -> Edge (ixs ++ [itp]) (show a))
                      (zip3 ixss as ias)
@@ -193,9 +198,41 @@ term2fgg g (TmLet x xtm xtp tm tp) =
   in
     addRule' (TmLet x xtm xtp tm tp) (map snd ns) es xs
 term2fgg g (TmAmpIn as) =
-  error "TODO"
+  -- TODO: instead of reversing, just have (+*>=) do that
+  let tps = map snd as
+      tp = TpAmp tps
+  in
+    foldr
+      (\ (i, (atm, atp)) r -> r +>
+        term2fgg g atm +>= \ tmxs ->
+        let (ns, [(itp : iatp : ias), ixs]) = combineExts [newNames' (tp : atp : tps), tmxs]
+            fac = ampFactorName Nothing tps i
+            es = [Edge (ixs ++ [iatp]) (show atm),
+                  Edge [iatp, itp] fac]
+            xs = nub ixs
+--            pre_as = take i tps
+--            suf_as = drop (i + 1) tps
+--            pre_advs = map (domainValues g) pre_as
+--            suf_advs = map (domainValues g) suf_as
+--            advs = domainValues g atp
+            tpvs = map (domainValues g) tps
+            ws = WeightsDims $ WeightsData (concatMap (\ (j, vs) -> let p = if i == j then 1 else 0 in map (const p) vs) (enumerate tpvs))
+        in
+          addRule' (TmAmpIn as) (map snd ns) es xs
+      )
+      (addAmpFactors g tps) (enumerate as)
 term2fgg g (TmAmpOut tm tps o) =
-  error "TODO"
+  term2fgg g tm +>= \ tmxs ->
+  let tp = tps !! o
+      amp = TpAmp tps
+      (ns, [[itp, iamp], ixs]) = combineExts [newNames' [tp, amp], tmxs]
+      es = [Edge (ixs ++ [iamp]) (show tm),
+            Edge [iamp, itp] (ampFactorName Nothing tps o)]
+      xs = nub ixs
+  in
+    addRule' (TmAmpOut tm tps o) (map snd ns) es xs +>
+    addAmpFactors g tps
+
 
 -- Adds the rules for a Prog
 prog2fgg :: Ctxt -> Prog -> RuleM
@@ -241,6 +278,9 @@ domainValues g = tpVals where
         foldl (kronwith $ \ d da -> d ++ " " ++ parens da)
           [x] (map tpVals as)
   tpVals (TpArr tp1 tp2) = uncurry arrVals (splitArrows (TpArr tp1 tp2))
+  tpVals (TpAmp tps) =
+    let tpvs = map tpVals tps in
+      concatMap (\ (i, vs) -> map (\ v -> ampFactorName (Just v) tps i) vs) (enumerate tpvs)
 
 domainSize :: Ctxt -> Type -> Int
 domainSize g = length . domainValues g

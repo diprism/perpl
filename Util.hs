@@ -212,3 +212,8 @@ mapProgM mtm (ProgData y cs) =
 mapProgsM :: Monad m => (Term -> m Term) -> Progs -> m Progs
 mapProgsM f (Progs ps end) =
   pure Progs <*> mapM (mapProgM f) ps <*> f end
+
+delimitWith :: [a] -> [[a]] -> [a]
+delimitWith del [] = []
+delimitWith del [as] = as
+delimitWith del (h : t) = h ++ del ++ delimitWith del t

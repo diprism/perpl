@@ -154,6 +154,9 @@ safe2sub g x xtm tm =
     noDefsSamps (TmLet x xtm xtp tm tp) = noDefsSamps xtm && noDefsSamps tm
     noDefsSamps (TmCase tm y cs tp) = noDefsSamps tm && all (\ (Case x xps xtm) -> noDefsSamps xtm) cs
     noDefsSamps (TmSamp d tp) = False
+    noDefsSamps (TmAmb tms tp) = False
+    noDefsSamps (TmAmpIn as) = False -- all (noDefsSamps . fst) as
+    noDefsSamps (TmAmpOut tm tps o) = False -- noDefsSamps tm
 
 -- Applies various optimizations to a term
 optimizeTerm :: Ctxt -> Term -> Term

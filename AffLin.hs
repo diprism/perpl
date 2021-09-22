@@ -70,15 +70,16 @@ alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
 
 
 -- Computes if a type has an arrow / Maybe type somewhere in it
-typeHasArr' :: Type -> AffLinM Bool
-typeHasArr' (TpVar y) =
+needToDiscard :: Type -> AffLinM Bool
+needToDiscard (TpVar y) =
   getFromMaybe y >>= maybe
     (ask >>= \ g -> maybe
       (return False)
-      (\ cs -> mapM (\ (Ctor x tps) -> mapM typeHasArr' tps >>= return . or) cs >>= return . or)
+      (\ cs -> mapM (\ (Ctor x tps) -> mapM needToDiscard tps >>= return . or) cs >>= return . or)
       (ctxtLookupType g y))
     (\ (i, tp') -> return True)
-typeHasArr' (TpArr tp1 tp2) = error "Hmm... This shouldn't happen"
+needToDiscard (TpArr tp1 tp2) = error "Hmm... This shouldn't happen"
+needToDiscard (TpAmp tps) = return True
 
 -- Maps something to Unit
 -- For example, take x : Bool, which becomes
@@ -109,7 +110,7 @@ discard' x (TpVar y) =
 -- case (case x of nothing -> unit | just a2b -> fail) of unit -> tm
 discard :: Var -> Type -> Term -> AffLinM Term
 discard x tp tm =
-  typeHasArr' tp >>= \ has_arr ->
+  needToDiscard tp >>= \ has_arr ->
   if has_arr
     then (discard' (TmVarL x tp) tp >>= \ dtm -> return (TmLet "_" dtm tpUnit tm (getType tm))) -- (tmElimUnit dtm tm (getType tm)))
     else return tm

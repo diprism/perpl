@@ -11,6 +11,13 @@ typeFactorName tp = "==" ++ show tp
 -- Naming convention for factor v=(v1,v2)
 pairFactorName tp1 tp2 = "v=(" ++ show (TpArr tp1 tp2) ++ ")"
 
+--ampFactorName i tps = "v=" ++ show (TpAmp tps) ++ "." ++ show i
+ampFactorName tm tps i = "v=<" ++ commas tps ++ ">." ++ show i ++ maybe "" (\ tm -> "=" ++ tm) tm
+  where
+    commas [] = ""
+    commas [a] = show a
+    commas (a : as) = show a ++ ", " ++ commas as
+
 internalFactorName tm = "v=" ++ show tm
 
 -- Naming convention for constructor factor

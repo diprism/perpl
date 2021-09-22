@@ -131,6 +131,7 @@ substs g subs m = fst $ State.runState m $ foldr (uncurry Map.insert) (ctxtToTer
 substType :: Var -> Var -> Type -> Type
 substType xi xf (TpVar y) = TpVar (if xi == y then xf else y)
 substType xi xf (TpArr tp1 tp2) = TpArr (substType xi xf tp1) (substType xi xf tp2)
+substType xi xf (TpAmp tps) = TpAmp (map (substType xi xf) tps)
 
 
 
