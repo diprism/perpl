@@ -1,0 +1,28 @@
+data Bool = false | true;
+data Nat = zero | succ Nat;
+
+define not : Bool -> Bool =
+  \ b : Bool. case b of false -> true | true -> false;
+define and : Bool -> Bool -> Bool =
+  \ a : Bool, b : Bool. case a of false -> false | true -> b;
+
+define even : Nat -> Bool =
+  \ n : Nat. case n of zero -> true | succ n' -> not (even n');
+
+define iszero : Nat -> Bool =
+  \ n : Nat. case n of zero -> true | succ n' -> false;
+
+--define bothzero_worse : Nat -> Nat -> Bool =
+--  \ m : Nat, n : Nat. case m of
+--    | zero -> iszero n
+--    | succ m' -> false;
+
+define bothzero_better : Nat -> Nat -> Bool =
+  \ m : Nat, n : Nat. let iszero_n = iszero n in
+    case m of
+      | zero -> iszero_n
+      | succ m' -> false;
+
+define dont_defun_nat : Nat -> Nat = \ n : Nat. succ n;
+
+bothzero_better zero (succ zero);
