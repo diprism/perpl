@@ -18,6 +18,8 @@ data Token =
   | TkIn
   | TkArr
   | TkLeftArr
+  | TkAmp
+  | TkStar
   | TkColon
   | TkDot
   | TkComma
@@ -37,6 +39,8 @@ instance Show Token where
   show TkEq = "="
   show TkArr = "->"
   show TkLeftArr = "<-"
+  show TkAmp = "&"
+  show TkStar = "*"
   show TkColon = ":"
   show TkDot = "."
   show TkComma = ","

@@ -137,6 +137,11 @@ parseTerm4 = parseSwitch $ \ t -> case t of
   TkParenL -> parseEat *> parseTerm1 <* parseDrop TkParenR
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
+parseTpsDelim tok tps = parseSwitch $ \ t ->
+  if t == tok
+    then (parseEat >> parseType3 >>= \ tp' -> parseTpsDelim tok (tp' : tps))
+    else pure (reverse tps)
+
 -- Arrow
 parseType1 :: ParseM Type
 parseType1 = parseType2 >>= \ tp -> parseSwitch $ \ t -> case t of
@@ -145,10 +150,11 @@ parseType1 = parseType2 >>= \ tp -> parseSwitch $ \ t -> case t of
 
 -- If we ever add type apps or infix types (+, *), do them here
 parseType2 :: ParseM Type
-parseType2 = parseType3
-{-parseType2 = parseType3 >>= tp -> parseSwitch $ \ t -> case t of
-  TkPlus -> parseEat *> pure (TpSum tp) <*> parseType3
-  _ -> pure tp-}
+--parseType2 = parseType3
+parseType2 = parseType3 >>= \ tp -> parseSwitch $ \ t -> case t of
+  TkStar -> pure TpProd <*> parseTpsDelim TkStar [tp]
+  TkAmp  -> pure TpAmp <*> parseTpsDelim TkAmp [tp]
+  _ -> pure tp
 
 -- TypeVar
 parseType3 :: ParseM Type

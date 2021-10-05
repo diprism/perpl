@@ -29,6 +29,10 @@ data UsTm = -- User Term
   | UsSamp Dist Type
   | UsLet Var UsTm UsTm
   | UsAmb [UsTm]
+  | UsAmpIn [UsTm]
+  | UsAmpOut UsTm Int
+  | UsProdIn [UsTm]
+  | UsProdOut UsTm [Var] UsTm
 
 data GlobalVar = CtorVar | DefVar
   deriving Eq
@@ -44,11 +48,14 @@ data Term =
   | TmAmb [Term] Type
   | TmAmpIn [Arg]
   | TmAmpOut Term [Type] Int
+  | TmProdIn [Arg]
+  | TmProdOut Term [Param] Term
 
 data Type =
     TpArr Type Type
   | TpVar Var
   | TpAmp [Type]
+  | TpProd [Type]
   deriving (Eq, Ord)
 
 data CaseUs = CaseUs Var [Var] UsTm
