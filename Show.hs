@@ -13,8 +13,9 @@ toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
--- TODO: better pretty printing of this
 toUsTm (TmAmb tms tp) = UsAmb (map toUsTm tms)
+toUsTm (TmAmpIn as) = UsVar ("(" ++ delimitWith " & " (map (show . toUsTm . fst) as) ++ ")")
+toUsTm (TmAmpOut tm tps o) = UsVar ("(" ++ show (toUsTm tm) ++ ")." ++ show o)
 
 toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)
@@ -38,7 +39,7 @@ parensIf :: Bool -> String -> String
 parensIf True = parens
 parensIf False = id
 
-data ShowHist = ShowAppL | ShowAppR | ShowCase | ShowArrL | ShowTypeArg | ShowNone
+data ShowHist = ShowAppL | ShowAppR | ShowCase | ShowArrL | ShowTypeArg | ShowAmp | ShowNone
   deriving Eq
 
 -- Should we add parens to this term, given its parent term?
@@ -56,6 +57,8 @@ showTermParens (UsLet _ _ _) ShowAppR = True
 showTermParens (UsLet _ _ _) ShowCase = True
 showTermParens (UsAmb _    ) ShowAppL = True
 showTermParens (UsAmb _    ) ShowAppR = True
+showTermParens (UsVar _    ) ShowAmp  = False
+showTermParens _             ShowAmp  = True
 showTermParens _             _        = False
 
 -- Should we add parens to this type, given its parent type?
@@ -78,6 +81,7 @@ showTermh (UsAmb tms) = foldr (\ tm s -> s ++ " " ++ showTerm tm ShowAppR) "amb"
 showTypeh :: Type -> String
 showTypeh (TpVar y) = y
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
+showTypeh (TpAmp tps) = "<" ++ delimitWith ", " (map show tps) ++ ">"
 
 -- Show a term, given its parent for parentheses
 showTerm :: UsTm -> ShowHist -> String

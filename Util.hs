@@ -57,6 +57,8 @@ getType (TmLet x xtm xtp tm tp) = tp
 getType (TmCase ctm y cs tp) = tp
 getType (TmSamp d tp) = tp
 getType (TmAmb tms tp) = tp
+getType (TmAmpIn as) = TpAmp (map snd as)
+getType (TmAmpOut tm tps o) = tps !! o
 
 -- Sorts cases according to the order they are appear in the datatype definition
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
@@ -90,7 +92,7 @@ splitApps = splitAppsh []
 
 -- Joins (tm1, [tm2, tm3, ..., tmn]) into tm1 tm2 tm3 ... tmn
 joinApps' :: Term -> [Term] -> Term
-joinApps' tm = h (tm, getType tm) where
+joinApps' tm = h (toArg tm) where
   h :: (Term, Type) -> [Term] -> Term
   h (tm1, tp) [] = tm1
   h (tm1, TpArr tp2 tp) (tm2 : as) = h (TmApp tm1 tm2 tp2 tp, tp) as
@@ -116,7 +118,7 @@ joinLams :: [Param] -> Term -> Term
 joinLams as tm = fst $ foldr
   (\ (a, atp) (tm, tp) ->
     (TmLam a atp tm tp, TpArr atp tp))
-  (tm, getType tm) as
+  (toArg tm) as
 
 -- Splits let x2 = tm2 in let x3 = tm3 in ... let xn = tmn in tm1 into ([(x2, tm2, tp2), (x3, tm3, tp3), ..., (xn, tmn, tpn)], tm1)
 splitLets :: Term -> ([(Var, Term, Type)], Term)
@@ -159,13 +161,43 @@ etaExpand gv x tas vas y =
   foldr (\ (a, atp) tm -> TmLam a atp tm (getType tm))
     (addArgs gv x tas vas y) vas
 
+toArg :: Term -> Arg
+toArg tm = (tm, getType tm)
+
+toArgs :: [Term] -> [Arg]
+toArgs = map toArg
+
+mapArgM :: Monad m => (Term -> m Term) -> Arg -> m Arg
+mapArgM f (atm, _) = f atm >>= return . toArg
+
+mapArg :: (Term -> Term) -> Arg -> Arg
+mapArg f (atm, _) = toArg (f atm)
+
+mapArgs :: (Term -> Term) -> [Arg] -> [Arg]
+mapArgs = map . mapArg
+
 -- Maps over the terms in a list of args
 mapArgsM :: Monad m => (Term -> m Term) -> [Arg] -> m [Arg]
-mapArgsM f = mapM $ \ (atm, atp) -> pure (,) <*> f atm <*> pure atp
+mapArgsM = mapM . mapArgM
+
+mapParamM :: Monad m => (Type -> m Type) -> Param -> m Param
+mapParamM f (x, tp) = pure ((,) x) <*> f tp
+
+mapParamsM :: Monad m => (Type -> m Type) -> [Param] -> m [Param]
+mapParamsM = mapM . mapParamM
+
+mapParam :: (Type -> Type) -> Param -> Param
+mapParam f (x, tp) = (x, f tp)
+
+mapParams :: (Type -> Type) -> [Param] -> [Param]
+mapParams = map . mapParam
 
 -- Maps over the terms in a list of cases
-mapCasesM :: Monad m => ([Param] -> Term -> m Term) -> [Case] -> m [Case]
-mapCasesM f = mapM $ \ (Case x ps tm) -> pure (Case x ps) <*> f ps tm
+mapCasesM :: Monad m => (Var -> [Param] -> Term -> m Term) -> [Case] -> m [Case]
+mapCasesM f = mapM $ \ (Case x ps tm) -> pure (Case x ps) <*> f x ps tm
+
+mapCtorsM :: Monad m => (Type -> m Type) -> [Ctor] -> m [Ctor]
+mapCtorsM f = mapM $ \ (Ctor x tps) -> pure (Ctor x) <*> mapM f tps
 
 -- Maps over the terms in a Prog
 mapProgM :: Monad m => (Term -> m Term) -> Prog -> m Prog
@@ -180,3 +212,8 @@ mapProgM mtm (ProgData y cs) =
 mapProgsM :: Monad m => (Term -> m Term) -> Progs -> m Progs
 mapProgsM f (Progs ps end) =
   pure Progs <*> mapM (mapProgM f) ps <*> f end
+
+delimitWith :: [a] -> [[a]] -> [a]
+delimitWith del [] = []
+delimitWith del [as] = as
+delimitWith del (h : t) = h ++ del ++ delimitWith del t

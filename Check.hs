@@ -56,7 +56,7 @@ checkTermVar eta g tm = checkTermh g tm
 checkTerm g tm =
   mapLeft (\ (s, h) -> (s, ("in the term " ++ show tm ++ ": ") : h))
     (checkTermh g tm) >>= \ tm' ->
-  return (tm', getType tm')
+  return (toArg tm')
 
 checkTermh g (UsVar x) = checkTermVar True g (UsVar x)
 
