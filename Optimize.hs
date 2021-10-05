@@ -221,4 +221,4 @@ optimizeArgs g = map (\ (atm, atp) -> (optimizeTerm g atm, atp))
 optimizeFile :: Progs -> Either String Progs
 optimizeFile ps =
   let g = ctxtDefProgs ps in
-    mapProgsM (return . liftFail . optimizeTerm g . liftFail . liftAmb) ps
+    mapProgsM (return . liftFail . optimizeTerm g . liftFail {- . liftAmb-}) ps
