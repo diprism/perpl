@@ -1,0 +1,31 @@
+-- Like pda.ppl, but written as a function that produces a stack
+-- instead of consuming it. It seems like it should be
+-- defunctionalizable but isn't.
+
+-- For simplicity, the PDA doesn't have a state.
+
+data Bool = True | False;
+data Symbol = A | B | Bot;
+data String = NilString | Snoc String Symbol;
+data Stack = NilStack |  Cons Symbol Stack;
+data Condition = Config Symbol Symbol;
+data Action = Pop | Push Symbol Symbol;
+
+extern transition: Condition -> Action;
+
+define pda : String -> Stack = \str: String.
+  case str of
+    NilString -> Cons Bot NilStack -- initial stack
+  | Snoc str last ->
+      let stk = pda str in
+        case stk of
+          NilStack -> fail
+        | Cons top stk ->
+            case sample transition last top of
+              Pop -> stk
+            | Push new1 new2 -> Cons new2 (Cons new1 stk)
+
+case pda (Snoc (Snoc NilString A) B) of
+  NilStack -> True
+  ConsStack top stk -> False
+  

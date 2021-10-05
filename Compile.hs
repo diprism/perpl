@@ -77,15 +77,15 @@ tmapp2fgg g (TmApp tm1 tm2 tp2 tp) =
 -- Add rule for a constructor
 ctorRules :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
 ctorRules g (Ctor x as) y cs =
-  let ix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0
+  let --ix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0
       as' = map (\ (i, a) -> (etaName x i, a)) (enumerate as)
       (ns, [ias, [iy]]) = combineExts [as', newNames' [y]]
-      fac = ctorFactorName x (paramsToArgs as') y
+      fac = ctorFactorNameDefault x as y -- ctorFactorName x (paramsToArgs as') y
       es = [Edge (ias ++ [iy]) fac]
       xs = ias ++ [iy]
       tm = TmVarG CtorVar x (map (\ (a, atp) -> (TmVarL a atp, atp)) as') y in
     addRule' tm (map snd ns) es xs +>
-    addFactor (ctorFactorNameDefault x as y)
+    addFactor fac -- (ctorFactorNameDefault x as y)
       (getCtorWeightsFlat (domainValues g) (Ctor x as) cs)
 
 ctorsRules :: Ctxt -> [Ctor] -> Type -> RuleM
@@ -141,17 +141,31 @@ lamRule addVarRule x tp tm tp' rm = -- TODO: new discard rule stuff?
     addRule' (TmLam x tp tm tp') (map snd ns) es xs +>
     addFactor (pairFactorName tp tp') (getPairWeights tp tp')
 
+addAmpFactors :: Ctxt -> [Type] -> RuleM
+addAmpFactors g tps =
+  let tpvs = map (domainValues g) tps in
+    foldr (\ i r ->
+      let itpvs = tpvs !! i in
+        r +> addFactor (ampFactorName Nothing tps i)
+                (ThisWeight (WeightsDims $ WeightsDims $ WeightsData
+          (concatMap
+            (\ (j, vs) ->
+                [[if l == k && i == j then 1 else 0 | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs])
+            (enumerate tpvs))))) returnRule [0..length tps - 1]
+
 -- Traverse a term and add all rules for subexpressions
 term2fgg :: Ctxt -> Term -> RuleM
 term2fgg g (TmVarL x tp) =
   addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp)) +>
   addExt x tp
-term2fgg g (TmVarG gv x [] y) = returnRule -- If this is a ctor/def with no args, we already add its rule when it gets defined
+term2fgg g (TmVarG gv x [] tp) =
+--  addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp))
+  returnRule -- If this is a ctor/def with no args, we already add its rule when it gets defined
 term2fgg g (TmVarG gv x as y) =
   map (\ (a, atp) -> term2fgg g a) (reverse as) +*>= \ xss' ->
   -- TODO: instead of reversing, just have (+*>=) do that
   let xss = reverse xss'
-      (ns, [iy] : ias : ixss) = combineExts (newNames' [y] : map (\ (i, (tm, tp)) -> (' ' : show (succ i), tp)) (enumerate as) : xss)
+      (ns, (iy : ias) : ixss) = combineExts (newNames' (y : map snd as) : xss)
       es_c = Edge (ias ++ [iy]) (ctorFactorNameDefault x (map snd as) y) :
                  map (\ (ixs, (a, _), itp) -> Edge (ixs ++ [itp]) (show a))
                      (zip3 ixss as ias)
@@ -192,6 +206,34 @@ term2fgg g (TmLet x xtm xtp tm tp) =
       xs = nub (ixxs ++ ixs') ++ [itp]
   in
     addRule' (TmLet x xtm xtp tm tp) (map snd ns) es xs
+term2fgg g (TmAmpIn as) =
+  -- TODO: instead of reversing, just have (+*>=) do that
+  let tps = map snd as
+      amp = TpAmp tps
+  in
+    foldr
+      (\ (i, (atm, tp)) r -> r +>
+        term2fgg g atm +>= \ tmxs ->
+        let (ns, [[iamp, itp], ixs]) = combineExts [newNames' [amp, tp], tmxs]
+            es = [Edge (ixs ++ [itp]) (show atm),
+                  Edge [iamp, itp] (ampFactorName Nothing tps i)]
+            xs = nub ixs ++ [iamp]
+        in
+          addRule' (TmAmpIn as) (map snd ns) es xs
+      )
+      (addAmpFactors g tps) (enumerate as)
+term2fgg g (TmAmpOut tm tps o) =
+  term2fgg g tm +>= \ tmxs ->
+  let tp = tps !! o
+      amp = TpAmp tps
+      (ns, [[itp, iamp], ixs]) = combineExts [newNames' [tp, amp], tmxs]
+      es = [Edge (ixs ++ [iamp]) (show tm),
+            Edge [iamp, itp] (ampFactorName Nothing tps o)]
+      xs = nub ixs ++ [itp]
+  in
+    addRule' (TmAmpOut tm tps o) (map snd ns) es xs +>
+    addAmpFactors g tps
+
 
 -- Adds the rules for a Prog
 prog2fgg :: Ctxt -> Prog -> RuleM
@@ -237,6 +279,9 @@ domainValues g = tpVals where
         foldl (kronwith $ \ d da -> d ++ " " ++ parens da)
           [x] (map tpVals as)
   tpVals (TpArr tp1 tp2) = uncurry arrVals (splitArrows (TpArr tp1 tp2))
+  tpVals (TpAmp tps) =
+    let tpvs = map tpVals tps in
+      concatMap (\ (i, vs) -> map (\ v -> ampFactorName (Just v) tps i) vs) (enumerate tpvs)
 
 domainSize :: Ctxt -> Type -> Int
 domainSize g = length . domainValues g

@@ -60,6 +60,10 @@ renameTerm (TmSamp d tp) =
   pure (TmSamp d) <*> renameType tp
 renameTerm (TmAmb tms tp) =
   pure TmAmb <*> mapM renameTerm tms <*> renameType tp
+renameTerm (TmAmpIn as) =
+  pure TmAmpIn <*> renameArgs as
+renameTerm (TmAmpOut tm tps o) =
+  pure TmAmpOut <*> renameTerm tm <*> mapM renameType tps <*> pure o
 
 -- Alpha-rename an arg, given a function that alpha-renames its value
 renameArg' :: (a -> RenameM a) -> (a, Type) -> RenameM (a, Type)
@@ -80,6 +84,7 @@ renameCaseUs (CaseUs x ps tm) =
 renameType :: Type -> RenameM' tm Type
 renameType (TpVar y) = lookupType y TpVar
 renameType (TpArr tp1 tp2) = pure TpArr <*> renameType tp1 <*> renameType tp2
+renameType (TpAmp tps) = pure TpAmp <*> mapM renameType tps
 
 -- Alpha-rename a constructor definition
 renameCtor :: Ctor -> RenameM' tm Ctor
@@ -126,6 +131,7 @@ substs g subs m = fst $ State.runState m $ foldr (uncurry Map.insert) (ctxtToTer
 substType :: Var -> Var -> Type -> Type
 substType xi xf (TpVar y) = TpVar (if xi == y then xf else y)
 substType xi xf (TpArr tp1 tp2) = TpArr (substType xi xf tp1) (substType xi xf tp2)
+substType xi xf (TpAmp tps) = TpAmp (map (substType xi xf) tps)
 
 
 
