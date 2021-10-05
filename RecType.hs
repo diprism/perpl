@@ -129,7 +129,7 @@ makeDisentangle g y us css =
                                     (derefunTerm Refun (g' cps) y ctm)) cs in
                       (joinLams ps (TmCase (TmVarL x ytp) y cs' tp),
                        joinArrows (tpUnit : map snd ps) tp)) alls
-      fun = ProgFun (unfoldName y) [] (TmLam x ytp (TmVarG CtorVar (unfoldCtorName y) cscs utp) utp) (TpArr ytp utp)
+      fun = ProgFun (unfoldName y) [] (TmLam x ytp (TmVarG CtorVar (unfoldCtorName y) [(TmAmpIn cscs, TpAmp (map snd cscs))] utp) utp) (TpArr ytp utp)
   in
     (dat, fun)
 
@@ -175,8 +175,10 @@ disentangleTerm rtp cases = h where
       State.get >>= \ unfolds ->
       let i = length unfolds
           x' = "%def" -- targetName -- TODO
-          get_ps = \ (cfvs, ctp2) -> ("_", tpUnit) : Map.toList cfvs
-          get_as = \ (cfvs, ctp2) -> (tmUnit, tpUnit) : paramsToArgs (Map.toList cfvs)
+--          get_ps = \ (cfvs, ctp2) -> ("_", tpUnit) : Map.toList cfvs
+--          get_as = \ (cfvs, ctp2) -> (tmUnit, tpUnit) : paramsToArgs (Map.toList cfvs)
+          get_ps = \ (cfvs, ctp2) -> Map.toList cfvs
+          get_as = \ (cfvs, ctp2) -> paramsToArgs (Map.toList cfvs)
           get_arr = \ (cfvs, ctp2) -> joinArrows (map snd (get_ps (cfvs, ctp2))) ctp2
           --cs'' = [Case (unfoldCtorName rtp) (map (\ (j, cfvstp2) -> (if i == j then x' else "_", get_arr cfvstp2)) (enumerate cases)) (let cfvstp2 = cases !! i in joinApps (TmVarL x' (get_arr cfvstp2)) ((get_as cfvstp2)))]
           --rtm = TmCase tm (unfoldTypeName rtp) cs'' tp

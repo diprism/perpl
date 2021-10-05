@@ -77,15 +77,15 @@ tmapp2fgg g (TmApp tm1 tm2 tp2 tp) =
 -- Add rule for a constructor
 ctorRules :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
 ctorRules g (Ctor x as) y cs =
-  let ix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0
+  let --ix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0
       as' = map (\ (i, a) -> (etaName x i, a)) (enumerate as)
       (ns, [ias, [iy]]) = combineExts [as', newNames' [y]]
-      fac = ctorFactorName x (paramsToArgs as') y
+      fac = ctorFactorNameDefault x as y -- ctorFactorName x (paramsToArgs as') y
       es = [Edge (ias ++ [iy]) fac]
       xs = ias ++ [iy]
       tm = TmVarG CtorVar x (map (\ (a, atp) -> (TmVarL a atp, atp)) as') y in
     addRule' tm (map snd ns) es xs +>
-    addFactor (ctorFactorNameDefault x as y)
+    addFactor fac -- (ctorFactorNameDefault x as y)
       (getCtorWeightsFlat (domainValues g) (Ctor x as) cs)
 
 ctorsRules :: Ctxt -> [Ctor] -> Type -> RuleM
@@ -144,14 +144,23 @@ lamRule addVarRule x tp tm tp' rm = -- TODO: new discard rule stuff?
 addAmpFactors :: Ctxt -> [Type] -> RuleM
 addAmpFactors g tps =
   let tpvs = map (domainValues g) tps in
-    foldr (\ i r -> r +> addFactor (ampFactorName Nothing tps i) (ThisWeight (WeightsDims $ WeightsData (concatMap (\ (j, vs) -> let p = if i == j then 1 else 0 in map (const p) vs) (enumerate tpvs))))) returnRule [0..length tps]
+    foldr (\ i r ->
+      let itpvs = tpvs !! i in
+        r +> addFactor (ampFactorName Nothing tps i)
+                (ThisWeight (WeightsDims $ WeightsDims $ WeightsData
+          (concatMap
+            (\ (j, vs) ->
+                [[if l == k && i == j then 1 else 0 | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs])
+            (enumerate tpvs))))) returnRule [0..length tps - 1]
 
 -- Traverse a term and add all rules for subexpressions
 term2fgg :: Ctxt -> Term -> RuleM
 term2fgg g (TmVarL x tp) =
   addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp)) +>
   addExt x tp
-term2fgg g (TmVarG gv x [] y) = returnRule -- If this is a ctor/def with no args, we already add its rule when it gets defined
+term2fgg g (TmVarG gv x [] tp) =
+--  addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp))
+  returnRule -- If this is a ctor/def with no args, we already add its rule when it gets defined
 term2fgg g (TmVarG gv x as y) =
   map (\ (a, atp) -> term2fgg g a) (reverse as) +*>= \ xss' ->
   -- TODO: instead of reversing, just have (+*>=) do that
@@ -200,23 +209,15 @@ term2fgg g (TmLet x xtm xtp tm tp) =
 term2fgg g (TmAmpIn as) =
   -- TODO: instead of reversing, just have (+*>=) do that
   let tps = map snd as
-      tp = TpAmp tps
+      amp = TpAmp tps
   in
     foldr
-      (\ (i, (atm, atp)) r -> r +>
+      (\ (i, (atm, tp)) r -> r +>
         term2fgg g atm +>= \ tmxs ->
-        let (ns, [(itp : iatp : ias), ixs]) = combineExts [newNames' (tp : atp : tps), tmxs]
-            fac = ampFactorName Nothing tps i
-            es = [Edge (ixs ++ [iatp]) (show atm),
-                  Edge [iatp, itp] fac]
-            xs = nub ixs
---            pre_as = take i tps
---            suf_as = drop (i + 1) tps
---            pre_advs = map (domainValues g) pre_as
---            suf_advs = map (domainValues g) suf_as
---            advs = domainValues g atp
-            tpvs = map (domainValues g) tps
-            ws = WeightsDims $ WeightsData (concatMap (\ (j, vs) -> let p = if i == j then 1 else 0 in map (const p) vs) (enumerate tpvs))
+        let (ns, [[iamp, itp], ixs]) = combineExts [newNames' [amp, tp], tmxs]
+            es = [Edge (ixs ++ [itp]) (show atm),
+                  Edge [iamp, itp] (ampFactorName Nothing tps i)]
+            xs = nub ixs ++ [iamp]
         in
           addRule' (TmAmpIn as) (map snd ns) es xs
       )
@@ -228,7 +229,7 @@ term2fgg g (TmAmpOut tm tps o) =
       (ns, [[itp, iamp], ixs]) = combineExts [newNames' [tp, amp], tmxs]
       es = [Edge (ixs ++ [iamp]) (show tm),
             Edge [iamp, itp] (ampFactorName Nothing tps o)]
-      xs = nub ixs
+      xs = nub ixs ++ [itp]
   in
     addRule' (TmAmpOut tm tps o) (map snd ns) es xs +>
     addAmpFactors g tps
