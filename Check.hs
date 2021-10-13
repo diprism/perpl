@@ -12,7 +12,7 @@ type ErrMsg = (String, [String])
 --       (e.g. case q of false -> q | true -> false)
 checkAffLin :: Ctxt -> Var -> Type -> UsTm -> Either ErrMsg ()
 checkAffLin g x tp tm =
-  ifErr (typeHasArr g tp && not (isAff x tm))
+  ifErr (useOnlyOnce g tp && not (isAff x tm))
     ("Bound variable '" ++ x ++ "' is not affine in the body")
 
 -- Return error

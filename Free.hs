@@ -146,10 +146,10 @@ typeIsRecursive g = h [] where
   h visited (TpAmp tps) = any (h visited) tps
   h visited (TpProd tps) = any (h visited) tps
 
--- Returns if a type has an arrow anywhere in it
-typeHasArr :: Ctxt -> Type -> Bool
-typeHasArr g = h [] where
+-- Returns if a type has an arrow, ampersand, or recursive datatype anywhere in it
+useOnlyOnce :: Ctxt -> Type -> Bool
+useOnlyOnce g = h [] where
   h visited (TpVar y) = not (y `elem` visited) && maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (ctxtLookupType g y)
   h visited (TpArr _ _) = True
-  h visited (TpAmp tps) = any (h visited) tps
+  h visited (TpAmp tps) = True
   h visited (TpProd tps) = any (h visited) tps
