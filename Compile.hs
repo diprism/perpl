@@ -104,7 +104,6 @@ caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
       (d_xs, d_tps) = unzip (Map.toList (Map.difference all_fvs (Map.fromList xs_xtm_as)))
       d_ns = newNames 2 d_xs
       fac = ctorFactorName x (paramsToArgs (nameParams x (map snd as))) (TpVar y)
-      
       (ns, [[ictm, ixtm], ixs_xtm_as, ixs_as, ixs_ctm, all_ixs, d_ixs, d_ins]) =
         combineExts [newNames' [TpVar y, tp], xs_xtm_as, as, xs_ctm, all_xs, zip d_xs d_tps, zip d_ns d_tps]
       (ixs_xtm, ixs_as') = foldr (\ (a, i) (ixs_xtm, ixs_as) -> if elem (fst a) (map fst as) then (ixs_xtm, (fst a, i) : ixs_as) else (i : ixs_xtm, ixs_as)) ([], []) (zip xs_xtm_as ixs_xtm_as)
@@ -143,15 +142,15 @@ lamRule addVarRule x tp tm tp' rm = -- TODO: new discard rule stuff?
 
 addAmpFactors :: Ctxt -> [Type] -> RuleM
 addAmpFactors g tps =
-  let tpvs = map (domainValues g) tps in
-    foldr (\ i r ->
-      let itpvs = tpvs !! i in
-        r +> addFactor (ampFactorName Nothing tps i)
-                (ThisWeight (WeightsDims $ WeightsDims $ WeightsData
-          (concatMap
-            (\ (j, vs) ->
-                [[if l == k && i == j then 1 else 0 | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs])
-            (enumerate tpvs))))) returnRule [0..length tps - 1]
+  let ws = getAmpWeights (domainValues g) tps in
+    foldr (\ (i, w) r -> r +> addFactor (ampFactorName tps i) w) returnRule (enumerate ws)
+
+addProdFactors :: Ctxt -> [Type] -> RuleM
+addProdFactors g tps =
+  let tpvs = [domainValues g tp | tp <- tps] in
+    addFactor (typeFactorName (TpProd tps)) (getCtorEqWeights (length tpvs)) +>
+    addFactor (prodFactorName tps) (ThisWeight (getProdWeightsV tpvs)) +>
+    foldr (\ (as', w) r -> r +> addFactor (prodFactorName' as') (ThisWeight w)) returnRule (getProdWeights tpvs)
 
 -- Traverse a term and add all rules for subexpressions
 term2fgg :: Ctxt -> Term -> RuleM
@@ -216,7 +215,7 @@ term2fgg g (TmAmpIn as) =
         term2fgg g atm +>= \ tmxs ->
         let (ns, [[iamp, itp], ixs]) = combineExts [newNames' [amp, tp], tmxs]
             es = [Edge (ixs ++ [itp]) (show atm),
-                  Edge [iamp, itp] (ampFactorName Nothing tps i)]
+                  Edge [iamp, itp] (ampFactorName tps i)]
             xs = nub ixs ++ [iamp]
         in
           addRule' (TmAmpIn as) (map snd ns) es xs
@@ -228,11 +227,37 @@ term2fgg g (TmAmpOut tm tps o) =
       amp = TpAmp tps
       (ns, [[itp, iamp], ixs]) = combineExts [newNames' [tp, amp], tmxs]
       es = [Edge (ixs ++ [iamp]) (show tm),
-            Edge [iamp, itp] (ampFactorName Nothing tps o)]
+            Edge [iamp, itp] (ampFactorName tps o)]
       xs = nub ixs ++ [itp]
   in
     addRule' (TmAmpOut tm tps o) (map snd ns) es xs +>
     addAmpFactors g tps
+term2fgg g (TmProdIn as) =
+  map (\ (a, atp) -> term2fgg g a) (reverse as) +*>= \ xss' ->
+  -- TODO: instead of reversing, just have (+*>=) do that
+  let xss = reverse xss'  
+      tps = map snd as
+      ptp = TpProd tps
+      (ns, ((iptp : itps) : ixss)) = combineExts (newNames' (ptp : tps) : xss)
+      es = Edge (itps ++ [iptp]) (prodFactorName {-(map fst as)-} (map snd as)) : [Edge (ixs ++ [itp]) (show atm) | ((atm, atp), itp, ixs) <- zip3 as itps ixss]
+      xs = nub (concat ixss) ++ [iptp]
+  in
+    addProdFactors g tps +>
+    addRule' (TmProdIn as) (map snd ns) es xs
+term2fgg g (TmProdOut ptm ps tm tp) =
+  term2fgg g ptm +>= \ ptmxs ->
+  bindExts True ps $
+  term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
+  let (pxs, tps) = unzip ps -- TODO: make sure each param gets referenced? Bc they may not occur in tmxs
+      ptp = TpProd tps
+      (ns, [(itp : iptp : itps), itmxs, iptmxs]) = combineExts [newNames' (tp : ptp : tps), tmxs, ptmxs]
+      es = [Edge (iptmxs ++ [iptp]) (show ptm),
+            Edge (itps ++ [iptp]) (prodFactorName tps), -- TODO: xs? Should probably be something else
+            Edge (itmxs ++ [itp]) (show tm)]
+      xs = nub (iptmxs ++ itmxs) ++ [itp]
+  in
+    addProdFactors g tps +>
+    addRule' (TmProdOut ptm ps tm tp) (map snd ns) es xs
 
 
 -- Adds the rules for a Prog
@@ -281,7 +306,9 @@ domainValues g = tpVals where
   tpVals (TpArr tp1 tp2) = uncurry arrVals (splitArrows (TpArr tp1 tp2))
   tpVals (TpAmp tps) =
     let tpvs = map tpVals tps in
-      concatMap (\ (i, vs) -> map (\ v -> ampFactorName (Just v) tps i) vs) (enumerate tpvs)
+      concatMap (\ (i, vs) -> map (\ tmv -> "<" ++ delimitWith ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv) vs) (enumerate tpvs)
+  tpVals (TpProd tps) =
+    [prodValName' tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
 
 domainSize :: Ctxt -> Type -> Int
 domainSize g = length . domainValues g

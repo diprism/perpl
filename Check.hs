@@ -48,8 +48,8 @@ checkTermVar eta g (UsVar x) = maybe2 (ctxtLookupTerm g x)
   $ \ (sc, tp) -> case (eta, sc) of
     (_, ScopeLocal) -> return (TmVarL x tp)
     (True, sc) ->
-      let (tps, TpVar y) = splitArrows tp in
-        return (etaExpand (if sc == ScopeGlobal then DefVar else CtorVar) x [] (nameParams x tps) (TpVar y))
+      let (tps, end) = splitArrows tp in
+        return (etaExpand (if sc == ScopeGlobal then DefVar else CtorVar) x [] (nameParams x tps) end)
     (False, sc) -> return (TmVarG (if sc == ScopeGlobal then DefVar else CtorVar) x [] tp)
 checkTermVar eta g tm = checkTermh g tm
 
@@ -119,6 +119,30 @@ checkTermh g (UsAmb tms) =
               okay tps >>
         return (TmAmb tms tp)
 
+checkTermh g (UsAmpIn tms) =
+  mapM (checkTerm g) tms >>= return . TmAmpIn
+
+checkTermh g (UsAmpOut tm o) =
+  checkTerm g tm >>= \ (tm, tp) ->
+  case tp of
+    TpAmp tps ->
+      ifErr (not (0 <= o && o < length tps)) ("Expected a number between 0 and " ++ show (length tps)) >>
+      return (TmAmpOut tm tps o)
+    _ -> err "Expected ampersand type"
+
+checkTermh g (UsProdIn tms) =
+  mapM (checkTerm g) tms >>= return . TmProdIn
+
+checkTermh g (UsProdOut tm xs tm') =
+  checkTerm g tm >>= \ (tm, tp) ->
+  case tp of
+    TpProd tps ->
+      ifErr (length tps /= length xs) ("expected " ++ show (length xs) ++ " names, but got " ++ show (length tps)) >>
+      let ps = zip xs tps in
+        checkTerm (ctxtDeclArgs g ps) tm' >>= \ (tm', tp') ->
+        return (TmProdOut tm ps tm' tp')
+    _ -> err "Expected product type"
+
 
 -- Check a type under a context
 checkType :: Ctxt -> Type -> Either ErrMsg ()
@@ -130,6 +154,12 @@ checkType g (TpVar y) = maybe2 (ctxtLookupType g y)
 checkType g (TpArr tp1 tp2) =
   checkType g tp1 >>
   checkType g tp2
+
+checkType g (TpAmp tps) =
+  mapM (checkType g) tps >> okay
+
+checkType g (TpProd tps) =
+  mapM (checkType g) tps >> okay
 
 -- Check and elaborate a case under a context
 checkCase :: Ctxt -> Ctor -> CaseUs -> Either ErrMsg (Case, Type)

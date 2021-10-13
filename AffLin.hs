@@ -88,6 +88,7 @@ discard' :: Term -> Type -> AffLinM Term
 discard' x (TpArr tp1 tp2) =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
 discard' x (TpAmp tps) = discard' (TmAmpOut x tps 0) (head tps) -- TODO: pick easiest of these to discard? Or with aff-to-lin stuff, does it not matter?
+discard' x (TpProd tps) = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in discards (Map.fromList ps) tmUnit >>= \ tm -> return (TmProdOut x ps tm tpUnit)
 discard' x (TpVar y) =
   ask >>= \ g ->
   getFromMaybe y >>=
@@ -124,8 +125,9 @@ discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm
 affLinTp :: Type -> AffLinM Type
 affLinTp (TpVar y) = return (TpVar y)
 affLinTp (TpAmp tps) = pure TpAmp <*> mapM affLinTp tps
-affLinTp arrtp =
-  let (tps, end) = splitArrows arrtp in
+affLinTp (TpProd tps) = pure TpProd <*> mapM affLinTp tps
+affLinTp (TpArr tp1 tp2) =
+  let (tps, end) = splitArrows (TpArr tp1 tp2) in
     mapM affLinTp tps >>= \ tps' ->
     getMaybe (joinArrows tps' end) >>= \ i ->
     return (tpMaybe i)
@@ -219,6 +221,9 @@ affLin (TmAmpIn as) =
   pure TmAmpIn <*> affLinBranches (mapArgM affLin) (mapArgM . discards) as
 affLin (TmAmpOut tm tps o) =
   pure TmAmpOut <*> affLin tm <*> mapM affLinTp tps <*> pure o
+affLin (TmProdIn as) = pure TmProdIn <*> mapArgsM affLin as
+affLin (TmProdOut tm ps tm' tp) =
+  pure TmProdOut <*> affLin tm <*> pure ps <*> alBinds ps (affLin tm') <*> pure tp
 
 -- Make an affine Prog linear
 affLinProg :: Prog -> AffLinM Prog

@@ -73,13 +73,20 @@ liftAmb (TmSamp d tp) = TmSamp d tp
 liftAmb (TmAmb tms tp) =
   TmAmb (concatMap (splitAmbs . liftAmb) tms) tp
 liftAmb (TmAmpIn as) =
-  let as' = map (\ (atm, atp) ->
+  TmAmpIn (mapArgs liftAmb as)
+{-  let as' = map (\ (atm, atp) ->
                     map (\ atm' -> (atm', atp))
                       (splitAmbs (liftAmb atm))) as in
-    joinAmbs (map (\ as -> TmAmpIn as) (kronall as')) (TpAmp (map snd as))
+    joinAmbs (map TmAmpIn (kronall as')) (TpAmp (map snd as))-}
 liftAmb (TmAmpOut tm tps o) =
   joinAmbs (map (\ tm -> TmAmpOut tm tps o) (splitAmbs (liftAmb tm))) (tps !! o)
-
+liftAmb (TmProdIn as) =
+  let as' = [ [(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
+    joinAmbs (map TmProdIn (kronall as')) (TpProd (map snd as))
+liftAmb (TmProdOut ptm ps tm tp) =
+  joinAmbs (kronwith (\ ptm' tm' -> TmProdOut ptm' ps tm' tp)
+             (splitAmbs (liftAmb ptm))
+             (splitAmbs (liftAmb tm))) tp
 
 liftFail'' :: (Term, Maybe Term) -> Term
 liftFail'' (tm, Nothing) = TmSamp DistFail (getType tm)
@@ -111,6 +118,10 @@ liftFail' (TmAmpIn as) =
     Nothing
 liftFail' (TmAmpOut tm tps o) =
   pure TmAmpOut <*> liftFail' tm <*> pure tps <*> pure o
+liftFail' (TmProdIn as) =
+  pure TmProdIn <*> mapArgsM liftFail' as
+liftFail' (TmProdOut tm ps tm' tp) =
+  pure TmProdOut <*> liftFail' tm <*> pure ps <*> liftFail' tm' <*> pure tp
 
 -- If a term inevitably fails, just replace it with fail.
 -- For example, (sample fail : tp1 -> tp2) tm1 is the same
@@ -155,8 +166,10 @@ safe2sub g x xtm tm =
     noDefsSamps (TmCase tm y cs tp) = noDefsSamps tm && all (\ (Case x xps xtm) -> noDefsSamps xtm) cs
     noDefsSamps (TmSamp d tp) = False
     noDefsSamps (TmAmb tms tp) = False
-    noDefsSamps (TmAmpIn as) = False -- all (noDefsSamps . fst) as
-    noDefsSamps (TmAmpOut tm tps o) = False -- noDefsSamps tm
+    noDefsSamps (TmAmpIn as) = all (noDefsSamps . fst) as
+    noDefsSamps (TmAmpOut tm tps o) = noDefsSamps tm
+    noDefsSamps (TmProdIn as) = all (noDefsSamps . fst) as
+    noDefsSamps (TmProdOut tm ps tm' tp) = noDefsSamps tm && noDefsSamps tm'
 
 -- Applies various optimizations to a term
 optimizeTerm :: Ctxt -> Term -> Term
@@ -212,6 +225,10 @@ optimizeTerm g (TmAmpOut tm tps o) =
   case optimizeTerm g tm of
     (TmAmpIn as) -> fst (as !! o)
     tm' -> TmAmpOut tm' tps o
+optimizeTerm g (TmProdIn as) =
+  TmProdIn (mapArgs (optimizeTerm g) as) -- TODO
+optimizeTerm g (TmProdOut tm ps tm' tp) =
+  TmProdOut (optimizeTerm g tm) ps (optimizeTerm (ctxtDeclArgs g ps) tm') tp
 
 -- Applies various optimizations to a list of args
 optimizeArgs :: Ctxt -> [Arg] -> [Arg]

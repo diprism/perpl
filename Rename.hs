@@ -38,6 +38,17 @@ renameUsTm (UsLet x xtm tm) =
   bindVar x $ \ x' -> pure (UsLet x' xtm') <*> renameUsTm tm
 renameUsTm (UsAmb tms) =
   pure UsAmb <*> mapM renameUsTm tms
+renameUsTm (UsAmpIn tms) =
+  pure UsAmpIn <*> mapM renameUsTm tms
+renameUsTm (UsAmpOut tm o) =
+  pure UsAmpOut <*> renameUsTm tm <*> pure o
+renameUsTm (UsProdIn tms) =
+  pure UsProdIn <*> mapM renameUsTm tms
+renameUsTm (UsProdOut tm xs tm') =
+  renameUsTm tm >>= \ tm ->
+  bindUsVars xs $ \ xs ->
+  renameUsTm tm' >>= \ tm' ->
+  return (UsProdOut tm xs tm')
 
 -- Alpha-rename a term
 -- Note that this does NOT allow you to substitute global term vars (defines / ctors)
@@ -64,6 +75,14 @@ renameTerm (TmAmpIn as) =
   pure TmAmpIn <*> renameArgs as
 renameTerm (TmAmpOut tm tps o) =
   pure TmAmpOut <*> renameTerm tm <*> mapM renameType tps <*> pure o
+renameTerm (TmProdIn as) =
+  pure TmProdIn <*> renameArgs as
+renameTerm (TmProdOut tm ps tm' tp) =
+  renameTerm tm >>= \ tm ->
+  renameType tp >>= \ tp ->
+  bindVars ps $ \ ps ->
+  renameTerm tm' >>= \ tm' ->
+  return (TmProdOut tm ps tm' tp)
 
 -- Alpha-rename an arg, given a function that alpha-renames its value
 renameArg' :: (a -> RenameM a) -> (a, Type) -> RenameM (a, Type)
@@ -85,6 +104,7 @@ renameType :: Type -> RenameM' tm Type
 renameType (TpVar y) = lookupType y TpVar
 renameType (TpArr tp1 tp2) = pure TpArr <*> renameType tp1 <*> renameType tp2
 renameType (TpAmp tps) = pure TpAmp <*> mapM renameType tps
+renameType (TpProd tps) = pure TpProd <*> mapM renameType tps
 
 -- Alpha-rename a constructor definition
 renameCtor :: Ctor -> RenameM' tm Ctor
@@ -131,7 +151,8 @@ substs g subs m = fst $ State.runState m $ foldr (uncurry Map.insert) (ctxtToTer
 substType :: Var -> Var -> Type -> Type
 substType xi xf (TpVar y) = TpVar (if xi == y then xf else y)
 substType xi xf (TpArr tp1 tp2) = TpArr (substType xi xf tp1) (substType xi xf tp2)
-substType xi xf (TpAmp tps) = TpAmp (map (substType xi xf) tps)
+substType xi xf (TpAmp tps) = TpAmp [substType xi xf tp | tp <- tps]
+substType xi xf (TpProd tps) = TpProd [substType xi xf tp | tp <- tps]
 
 
 

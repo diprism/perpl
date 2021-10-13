@@ -12,11 +12,15 @@ typeFactorName tp = "==" ++ show tp
 pairFactorName tp1 tp2 = "v=(" ++ show (TpArr tp1 tp2) ++ ")"
 
 --ampFactorName i tps = "v=" ++ show (TpAmp tps) ++ "." ++ show i
-ampFactorName tm tps i = "v=<" ++ commas tps ++ ">." ++ show i ++ maybe "" (\ tm -> "=" ++ tm) tm
-  where
-    commas [] = ""
-    commas [a] = show a
-    commas (a : as) = show a ++ ", " ++ commas as
+ampFactorName tps i = "v=<" ++ delimitWith ", " [show tp | tp <- tps] ++ ">." ++ show i
+
+prodFactorName' tps = "v=(" ++ delimitWith ", " tps ++ ")"
+prodFactorName tps = prodFactorName' (map show tps)
+
+--prodValName' :: [String] -> String
+prodValName' tms = "(" ++ delimitWith ", " tms ++ ")"
+--prodValName :: Show x => [x] -> String
+prodValName xs = prodValName' (map show xs)
 
 internalFactorName tm = "v=" ++ show tm
 

@@ -5,6 +5,7 @@ import Exprs
 import FGG
 import Util
 import Name
+import Tensor
 
 -- RuleM monad-like datatype and funcions
 type External = (Var, Type)
@@ -80,9 +81,9 @@ setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
 isRule :: String -> RuleM -> Bool
 isRule lhs (RuleM rs xs nts fs) = any (\ (Rule lhs' _) -> lhs == lhs') rs
 
--- Returns the PreWeights for a function tp1 -> tp2
+-- Returns the PreWeights for a function tp1 -> tp2 or (tp1 * tp2)
 getPairWeights :: Type -> Type -> PreWeight
-getPairWeights tp1 tp2 = PairWeight (show tp1, show tp2)
+getPairWeights tp1 tp2 = PairWeight (show tp1) (show tp2)
 
 -- Returns the ctors to the left and to the right of one named x
 -- (but discards the ctor named x itself)
@@ -93,30 +94,6 @@ splitCtorsAt (Ctor x' as : cs) x
   | otherwise =
     let (b, a) = splitCtorsAt cs x in
       (Ctor x' as : b, a)
-
--- Pulls the data from a WeightsH
-invWeightsData :: WeightsH a -> a
-invWeightsData (WeightsData ws) = ws
-invWeightsData (WeightsDims ws) = error "In invWeightsData, expected WeightsData"
-
--- Takes the dims from a WeightsH
-invWeightsDims :: WeightsH a -> WeightsH [a]
-invWeightsDims (WeightsDims ws) = ws
-invWeightsDims (WeightsData ws) = error "In invWeightsDims, expected WeightsDims"
-
--- Pushes WeightsH into each of its elements
-weightsPush :: WeightsH [a] -> [WeightsH a]
-weightsPush (WeightsData ws) = map WeightsData ws
-weightsPush (WeightsDims ws) = map WeightsDims (weightsPush ws)
-
--- Pulls a the weights from a list into a WeightsH
-weightsPull :: [WeightsH a] -> WeightsH [a]
---weightsPull [] = ???
-weightsPull (WeightsData ws : ws') =
-  WeightsData (map invWeightsData (WeightsData ws : ws'))
-weightsPull (WeightsDims ws : ws') =
-  let ws'' = map invWeightsDims (WeightsDims ws : ws') in
-  WeightsDims $ weightsPull ws''
 
 -- Computes the weights for a function with params ps and return type tp
 getExternWeights :: (Type -> [String]) -> [Type] -> Type -> PreWeight
@@ -168,6 +145,36 @@ getCtorEqWeights cs =
   let is = [0..cs - 1] in
     ThisWeight $ fmap (\ (i, j) -> if i == j then 1 else 0) $
       matrixWeight $ kronecker is is
+
+getAmpWeights :: (Type -> [String]) -> [Type] -> [PreWeight]
+getAmpWeights dom tps =
+  let tpvs = map dom tps in
+    map (\ (i, itpvs) ->
+           ThisWeight (WeightsDims $ WeightsDims $ WeightsData
+                       (concatMap
+                        (\ (j, vs) ->
+                           [[if l == k && i == j then 1 else 0 | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs])
+                        (enumerate tpvs)))) (enumerate tpvs)
+
+getProdWeights :: [[String]] -> [([String], Weights)]
+getProdWeights tpvs =
+  let vss = kronpos tpvs in
+  flip map vss $ \ as' -> (,) (map (\ (_, _, a) -> a) as') $ 
+    let (out, pos) = foldr (\ (i, o, _) (l, j) -> (l * o, l * i + j)) (1, 0) as' in
+      foldr (\ (i, o, a) ws -> WeightsDims (weightsPull [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]])) (WeightsDims (WeightsData (weightsRow pos out))) as'
+
+getProdWeightsV :: [[String]] -> Weights
+getProdWeightsV tpvs =
+  let vss = kronpos tpvs
+      dims = [length vs | vs <- tpvs] in
+    tensorToWeights (tensorSquash $ fmap (\ pos -> tensorIdRow (toIdx (zip pos dims)) (product dims)) $ generateTensor dims)
+
+shapeH :: (a -> [Int]) -> WeightsH a -> [Int]
+shapeH f (WeightsData a) = f a
+shapeH f (WeightsDims as) = shapeH (\ bs -> length bs : f (bs !! 0)) as
+shape :: Weights -> [Int]
+shape = shapeH (\ _ -> [])
+
 
 -- Given a set of external nodes, this returns a pair where the first
 -- is basically just the nub of the concatenated nodes, and the second

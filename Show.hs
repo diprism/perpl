@@ -13,9 +13,11 @@ toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
-toUsTm (TmAmb tms tp) = UsAmb (map toUsTm tms)
-toUsTm (TmAmpIn as) = UsVar ("(" ++ delimitWith " & " (map (show . toUsTm . fst) as) ++ ")")
-toUsTm (TmAmpOut tm tps o) = UsVar ("(" ++ show (toUsTm tm) ++ ")." ++ show o)
+toUsTm (TmAmb tms tp) = UsAmb [toUsTm tm | tm <- tms]
+toUsTm (TmAmpIn as) = UsAmpIn [toUsTm tm | (tm, _) <- as]
+toUsTm (TmAmpOut tm tps o) = UsAmpOut (toUsTm tm) o
+toUsTm (TmProdIn as) = UsProdIn [toUsTm tm | (tm, _) <- as]
+toUsTm (TmProdOut tm ps tm' tp) = UsProdOut (toUsTm tm) [x | (x, _) <- ps] (toUsTm tm')
 
 toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)
@@ -39,32 +41,36 @@ parensIf :: Bool -> String -> String
 parensIf True = parens
 parensIf False = id
 
-data ShowHist = ShowAppL | ShowAppR | ShowCase | ShowArrL | ShowTypeArg | ShowAmp | ShowNone
+data ShowHist = ShowAppL | ShowAppR | ShowCase | ShowArrL | ShowTypeArg | ShowNone
   deriving Eq
 
 -- Should we add parens to this term, given its parent term?
 showTermParens :: UsTm -> ShowHist -> Bool
-showTermParens (UsLam _ _ _) ShowAppL = True
-showTermParens (UsLam _ _ _) ShowAppR = True
-showTermParens (UsApp _ _  ) ShowAppR = True
-showTermParens (UsCase _ _ ) ShowAppL = True
-showTermParens (UsCase _ _ ) ShowAppR = True
-showTermParens (UsCase _ _ ) ShowCase = True
-showTermParens (UsSamp _ _ ) ShowAppL = True
-showTermParens (UsSamp _ _ ) ShowAppR = True
-showTermParens (UsLet _ _ _) ShowAppL = True
-showTermParens (UsLet _ _ _) ShowAppR = True
-showTermParens (UsLet _ _ _) ShowCase = True
-showTermParens (UsAmb _    ) ShowAppL = True
-showTermParens (UsAmb _    ) ShowAppR = True
-showTermParens (UsVar _    ) ShowAmp  = False
-showTermParens _             ShowAmp  = True
-showTermParens _             _        = False
+showTermParens (UsLam _ _ _    ) ShowAppL = True
+showTermParens (UsLam _ _ _    ) ShowAppR = True
+showTermParens (UsApp _ _      ) ShowAppR = True
+showTermParens (UsCase _ _     ) ShowAppL = True
+showTermParens (UsCase _ _     ) ShowAppR = True
+showTermParens (UsCase _ _     ) ShowCase = True
+showTermParens (UsSamp _ _     ) ShowAppL = True
+showTermParens (UsSamp _ _     ) ShowAppR = True
+showTermParens (UsLet _ _ _    ) ShowAppL = True
+showTermParens (UsLet _ _ _    ) ShowAppR = True
+showTermParens (UsLet _ _ _    ) ShowCase = True
+showTermParens (UsAmb _        ) ShowAppL = True
+showTermParens (UsAmb _        ) ShowAppR = True
+--showTermParens (UsAmpIn _      ) _        = True -- todo
+--showTermParens (UsAmpOut _ _   ) _        = True -- todo
+showTermParens (UsProdIn _     ) _        = False -- todo
+showTermParens (UsProdOut _ _ _) _        = False -- todo
+showTermParens _                 _        = False
 
 -- Should we add parens to this type, given its parent type?
 showTypeParens :: Type -> ShowHist -> Bool
 showTypeParens (TpArr _ _) ShowArrL = True
 showTypeParens (TpArr _ _) ShowTypeArg = True
+showTypeParens (TpAmp _  ) ShowTypeArg = True
+showTypeParens (TpProd _ ) ShowTypeArg = True
 showTypeParens _ _ = False
 
 -- Term show helper (ignoring parentheses)
@@ -76,12 +82,17 @@ showTermh (UsCase tm cs) = "case " ++ showTerm tm ShowCase ++ " of " ++ showCase
 showTermh (UsSamp d tp) = "sample " ++ show d ++ " : " ++ show tp
 showTermh (UsLet x tm tm') = "let " ++ x ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
 showTermh (UsAmb tms) = foldr (\ tm s -> s ++ " " ++ showTerm tm ShowAppR) "amb" tms
+showTermh (UsAmpIn tms) = "<" ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ ">"
+showTermh (UsAmpOut tm o) = showTerm tm ShowAppR ++ "." ++ show (o + 1)
+showTermh (UsProdIn tms) = "(" ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ ")"
+showTermh (UsProdOut tm xs tm') = "let (" ++ delimitWith ", " xs ++ ") = " ++ showTerm tm ShowCase ++ " in " ++ showTerm tm' ShowCase
 
 -- Type show helper (ignoring parentheses)
 showTypeh :: Type -> String
 showTypeh (TpVar y) = y
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
-showTypeh (TpAmp tps) = "<" ++ delimitWith ", " (map show tps) ++ ">"
+showTypeh (TpAmp tps) = delimitWith " & " [showType tp ShowTypeArg | tp <- tps]
+showTypeh (TpProd tps) = delimitWith " * " [showType tp ShowTypeArg | tp <- tps]
 
 -- Show a term, given its parent for parentheses
 showTerm :: UsTm -> ShowHist -> String

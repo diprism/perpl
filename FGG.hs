@@ -5,6 +5,8 @@ import Ctxt
 import Util
 import Exprs
 import Show
+import Name
+import Tensor
 
 -- Should the compiler make sure there aren't conflicting nonterminal domains?
 checkDomsEq = True
@@ -36,11 +38,13 @@ type Nonterminal = (Var, Type)
 type Domain = [String]
 type Value = String
 type FType = [Value]
-data PreWeight = ThisWeight Weights | PairWeight (String, String)
+data PreWeight = ThisWeight Weights | PairWeight String String -- TODO: can we get rid of PairWieght? (And thus PreWeight in general?)
 type Factor = (String, PreWeight)
 type Prob = Double
 data WeightsH x = WeightsData x | WeightsDims (WeightsH [x])
+data WeightsH' x = WeightsData' x | WeightsDims' [WeightsH' x]
 type Weights = WeightsH Prob
+type Weights' = WeightsH' Prob
 data Edge = Edge { edge_atts :: [Int], edge_label :: String }
   deriving Eq
 data HGF = HGF { hgf_nodes :: [Type], hfg_edges :: [Edge], hfg_exts :: [Int]}
@@ -127,17 +131,72 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
 instance Show FGG_JSON where
   show = show . fgg_to_json
 
-instance Show PreWeight where
-  show (ThisWeight ws) = show $ weights_to_json ws
-  show (PairWeight (s1, s2)) = "PairWeight " ++ s1 ++ " " ++ s2
+--instance Show PreWeight where
+--  show (ThisWeight ws) = show $ weights_to_json ws
+--  show (PairWeight s1 s2) = "PairWeight " ++ s1 ++ " " ++ s2
 
 -- Default FGG
 emptyFGG :: String -> FGG_JSON
 emptyFGG s = FGG_JSON Map.empty Map.empty Map.empty s []
 
+{-preWeightsToWeights :: Map.Map String FType -> [PreWeight] -> [Weights]
+preWeightsToWeights ds facs =
+  let ds' = h ds (pre_ws facs) in
+    [(x, preWeightToWeight ds' w) | (x, w) <- facs]
+  where
+    pre_ws :: [PreWeight] -> [[Type]]
+    pre_ws [] = []
+    pre_ws (ThisWeight w : facs) = pre_ws facs
+    pre_ws (PairWeight tps : facs) = tps : pre_ws facs
+    
+    h ds [] = ds
+    h ds (tps : facs) =
+      if all (Map.member tps ds) tps
+        then h (Map.insert (prodValName ())) facs
+        else h ds (facs ++ [tps]) -- push to back of queue
+-}
+
+-- Pulls the data from a WeightsH
+invWeightsData :: WeightsH a -> a
+invWeightsData (WeightsData ws) = ws
+invWeightsData (WeightsDims ws) = error "In invWeightsData, expected WeightsData"
+
+-- Takes the dims from a WeightsH
+invWeightsDims :: WeightsH a -> WeightsH [a]
+invWeightsDims (WeightsDims ws) = ws
+invWeightsDims (WeightsData ws) = error "In invWeightsDims, expected WeightsDims"
+
+-- Pushes WeightsH into each of its elements
+weightsPush :: WeightsH [a] -> [WeightsH a]
+weightsPush (WeightsData ws) = map WeightsData ws
+weightsPush (WeightsDims ws) = map WeightsDims (weightsPush ws)
+
+weightsPush' :: WeightsH' [a] -> [WeightsH' a]
+weightsPush' (WeightsData' ws) = map WeightsData' ws
+weightsPush' (WeightsDims' ws) = [WeightsDims' (weightsPush' w) | w <- ws]
+
+-- Pulls a the weights from a list into a WeightsH
+weightsPull :: [WeightsH a] -> WeightsH [a]
+weightsPull [] = WeightsData []
+weightsPull (WeightsData ws : ws') =
+  WeightsData (map invWeightsData (WeightsData ws : ws'))
+weightsPull (WeightsDims ws : ws') =
+  let ws'' = map invWeightsDims (WeightsDims ws : ws') in
+  WeightsDims $ weightsPull ws''
+
+weightsTo' :: WeightsH x -> WeightsH' x
+weightsTo' (WeightsData x) = WeightsData' x
+weightsTo' (WeightsDims xs) = WeightsDims' (let w = weightsTo' xs in weightsPush' w)
+
+weights'To :: WeightsH' x -> WeightsH x
+weights'To (WeightsData' x) = WeightsData x
+weights'To (WeightsDims' xs) = WeightsDims (weightsPull [weights'To x | x <- xs])
+
 preWeightToWeight :: Map.Map String FType -> PreWeight -> Weights
 preWeightToWeight ds (ThisWeight w) = w
-preWeightToWeight ds (PairWeight (tp1, tp2)) =
+--preWeightToWeight ds (PairWeight tps) =
+--  error "TODO"
+preWeightToWeight ds (PairWeight tp1 tp2) =
   let Just vs1 = Map.lookup tp1 ds
       Just vs2 = Map.lookup tp2 ds in
 --      Just vs12 = Map.lookup (tp1 ++ " -> " ++ tp2) ds in
@@ -152,6 +211,13 @@ scalarPreWeight = ThisWeight . scalarWeight
 vectorPreWeight = ThisWeight . vectorWeight
 matrixPreWeight = ThisWeight . matrixWeight
 
+tensorToWeights' :: Tensor a -> WeightsH' a
+tensorToWeights' (Scalar a) = WeightsData' a
+tensorToWeights' (Vector ts) = WeightsDims' [tensorToWeights' t | t <- ts]
+
+tensorToWeights :: Tensor a -> WeightsH a
+tensorToWeights = weights'To . tensorToWeights'
+
 -- Construct an FGG from a list of rules, a start symbol,
 -- and a function that gives the possible values of each type
 rulesToFGG :: (Type -> [String]) -> String -> [Rule] -> [Nonterminal] -> [Factor] -> FGG_JSON
@@ -164,14 +230,14 @@ rulesToFGG doms start rs nts facs =
           show d1 ++ " vs " ++ show d2)
       nts'' = foldr (\ (x, tp) -> Map.insert x [show tp]) Map.empty nts
       nts' = foldr (\ (Rule lhs (HGF ns _ xs)) ->
-                      Map.insertWith (domsEq lhs) lhs (map (\ i -> show $ ns !! i) xs)) nts'' rs'
-      facs' = map (\ (x, w) -> (x, preWeightToWeight ds w)) facs
+                      Map.insertWith (domsEq lhs) lhs [show (ns !! i) | i <- xs]) nts'' rs'
+      facs' = [(x, preWeightToWeight ds w) | (x, w) <- facs]
       getFac = \ l lhs -> maybe (error ("In the rule " ++ lhs ++ ", no factor named " ++ l))
                         id $ lookup l facs'
       fs  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
-                     foldr (\ (Edge atts l) -> let lnodes = map ((!!) ns) atts in
+                     foldr (\ (Edge atts l) ->
                                if Map.member l nts' then id else
-                                 Map.insert l (map show lnodes, getFac l lhs))
+                                 Map.insert l ([show (ns !! i) | i <- atts], getFac l lhs))
                            m es)
                   Map.empty rs'
   in

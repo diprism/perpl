@@ -49,7 +49,7 @@ data Term =
   | TmAmpIn [Arg]
   | TmAmpOut Term [Type] Int
   | TmProdIn [Arg]
-  | TmProdOut Term [Param] Term
+  | TmProdOut Term [Param] Term Type
 
 data Type =
     TpArr Type Type

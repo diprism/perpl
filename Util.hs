@@ -59,6 +59,8 @@ getType (TmSamp d tp) = tp
 getType (TmAmb tms tp) = tp
 getType (TmAmpIn as) = TpAmp (map snd as)
 getType (TmAmpOut tm tps o) = tps !! o
+getType (TmProdIn as) = TpProd (map snd as)
+getType (TmProdOut tm ps tm' tp) = tp
 
 -- Sorts cases according to the order they are appear in the datatype definition
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]

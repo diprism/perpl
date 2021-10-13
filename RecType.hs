@@ -19,6 +19,7 @@ isRecType' g y = h [] where
   h hist [] = False
   h hist (TpArr tp1 tp2 : tps) = h hist (tp1 : tp2 : tps)
   h hist (TpAmp tps' : tps) = h hist (tps' ++ tps)
+  h hist (TpProd tps' : tps) = h hist (tps' ++ tps)
   h hist (TpVar y' : tps)
     | y == y' = True
     | y' `elem` hist = h hist tps
@@ -68,8 +69,10 @@ collectUnfolds rtp (TmCase tm y cs tp) =
       ++ this
 collectUnfolds rtp (TmSamp d tp) = []
 collectUnfolds rtp (TmAmb tms tp) = concatMap (collectUnfolds rtp) tms
-collectUnfolds rtp (TmAmpIn as) = error "collectUnfolds should not see a TmAmpIn"
-collectUnfolds rtp (TmAmpOut tm tps o) = error "collectUnfolds should not see a TmAmpOut"
+collectUnfolds rtp (TmAmpIn as) = concatMap (\ (atm, atp) -> collectUnfolds rtp atm) as
+collectUnfolds rtp (TmAmpOut tm tps o) = collectUnfolds rtp tm
+collectUnfolds rtp (TmProdIn as) = concatMap (\ (atm, atp) -> collectUnfolds rtp atm) as
+collectUnfolds rtp (TmProdOut tm ps tm' tp) = collectUnfolds rtp tm ++ collectUnfolds rtp tm'
 
 -- Collects all the usages of constructors for type rtp,
 -- returning the ctor name along with the free vars used
@@ -85,8 +88,10 @@ collectFolds rtp (TmLet x xtm xtp tm tp) = collectFolds rtp xtm ++ collectFolds 
 collectFolds rtp (TmCase tm y cs tp) = collectFolds rtp tm ++ concatMap (\ (Case cx cps ctm) -> collectFolds rtp ctm) cs
 collectFolds rtp (TmSamp d tp) = []
 collectFolds rtp (TmAmb tms tp) = concatMap (collectFolds rtp) tms
-collectFolds rtp (TmAmpIn as) = error "collectFolds should not see a TmAmpIn"
-collectFolds rtp (TmAmpOut tm tps o) = error "collectFolds should not see a TmAmpOut"
+collectFolds rtp (TmAmpIn as) = concatMap (\ (atm, atp) -> collectFolds rtp atm) as
+collectFolds rtp (TmAmpOut tm tps o) = collectFolds rtp tm
+collectFolds rtp (TmProdIn as) = concatMap (\ (atm, atp) -> collectFolds rtp atm) as
+collectFolds rtp (TmProdOut tm ps tm' tp) = collectFolds rtp tm ++ collectFolds rtp tm'
 
 -- Runs collect[Un]folds on a Prog
 collectProg :: (Term -> [a]) -> Prog -> [a]
@@ -193,9 +198,16 @@ disentangleTerm rtp cases = h where
       pure TmCase <*> h tm <*> pure y <*> mapCasesM (\ _ _ -> h) cs <*> pure tp
   h (TmSamp d tp) =
     pure (TmSamp d tp)
-  h (TmAmb tms tp) = pure TmAmb <*> mapM h tms <*> pure tp
-  h (TmAmpIn as) = error "disentangleTerm should not see a TmAmpIn"
-  h (TmAmpOut tm tps o) = error "disentangleTerm should not see a TmAmpOut"
+  h (TmAmb tms tp) =
+    pure TmAmb <*> mapM h tms <*> pure tp
+  h (TmAmpIn as) =
+    pure TmAmpIn <*> mapArgsM h as
+  h (TmAmpOut tm tps o) =
+    pure TmAmpOut <*> h tm <*> pure tps <*> pure o
+  h (TmProdIn as) =
+    pure TmProdIn <*> mapArgsM h as
+  h (TmProdOut tm ps tm' tp) =
+    pure TmProdOut <*> h tm <*> pure ps <*> h tm' <*> pure tp
 
 --------------------------------------------------
 
@@ -226,8 +238,14 @@ defoldTerm rtp = h where
   h (TmCase tm y cs tp) = pure TmCase <*> h tm <*> pure y <*> mapCasesM (\ _ _ -> h) cs <*> pure tp
   h (TmSamp d tp) = pure (TmSamp d tp)
   h (TmAmb tms tp) = pure TmAmb <*> mapM h tms <*> pure tp
-  h (TmAmpIn as) = error "defoldTerm should not see a TmAmpIn"
-  h (TmAmpOut tm tps o) = error "defoldTerm should not see a TmAmpOut"
+  h (TmAmpIn as) =
+    pure TmAmpIn <*> mapArgsM h as
+  h (TmAmpOut tm tps o) =
+    pure TmAmpOut <*> h tm <*> pure tps <*> pure o
+  h (TmProdIn as) =
+    pure TmProdIn <*> mapArgsM h as
+  h (TmProdOut tm ps tm' tp) =
+    pure TmProdOut <*> h tm <*> pure ps <*> h tm' <*> pure tp
 
 --------------------------------------------------
 
@@ -301,10 +319,19 @@ derefunTerm dr g rtp = fst . h where
         tp' = if null tms' then sub tp else snd (head tms') in
       TmAmb (map fst tms') tp'
   h' (TmAmpIn as) =
-    TmAmpIn (map (\ (tm, _) -> h tm) as)
+    TmAmpIn [h tm | (tm, _) <- as]
   h' (TmAmpOut tm tps o) =
     let (tm', TpAmp tps') = h tm in
       TmAmpOut tm' tps' o
+  h' (TmProdIn as) =
+    TmProdIn [h tm | (tm, _) <- as]
+  h' (TmProdOut tm ps tm' tp) =
+    let (tm, TpProd tps) = h tm
+        (tm', tp) = h tm'
+        xs = [x | (x, _) <- ps]
+        ps' = zip xs tps
+    in
+      TmProdOut tm ps' tm' tp
 
 derefunProgTypes :: DeRe -> Var -> Prog -> Prog
 derefunProgTypes dr rtp (ProgFun x ps tm tp) = ProgFun x (map (fmap (derefunSubst dr rtp)) ps) tm (derefunSubst dr rtp tp)
@@ -380,6 +407,8 @@ recDeps g recs (TpVar y)
       (nub . concatMap (\ (Ctor _ tps) -> concatMap (recDeps g recs) tps))
       (ctxtLookupType g y)
 recDeps g recs (TpArr tp1 tp2) = nub (recDeps g recs tp1 ++ recDeps g recs tp2)
+recDeps g recs (TpAmp tps) = nub (concatMap (recDeps g recs) tps)
+recDeps g recs (TpProd tps) = nub (concatMap (recDeps g recs) tps)
 
 getRefunDeps :: Ctxt -> [Var] -> [(FreeVars, Type)] -> [Var]
 getRefunDeps g recs =

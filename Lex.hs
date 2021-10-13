@@ -4,6 +4,7 @@ import Exprs
 -- Possible tokens
 data Token =
     TkVar Var
+  | TkNum Int
   | TkLam
   | TkParenL
   | TkParenR
@@ -23,6 +24,8 @@ data Token =
   | TkColon
   | TkDot
   | TkComma
+  | TkLangle
+  | TkRangle
   | TkBar
   | TkSemicolon
   | TkFun
@@ -32,6 +35,7 @@ data Token =
 
 instance Show Token where
   show (TkVar x) = x
+  show (TkNum n) = show n
   -- Punctuation tokens
   show TkLam = "\\"
   show TkParenL = "("
@@ -44,6 +48,8 @@ instance Show Token where
   show TkColon = ":"
   show TkDot = "."
   show TkComma = ","
+  show TkLangle = "<"
+  show TkRangle = ">"
   show TkBar = "|"
   show TkSemicolon = ";"
   -- Keyword tokens
@@ -70,7 +76,7 @@ next :: Pos -> Pos
 next (line, column) = (succ line, 0)
 
 -- List of punctuation tokens
-punctuation = [TkLam, TkParenL, TkParenR, TkEq, TkArr, TkLeftArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon]
+punctuation = [TkLam, TkParenL, TkParenR, TkEq, TkArr, TkLeftArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkStar, TkAmp, TkLangle, TkRangle]
 -- List of keyword tokens (use alphanumeric chars)
 keywords = [TkFail, TkAmb, TkUni, TkCase, TkOf, TkLet, TkIn, TkUni, TkSample, TkFun, TkExtern, TkData]
 
@@ -118,18 +124,18 @@ lexVar = h "" where
 --varChars = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['\'', '_']
 isVarChar :: Char -> Bool
 isVarChar c =
-  (c >= 'a' && c <= 'z') ||
-  (c >= 'A' && c <= 'Z') ||
-  (c >= '0' && c <= '9') ||
-  (c == '\'') ||
-  (c == '_')
+  ('a' <= c && c <= 'z') ||
+  ('A' <= c && c <= 'Z') ||
+  ('0' <= c && c <= '9') ||
+  ('\'' == c) || ('_' == c)
 
 -- Lex a keyword or a variable name
 lexKeywordOrVar :: String -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
 lexKeywordOrVar s p ts =
   let (v, rest) = lexVar s in
-    if length v > 0 then trykw keywords v rest p ts else Left p
+    if length v > 0 then trynum v rest (trykw keywords v rest) p ts else Left p
   where
+    trynum v s kw = if all (\ c -> '0' <= c && c <= '9') v then lexAdd v s (TkNum (read v :: Int)) else kw
     trykw (kwtok : kws) v s =
       if show kwtok == v then lexAdd v s kwtok else trykw kws v s
     trykw [] v s = lexAdd v s (TkVar v)
