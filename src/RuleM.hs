@@ -167,7 +167,7 @@ getProdWeightsV :: [[String]] -> Weights
 getProdWeightsV tpvs =
   let vss = kronpos tpvs
       dims = [length vs | vs <- tpvs] in
-    tensorToWeights (tensorSquash $ fmap (\ pos -> tensorIdRow (toIdx (zip pos dims)) (product dims)) $ generateTensor dims)
+    tensorToWeights (tensorId dims)
 
 shapeH :: (a -> [Int]) -> WeightsH a -> [Int]
 shapeH f (WeightsData a) = f a
