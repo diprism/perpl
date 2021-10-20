@@ -58,7 +58,7 @@ addRule r = addRules [r]
 addRule' :: Term -> [Type] -> [Edge] -> [Int] -> RuleM
 addRule' lhs ns es xs = addRule $ Rule (show lhs) $ HGF ns es xs
 
-addFactor :: Var -> PreWeight -> RuleM
+addFactor :: Var -> Weights -> RuleM
 addFactor x w = RuleM [] [] [] [(x, w)]
 
 -- Do nothing new
@@ -81,9 +81,9 @@ setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
 isRule :: String -> RuleM -> Bool
 isRule lhs (RuleM rs xs nts fs) = any (\ (Rule lhs' _) -> lhs == lhs') rs
 
--- Returns the PreWeights for a function tp1 -> tp2 or (tp1 * tp2)
-getPairWeights :: Type -> Type -> PreWeight
-getPairWeights tp1 tp2 = PairWeight (show tp1) (show tp2)
+-- Returns the Weights for a function tp1 -> tp2
+getPairWeights :: Int -> Int -> Weights
+getPairWeights tp1s tp2s = tensorToWeights (tensorId [tp1s, tp2s])
 
 -- Returns the ctors to the left and to the right of one named x
 -- (but discards the ctor named x itself)
@@ -96,14 +96,14 @@ splitCtorsAt (Ctor x' as : cs) x
       (Ctor x' as : b, a)
 
 -- Computes the weights for a function with params ps and return type tp
-getExternWeights :: (Type -> [String]) -> [Type] -> Type -> PreWeight
+getExternWeights :: (Type -> [String]) -> [Type] -> Type -> Weights
 getExternWeights dom ps tp =
   let rep = \ tp a -> WeightsDims (weightsPull (replicate (length (dom tp)) a))
       iws = rep tp (WeightsData 0) in
-    ThisWeight $ foldr rep iws ps
+    foldr rep iws ps
 
 -- Computes the weights for a list of constructors
-getCtorWeightsAll :: (Type -> [String]) -> [Ctor] -> Type -> [(String, PreWeight)]
+getCtorWeightsAll :: (Type -> [String]) -> [Ctor] -> Type -> [(String, Weights)]
 getCtorWeightsAll dom cs y =
   concat $ flip map cs $ \ (Ctor x as) ->
     flip map (getCtorWeights dom (Ctor x as) cs) $ \ (as', ws) ->
@@ -111,7 +111,7 @@ getCtorWeightsAll dom cs y =
         (ctorFactorName x as'' y, ws)
 
 -- Computes the weights for a specific constructor
-getCtorWeights :: (Type -> [String]) -> Ctor -> [Ctor] -> [([String], PreWeight)]
+getCtorWeights :: (Type -> [String]) -> Ctor -> [Ctor] -> [([String], Weights)]
 getCtorWeights dom (Ctor x as) cs =
   let (cs_before, cs_after) = splitCtorsAt cs x
       csf = \ cs' -> sum (map (\ (Ctor x' as') -> product (map (length . dom) as')) cs')
@@ -119,13 +119,13 @@ getCtorWeights dom (Ctor x as) cs =
       cs_a' = csf cs_after
       mkrow = \ mask -> replicate cs_b' 0 ++ mask ++ replicate cs_a' 0
   in
-    flip map (kronpos (map dom as)) $ \ as' -> (,) (map (\ (_, _, a) -> a) as') $ ThisWeight $
+    flip map (kronpos (map dom as)) $ \ as' -> (,) (map (\ (_, _, a) -> a) as') $
       let (out, pos) = foldr (\ (i, o, _) (l, j) -> (l * o, l * i + j)) (1, 0) as'
           row = WeightsDims $ WeightsData $ mkrow (weightsRow pos out) in
       foldr (\ (i, o, a) ws -> WeightsDims $ weightsPull [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]]) row as'
 
 -- Computes the weights for a specific constructor (can't remember how this is different from getCtorWeights above :P)
-getCtorWeightsFlat :: (Type -> [String]) -> Ctor -> [Ctor] -> PreWeight
+getCtorWeightsFlat :: (Type -> [String]) -> Ctor -> [Ctor] -> Weights
 getCtorWeightsFlat dom (Ctor x as) cs =
   let (cs_before, cs_after) = splitCtorsAt cs x
       csf = \ cs' -> sum (map (\ (Ctor x' as') -> product (map (length . dom) as')) cs')
@@ -133,28 +133,27 @@ getCtorWeightsFlat dom (Ctor x as) cs =
       cs_a' = csf cs_after
       mkrow = \ mask -> replicate cs_b' 0 ++ mask ++ replicate cs_a' 0
   in
-    ThisWeight $
-      foldr
-        (\ avs jl2ws j l -> WeightsDims $ weightsPull [jl2ws (l * i + j) (l * length avs) | i <- [0..length avs - 1]])
-        (\ j l -> WeightsDims (WeightsData (mkrow (weightsRow j l))))
-        (map dom as) 0 1
+    foldr
+      (\ avs jl2ws j l -> WeightsDims $ weightsPull [jl2ws (l * i + j) (l * length avs) | i <- [0..length avs - 1]])
+      (\ j l -> WeightsDims (WeightsData (mkrow (weightsRow j l))))
+      (map dom as) 0 1
 
 -- Identity matrix
-getCtorEqWeights :: Int {- num of possible values -} -> PreWeight
+getCtorEqWeights :: Int {- num of possible values -} -> Weights
 getCtorEqWeights cs =
   let is = [0..cs - 1] in
-    ThisWeight $ fmap (\ (i, j) -> if i == j then 1 else 0) $
+    fmap (\ (i, j) -> if i == j then 1 else 0) $
       matrixWeight $ kronecker is is
 
-getAmpWeights :: (Type -> [String]) -> [Type] -> [PreWeight]
+getAmpWeights :: (Type -> [String]) -> [Type] -> [Weights]
 getAmpWeights dom tps =
   let tpvs = map dom tps in
     map (\ (i, itpvs) ->
-           ThisWeight (WeightsDims $ WeightsDims $ WeightsData
-                       (concatMap
-                        (\ (j, vs) ->
-                           [[if l == k && i == j then 1 else 0 | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs])
-                        (enumerate tpvs)))) (enumerate tpvs)
+           WeightsDims $ WeightsDims $ WeightsData
+             (concatMap
+               (\ (j, vs) ->
+                   [[if l == k && i == j then 1 else 0 | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs])
+               (enumerate tpvs))) (enumerate tpvs)
 
 getProdWeights :: [[String]] -> [([String], Weights)]
 getProdWeights tpvs =

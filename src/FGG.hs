@@ -38,8 +38,7 @@ type Nonterminal = (Var, Type)
 type Domain = [String]
 type Value = String
 type FType = [Value]
-data PreWeight = ThisWeight Weights | PairWeight String String -- TODO: can we get rid of PairWieght? (And thus PreWeight in general?)
-type Factor = (String, PreWeight)
+type Factor = (String, Weights)
 type Prob = Double
 data WeightsH x = WeightsData x | WeightsDims (WeightsH [x])
 data WeightsH' x = WeightsData' x | WeightsDims' [WeightsH' x]
@@ -131,30 +130,11 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
 instance Show FGG_JSON where
   show = show . fgg_to_json
 
---instance Show PreWeight where
---  show (ThisWeight ws) = show $ weights_to_json ws
---  show (PairWeight s1 s2) = "PairWeight " ++ s1 ++ " " ++ s2
 
 -- Default FGG
 emptyFGG :: String -> FGG_JSON
 emptyFGG s = FGG_JSON Map.empty Map.empty Map.empty s []
 
-{-preWeightsToWeights :: Map.Map String FType -> [PreWeight] -> [Weights]
-preWeightsToWeights ds facs =
-  let ds' = h ds (pre_ws facs) in
-    [(x, preWeightToWeight ds' w) | (x, w) <- facs]
-  where
-    pre_ws :: [PreWeight] -> [[Type]]
-    pre_ws [] = []
-    pre_ws (ThisWeight w : facs) = pre_ws facs
-    pre_ws (PairWeight tps : facs) = tps : pre_ws facs
-    
-    h ds [] = ds
-    h ds (tps : facs) =
-      if all (Map.member tps ds) tps
-        then h (Map.insert (prodValName ())) facs
-        else h ds (facs ++ [tps]) -- push to back of queue
--}
 
 -- Pulls the data from a WeightsH
 invWeightsData :: WeightsH a -> a
@@ -192,24 +172,9 @@ weights'To :: WeightsH' x -> WeightsH x
 weights'To (WeightsData' x) = WeightsData x
 weights'To (WeightsDims' xs) = WeightsDims (weightsPull [weights'To x | x <- xs])
 
-preWeightToWeight :: Map.Map String FType -> PreWeight -> Weights
-preWeightToWeight ds (ThisWeight w) = w
---preWeightToWeight ds (PairWeight tps) =
---  error "TODO"
-preWeightToWeight ds (PairWeight tp1 tp2) =
-  let Just vs1 = Map.lookup tp1 ds
-      Just vs2 = Map.lookup tp2 ds in
---      Just vs12 = Map.lookup (tp1 ++ " -> " ++ tp2) ds in
-    -- |vs1| x |vs2| x (|vs1|*|vs2|)
-    WeightsDims $ WeightsDims $ WeightsDims $ WeightsData $
-      map (map (\ v12 -> concat $ map (map $ \ v12' -> if v12 == v12' then 1 else 0) (kronecker vs1 vs2))) (kronecker vs1 vs2)
-
 scalarWeight = WeightsData
 vectorWeight = WeightsDims . WeightsData
 matrixWeight = WeightsDims . WeightsDims . WeightsData
-scalarPreWeight = ThisWeight . scalarWeight
-vectorPreWeight = ThisWeight . vectorWeight
-matrixPreWeight = ThisWeight . matrixWeight
 
 tensorToWeights' :: Tensor a -> WeightsH' a
 tensorToWeights' (Scalar a) = WeightsData' a
@@ -231,9 +196,8 @@ rulesToFGG doms start rs nts facs =
       nts'' = foldr (\ (x, tp) -> Map.insert x [show tp]) Map.empty nts
       nts' = foldr (\ (Rule lhs (HGF ns _ xs)) ->
                       Map.insertWith (domsEq lhs) lhs [show (ns !! i) | i <- xs]) nts'' rs'
-      facs' = [(x, preWeightToWeight ds w) | (x, w) <- facs]
       getFac = \ l lhs -> maybe (error ("In the rule " ++ lhs ++ ", no factor named " ++ l))
-                        id $ lookup l facs'
+                        id $ lookup l facs
       fs  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
                      foldr (\ (Edge atts l) ->
                                if Map.member l nts' then id else

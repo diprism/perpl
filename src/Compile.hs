@@ -9,6 +9,7 @@ import Ctxt
 import Free
 import Name
 import Show
+import Tensor
 -- TODO: use Map for externals, so we don't really need to keep track of order outside of doing combineExts?
 
 -- If the start term is just a factor (has no rule), then we need to
@@ -80,7 +81,6 @@ ctorsRules g cs y =
     (getCtorWeightsAll (domainValues g) cs y) +>
   foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) y cs) returnRule cs +>
   type2fgg g y
-  --addFactor (typeFactorName y) (getCtorEqWeights (domainSize g y))
 
 -- Add a rule for this particular case in a case-of statement
 caseRule :: Ctxt -> FreeVars -> [External] -> Term -> Var -> [Case] -> Type -> Case -> RuleM
@@ -122,19 +122,16 @@ addAmpFactors g tps =
 addProdFactors :: Ctxt -> [Type] -> RuleM
 addProdFactors g tps =
   let tpvs = [domainValues g tp | tp <- tps] in
-    -- addFactor (typeFactorName (TpProd tps)) (getCtorEqWeights (length tpvs)) +>
     type2fgg g (TpProd tps) +>
-    addFactor (prodFactorName tps) (ThisWeight (getProdWeightsV tpvs)) +>
-    foldr (\ (as', w) r -> r +> addFactor (prodFactorName' as') (ThisWeight w)) returnRule (getProdWeights tpvs)
+    addFactor (prodFactorName tps) (getProdWeightsV tpvs) +>
+    foldr (\ (as', w) r -> r +> addFactor (prodFactorName' as') w) returnRule (getProdWeights tpvs)
 
 -- Traverse a term and add all rules for subexpressions
 term2fgg :: Ctxt -> Term -> RuleM
 term2fgg g (TmVarL x tp) =
-  -- addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp)) +>
   type2fgg g tp +>
   addExt x tp
 term2fgg g (TmVarG gv x [] tp) =
---  addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp))
   returnRule -- If this is a ctor/def with no args, we already add its rule when it gets defined
 term2fgg g (TmVarG gv x as y) =
   map (\ (a, atp) -> term2fgg g a) (reverse as) +*>= \ xss' ->
@@ -158,7 +155,7 @@ term2fgg g (TmLam x tp tm tp') =
             Edge [itp, itp', iarr] (pairFactorName tp tp')]
       xs = ixs' ++ [iarr] in
     addRule' (TmLam x tp tm tp') (map snd ns) es xs +>
-    addFactor (pairFactorName tp tp') (getPairWeights tp tp')
+    addFactor (pairFactorName tp tp') (getPairWeights (domainSize g tp) (domainSize g tp'))
 term2fgg g (TmApp tm1 tm2 tp2 tp) =
   term2fgg g tm1 +>= \ xs1 ->
   term2fgg g tm2 +>= \ xs2 ->
@@ -170,7 +167,7 @@ term2fgg g (TmApp tm1 tm2 tp2 tp) =
             Edge [itp2, itp, iarr] fac]
       xs = nub (ixs1 ++ ixs2 ++ [itp]) in
     addRule' (TmApp tm1 tm2 tp2 tp) (map snd ns) es xs +>
-    addFactor fac (getPairWeights tp2 tp)
+    addFactor fac (getPairWeights (domainSize g tp2) (domainSize g tp))
 term2fgg g (TmCase tm y cs tp) =
   term2fgg g tm +>= \ xs ->
   let fvs = freeVarsCases' cs in
@@ -180,11 +177,11 @@ term2fgg g (TmSamp d tp) =
       dvws = vectorWeight dvs in
   case d of
     DistFail ->
-      addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 0) dvws))
+      addFactor (show $ TmSamp d tp) (fmap (const 0) dvws)
     DistUni  ->
-      addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const (1.0 / fromIntegral (length dvs))) dvws))
+      addFactor (show $ TmSamp d tp) (fmap (const (1.0 / fromIntegral (length dvs))) dvws)
     DistAmb  -> -- TODO: is this fine, or do we need to add a rule with one node and one edge (that has the factor below)?
-      addFactor (show $ TmSamp d tp) (ThisWeight (fmap (const 1) dvws))
+      addFactor (show $ TmSamp d tp) (fmap (const 1) dvws)
 term2fgg g (TmAmb tms tp) =
   let fvs = Map.unions (map freeVars' tms) in
     bindCases (Map.toList fvs) (map (ambRule g fvs tms tp) tms)
@@ -269,7 +266,7 @@ prog2fgg g (ProgFun x ps tm tp) = -- TODO: add factor for joinArrows ps tp
   bindExts True ps $ term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
   let unused_ps = Map.toList (Map.difference (Map.fromList ps) (Map.fromList tmxs))
       (unused_x, unused_tp) = unzip unused_ps
-      unused_n = newNames 1 unused_tp -- map (\ i -> " " ++ show (i + 1)) [0..length unused_x - 1]
+      unused_n = newNames 1 unused_tp
       (ns, [[itp], ixs, ips, un_n_ixs, un_x_ixs]) = combineExts [newNames' [tp], tmxs, ps, unused_n, unused_ps]
       es = Edge (ixs ++ [itp]) (show tm) : discardEdges unused_x un_x_ixs un_n_ixs
       xs = ips ++ [itp]
