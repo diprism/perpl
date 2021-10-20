@@ -17,15 +17,14 @@ define pda : String -> Stack = \str: String.
   case str of
     NilString -> Cons Bot NilStack -- initial stack
   | Snoc str last ->
-      let stk = pda str in
+      (let stk = pda str in
         case stk of
-          NilStack -> fail
+          NilStack -> sample fail : Stack
         | Cons top stk ->
-            case sample transition last top of
+            (case transition (Config last top) of
               Pop -> stk
-            | Push new1 new2 -> Cons new2 (Cons new1 stk)
+            | Push new1 new2 -> Cons new2 (Cons new1 stk)));
 
 case pda (Snoc (Snoc NilString A) B) of
-  NilStack -> True
-  ConsStack top stk -> False
-  
+    NilStack -> True
+  | Cons top stk -> False
