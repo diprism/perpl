@@ -27,10 +27,6 @@ kronpos = kronall . map (\ as -> map (\ (i, a) -> (i, length as, a)) (enumerate 
 enumerate :: [a] -> [(Int, a)]
 enumerate = zip [0..]
 
--- Returns row i of an l x l identity matrix (so for i=1 and l=6, [0, 1, 0, 0, 0, 0])
-weightsRow :: Num n => Int {- Index -} -> Int {- Length -} -> [n]
-weightsRow i l = [if j == i then 1 else 0 | j <- [0..l-1]]
-
 -- Argument-reordered version of maybe
 maybe2 :: Maybe a -> b -> (a -> b) -> b
 maybe2 m n j = maybe n j m

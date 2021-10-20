@@ -173,15 +173,14 @@ term2fgg g (TmCase tm y cs tp) =
   let fvs = freeVarsCases' cs in
     bindCases (Map.toList (Map.union (freeVars' tm) fvs)) (map (caseRule g fvs xs tm y cs tp) cs)
 term2fgg g (TmSamp d tp) =
-  let dvs = domainValues g tp
-      dvws = vectorWeight dvs in
+  let dvs = domainValues g tp in
   case d of
     DistFail ->
-      addFactor (show $ TmSamp d tp) (fmap (const 0) dvws)
+      addFactor (show $ TmSamp d tp) (vector [0.0 | _ <- [0..length dvs - 1]])
     DistUni  ->
-      addFactor (show $ TmSamp d tp) (fmap (const (1.0 / fromIntegral (length dvs))) dvws)
+      addFactor (show $ TmSamp d tp) (vector [1.0 / fromIntegral (length dvs) | _ <- [0..length dvs - 1]])
     DistAmb  -> -- TODO: is this fine, or do we need to add a rule with one node and one edge (that has the factor below)?
-      addFactor (show $ TmSamp d tp) (fmap (const 1) dvws)
+      addFactor (show $ TmSamp d tp) (vector [1.0 | _ <- [0..length dvs - 1]])
 term2fgg g (TmAmb tms tp) =
   let fvs = Map.unions (map freeVars' tms) in
     bindCases (Map.toList fvs) (map (ambRule g fvs tms tp) tms)
