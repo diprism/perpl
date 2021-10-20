@@ -1,8 +1,8 @@
 all: compiler.exe
 
-compiler.exe: *.hs
+compiler.exe: src/*.hs
 	mkdir -p .objects
-	ghc Main.hs --make -odir .objects -hidir .objects -o compiler.exe
+	cd src && ghc Main.hs --make -odir ../.objects -hidir ../.objects -o ../compiler.exe
 
 tests:
 	./run_tests.sh
