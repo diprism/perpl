@@ -80,6 +80,7 @@ needToDiscard (TpVar y) =
     (\ (i, tp') -> return True)
 needToDiscard (TpArr tp1 tp2) = error "Hmm... This shouldn't happen"
 needToDiscard (TpAmp tps) = return True
+needToDiscard (TpProd tps) = mapM needToDiscard tps >>= return . or
 
 -- Maps something to Unit
 -- For example, take x : Bool, which becomes
@@ -163,15 +164,15 @@ ambElim tm app =
                  return (TmCase tm y [nc, jc] tp'))
      _ -> app tm
 
+affLinParams :: [Param] -> Term -> AffLinM ([Param], Term, FreeVars)
+affLinParams ps body =
+  mapParamsM affLinTp ps >>= \ lps ->
+  listen (alBinds lps (affLin body)) >>= \ (body', fvs) ->
+  ambElim body' return >>= \ body'' ->
+  return (lps, body'', fvs)
+      
 affLinLams :: Term -> AffLinM ([Param], Term, FreeVars)
-affLinLams tm =
-  let (ps, body) = splitLams tm in
-    mapParamsM affLinTp ps >>= \ lps ->
-    listen (alBinds lps (affLin body)) >>= \ (body', fvs) ->
-    ambElim body' return >>= \ body'' ->
-    let endtp = getType body''
-        arrtp = joinArrows (map snd lps) endtp in
-      return (lps, body'', fvs)
+affLinLams = uncurry affLinParams . splitLams
 
 affLinBranches :: (a -> AffLinM b) -> (FreeVars -> b -> AffLinM b) -> [a] -> AffLinM [b]
 affLinBranches alf dscrd als =
@@ -223,7 +224,10 @@ affLin (TmAmpOut tm tps o) =
   pure TmAmpOut <*> affLin tm <*> mapM affLinTp tps <*> pure o
 affLin (TmProdIn as) = pure TmProdIn <*> mapArgsM affLin as
 affLin (TmProdOut tm ps tm' tp) =
-  pure TmProdOut <*> affLin tm <*> pure ps <*> alBinds ps (affLin tm') <*> pure tp
+  affLin tm >>= \ tm ->
+  affLinParams ps tm' >>= \ (ps, tm', fvs) ->
+  discards (Map.intersection (Map.fromList ps) fvs) tm' >>= \ tm' ->
+  return (TmProdOut tm ps tm' (getType tm'))
 
 -- Make an affine Prog linear
 affLinProg :: Prog -> AffLinM Prog
@@ -234,14 +238,14 @@ affLinProg (ProgExtern x xp (p : ps) tp) =
 affLinProg (ProgFun x [] tm tp) =
   let (as, endtp) = splitArrows tp
       (ls, endtm) = splitLams tm
-      etas = map (\ (i, atp) -> (etaName x i, atp)) (drop (length ls) (enumerate as))
+      etas = [ (etaName x i, atp) | (i, atp) <- drop (length ls) (enumerate as) ]
       endtm_eta = joinApps endtm (paramsToArgs etas)
       ls_eta = ls ++ etas
   in
     mapM affLinTp as >>= \ as' ->
-    mapParamsM affLinTp ls_eta >>= \ ls' ->
-    alBinds ls' (affLin endtm_eta) >>= \ endtm' ->
-    return (ProgFun x (ls' ++ etas) endtm' (getType endtm'))
+    mapParamsM affLinTp ls_eta >>= \ ls_eta' ->
+    alBinds ls_eta' (affLin endtm_eta) >>= \ endtm' ->
+    return (ProgFun x ls_eta' endtm' (getType endtm'))
 affLinProg (ProgExtern x xp [] tp) =
   let (as, end) = splitArrows tp in
     mapM affLinTp as >>= \ as' ->
