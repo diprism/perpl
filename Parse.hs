@@ -55,6 +55,16 @@ parsePeek f = parsePeeks 1 (f . head)
   [] -> eofErr
   ((p, t) : ts) -> parseMt ((p, t) : ts) (f t)-}
 
+-- Add semicolon to end of toks, if not already there
+parseAddEOF :: ParseM ()
+parseAddEOF =
+  ParseM $ \ ts ->
+  let ((lastrow, lastcol), lasttok) = last ts
+  
+      ts' = if lasttok == TkSemicolon then [] else [((lastrow, lastcol + 1), TkSemicolon)]
+  in
+    Right ((), ts ++ ts')
+
 -- Drop the next token
 parseEat :: ParseM ()
 parseEat = ParseM $ \ ts -> case ts of
@@ -248,4 +258,4 @@ parseOut m ts =
 
 -- Parse a whole program.
 parseFile :: [(Pos, Token)] -> Either String UsProgs
-parseFile = parseOut parseProg
+parseFile = parseOut (parseAddEOF >> parseProg)
