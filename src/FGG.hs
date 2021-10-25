@@ -106,7 +106,7 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
        \ (Rule lhs (HGF ns es xs)) -> JSobject [
            ("lhs", JSstring lhs),
            ("rhs", JSobject [
-               ("nodes", JSarray $ map (\ n -> JSobject [("label", JSstring (show n))]) ns),
+               ("nodes", JSarray [JSobject [("label", JSstring (show n))] | n <- ns]),
                ("edges", JSarray $ flip map es $
                  \ (Edge atts l) -> JSobject [
                    ("attachments", JSarray (map JSint atts)),

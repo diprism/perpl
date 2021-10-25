@@ -48,12 +48,10 @@ Notes:
 liftAmb :: Term -> Term
 liftAmb (TmVarL x tp) = TmVarL x tp
 liftAmb (TmVarG gv x as tp) =
-  let as' = map (\ (atm, atp) ->
-                    map (\ atm' -> (atm', atp))
-                      (splitAmbs (liftAmb atm))) as in
-    joinAmbs (map (\ as -> TmVarG gv x as tp) (kronall as')) tp
+  let as' = [[(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
+    joinAmbs [TmVarG gv x as tp | as <- (kronall as')] tp
 liftAmb (TmLam x tp tm tp') =
-  joinAmbs (map (\ tm -> TmLam x tp tm tp') (splitAmbs (liftAmb tm))) (TpArr tp tp') 
+  joinAmbs [TmLam x tp tm tp' | tm <- splitAmbs (liftAmb tm)] (TpArr tp tp') 
 liftAmb (TmApp tm1 tm2 tp2 tp) =
   joinAmbs (kronwith (\ tm1' tm2' -> TmApp tm1' tm2' tp2 tp)
              (splitAmbs (liftAmb tm1))
@@ -64,8 +62,8 @@ liftAmb (TmLet x xtm xtp tm tp) =
              (splitAmbs (liftAmb tm))) tp
 liftAmb (TmCase tm y cs tp) =
   let tms = splitAmbs (liftAmb tm)
-      cs1 = map (\ (Case x xps xtm) -> (x, xps, splitAmbs (liftAmb xtm))) cs
-      cs2 = concatMap (\ (x, xps, xtms) -> map (\ xtm -> map (\ (Case x' xps' _) -> Case x' xps' (if x == x' then xtm else TmSamp DistFail tp)) cs) xtms) cs1
+      cs1 = [(x, xps, splitAmbs (liftAmb xtm)) | Case x xps xtm <- cs]
+      cs2 = concatMap (\ (x, xps, xtms) -> [[Case x' xps' (if x == x' then xtm else TmSamp DistFail tp) | Case x' xps' _ <- cs] | xtm <- xtms]) cs1
       cs3 = if any (\ (x, xps, xtms) -> length xtms > 1) cs1 then cs2 else [cs]
   in
     joinAmbs (kronwith (\ tm cs -> TmCase tm y cs tp) tms cs3) tp
@@ -74,15 +72,11 @@ liftAmb (TmAmb tms tp) =
   TmAmb (concatMap (splitAmbs . liftAmb) tms) tp
 liftAmb (TmAmpIn as) =
   TmAmpIn (mapArgs liftAmb as)
-{-  let as' = map (\ (atm, atp) ->
-                    map (\ atm' -> (atm', atp))
-                      (splitAmbs (liftAmb atm))) as in
-    joinAmbs (map TmAmpIn (kronall as')) (TpAmp (map snd as))-}
 liftAmb (TmAmpOut tm tps o) =
-  joinAmbs (map (\ tm -> TmAmpOut tm tps o) (splitAmbs (liftAmb tm))) (tps !! o)
+  joinAmbs [TmAmpOut tm tps o | tm <- splitAmbs (liftAmb tm)] (tps !! o)
 liftAmb (TmProdIn as) =
-  let as' = [ [(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
-    joinAmbs (map TmProdIn (kronall as')) (TpProd (map snd as))
+  let as' = [[(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
+    joinAmbs (map TmProdIn (kronall as')) (TpProd (snds as))
 liftAmb (TmProdOut ptm ps tm tp) =
   joinAmbs (kronwith (\ ptm' tm' -> TmProdOut ptm' ps tm' tp)
              (splitAmbs (liftAmb ptm))
@@ -103,17 +97,17 @@ liftFail' (TmApp tm1 tm2 tp2 tp) = pure TmApp <*> liftFail' tm1 <*> liftFail' tm
 liftFail' (TmLet x xtm xtp tm tp) =
   pure (TmLet x) <*> liftFail' xtm <*> pure xtp <*> liftFail' tm <*> pure tp
 liftFail' (TmCase tm y cs tp) =
-  let cs' = map (\ (Case x ps tm) -> pure (Case x ps) <*> liftFail' tm) cs in
+  let cs' = [pure (Case x ps) <*> liftFail' tm | Case x ps tm <- cs] in
     if all null cs' then Nothing else
       pure TmCase <*> liftFail' tm <*> pure y
-        <*> pure (map (\ (Case x xps xtm) -> Case x xps (liftFail xtm)) cs) <*> pure tp
+        <*> pure [Case x xps (liftFail xtm) | Case x xps xtm <- cs] <*> pure tp
 liftFail' (TmAmb tms tp) =
   let tms' = concatMap (maybe [] (\ tm -> [tm]) . liftFail') tms in
     if null tms' then Nothing else pure (joinAmbs tms' tp)
 liftFail' (TmAmpIn as) =
   let as' = map (mapArgM liftFail') as in
   if any isJust as' then
-    pure (TmAmpIn (map (\ ((_, tp), ma) -> maybe (TmSamp DistFail tp, tp) id ma) (zip as as')))
+    pure (TmAmpIn [maybe (TmSamp DistFail tp, tp) id ma | ((_, tp), ma) <- zip as as'])
   else
     Nothing
 liftFail' (TmAmpOut tm tps o) =
@@ -138,7 +132,7 @@ peelLams :: Ctxt -> [Param] -> Term -> Term
 peelLams g [] tm = tm
 peelLams g ps tm =
   let (ls, body) = splitLams tm
-      subs = zip (map fst ls) (map (Left . fst) (paramsToArgs ps))
+      subs = zip (fsts ls) (map (Left . fst) (paramsToArgs ps))
       -- See examples above
       example1 = substs g subs (renameTerm body)
       example2 = joinApps example1 (paramsToArgs (drop (length ls) ps)) in
@@ -191,7 +185,7 @@ optimizeTerm g (TmApp tm1 tm2 tp2 tp) =
       as' = optimizeArgs g as
       (ds, body2) = splitLets body1
       (ls, body3) = splitLams body2
-      lets = map (\ ((lx, ltp), (atm, atp)) -> (lx, atm, atp)) (zip ls as')
+      lets = [(lx, atm, atp) | ((lx, ltp), (atm, atp)) <- zip ls as']
       rem_as = drop (length lets) as'
       rem_ls = drop (length lets) ls
       let_tm = joinLets (ds ++ lets) body3
@@ -214,9 +208,7 @@ optimizeTerm g (TmCase tm y cs tp) =
                                       (e', ctxtDeclTerm g' e' p, (e', p) : ps'))
                            (etaName "e" 0, g_ps, []) ps
             ps' = reverse rps'
-            cs' = map (\ (Case x xps xtm) ->
-                         let g' = ctxtDeclArgs g (ps' ++ xps) in
-                           Case x xps (peelLams g' ps' (optimizeTerm g' xtm))) cs
+            cs' = [let g' = ctxtDeclArgs g (ps' ++ xps) in Case x xps (peelLams g' ps' (optimizeTerm g' xtm)) | Case x xps xtm <- cs]
         in
           joinLams ps' (TmCase tm' y cs' end)
 optimizeTerm g (TmAmb tms tp) = TmAmb (map (optimizeTerm g) tms) tp
@@ -232,7 +224,7 @@ optimizeTerm g (TmProdOut tm ps tm' tp) =
 
 -- Applies various optimizations to a list of args
 optimizeArgs :: Ctxt -> [Arg] -> [Arg]
-optimizeArgs g = map (\ (atm, atp) -> (optimizeTerm g atm, atp))
+optimizeArgs g as = [(optimizeTerm g atm, atp) | (atm, atp) <- as]
 
 -- Applies the optimizations specified at the BOF to a program
 optimizeFile :: Progs -> Either String Progs

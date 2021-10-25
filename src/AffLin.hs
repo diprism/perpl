@@ -42,7 +42,7 @@ getToMaybe tp =
 getFromMaybe :: Var -> AffLinM (Maybe (Int, Type))
 getFromMaybe y =
   get >>= \ mtps ->
-  return (lookup y (map (\ (tp, i) -> (tpMaybeName i, (i, tp))) (zip mtps [0..])))
+  return (lookup y [(tpMaybeName i, (i, tp)) | (i, tp) <- enumerate mtps])
 
 -- Adds a new maybe type to the state
 addMaybe :: Type -> AffLinM Int
@@ -279,7 +279,7 @@ affLinProgs (Progs ps end) =
 
 runAffLin :: Progs -> Progs
 runAffLin ps = case runRWS (affLinProgs ps) (ctxtDefProgs ps) [] of
-  (Progs ps' end, mtps, _) -> Progs (ps' ++ map (\ (i, tp) -> ProgData (tpMaybeName i) (maybeCtors i tp)) (enumerate mtps)) end
+  (Progs ps' end, mtps, _) -> Progs (ps' ++ [ProgData (tpMaybeName i) (maybeCtors i tp) | (i, tp) <- enumerate mtps]) end
 
 -- Make an affine file linear
 affLinFile :: Progs -> Either String Progs

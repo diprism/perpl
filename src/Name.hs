@@ -30,7 +30,7 @@ ctorFactorName x as tp = internalFactorName (TmVarG CtorVar x as tp)
 
 -- FGG factor name for the default ctor rule
 ctorFactorNameDefault :: Var -> [Type] -> Type -> String
-ctorFactorNameDefault x as = ctorFactorName x (map (\ (i, a) -> (TmVarL (etaName x i) a, a)) (enumerate as))
+ctorFactorNameDefault x as = ctorFactorName x [(TmVarL (etaName x i) a, a) | (i, a) <- (enumerate as)]
 
 -- Establishes naming convention for eta-expanding a constructor/global def.
 etaName x i = "?" ++ x ++ show i

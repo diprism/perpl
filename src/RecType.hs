@@ -110,13 +110,11 @@ collectFoldsFile = collectFile . collectFolds
 
 -- Makes the %UnfoldY% datatype, given results from collectUnfolds
 makeUnfoldDatatype :: Var -> [(FreeVars, Type)] -> Prog
---makeUnfoldDatatype y = ProgData (unfoldTypeName y) . map (\ (i, (fvs, tp)) -> Ctor (unfoldCtorName y i) [joinArrows (Map.elems fvs) tp]) . enumerate
-makeUnfoldDatatype y us = ProgData (unfoldTypeName y) [Ctor (unfoldCtorName y) [TpAmp (map (\ (fvs, tp) -> joinArrows (Map.elems fvs) tp) us)]]
--- (map (\ (fvs, tp) -> TpArr tpUnit (joinArrows (Map.elems fvs) tp)) us)
+makeUnfoldDatatype y us = ProgData (unfoldTypeName y) [Ctor (unfoldCtorName y) [TpAmp [joinArrows (Map.elems fvs) tp | (fvs, tp) <- us]]]
 
 -- Makes the %FoldY% datatype, given results from collectFolds
 makeFoldDatatype :: Var -> [(Var, FreeVars)] -> Prog
-makeFoldDatatype y = ProgData (foldTypeName y) . map (\ (i, (x, fvs)) -> Ctor (foldCtorName y i) (map snd (Map.toList fvs))) . enumerate
+makeFoldDatatype y fs = ProgData (foldTypeName y) [Ctor (foldCtorName y i) (snds (Map.toList fvs)) | (i, (x, fvs)) <- enumerate fs]
 
 -- Makes the "unapply" function and Unfold datatype
 makeDisentangle :: Ctxt -> Var -> [(FreeVars, Type)] -> [[Case]] -> (Prog, Prog)
@@ -125,16 +123,16 @@ makeDisentangle g y us css =
       utp = TpVar (unfoldTypeName y)
       dat = makeUnfoldDatatype y us
       x = "%abc" -- targetName -- TODO
-      sub_ps = map (\ (x, tp) -> (x, derefunSubst Refun y tp))
+      sub_ps ps = [(x, derefunSubst Refun y tp) | (x, tp) <- ps]
       alls = zipWith3 (\ (fvs, tp) cs i -> (fvs, tp, cs, i)) us css [0..]
-      cscs = map (\ (fvs, tp, cs, i) ->
-                    let ps = sub_ps (Map.toList fvs)
-                        g' = \ xps -> ctxtDeclArgs g (xps ++ ps)
-                        cs' = map (\ (Case cx cps ctm) -> Case cx (sub_ps cps)
-                                    (derefunTerm Refun (g' cps) y ctm)) cs in
-                      (joinLams ps (TmCase (TmVarL x ytp) y cs' tp),
-                       joinArrows (tpUnit : map snd ps) tp)) alls
-      fun = ProgFun (unfoldName y) [] (TmLam x ytp (TmVarG CtorVar (unfoldCtorName y) [(TmAmpIn cscs, TpAmp (map snd cscs))] utp) utp) (TpArr ytp utp)
+      cscs = [let ps = sub_ps (Map.toList fvs)
+                  g' = \ xps -> ctxtDeclArgs g (xps ++ ps)
+                  cs' = [Case cx (sub_ps cps) (derefunTerm Refun (g' cps) y ctm)
+                        | Case cx cps ctm <- cs] in
+                 (joinLams ps (TmCase (TmVarL x ytp) y cs' tp),
+                   joinArrows (tpUnit : snds ps) tp)
+             | (fvs, tp, cs, i) <- alls]
+      fun = ProgFun (unfoldName y) [] (TmLam x ytp (TmVarG CtorVar (unfoldCtorName y) [(TmAmpIn cscs, TpAmp (snds cscs))] utp) utp) (TpArr ytp utp)
   in
     (dat, fun)
 
@@ -148,11 +146,11 @@ makeDefold g y tms =
       ps = [(x, ftp)]
       casesf = \ (i, tm) -> let ps' = Map.toList (freeVars' tm) in Case (foldCtorName y i) ps' (derefunTerm Defun (ctxtDeclArgs g ps') y tm)
       cases = map casesf (enumerate tms)
-      ctors = map (\ (Case x ps tm) -> Ctor x (map snd ps)) cases
+      ctors = [Ctor x (snds ps) | Case x ps tm <- cases]
       tm = TmCase (TmVarL x ftp) tname cases (TpVar y)
   in
     (ProgData tname ctors,
-     ProgFun fname [] (joinLams ps tm) (joinArrows (map snd ps) (TpVar y)))
+     ProgFun fname [] (joinLams ps tm) (joinArrows (snds ps) (TpVar y)))
 
 --------------------------------------------------
 
@@ -180,13 +178,9 @@ disentangleTerm rtp cases = h where
       State.get >>= \ unfolds ->
       let i = length unfolds
           x' = "%def" -- targetName -- TODO
---          get_ps = \ (cfvs, ctp2) -> ("_", tpUnit) : Map.toList cfvs
---          get_as = \ (cfvs, ctp2) -> (tmUnit, tpUnit) : paramsToArgs (Map.toList cfvs)
           get_ps = \ (cfvs, ctp2) -> Map.toList cfvs
           get_as = \ (cfvs, ctp2) -> paramsToArgs (Map.toList cfvs)
-          get_arr = \ (cfvs, ctp2) -> joinArrows (map snd (get_ps (cfvs, ctp2))) ctp2
-          --cs'' = [Case (unfoldCtorName rtp) (map (\ (j, cfvstp2) -> (if i == j then x' else "_", get_arr cfvstp2)) (enumerate cases)) (let cfvstp2 = cases !! i in joinApps (TmVarL x' (get_arr cfvstp2)) ((get_as cfvstp2)))]
-          --rtm = TmCase tm (unfoldTypeName rtp) cs'' tp
+          get_arr = \ (cfvs, ctp2) -> joinArrows (snds (get_ps (cfvs, ctp2))) ctp2
           xtps = map get_arr cases
           xtp = TpAmp xtps
           cs'' = [Case (unfoldCtorName rtp) [(x', xtp)] (let cfvstp2 = cases !! i in joinApps (TmAmpOut (TmVarL x' xtp) xtps i) (get_as cfvstp2))]
@@ -305,19 +299,19 @@ derefunTerm dr g rtp = fst . h where
   h' (TmCase tm1 tp1 cs tp2)
     | dr == Defun && tp1 == rtp =
         let (tm1', tp1') = h tm1
-            cs' = map (\ (Case x ps xtm) -> Case x (h_ps ps) (fst (h xtm))) cs
+            cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> getType xtm in
           TmCase (TmVarG DefVar applyN [(tm1', tp1')] (TpVar rtp)) rtp cs' tp2'
     | otherwise =
         let (tm1', TpVar tp1') = h tm1
-            cs' = map (\ (Case x ps xtm) -> Case x (h_ps ps) (fst (h xtm))) cs
+            cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> getType xtm in
           TmCase tm1' tp1' cs' tp2'
   h' (TmSamp d tp) = TmSamp d tp
   h' (TmAmb tms tp) =
     let tms' = map h tms
         tp' = if null tms' then sub tp else snd (head tms') in
-      TmAmb (map fst tms') tp'
+      TmAmb (fsts tms') tp'
   h' (TmAmpIn as) =
     TmAmpIn [h tm | (tm, _) <- as]
   h' (TmAmpOut tm tps o) =
@@ -336,7 +330,7 @@ derefunTerm dr g rtp = fst . h where
 derefunProgTypes :: DeRe -> Var -> Prog -> Prog
 derefunProgTypes dr rtp (ProgFun x ps tm tp) = ProgFun x (map (fmap (derefunSubst dr rtp)) ps) tm (derefunSubst dr rtp tp)
 derefunProgTypes dr rtp (ProgExtern x xp ps tp) = ProgExtern x xp ps tp
-derefunProgTypes dr rtp (ProgData y cs) = ProgData y (map (\ (Ctor x tps) -> Ctor x (map (derefunSubst dr rtp) tps)) cs)
+derefunProgTypes dr rtp (ProgData y cs) = ProgData y [Ctor x [derefunSubst dr rtp tp | tp <- tps] | Ctor x tps <- cs]
 
 derefunProgsTypes :: DeRe -> Var -> Progs -> Progs
 derefunProgsTypes dr rtp (Progs ps end) =

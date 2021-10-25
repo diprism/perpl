@@ -107,14 +107,14 @@ getCtorWeightsAll :: (Type -> [String]) -> [Ctor] -> Type -> [(String, Weights)]
 getCtorWeightsAll dom cs y =
   concat $ flip map cs $ \ (Ctor x as) ->
     flip map (getCtorWeights dom (Ctor x as) cs) $ \ (as', ws) ->
-      let as'' = map (\ (x, atp) -> (TmVarL x atp, atp)) (zip as' as) in
+      let as'' = [(TmVarL x atp, atp) | (x, atp) <- zip as' as] in
         (ctorFactorName x as'' y, ws)
 
 -- Computes the weights for a specific constructor
 getCtorWeights :: (Type -> [String]) -> Ctor -> [Ctor] -> [([String], Weights)]
 getCtorWeights dom (Ctor x as) cs =
   let (cs_before, cs_after) = splitCtorsAt cs x
-      csf = \ cs' -> sum (map (\ (Ctor x' as') -> product (map (length . dom) as')) cs')
+      csf = \ cs' -> sum [product (map (length . dom) as') | (Ctor x' as') <- cs']
       cs_b' = csf cs_before
       cs_a' = csf cs_after
       mkrow = \ mask -> vector (replicate cs_b' 0 ++ mask ++ replicate cs_a' 0)
@@ -128,7 +128,7 @@ getCtorWeights dom (Ctor x as) cs =
 getCtorWeightsFlat :: (Type -> [String]) -> Ctor -> [Ctor] -> Weights
 getCtorWeightsFlat dom (Ctor x as) cs =
   let (cs_before, cs_after) = splitCtorsAt cs x
-      csf = \ cs' -> sum (map (\ (Ctor x' as') -> product (map (length . dom) as')) cs')
+      csf = \ cs' -> sum [product (map (length . dom) as') | Ctor x' as' <- cs']
       cs_b' = csf cs_before
       cs_a' = csf cs_after
       mkrow = \ mask -> replicate cs_b' 0 ++ mask ++ replicate cs_a' 0
@@ -148,19 +148,17 @@ getCtorEqWeights cs =
 getAmpWeights :: (Type -> [String]) -> [Type] -> [Weights]
 getAmpWeights dom tps =
   let tpvs = map dom tps in
-    map (\ (i, itpvs) ->
-           Vector
-             (concatMap
-               (\ (j, vs) ->
-                   [Vector [Scalar (if l == k && i == j then 1 else 0) | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs])
-               (enumerate tpvs))) (enumerate tpvs)
+    [Vector
+      (concatMap
+        (\ (j, vs) ->
+            [Vector [Scalar (if l == k && i == j then 1 else 0) | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs]) (enumerate tpvs)) | (i, itpvs) <- enumerate tpvs]
 
 getProdWeights :: [[String]] -> [([String], Weights)]
 getProdWeights tpvs =
   let vss = kronpos tpvs in
-  flip map vss $ \ as' -> (,) (map (\ (_, _, a) -> a) as') $ 
+  [([a | (_, _, a) <- as'],
     let (out, pos) = foldr (\ (i, o, _) (l, j) -> (l * o, l * i + j)) (1, 0) as' in
-      foldr (\ (i, o, a) ws -> Vector [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]]) (vector (tensorIdRow pos out)) as'
+      foldr (\ (i, o, a) ws -> Vector [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]]) (vector (tensorIdRow pos out)) as') | as' <- vss]
 
 getProdWeightsV :: [[String]] -> Weights
 getProdWeightsV tpvs =
@@ -188,7 +186,7 @@ combineExts = h Map.empty 0 where
   h ixs i [] = ([], [])
   h ixs i (as : rest) =
     let (ixs', as') = index ixs i as
-        is = map (\ (a, _) -> ixs' Map.! a) as
+        is = [ixs' Map.! a | (a, _) <- as]
         (rs, ms) = h ixs' (i + length as') rest in
       (as' ++ rs, is : ms)
 

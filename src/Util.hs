@@ -2,26 +2,32 @@ module Util where
 import Data.List
 import Exprs
 
+fsts :: [(a, b)] -> [a]
+fsts = fst . unzip
+
+snds :: [(a, b)] -> [b]
+snds = snd . unzip
+
 mapLeft :: (a -> b) -> Either a c -> Either b c
 mapLeft f (Left a) = Left (f a)
 mapLeft f (Right c) = Right c
 
 -- Creates a matrix of all possible combinations of two lists
 kronecker :: [a] -> [b] -> [[(a, b)]]
-kronecker as bs = map (\ a -> map (\ b -> (a, b)) bs) as
+kronecker as bs = [[(a, b) | b <- bs] | a <- as]
 
 -- Calls a function for each possible combination of elements from two lists,
 -- collecting into a list of results
 kronwith :: (a -> b -> c) -> [a] -> [b] -> [c]
-kronwith f as bs = map (uncurry f) $ concat $ kronecker as bs
+kronwith f as bs = [f a b | (a, b) <- concat (kronecker as bs)]
 
 -- n-dimensional Kronecker product
 kronall :: [[a]] -> [[a]]
-kronall = foldr (\ vs ws -> [ (v : xs) | v <- vs, xs <- ws ]) [[]]
+kronall = foldr (\ vs ws -> [(v : xs) | v <- vs, xs <- ws ]) [[]]
 
 -- kronall, but keeps track of the position (row, col) each element came from
 kronpos :: [[a]] -> [[(Int, Int, a)]]
-kronpos = kronall . map (\ as -> map (\ (i, a) -> (i, length as, a)) (enumerate as))
+kronpos as = kronall [[(i, length as', a) | (i, a) <- enumerate as'] | as' <- as]
 
 -- [a, b, c, ...] -> [(0, a), (1, b), (2, c), ...]
 enumerate :: [a] -> [(Int, a)]
@@ -53,14 +59,14 @@ getType (TmLet x xtm xtp tm tp) = tp
 getType (TmCase ctm y cs tp) = tp
 getType (TmSamp d tp) = tp
 getType (TmAmb tms tp) = tp
-getType (TmAmpIn as) = TpAmp (map snd as)
+getType (TmAmpIn as) = TpAmp (snds as)
 getType (TmAmpOut tm tps o) = tps !! o
-getType (TmProdIn as) = TpProd (map snd as)
+getType (TmProdIn as) = TpProd (snds as)
 getType (TmProdOut tm ps tm' tp) = tp
 
 -- Sorts cases according to the order they are appear in the datatype definition
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
-sortCases ctors cases = map snd $ sortBy (\ (a, _) (b, _) -> compare a b) (label cases) where
+sortCases ctors cases = snds $ sortBy (\ (a, _) (b, _) -> compare a b) (label cases) where
   getIdx :: Int -> Var -> [Ctor] -> Int
   getIdx i x [] = i + 1
   getIdx i x (Ctor x' tp : cs)
@@ -98,7 +104,7 @@ joinApps' tm = h (toArg tm) where
 
 -- Joins (tm1, [(tm2, tp2), (tm3, tp3), ..., (tmn, tpn)]) into tm1 tm2 tm3 ... tmn
 joinApps :: Term -> [Arg] -> Term
-joinApps tm as = joinApps' tm (map fst as)
+joinApps tm as = joinApps' tm (fsts as)
 
 -- splitApps, but for UsTms
 splitUsApps :: UsTm -> (UsTm, [UsTm])
@@ -151,7 +157,7 @@ paramsToArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
 -- Turns a constructor into one with all its args applied
 addArgs :: GlobalVar -> Var -> [Arg] -> [Param] -> Type -> Term
 addArgs gv x tas vas y =
-  TmVarG gv x (tas ++ map (\ (a, atp) -> (TmVarL a atp, atp)) vas) y
+  TmVarG gv x (tas ++ [(TmVarL a atp, atp) | (a, atp) <- vas]) y
 
 -- Eta-expands a constructor with the necessary extra args
 etaExpand :: GlobalVar -> Var -> [Arg] -> [Param] -> Type -> Term

@@ -116,7 +116,7 @@ isLin' x = (LinYes ==) . h where
 
   h :: Term -> Lin
   h (TmVarL x' tp) = if x == x' then LinYes else LinNo
-  h (TmVarG gv x' as tp) = h_as LinErr (map fst as)
+  h (TmVarG gv x' as tp) = h_as LinErr (fsts as)
   h (TmLam x' tp tm tp') = if x == x' then LinNo else h tm
   h (TmApp tm1 tm2 tp2 tp) = h_as LinErr [tm1, tm2]
   h (TmLet x' xtm xtp tm tp) = if x == x' then h xtm else h_as LinErr [xtm, tm]
@@ -128,11 +128,11 @@ isLin' x = (LinYes ==) . h where
     (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
   h (TmSamp d tp) = LinNo
   h (TmAmb tms tp) = h_as LinYes tms
-  h (TmAmpIn as) = h_as LinYes (map fst as)
+  h (TmAmpIn as) = h_as LinYes (fsts as)
   h (TmAmpOut tm tps o) = h tm
-  h (TmProdIn as) = h_as LinErr (map fst as)
+  h (TmProdIn as) = h_as LinErr (fsts as)
   h (TmProdOut tm ps tm' tp) =
-    if x `elem` map fst ps then h tm else h_as LinErr [tm, tm']
+    if x `elem` fsts ps then h tm else h_as LinErr [tm, tm']
 
 -- Returns if a type has an infinite domain (i.e. it contains (mutually) recursive datatypes anywhere in it)
 typeIsRecursive :: Ctxt -> Type -> Bool

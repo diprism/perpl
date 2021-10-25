@@ -79,7 +79,7 @@ checkTermh g (UsApp tm1 tm2) =
       let tps' = take (length as) tps
           end' = joinArrows (drop (length as) tps) end in
       sequence (map (checkTerm g) as) >>= \ as' ->
-      sequence (map (\ ((a, atp), tp) -> ifErr (atp /= tp) (expVsActTpMsg tp atp)) (zip as' tps')) >>
+      sequence [ifErr (atp /= tp) (expVsActTpMsg tp atp) | ((a, atp), tp) <- zip as' tps'] >>
       case hd' of
         (TmVarG gv x [] tp) ->
           let etas = nameParams x tps

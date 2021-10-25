@@ -20,10 +20,10 @@ toUsTm (TmProdIn as) = UsProdIn [toUsTm tm | (tm, _) <- as]
 toUsTm (TmProdOut tm ps tm' tp) = UsProdOut (toUsTm tm) [x | (x, _) <- ps] (toUsTm tm')
 
 toCaseUs :: Case -> CaseUs
-toCaseUs (Case x as tm) = CaseUs x (map fst as) (toUsTm tm)
+toCaseUs (Case x as tm) = CaseUs x (fsts as) (toUsTm tm)
 
 toUsProgs' :: [Prog] -> UsTm -> UsProgs
-toUsProgs' (ProgFun x ps tm tp : ds) end = UsProgFun x (joinArrows (map snd ps) tp) (toUsTm (joinLams ps tm)) (toUsProgs' ds end)
+toUsProgs' (ProgFun x ps tm tp : ds) end = UsProgFun x (joinArrows (snds ps) tp) (toUsTm (joinLams ps tm)) (toUsProgs' ds end)
 toUsProgs' (ProgExtern x xp ps tp : ds) end = UsProgExtern x (joinArrows ps tp) (toUsProgs' ds end)
 toUsProgs' (ProgData y cs : ds) end = UsProgData y cs (toUsProgs' ds end)
 toUsProgs' [] end = UsProgExec end
