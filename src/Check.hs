@@ -87,11 +87,11 @@ checkTermh g (UsApp tm1 tm2) =
 checkTermh g (UsCase tm cs) =
   checkTerm g tm >>= \ (tm', tp) ->
   case tp of
-    (TpArr _ _) -> err "Case splitting on arrow type"
     (TpVar y) -> maybe2 (ctxtLookupType g y)
       (err "Error in checkTerm UsCase") -- shouldn't happen
       $ \ ycs -> checkCases g ycs (sortCases ycs cs) >>= \ (cs', tp') ->
         return (TmCase tm' y cs' tp')
+    _ -> err "Case splitting on non-datatype"
 
 checkTermh g (UsSamp d tp) =
   checkType g tp >>
