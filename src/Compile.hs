@@ -63,16 +63,15 @@ newNames' = newNames 0
 -- Add rule for a constructor
 ctorRules :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
 ctorRules g (Ctor x as) y cs =
-  let --ix = foldr (\ (Ctor x' _) next ix -> if x == x' then ix else next (ix + 1)) id cs 0
-      as' = [(etaName x i, a) | (i, a) <- enumerate as]
+  let as' = [(etaName x i, a) | (i, a) <- enumerate as]
       (ns, [ias, [iy]]) = combineExts [as', newNames' [y]]
-      fac = ctorFactorNameDefault x as y -- ctorFactorName x (paramsToArgs as') y
+      fac = ctorFactorNameDefault x as y
       es = [Edge (ias ++ [iy]) fac]
       xs = ias ++ [iy]
       tm = TmVarG CtorVar x [(TmVarL a atp, atp) | (a, atp) <- as'] y in
     addRule' tm (snds ns) es xs +>
     foldr (\ tp r -> type2fgg g tp +> r) returnRule as +>
-    addFactor fac -- (ctorFactorNameDefault x as y)
+    addFactor fac
       (getCtorWeightsFlat (domainValues g) (Ctor x as) cs)
 
 ctorsRules :: Ctxt -> [Ctor] -> Type -> RuleM

@@ -1,7 +1,7 @@
 module Name where
 import Exprs
 import Util
-import Show
+import Show()
 
 {- Naming conventions for internally-generated variables -}
 

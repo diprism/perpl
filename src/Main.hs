@@ -3,14 +3,12 @@ import System.Exit
 import System.Environment
 import System.IO
 import Exprs
-import Ctxt
 import Parse
 import Lex
 import Check
 import Compile
 import Util
 import RecType
-import Free
 import Rename
 import AffLin
 import Optimize

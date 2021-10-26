@@ -2,12 +2,10 @@ module AffLin where
 import qualified Data.Map as Map
 --import qualified Control.Monad.State as State
 import Control.Monad.RWS
-import Data.List
 import Exprs
 import Ctxt
 import Util
 import Name
-import Rename
 import Free
 
 {- ====== Affine to Linear Functions ====== -}

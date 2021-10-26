@@ -70,6 +70,8 @@ type Pos = (Int, Int) -- Line, column
 
 forward' :: Int -> Pos -> Pos
 forward' n (line, column) = (line, column + n)
+
+forward :: Pos -> Pos
 forward = forward' 1
 
 next :: Pos -> Pos

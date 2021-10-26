@@ -1,12 +1,10 @@
 module FGG where
 import qualified Data.Map as Map
 import Data.List
-import Ctxt
 import Util
 import Exprs
-import Show
-import Name
 import Tensor
+import Show()
 
 -- Should the compiler make sure there aren't conflicting nonterminal domains?
 checkDomsEq = True

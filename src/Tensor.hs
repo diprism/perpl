@@ -1,6 +1,5 @@
 module Tensor where
 import Util
-import Data.List
 
 zipUnsafe :: [a] -> [b] -> [(a, b)]
 zipUnsafe [] [] = []

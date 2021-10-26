@@ -3,8 +3,6 @@ import Exprs
 import Ctxt
 import Util
 import qualified Data.Map as Map
-import Data.List
-import Data.Char
 
 -- For checking linearity, vars can appear:
 -- LinNo: not at all

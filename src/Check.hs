@@ -24,8 +24,6 @@ ifErr :: Bool -> String -> Either ErrMsg ()
 ifErr b e = if b then err e else okay
 
 -- Error if x \in g
---ifBound :: Ctxt -> Var -> Either ErrMsg ()
---ifBound g x = ifErr (ctxtBinds g x) ("'" ++ x ++ "' has multiple definitions")
 ifBound :: [Var] -> Var -> Either ErrMsg ()
 ifBound ds x = ifErr (x `elem` ds) ("'" ++ x ++ "' has multiple definitions")
 
@@ -76,8 +74,7 @@ checkTermh g (UsApp tm1 tm2) =
         expVsActTpMsg = \ exp act -> "Expected arg of type " ++
                                      show exp ++ ", but got " ++ show act in
       ifErr (length as > length tps) numErrMsg >>
-      let tps' = take (length as) tps
-          end' = joinArrows (drop (length as) tps) end in
+      let tps' = take (length as) tps in
       sequence (map (checkTerm g) as) >>= \ as' ->
       sequence [ifErr (atp /= tp) (expVsActTpMsg tp atp) | ((a, atp), tp) <- zip as' tps'] >>
       case hd' of
@@ -85,7 +82,6 @@ checkTermh g (UsApp tm1 tm2) =
           let etas = nameParams x tps
               etas' = drop (length as') etas in
           return (etaExpand gv x as' etas' end)
-          --return (joinApps (etaExpand x [] etas y) as' end')
         _ -> return (joinApps hd' as')
 
 checkTermh g (UsCase tm cs) =
@@ -99,8 +95,6 @@ checkTermh g (UsCase tm cs) =
 
 checkTermh g (UsSamp d tp) =
   checkType g tp >>
---  ifErr (typeIsRecursive g tp)
---    "Can't sample from a type with an infinite domain" >>
   return (TmSamp d tp)
 
 checkTermh g (UsLet x ltm tm) =

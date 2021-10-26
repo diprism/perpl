@@ -8,7 +8,6 @@ import Free
 import Ctxt
 import Name
 import Rename
-import Show
 
 --------------------------------------------------
 

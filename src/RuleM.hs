@@ -155,15 +155,13 @@ getAmpWeights dom tps =
 
 getProdWeights :: [[String]] -> [([String], Weights)]
 getProdWeights tpvs =
-  let vss = kronpos tpvs in
   [([a | (_, _, a) <- as'],
     let (out, pos) = foldr (\ (i, o, _) (l, j) -> (l * o, l * i + j)) (1, 0) as' in
-      foldr (\ (i, o, a) ws -> Vector [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]]) (vector (tensorIdRow pos out)) as') | as' <- vss]
+      foldr (\ (i, o, a) ws -> Vector [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]]) (vector (tensorIdRow pos out)) as') | as' <- kronpos tpvs]
 
 getProdWeightsV :: [[String]] -> Weights
 getProdWeightsV tpvs =
-  let vss = kronpos tpvs
-      dims = [length vs | vs <- tpvs] in
+  let dims = [length vs | vs <- tpvs] in
     tensorId dims
 
 

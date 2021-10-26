@@ -1,5 +1,4 @@
 module Optimize where
-import Data.List
 import Data.Maybe
 import qualified Data.Map as Map
 import Exprs
