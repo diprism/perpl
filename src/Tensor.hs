@@ -4,6 +4,7 @@ import Util
 zipUnsafe :: [a] -> [b] -> [(a, b)]
 zipUnsafe [] [] = []
 zipUnsafe (a : as) (b : bs) = (a, b) : zipUnsafe as bs
+zipUnsafe _ _ = error "zipping lists of different lengths"
 
 data Tensor a = Scalar a | Vector [Tensor a]
 
