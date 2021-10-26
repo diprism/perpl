@@ -55,8 +55,8 @@ addRule :: Rule -> RuleM
 addRule r = addRules [r]
 
 -- Add a rule from the given components
-addRule' :: Term -> [Type] -> [Edge] -> [Int] -> RuleM
-addRule' lhs ns es xs = addRule $ Rule (show lhs) $ HGF ns es xs
+--addRule' :: Term -> [Type] -> [Edge] -> [Int] -> RuleM
+--addRule' lhs ns es xs = addRule $ Rule (show lhs) $ HGF ns es xs
 
 addFactor :: Var -> Weights -> RuleM
 addFactor x w = RuleM [] [] [] [(x, w)]
@@ -66,8 +66,8 @@ returnRule :: RuleM
 returnRule = RuleM [] [] [] []
 
 -- Extract rules from a RuleM
-getRules :: RuleM -> [Rule]
-getRules (RuleM rs xs nts fs) = rs
+--getRules :: RuleM -> [Rule]
+--getRules (RuleM rs xs nts fs) = rs
 
 -- Removes all external nodes from a RuleM
 resetExts :: RuleM -> RuleM

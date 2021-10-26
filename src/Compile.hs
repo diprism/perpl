@@ -19,13 +19,16 @@ addStartRuleIfNecessary tm rm =
   let stm = show tm
       tp = getType tm in
     if isRule stm rm then (stm, rm) else
-      (startName, addRule' (TmVarL startName tp) [tp] [Edge [0] stm] [0] +> rm)
+      (startName,
+       mkRule (TmVarL startName tp) [(newNames' [tp])]
+         (\ [[itp]] -> ([Edge [itp] stm], [itp])) +> rm)
 
 -- Local var rule
 var2fgg :: Var -> Type -> RuleM
 var2fgg x tp =
   let fac = typeFactorName tp in
-  addRule' (TmVarL x tp) [tp, tp] [Edge [0, 1] fac] [0, 1]
+  mkRule (TmVarL x tp) [newNames' [tp, tp]]
+    (\ [[i0, i1]] -> ([Edge [i0, i1] fac], [i0, i1]))
 
 -- Bind a list of external nodes, and add rules for them
 bindExts :: Bool -> [Param] -> RuleM -> RuleM
@@ -60,19 +63,23 @@ newNames i as = [(newName (i + j), atp) | (j, atp) <- enumerate as]
 newNames' :: [a] -> [(Var, a)]
 newNames' = newNames 0
 
+-- mkRule creates a rule from a lhs term, a list of nodes, and a function that returns the edges and external nodes given a list of the nodes' indices (it does some magic on the nodes, so the indices are not necessarily in the same order as the nodes)
+mkRule :: Term -> [[(Var, Type)]] -> ([[Int]] -> ([Edge], [Int])) -> RuleM
+mkRule lhs ns f_indexed =
+  let (ns', ins) = combineExts ns
+      (es, xs) = f_indexed ins
+  in
+    addRule (Rule (show lhs) (HGF (snds ns') es xs))
+
 -- Add rule for a constructor
 ctorRules :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
 ctorRules g (Ctor x as) y cs =
   let as' = [(etaName x i, a) | (i, a) <- enumerate as]
-      (ns, [ias, [iy]]) = combineExts [as', newNames' [y]]
-      fac = ctorFactorNameDefault x as y
-      es = [Edge (ias ++ [iy]) fac]
-      xs = ias ++ [iy]
-      tm = TmVarG CtorVar x [(TmVarL a atp, atp) | (a, atp) <- as'] y in
-    addRule' tm (snds ns) es xs +>
+      tm = TmVarG CtorVar x [(TmVarL a atp, atp) | (a, atp) <- as'] y
+      fac = ctorFactorNameDefault x as y in
+    addFactor fac (getCtorWeightsFlat (domainValues g) (Ctor x as) cs) +>
     foldr (\ tp r -> type2fgg g tp +> r) returnRule as +>
-    addFactor fac
-      (getCtorWeightsFlat (domainValues g) (Ctor x as) cs)
+    mkRule tm [as', newNames' [y]] (\ [ias, [iy]] -> ([Edge (ias ++ [iy]) fac], ias ++ [iy]))
 
 ctorsRules :: Ctxt -> [Ctor] -> Type -> RuleM
 ctorsRules g cs y =
@@ -90,15 +97,16 @@ caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
       unused_ps = Map.toList (Map.difference all_fvs (Map.fromList xs_xtm_as))
       unused_nps = newNames 2 [tp | (_, tp) <- unused_ps]
       fac = ctorFactorName x (paramsToArgs (nameParams x (snds as))) (TpVar y)
-      (ns, [[ictm, ixtm], ixs_xtm_as, ixs_as, ixs_ctm, all_ixs, d_ixs, d_ins]) =
-        combineExts [newNames' [TpVar y, tp], xs_xtm_as, as, xs_ctm, all_xs, unused_ps, unused_nps]
-      (ixs_xtm, ixs_as') = foldr (\ (a, i) (ixs_xtm, ixs_as) -> if elem (fst a) (fsts as) then (ixs_xtm, (fst a, i) : ixs_as) else (i : ixs_xtm, ixs_as)) ([], []) (zip xs_xtm_as ixs_xtm_as)
-      es = Edge (ixs_ctm ++ [ictm]) (show ctm) :
-           Edge (ixs_xtm_as ++ [ixtm]) (show xtm) :
-           Edge (ixs_as ++ [ictm]) fac :
-           discardEdges [x | (x, _) <- unused_ps] d_ixs d_ins
-      xs = nub (ixs_ctm ++ all_ixs ++ [ixtm]) in
-    addRule' (TmCase ctm y cs tp) (snds ns) es xs
+  in
+    mkRule (TmCase ctm y cs tp)
+      [newNames' [TpVar y, tp], xs_xtm_as, as, xs_ctm, all_xs, unused_ps, unused_nps]
+      (\ [[ictm, ixtm], ixs_xtm_as, ixs_as, ixs_ctm, all_ixs, d_ixs, d_ins] ->
+         let (ixs_xtm, ixs_as') = foldr (\ (a, i) (ixs_xtm, ixs_as) -> if elem (fst a) (fsts as) then (ixs_xtm, (fst a, i) : ixs_as) else (i : ixs_xtm, ixs_as)) ([], []) (zip xs_xtm_as ixs_xtm_as) in
+           (Edge (ixs_ctm ++ [ictm]) (show ctm) :
+              Edge (ixs_xtm_as ++ [ixtm]) (show xtm) :
+              Edge (ixs_as ++ [ictm]) fac :
+              discardEdges [x | (x, _) <- unused_ps] d_ixs d_ins,
+            nub (ixs_ctm ++ all_ixs ++ [ixtm])))
 
 ambRule :: Ctxt -> FreeVars -> [Term] -> Type -> Term -> RuleM
 ambRule g all_fvs tms tp tm =
@@ -106,12 +114,11 @@ ambRule g all_fvs tms tp tm =
   let all_xs = Map.toList all_fvs
       unused_tms = Map.toList (Map.difference all_fvs (Map.fromList tmxs))
       unused_ns = newNames 1 [tp | (_, tp) <- unused_tms]
-      (ns, [itp : ixs, all_ixs, d_ixs, d_ins]) =
-        combineExts [(newName 0, tp) : tmxs, all_xs, unused_tms, unused_ns]
-      es = Edge (ixs ++ [itp]) (show tm) : discardEdges [x | (x, _) <- unused_tms] d_ixs d_ins
-      xs = all_ixs ++ [itp]
   in
-    addRule' (TmAmb tms tp) (snds ns) es xs
+    mkRule (TmAmb tms tp) [(newName 0, tp) : tmxs, all_xs, unused_tms, unused_ns]
+      (\ [itp : ixs, all_ixs, d_ixs, d_ins] ->
+         (Edge (ixs ++ [itp]) (show tm) : discardEdges [x | (x, _) <- unused_tms] d_ixs d_ins,
+          all_ixs ++ [itp]))
 
 addAmpFactors :: Ctxt -> [Type] -> RuleM
 addAmpFactors g tps =
@@ -135,37 +142,33 @@ term2fgg g (TmVarG gv x [] tp) =
 term2fgg g (TmVarG gv x as y) =
   [term2fgg g a | (a, atp) <- reverse as] +*>= \ xss' ->
   -- TODO: instead of reversing, just have (+*>=) do that
-  let xss = reverse xss'
-      (ns, (iy : ias) : ixss) = combineExts (newNames' (y : snds as) : xss)
-      es_c = Edge (ias ++ [iy]) (ctorFactorNameDefault x (snds as) y) :
-                 [Edge (ixs ++ [itp]) (show a) | (ixs, (a, _), itp) <- zip3 ixss as ias]
-      es_d = Edge (ias ++ [iy]) x : [Edge (ixs ++ [ia]) (show atm) | ((atm, atp), ia, ixs) <- (zip3 as ias ixss)]
-      es = if gv == CtorVar then es_c else es_d
-      xs = nub (concat ixss) ++ [iy]
-  in
-    addRule' (TmVarG gv x as y) (snds ns) es xs
+  let xss = reverse xss' in
+    mkRule (TmVarG gv x as y) (newNames' (y : snds as) : xss)
+      (\ ((iy : ias) : ixss) ->
+         (Edge (ias ++ [iy]) (if gv == CtorVar then ctorFactorNameDefault x (snds as) y else x) :
+            [Edge (ixs ++ [itp]) (show atm) | (ixs, (atm, atp), itp) <- zip3 ixss as ias],
+          nub (concat ixss) ++ [iy]))
 term2fgg g (TmLam x tp tm tp') =
   bindExt True x tp $
   term2fgg (ctxtDeclTerm g x tp) tm +>= \ tmxs ->
-  let (ns, [[itp], [itp', iarr], ixs]) = combineExts [[(x, tp)], newNames' [tp', TpArr tp tp'], tmxs]
-      ixs' = delete itp ixs
-      es = [Edge (ixs ++ [itp']) (show tm),
-            Edge [itp, itp', iarr] (pairFactorName tp tp')]
-      xs = ixs' ++ [iarr] in
-    addRule' (TmLam x tp tm tp') (snds ns) es xs +>
-    addFactor (pairFactorName tp tp') (getPairWeights (domainSize g tp) (domainSize g tp'))
+  addFactor (pairFactorName tp tp') (getPairWeights (domainSize g tp) (domainSize g tp')) +>
+  mkRule (TmLam x tp tm tp') [[(x, tp)], newNames' [tp', TpArr tp tp'], tmxs]
+    (\ [[itp], [itp', iarr], ixs] ->
+       ([Edge (ixs ++ [itp']) (show tm), Edge [itp, itp', iarr] (pairFactorName tp tp')],
+        delete itp ixs ++ [iarr]))
+    
 term2fgg g (TmApp tm1 tm2 tp2 tp) =
   term2fgg g tm1 +>= \ xs1 ->
   term2fgg g tm2 +>= \ xs2 ->
-  let fac = pairFactorName tp2 tp
-      (ns, [[itp2, itp, iarr], ixs1, ixs2]) =
-        combineExts [newNames' [tp2, tp, TpArr tp2 tp], xs1, xs2]
-      es = [Edge (ixs2 ++ [itp2]) (show tm2),
-            Edge (ixs1 ++ [iarr]) (show tm1),
-            Edge [itp2, itp, iarr] fac]
-      xs = nub (ixs1 ++ ixs2 ++ [itp]) in
-    addRule' (TmApp tm1 tm2 tp2 tp) (snds ns) es xs +>
-    addFactor fac (getPairWeights (domainSize g tp2) (domainSize g tp))
+  let fac = pairFactorName tp2 tp in
+    addFactor fac (getPairWeights (domainSize g tp2) (domainSize g tp)) +>
+    mkRule (TmApp tm1 tm2 tp2 tp) [newNames' [tp2, tp, TpArr tp2 tp], xs1, xs2]
+      (\ [[itp2, itp, iarr], ixs1, ixs2] ->
+         ([Edge (ixs2 ++ [itp2]) (show tm2),
+           Edge (ixs1 ++ [iarr]) (show tm1),
+           Edge [itp2, itp, iarr] fac],
+          nub (ixs1 ++ ixs2 ++ [itp])))
+    
 term2fgg g (TmCase tm y cs tp) =
   term2fgg g tm +>= \ xs ->
   let fvs = freeVarsCases' cs in
@@ -186,35 +189,23 @@ term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm +>= \ xtmxs ->
   bindExt True x xtp $
   term2fgg (ctxtDeclTerm g x xtp) tm +>= \ tmxs ->
-  let (ns, [[ixtp], [itp], ixxs, ixs]) =
-        combineExts [[(x, xtp)], newNames' [tp], xtmxs, tmxs]
-      ixs' = delete ixtp ixs
-      es = [Edge (ixxs ++ [ixtp]) (show xtm), Edge (ixs ++ [itp]) (show tm)]
-      xs = nub (ixxs ++ ixs') ++ [itp]
-  in
-    addRule' (TmLet x xtm xtp tm tp) (snds ns) es xs
+  mkRule (TmLet x xtm xtp tm tp) [[(x, xtp)], newNames' [tp], xtmxs, tmxs]
+    (\ [[ixtp], [itp], ixxs, ixs] ->
+       ([Edge (ixxs ++ [ixtp]) (show xtm), Edge (ixs ++ [itp]) (show tm)],
+        nub (ixxs ++ delete ixtp ixs) ++ [itp]))
 term2fgg g (TmAmpIn as) =
   let tps = [tp | (_, tp) <- as] in
     foldr
       (\ (i, (atm, tp)) r -> r +>
         term2fgg g atm +>= \ tmxs ->
-        let (ns, [[iamp, itp], ixs]) = combineExts [newNames' [TpAmp tps, tp], tmxs]
-            es = [Edge (ixs ++ [itp]) (show atm),
-                  Edge [iamp, itp] (ampFactorName tps i)]
-            xs = nub ixs ++ [iamp]
-        in
-          addRule' (TmAmpIn as) (snds ns) es xs
+        mkRule (TmAmpIn as) [newNames' [TpAmp tps, tp], tmxs]
+          (\ [[iamp, itp], ixs] -> ([Edge (ixs ++ [itp]) (show atm), Edge [iamp, itp] (ampFactorName tps i)], nub ixs ++ [iamp]))
       )
       (addAmpFactors g tps) (enumerate as)
 term2fgg g (TmAmpOut tm tps o) =
   term2fgg g tm +>= \ tmxs ->
-  let tp = tps !! o
-      (ns, [[itp, iamp], ixs]) = combineExts [newNames' [tp, TpAmp tps], tmxs]
-      es = [Edge (ixs ++ [iamp]) (show tm),
-            Edge [iamp, itp] (ampFactorName tps o)]
-      xs = nub ixs ++ [itp]
-  in
-    addRule' (TmAmpOut tm tps o) (snds ns) es xs +>
+  let tp = tps !! o in
+    mkRule (TmAmpOut tm tps o) [newNames' [tp, TpAmp tps], tmxs] (\ [[itp, iamp], ixs] -> ([Edge (ixs ++ [iamp]) (show tm), Edge [iamp, itp] (ampFactorName tps o)], nub ixs ++ [itp])) +>
     addAmpFactors g tps
 term2fgg g (TmProdIn as) =
   [term2fgg g a | (a, atp) <- reverse as] +*>= \ xss' ->
@@ -222,12 +213,9 @@ term2fgg g (TmProdIn as) =
   let xss = reverse xss'  
       tps = snds as
       ptp = TpProd tps
-      (ns, ((iptp : itps) : ixss)) = combineExts (newNames' (ptp : tps) : xss)
-      es = Edge (itps ++ [iptp]) (prodFactorName (snds as)) : [Edge (ixs ++ [itp]) (show atm) | ((atm, atp), itp, ixs) <- zip3 as itps ixss]
-      xs = nub (concat ixss) ++ [iptp]
   in
     addProdFactors g tps +>
-    addRule' (TmProdIn as) (snds ns) es xs
+    mkRule (TmProdIn as) (newNames' (ptp : tps) : xss) (\ ((iptp : itps) : ixss) -> (Edge (itps ++ [iptp]) (prodFactorName (snds as)) : [Edge (ixs ++ [itp]) (show atm) | ((atm, atp), itp, ixs) <- zip3 as itps ixss], nub (concat ixss) ++ [iptp]))
 term2fgg g (TmProdOut ptm ps tm tp) =
   term2fgg g ptm +>= \ ptmxs ->
   bindExts True ps $
@@ -236,16 +224,16 @@ term2fgg g (TmProdOut ptm ps tm tp) =
       ptp = TpProd tps
       unused_ps = Map.toList (Map.difference (Map.fromList ps) (Map.fromList tmxs))
       unused_nps = newNames 2 [tp | (_, tp) <- unused_ps]
-      itmxs' = foldr delete itmxs ips
-      (ns, [[itp , iptp], ips, iups, iunps, itmxs, iptmxs]) = combineExts [newNames' [tp, ptp], ps, unused_ps, unused_nps, tmxs, ptmxs]
-      es = Edge (iptmxs ++ [iptp]) (show ptm) :
-           Edge (ips ++ [iptp]) (prodFactorName tps) :
-           Edge (itmxs ++ [itp]) (show tm) :
-           discardEdges [x | (x, _) <- unused_ps] iups iunps
-      xs = nub (iptmxs ++ itmxs') ++ [itp]
   in
     addProdFactors g tps +>
-    addRule' (TmProdOut ptm ps tm tp) (snds ns) es xs
+    mkRule (TmProdOut ptm ps tm tp)
+      [newNames' [tp, ptp], ps, unused_ps, unused_nps, tmxs, ptmxs]
+      (\ [[itp, iptp], ips, iups, iunps, itmxs, iptmxs] ->
+         (Edge (iptmxs ++ [iptp]) (show ptm) :
+            Edge (ips ++ [iptp]) (prodFactorName tps) :
+            Edge (itmxs ++ [itp]) (show tm) :
+            discardEdges [x | (x, _) <- unused_ps] iups iunps,
+          (nub (iptmxs ++ foldr delete itmxs ips) ++ [itp])))
 
 type2fgg :: Ctxt -> Type -> RuleM
 type2fgg g tp = type2fgg' g tp +> addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp))
@@ -264,19 +252,15 @@ prog2fgg g (ProgFun x ps tm tp) = -- TODO: add factor for joinArrows ps tp
   let unused_ps = Map.toList (Map.difference (Map.fromList ps) (Map.fromList tmxs))
       (unused_x, unused_tp) = unzip unused_ps
       unused_n = newNames 1 unused_tp
-      (ns, [[itp], ixs, ips, un_n_ixs, un_x_ixs]) = combineExts [newNames' [tp], tmxs, ps, unused_n, unused_ps]
-      es = Edge (ixs ++ [itp]) (show tm) : discardEdges unused_x un_x_ixs un_n_ixs
-      xs = ips ++ [itp]
   in
-    addRule' (TmVarG DefVar x [] tp) (snds ns) es xs
+    mkRule (TmVarG DefVar x [] tp) [newNames' [tp], tmxs, ps, unused_n, unused_ps]
+      (\ [[itp], ixs, ips, un_n_ixs, un_x_ixs] ->
+         (Edge (ixs ++ [itp]) (show tm) : discardEdges unused_x un_x_ixs un_n_ixs,
+          ips ++ [itp]))
 prog2fgg g (ProgExtern x xp ps tp) =
-  let (ns, [(itp : ixs)]) = combineExts [newNames' (tp : ps)]
-      es = [Edge (ixs ++ [itp]) xp]
-      xs = ixs ++ [itp]
-      ws = getExternWeights (domainValues g) ps tp
-  in
-    addRule' (TmVarG DefVar x [] tp) (snds ns) es xs +>
-    addFactor xp ws
+  mkRule (TmVarG DefVar x [] tp) [newNames' (tp : ps)]
+    (\ [(itp : ixs)] -> ([Edge (ixs ++ [itp]) xp], ixs ++ [itp])) +>
+  addFactor xp (getExternWeights (domainValues g) ps tp)
 prog2fgg g (ProgData y cs) =
   ctorsRules g cs (TpVar y)
 
