@@ -175,6 +175,7 @@ checkCases g (ct : cts) (c : cs) =
   checkCase g ct c >>= \ (c', tp) ->
   checkCasesh g cts cs tp >>= \ cs' ->
   return (c' : cs', tp)
+checkCases g _ _ = error "this shouldn't happen"
 
 -- Check and elaborate a list of cases under a context,
 -- given an anticipated return type

@@ -1,4 +1,4 @@
-GHCFLAGS=-Wunused-do-bind -Wunused-foralls -Wunused-imports -Wunused-pattern-binds -Wunused-top-binds -Wunused-type-patterns
+GHCFLAGS=-Wall -Wno-unused-matches -Wno-unused-local-binds -Wno-missing-signatures -Wno-name-shadowing -Wno-orphans -Wno-type-defaults
 
 all: compiler.exe
 

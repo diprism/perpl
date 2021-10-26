@@ -229,11 +229,7 @@ affLin (TmProdOut tm ps tm' tp) =
 
 -- Make an affine Prog linear
 affLinProg :: Prog -> AffLinM Prog
-affLinProg (ProgFun x (p : ps) tm tp) =
-  error "Function shouldn't have params before affine-to-linear transformation"
-affLinProg (ProgExtern x xp (p : ps) tp) =
-  error "Extern shouldn't have params before affine-to-linear transformation"
-affLinProg (ProgFun x [] tm tp) =
+affLinProg (ProgFun x _ tm tp) =
   let (as, endtp) = splitArrows tp
       (ls, endtm) = splitLams tm
       etas = [ (etaName x i, atp) | (i, atp) <- drop (length ls) (enumerate as) ]
@@ -244,7 +240,7 @@ affLinProg (ProgFun x [] tm tp) =
     mapParamsM affLinTp ls_eta >>= \ ls_eta' ->
     alBinds ls_eta' (affLin endtm_eta) >>= \ endtm' ->
     return (ProgFun x ls_eta' endtm' (getType endtm'))
-affLinProg (ProgExtern x xp [] tp) =
+affLinProg (ProgExtern x xp _ tp) =
   let (as, end) = splitArrows tp in
     mapM affLinTp as >>= \ as' ->
     return (ProgExtern x xp as' end)
@@ -259,6 +255,10 @@ affLinDefine (ProgFun x [] tm tp) =
   let (as, endtp) = splitArrows tp in
     mapM affLinTp as >>= \ as' ->
     return (ProgFun x [] tm (joinArrows as' endtp))
+affLinDefine (ProgFun _ (_ : _) _ _) =
+  error "Function shouldn't have params before affine-to-linear transformation"
+affLinDefine (ProgExtern _ _ (_ : _) _) =
+  error "Extern shouldn't have params before affine-to-linear transformation"
 affLinDefine (ProgExtern x xp [] tp) =
   let (as, endtp) = splitArrows tp in
     mapM affLinTp as >>= \ as' ->
