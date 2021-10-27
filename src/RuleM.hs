@@ -54,9 +54,13 @@ addRules rs = RuleM rs [] [] []
 addRule :: Rule -> RuleM
 addRule r = addRules [r]
 
--- Add a rule from the given components
---addRule' :: Term -> [Type] -> [Edge] -> [Int] -> RuleM
---addRule' lhs ns es xs = addRule $ Rule (show lhs) $ HGF ns es xs
+castHGF :: HGF' -> HGF
+castHGF (HGF' ns es xs) =
+  let (ns', [ins]) = combineExts [ns]
+      m = Map.fromList [(v, ins !! i) | ((v, tp), i) <- zip ns' ins] in
+    HGF (snds ns)
+      [Edge [m Map.! v | (v, tp) <- as] l | Edge' as l <- es]
+      (nub [m Map.! v | (v, tp) <- xs])
 
 addFactor :: Var -> Weights -> RuleM
 addFactor x w = RuleM [] [] [] [(x, w)]

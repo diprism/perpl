@@ -41,7 +41,11 @@ type Prob = Double
 type Weights = Tensor Prob
 data Edge = Edge { edge_atts :: [Int], edge_label :: String }
   deriving Eq
-data HGF = HGF { hgf_nodes :: [Type], hfg_edges :: [Edge], hfg_exts :: [Int]}
+data Edge' = Edge' { edge_atts' :: [(Var, Type)], edge_label' :: String }
+  deriving Eq
+data HGF = HGF { hgf_nodes :: [Type], hgf_edges :: [Edge], hgf_exts :: [Int]}
+  deriving Eq
+data HGF' = HGF' { hgf_nodes' :: [(Var, Type)], hgf_edges' :: [Edge'], hgf_exts' :: [(Var, Type)] }
   deriving Eq
 data Rule = Rule String HGF
   deriving Eq
