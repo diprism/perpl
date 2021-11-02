@@ -57,8 +57,12 @@ newNames as = [(" " ++ show j, atp) | (j, atp) <- enumerate as]
 
 -- mkRule creates a rule from a lhs term, a list of nodes, and a function that returns the edges and external nodes given a list of the nodes' indices (it does some magic on the nodes, so the indices are not necessarily in the same order as the nodes)
 mkRule :: Term -> [(Var, Type)] -> [Edge'] -> [(Var, Type)] -> RuleM
-mkRule lhs ns es xs =
-  addRule (Rule (show lhs) (castHGF (HGF' (nub ns) es xs)))
+mkRule = mkRuleReps 1
+
+-- Creates this rule `reps` times
+mkRuleReps :: Int -> Term -> [(Var, Type)] -> [Edge'] -> [(Var, Type)] -> RuleM
+mkRuleReps reps lhs ns es xs =
+  addRule reps (Rule (show lhs) (castHGF (HGF' (nub ns) es xs)))
 
 
 -- Add rule for a constructor
@@ -97,14 +101,14 @@ caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
        discardEdges' unused_ps unused_nps)
       (xs_ctm ++ all_xs ++ [vtp])
 
-ambRule :: Ctxt -> FreeVars -> [Term] -> Type -> Term -> RuleM
-ambRule g all_fvs tms tp tm =
+ambRule :: Ctxt -> FreeVars -> [Term] -> Type -> Term -> Int -> RuleM
+ambRule g all_fvs tms tp tm reps =
   term2fgg g tm +>= \ tmxs ->
   let all_xs = Map.toList all_fvs
       unused_tms = Map.toList (Map.difference all_fvs (Map.fromList tmxs))
       vtp : unused_ns = newNames (tp : snds unused_tms)
   in
-    mkRule (TmAmb tms tp) (vtp : tmxs ++ all_xs ++ unused_tms ++ unused_ns)
+    mkRuleReps reps (TmAmb tms tp) (vtp : tmxs ++ all_xs ++ unused_tms ++ unused_ns)
       (Edge' (tmxs ++ [vtp]) (show tm) : discardEdges' unused_tms unused_ns)
       (all_xs ++ [vtp])
 
@@ -171,7 +175,7 @@ term2fgg g (TmSamp d tp) =
       addFactor (show $ TmSamp d tp) (vector [1.0 | _ <- [0..length dvs - 1]])
 term2fgg g (TmAmb tms tp) =
   let fvs = Map.unions (map freeVars' tms) in
-    bindCases (Map.toList fvs) (map (ambRule g fvs tms tp) tms)
+    bindCases (Map.toList fvs) (map (uncurry $ ambRule g fvs tms tp) (collectDups tms))
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm +>= \ xtmxs ->
   bindExt True x xtp $

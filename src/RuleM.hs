@@ -9,7 +9,7 @@ import Tensor
 
 -- RuleM monad-like datatype and funcions
 type External = (Var, Type)
-data RuleM = RuleM [Rule] [External] [Nonterminal] [Factor]
+data RuleM = RuleM [(Int, Rule)] [External] [Nonterminal] [Factor]
 
 -- RuleM instances of >>= and >= (since not
 -- technically a monad, need to pick new names)
@@ -47,12 +47,12 @@ addNonterm :: Var -> Type -> RuleM
 addNonterm x tp = addNonterms [(x, tp)]
 
 -- Add a list of rules
-addRules :: [Rule] -> RuleM
+addRules :: [(Int, Rule)] -> RuleM
 addRules rs = RuleM rs [] [] []
 
 -- Add a single rule
-addRule :: Rule -> RuleM
-addRule r = addRules [r]
+addRule :: Int -> Rule -> RuleM
+addRule reps r = addRules [(reps, r)]
 
 castHGF :: HGF' -> HGF
 castHGF (HGF' ns es xs) =
@@ -83,7 +83,7 @@ setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
 
 -- Returns if this lhs is already used
 isRule :: String -> RuleM -> Bool
-isRule lhs (RuleM rs xs nts fs) = any (\ (Rule lhs' _) -> lhs == lhs') rs
+isRule lhs (RuleM rs xs nts fs) = any (\ (_, Rule lhs' _) -> lhs == lhs') rs
 
 -- Returns the Weights for a function tp1 -> tp2
 getPairWeights :: Int -> Int -> Weights

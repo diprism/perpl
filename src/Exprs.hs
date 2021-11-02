@@ -5,11 +5,15 @@ data UsProgs =
   | UsProgFun String Type UsTm UsProgs
   | UsProgExtern String Type UsProgs
   | UsProgData String [Ctor] UsProgs
+  deriving (Eq, Ord)
 
 data Prog = ProgFun Var [(Var, Type)] Term Type | ProgExtern Var String [Type] Type | ProgData Var [Ctor]
+  deriving (Eq, Ord)
 data Progs = Progs [Prog] Term
+  deriving (Eq, Ord)
 
 data Ctor = Ctor Var [Type]
+  deriving (Eq, Ord)
 
 type Var = String
 
@@ -20,6 +24,7 @@ data Dist =
     DistFail
   | DistUni
   | DistAmb
+  deriving (Eq, Ord)
 
 data UsTm = -- User Term
     UsVar Var
@@ -33,9 +38,10 @@ data UsTm = -- User Term
   | UsAmpOut UsTm Int
   | UsProdIn [UsTm]
   | UsProdOut UsTm [Var] UsTm
+  deriving (Eq, Ord)
 
 data GlobalVar = CtorVar | DefVar
-  deriving Eq
+  deriving (Eq, Ord)
 
 data Term =
     TmVarL Var Type -- Local var
@@ -50,6 +56,7 @@ data Term =
   | TmAmpOut Term [Type] Int
   | TmProdIn [Arg]
   | TmProdOut Term [Param] Term Type
+  deriving (Eq, Ord)
 
 data Type =
     TpArr Type Type
@@ -59,5 +66,7 @@ data Type =
   deriving (Eq, Ord)
 
 data CaseUs = CaseUs Var [Var] UsTm
+  deriving (Eq, Ord)
 
 data Case = Case Var [Param] Term
+  deriving (Eq, Ord)

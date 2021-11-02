@@ -54,7 +54,7 @@ data FGG_JSON = FGG_JSON {
   factors :: Map.Map String (Domain, Weights),
   nonterminals :: Map.Map String Domain,
   start :: String,
-  rules :: [Rule]
+  rules :: [(Int, Rule)]
 }
 
 concatFactors :: [Factor] -> [Factor] -> [Factor]
@@ -104,8 +104,8 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
 
      ("start", JSstring s),
 
-     ("rules", JSarray $ flip map (nub rs) $
-       \ (Rule lhs (HGF ns es xs)) -> JSobject [
+     ("rules", JSarray $ concat $ flip map (nub rs) $
+       \ (reps, Rule lhs (HGF ns es xs)) -> replicate reps $ JSobject [
            ("lhs", JSstring lhs),
            ("rhs", JSobject [
                ("nodes", JSarray [JSobject [("label", JSstring (show n))] | n <- ns]),
@@ -129,17 +129,18 @@ emptyFGG s = FGG_JSON Map.empty Map.empty Map.empty s []
 
 -- Construct an FGG from a list of rules, a start symbol,
 -- and a function that gives the possible values of each type
-rulesToFGG :: (Type -> [String]) -> String -> [Rule] -> [Nonterminal] -> [Factor] -> FGG_JSON
+rulesToFGG :: (Type -> [String]) -> String -> [(Int, Rule)] -> [Nonterminal] -> [Factor] -> FGG_JSON
 rulesToFGG doms start rs nts facs =
-  let rs' = nub rs
+  let rs' = nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs
+      rs'' = [r | (_, r) <- rs']
       ds  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
-                     foldr (\ n -> Map.insert (show n) (doms n)) m ns) Map.empty rs'
+                     foldr (\ n -> Map.insert (show n) (doms n)) m ns) Map.empty rs''
       domsEq = \ x d1 d2 -> if not checkDomsEq || d1 == d2 then d1 else error
         ("Conflicting domains for nonterminal " ++ x ++ ": " ++
           show d1 ++ " vs " ++ show d2)
       nts'' = foldr (\ (x, tp) -> Map.insert x [show tp]) Map.empty nts
       nts' = foldr (\ (Rule lhs (HGF ns _ xs)) ->
-                      Map.insertWith (domsEq lhs) lhs [show (ns !! i) | i <- xs]) nts'' rs'
+                      Map.insertWith (domsEq lhs) lhs [show (ns !! i) | i <- xs]) nts'' rs''
       getFac = \ l lhs -> maybe (error ("In the rule " ++ lhs ++ ", no factor named " ++ l))
                         id $ lookup l facs
       fs  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
@@ -147,6 +148,6 @@ rulesToFGG doms start rs nts facs =
                                if Map.member l nts' then id else
                                  Map.insert l ([show (ns !! i) | i <- atts], getFac l lhs))
                            m es)
-                  Map.empty rs'
+                  Map.empty rs''
   in
     FGG_JSON ds fs nts' start rs'

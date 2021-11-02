@@ -1,5 +1,6 @@
 module Util where
 import Data.List
+import qualified Data.Map as Map
 import Exprs
 
 fsts :: [(a, b)] -> [a]
@@ -221,3 +222,9 @@ delimitWith :: [a] -> [[a]] -> [a]
 delimitWith del [] = []
 delimitWith del [as] = as
 delimitWith del (h : t) = h ++ del ++ delimitWith del t
+
+-- Collects duplicates, counting how many
+-- collectDups ['a', 'b', 'c', 'b', 'c', 'b'] = [('a', 1), ('b', 3), ('c', 2)]
+collectDups :: Ord a => [a] -> [(a, Int)]
+collectDups =
+  Map.toList . foldr (Map.alter $ Just . maybe 1 succ) Map.empty
