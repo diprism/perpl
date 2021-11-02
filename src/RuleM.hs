@@ -102,9 +102,7 @@ splitCtorsAt (Ctor x' as : cs) x
 -- Computes the weights for a function with params ps and return type tp
 getExternWeights :: (Type -> [String]) -> [Type] -> Type -> Weights
 getExternWeights dom ps tp =
-  let rep = \ tp a -> Vector (replicate (length (dom tp)) a)
-      iws = rep tp (Scalar 0) in
-    foldr rep iws ps
+  zeros ([length (dom tp) | tp <- ps] ++ [length (dom tp)])
 
 -- Computes the weights for a list of constructors
 getCtorWeightsAll :: (Type -> [String]) -> [Ctor] -> Type -> [(String, Weights)]
@@ -144,10 +142,7 @@ getCtorWeightsFlat dom (Ctor x as) cs =
 
 -- Identity matrix
 getCtorEqWeights :: Int {- num of possible values -} -> Weights
-getCtorEqWeights cs =
-  let is = [0..cs - 1] in
-    fmap (\ (i, j) -> if i == j then 1 else 0) $
-      matrix $ kronecker is is
+getCtorEqWeights cs = tensorId [cs]
 
 getAmpWeights :: (Type -> [String]) -> [Type] -> [Weights]
 getAmpWeights dom tps =
@@ -164,10 +159,10 @@ getProdWeights tpvs =
       foldr (\ (i, o, a) ws -> Vector [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]]) (vector (tensorIdRow pos out)) as') | as' <- kronpos tpvs]
 
 getProdWeightsV :: [[String]] -> Weights
-getProdWeightsV tpvs =
-  let dims = [length vs | vs <- tpvs] in
-    tensorId dims
+getProdWeightsV tpvs = tensorId [length vs | vs <- tpvs]
 
+-- TODO: it is no longer necessary to be this complex—now the we just need
+-- to take and return a single (non-nested) list
 
 -- Given a set of external nodes, this returns a pair where the first
 -- is basically just the nub of the concatenated nodes, and the second

@@ -90,3 +90,12 @@ tensorId dims =
     (\ dim rt pos size -> Vector [rt (i + pos * dim) (size * dim) | i <- [0..dim-1]])
     (\ pos size -> Vector [Scalar n | n <- tensorIdRow pos size])
     dims 0 1
+
+constantTensor :: Num n => n -> [Int] -> Tensor n
+constantTensor = foldr (\ dim t -> Vector (replicate dim t)) . Scalar
+
+zeros :: Num n => [Int] -> Tensor n
+zeros = constantTensor 0
+
+ones :: Num n => [Int] -> Tensor n
+ones = constantTensor 1
