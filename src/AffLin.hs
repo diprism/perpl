@@ -1,6 +1,5 @@
 module AffLin where
 import qualified Data.Map as Map
---import qualified Control.Monad.State as State
 import Control.Monad.RWS
 import Exprs
 import Ctxt
@@ -86,7 +85,7 @@ needToDiscard (TpProd tps) = mapM needToDiscard tps >>= return . or
 discard' :: Term -> Type -> AffLinM Term
 discard' x (TpArr tp1 tp2) =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
-discard' x (TpAmp tps) = discard' (TmAmpOut x tps 0) (head tps) -- TODO: pick easiest of these to discard? Or with aff-to-lin stuff, does it not matter?
+discard' x (TpAmp tps) = discard' (TmAmpOut x tps (length tps - 1)) (last tps)
 discard' x (TpProd tps) = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in discards (Map.fromList ps) tmUnit >>= \ tm -> return (TmProdOut x ps tm tpUnit)
 discard' x (TpVar y) =
   ask >>= \ g ->
@@ -123,7 +122,7 @@ discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm
 -- That is, recursively change every T1 -> T2 to be Maybe (T1 -> T2)
 affLinTp :: Type -> AffLinM Type
 affLinTp (TpVar y) = return (TpVar y)
-affLinTp (TpAmp tps) = pure TpAmp <*> mapM affLinTp tps
+affLinTp (TpAmp tps) = pure TpAmp <*> mapM affLinTp (tps ++ [tpUnit])
 affLinTp (TpProd tps) = pure TpProd <*> mapM affLinTp tps
 affLinTp (TpArr tp1 tp2) =
   let (tps, end) = splitArrows (TpArr tp1 tp2) in
@@ -185,7 +184,8 @@ affLin (TmVarL x tp) =
   return (TmVarL x ltp)
 affLin (TmVarG gv x as y) =
   mapArgsM affLin as >>= \ as' ->
-  return (TmVarG gv x as' y)
+  affLinTp y >>= \ y' ->
+  return (TmVarG gv x as' y')
 affLin (TmLam x tp tm tp') =
   affLinLams (TmLam x tp tm tp') >>= \ (lps, body, fvs) ->
   ambFun (joinLams lps body) fvs
@@ -217,9 +217,9 @@ affLin (TmAmb tms tp) =
   (if null tms' then affLinTp tp else return (getType (head tms'))) >>= \ tp' ->
   return (TmAmb tms' tp')
 affLin (TmAmpIn as) =
-  pure TmAmpIn <*> affLinBranches (mapArgM affLin) (mapArgM . discards) as
+  pure TmAmpIn <*> affLinBranches (mapArgM affLin) (mapArgM . discards) (as ++ [(tmUnit, tpUnit)])
 affLin (TmAmpOut tm tps o) =
-  pure TmAmpOut <*> affLin tm <*> mapM affLinTp tps <*> pure o
+  pure TmAmpOut <*> affLin tm <*> mapM affLinTp (tps ++ [tpUnit]) <*> pure o
 affLin (TmProdIn as) = pure TmProdIn <*> mapArgsM affLin as
 affLin (TmProdOut tm ps tm' tp) =
   affLin tm >>= \ tm ->

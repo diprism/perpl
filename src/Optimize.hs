@@ -1,5 +1,5 @@
 module Optimize where
-import Data.Maybe
+--import Data.Maybe
 import qualified Data.Map as Map
 import Exprs
 import Ctxt
@@ -105,10 +105,10 @@ liftFail' (TmAmb tms tp) =
     if null tms' then Nothing else pure (joinAmbs tms' tp)
 liftFail' (TmAmpIn as) =
   let as' = map (mapArgM liftFail') as in
-  if any isJust as' then
+--  if any isJust as' then
     pure (TmAmpIn [maybe (TmSamp DistFail tp, tp) id ma | ((_, tp), ma) <- zip as as'])
-  else
-    Nothing
+--  else
+--    Nothing
 liftFail' (TmAmpOut tm tps o) =
   pure TmAmpOut <*> liftFail' tm <*> pure tps <*> pure o
 liftFail' (TmProdIn as) =
