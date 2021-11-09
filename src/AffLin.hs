@@ -15,7 +15,7 @@ import Free
 -- occurs exactly once
 
 -- Reader, Writer, State monad
-type AffLinM a = RWS Ctxt FreeVars [Type] a
+type AffLinM a = RWS Ctxt FreeVars () a
 -- Let m = monad type, r = reader type, w = writer type, and s = state type. Then
 --
 -- ask :: m r
@@ -28,31 +28,6 @@ type AffLinM a = RWS Ctxt FreeVars [Type] a
 -- get :: m s
 -- put :: s -> m ()
 -- modify :: (s -> s) -> m ()
-
--- Looks up the maybe type for an arrow type
-getToMaybe :: Type -> AffLinM (Maybe Int)
-getToMaybe tp =
-  get >>= \ mtps ->
-  return (lookup tp (zip mtps [0..]))
-
--- Looks up the original arrow type, given some maybe type
-getFromMaybe :: Var -> AffLinM (Maybe (Int, Type))
-getFromMaybe y =
-  get >>= \ mtps ->
-  return (lookup y [(tpMaybeName i, (i, tp)) | (i, tp) <- enumerate mtps])
-
--- Adds a new maybe type to the state
-addMaybe :: Type -> AffLinM Int
-addMaybe tp =
-  get >>= \ mtps ->
-  put (mtps ++ [tp]) >>
-  return (length mtps)
-
--- If tp already has a Maybe, return its index.
--- Otherwise add a new Maybe and return its index.
-getMaybe :: Type -> AffLinM Int
-getMaybe tp =
-  getToMaybe tp >>= maybe (addMaybe tp) return
 
 -- Bind x : tp inside an AffLinM
 alBind :: Var -> Type -> AffLinM Term -> AffLinM Term
@@ -69,12 +44,10 @@ alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
 -- Computes if a type has an arrow / Maybe type somewhere in it
 needToDiscard :: Type -> AffLinM Bool
 needToDiscard (TpVar y) =
-  getFromMaybe y >>= maybe
-    (ask >>= \ g -> maybe
-      (return False)
-      (\ cs -> mapM (\ (Ctor x tps) -> mapM needToDiscard tps >>= return . or) cs >>= return . or)
-      (ctxtLookupType g y))
-    (\ (i, tp') -> return True)
+  ask >>= \ g -> maybe
+    (return False)
+    (\ cs -> or <$> mapM (\ (Ctor x tps) -> or <$> mapM needToDiscard tps) cs)
+    (ctxtLookupType g y)
 needToDiscard (TpArr tp1 tp2) = error "Hmm... This shouldn't happen"
 needToDiscard (TpAmp tps) = return True
 needToDiscard (TpProd tps) = mapM needToDiscard tps >>= return . or
@@ -89,24 +62,19 @@ discard' x (TpAmp tps) = discard' (TmAmpOut x tps (length tps - 1)) (last tps)
 discard' x (TpProd tps) = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in discards (Map.fromList ps) tmUnit >>= \ tm -> return (TmProdOut x ps tm tpUnit)
 discard' x (TpVar y) =
   ask >>= \ g ->
-  getFromMaybe y >>=
-  maybe
-    (maybe2 (ctxtLookupType g y)
-      (error ("In Free.hs/discard, unknown type var " ++ y))
-      (mapM (\ (Ctor x' as) ->
+  maybe2 (ctxtLookupType g y)
+    (error ("In Free.hs/discard, unknown type var " ++ y))
+    (mapM (\ (Ctor x' as) ->
                let as' = nameParams x' as in
                  alBinds as' (return tmUnit) >>= \ tm ->
-                 return (Case x' as' tm))))
-    (\ (i, tp') -> return
-      [Case (tmNothingName i) [] tmUnit,
-       Case (tmJustName i) [("_", tp')] (TmSamp DistFail tpUnit)]) >>= \ cs' ->
+                 return (Case x' as' tm))) >>= \ cs' ->
   return (TmCase x y cs' tpUnit)
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard
 -- it to maintain correct probabilities, but without changing the value or type
 -- of some term. This maps x to Unit, then case-splits on it.
--- So to discard x : MaybeA2B in tm, this returns
--- case (case x of nothing -> unit | just a2b -> fail) of unit -> tm
+-- So to discard x : (A -> B) & Unit in tm, this returns
+-- case x.2 of unit -> tm
 discard :: Var -> Type -> Term -> AffLinM Term
 discard x tp tm =
   needToDiscard tp >>= \ has_arr ->
@@ -119,7 +87,7 @@ discards :: FreeVars -> Term -> AffLinM Term
 discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm) fvs
 
 -- Convert the type of an affine term to what it will be when linear
--- That is, recursively change every T1 -> T2 to be Maybe (T1 -> T2)
+-- That is, recursively change every T1 -> T2 to be (T1 -> T2) & Unit
 affLinTp :: Type -> AffLinM Type
 affLinTp (TpVar y) = return (TpVar y)
 affLinTp (TpAmp tps) = pure TpAmp <*> mapM affLinTp (tps ++ [tpUnit])
@@ -127,8 +95,8 @@ affLinTp (TpProd tps) = pure TpProd <*> mapM affLinTp tps
 affLinTp (TpArr tp1 tp2) =
   let (tps, end) = splitArrows (TpArr tp1 tp2) in
     mapM affLinTp tps >>= \ tps' ->
-    getMaybe (joinArrows tps' end) >>= \ i ->
-    return (tpMaybe i)
+    affLinTp end >>= \ end' ->
+    return (TpAmp [joinArrows tps' end', tpUnit])
 
 -- Make a case linear, returning the local vars that occur free in it
 affLinCase :: Case -> AffLinM Case
@@ -142,24 +110,16 @@ ambFun tm fvs =
   let tp = getType tm in
     case tp of
       TpArr _ _ ->
-        getMaybe tp >>= \ i ->
-        discards fvs (tmNothing i) >>= \ ntm ->
-        return (TmAmb [ntm, tmJust i tm tp] (tpMaybe i))
+        discards fvs tmUnit >>= \ ntm ->
+        return (TmAmpIn [(tm, tp), (ntm, tpUnit)])
       _ -> return tm
 
 ambElim :: Term -> (Term -> AffLinM Term) -> AffLinM Term
 ambElim tm app =
   case getType tm of
-     TpVar y ->
-       getFromMaybe y >>= maybe (app tm)
-         (\ (i, tp) ->
-             let x = affLinName (tmJustName i) in
-               app (TmVarL x tp) >>= \ jtm ->
-               let tp' = getType jtm
-                   nc = Case (tmNothingName i) [] (TmSamp DistFail tp')
-                   jc = Case (tmJustName i) [(x, tp)] jtm in
-                 return (TmCase tm y [nc, jc] tp'))
-     _ -> app tm
+    TpAmp [tp, unittp] ->
+      app (TmAmpOut tm [tp, unittp] 0)
+    _ -> app tm
 
 affLinParams :: [Param] -> Term -> AffLinM ([Param], Term, FreeVars)
 affLinParams ps body =
@@ -276,8 +236,8 @@ affLinProgs (Progs ps end) =
   local (const g) (pure Progs <*> mapM affLinProg ps <*> affLin end)
 
 runAffLin :: Progs -> Progs
-runAffLin ps = case runRWS (affLinProgs ps) (ctxtDefProgs ps) [] of
-  (Progs ps' end, mtps, _) -> Progs (ps' ++ [ProgData (tpMaybeName i) (maybeCtors i tp) | (i, tp) <- enumerate mtps]) end
+runAffLin ps = case runRWS (affLinProgs ps) (ctxtDefProgs ps) () of
+  (Progs ps' end, mtps, _) -> Progs {-(ps' ++ [ProgData (tpMaybeName i) (maybeCtors i tp) | (i, tp) <- enumerate mtps])-} ps' end
 
 -- Make an affine file linear
 affLinFile :: Progs -> Either String Progs
