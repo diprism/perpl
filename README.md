@@ -1,6 +1,6 @@
 # PPL-to-FGG compiler
 
-Compile a PPL file to FGG:
+Compile a PPL file to FGG (JSON-formatted):
 `./compiler.exe < FILE.ppl > OUTPUT.json`
 
 Run tests:
@@ -8,6 +8,30 @@ Run tests:
 
 Example: Remove recursive datatypes from code/pda2.ppl
 `./compiler.exe --linearize=no --compile=no < code/pda2.ppl`
+
+## Syntax
+
+### Function Definitions
+
+TODO: way more documentation
+```
+define flip : (Bool -> Unit -> Nat) -> Unit -> Bool -> Nat =
+  \ f : Bool -> Unit -> Nat, b : Unit, a : Bool. f a b;
+```
+
+### Datatype Declarations
+
+```
+data Bool =
+    False
+  | True;
+
+data List =
+    Nil
+  | Cons Bool List;
+```
+
+
 
 ## De-/Refunctionalization
 Let `M` be a recursive datatype. Then
