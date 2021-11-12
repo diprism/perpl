@@ -319,12 +319,12 @@ derefunTerm dr g rtp = fst . h where
   h' (TmProdIn as) =
     TmProdIn [h tm | (tm, _) <- as]
   h' (TmProdOut tm ps tm' tp) =
-    let (tm, TpProd tps) = h tm
-        (tm', tp) = h tm'
+    let (tm2, TpProd tps) = h tm
+        (tm2', tp) = h tm'
         xs = [x | (x, _) <- ps]
         ps' = zip xs tps
     in
-      TmProdOut tm ps' tm' tp
+      TmProdOut tm2 ps' tm2' tp
 
 derefunProgTypes :: DeRe -> Var -> Prog -> Prog
 derefunProgTypes dr rtp (ProgFun x ps tm tp) = ProgFun x (map (fmap (derefunSubst dr rtp)) ps) tm (derefunSubst dr rtp tp)
