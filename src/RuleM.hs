@@ -69,10 +69,6 @@ addFactor x w = RuleM [] [] [] [(x, w)]
 returnRule :: RuleM
 returnRule = RuleM [] [] [] []
 
--- Extract rules from a RuleM
---getRules :: RuleM -> [Rule]
---getRules (RuleM rs xs nts fs) = rs
-
 -- Removes all external nodes from a RuleM
 resetExts :: RuleM -> RuleM
 resetExts (RuleM rs xs nts fs) = RuleM rs [] nts fs
@@ -107,10 +103,10 @@ getExternWeights dom ps tp =
 -- Computes the weights for a list of constructors
 getCtorWeightsAll :: (Type -> [String]) -> [Ctor] -> Type -> [(String, Weights)]
 getCtorWeightsAll dom cs y =
-  concat $ flip map cs $ \ (Ctor x as) ->
-    flip map (getCtorWeights dom (Ctor x as) cs) $ \ (as', ws) ->
-      let as'' = [(TmVarL x atp, atp) | (x, atp) <- zip as' as] in
-        (ctorFactorName x as'' y, ws)
+  concat [[(ctorFactorName x [(TmVarL x atp, atp) | (x, atp) <- zip as' as] y, ws)
+          | (as', ws) <- getCtorWeights dom (Ctor x as) cs]
+         | Ctor x as <- cs]
+  
 
 -- Computes the weights for a specific constructor
 getCtorWeights :: (Type -> [String]) -> Ctor -> [Ctor] -> [([String], Weights)]
@@ -121,7 +117,7 @@ getCtorWeights dom (Ctor x as) cs =
       cs_a' = csf cs_after
       mkrow = \ mask -> vector (replicate cs_b' 0 ++ mask ++ replicate cs_a' 0)
   in
-    flip map (kronpos (map dom as)) $ \ as' -> (,) (map (\ (_, _, a) -> a) as') $
+    flip map (kronpos (map dom as)) $ \ as' -> (,) [a | (_, _, a) <- as'] $
       let (out, pos) = foldr (\ (i, o, _) (l, j) -> (l * o, l * i + j)) (1, 0) as'
           row = mkrow (tensorIdRow pos out) in
       foldr (\ (i, o, a) ws -> Vector [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]]) row as'
@@ -156,7 +152,10 @@ getProdWeights :: [[String]] -> [([String], Weights)]
 getProdWeights tpvs =
   [([a | (_, _, a) <- as'],
     let (out, pos) = foldr (\ (i, o, _) (l, j) -> (l * o, l * i + j)) (1, 0) as' in
-      foldr (\ (i, o, a) ws -> Vector [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]]) (vector (tensorIdRow pos out)) as') | as' <- kronpos tpvs]
+      foldr (\ (i, o, a) ws ->
+               Vector [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]])
+        (vector (tensorIdRow pos out)) as')
+  | as' <- kronpos tpvs]
 
 getProdWeightsV :: [[String]] -> Weights
 getProdWeightsV tpvs = tensorId [length vs | vs <- tpvs]

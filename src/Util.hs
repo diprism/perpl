@@ -38,14 +38,10 @@ enumerate = zip [0..]
 maybe2 :: Maybe a -> b -> (a -> b) -> b
 maybe2 m n j = maybe n j m
 
--- Returns the first if it is Just, otherwise the second
-maybe_or :: Maybe a -> Maybe a -> Maybe a
-maybe_or (Just a) m = Just a
-maybe_or Nothing m = m
-
--- Infix notation for maybe_or
 infixr 2 |?|
-(|?|) = maybe_or
+(|?|) :: Maybe a -> Maybe a -> Maybe a
+Nothing |?| m_else = m_else
+Just a |?| m_else = Just a
 
 okay :: Monad m => m ()
 okay = return ()
@@ -218,6 +214,8 @@ mapProgsM :: Monad m => (Term -> m Term) -> Progs -> m Progs
 mapProgsM f (Progs ps end) =
   pure Progs <*> mapM (mapProgM f) ps <*> f end
 
+-- Concats a list of lists, adding a delimiter
+-- Example: delimitWith ", " ["item 1", "item 2", "item 3"] = "item 1, item 2, item 3"
 delimitWith :: [a] -> [[a]] -> [a]
 delimitWith del [] = []
 delimitWith del [as] = as

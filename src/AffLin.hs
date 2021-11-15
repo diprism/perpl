@@ -14,6 +14,8 @@ import Free
 -- linear term is one where every bound var
 -- occurs exactly once
 
+-- In comments, Z = discards, L = affLin, FV = freeVars
+
 -- Reader, Writer, State monad
 type AffLinM a = RWS Ctxt FreeVars () a
 -- Let m = monad type, r = reader type, w = writer type, and s = state type. Then
@@ -40,18 +42,6 @@ alBind x tp m =
 alBinds :: [Param] -> AffLinM Term -> AffLinM Term
 alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
 
-
--- Computes if a type has an arrow / Maybe type somewhere in it
-needToDiscard :: Type -> AffLinM Bool
-needToDiscard (TpVar y) =
-  ask >>= \ g -> maybe
-    (return False)
-    (\ cs -> or <$> mapM (\ (Ctor x tps) -> or <$> mapM needToDiscard tps) cs)
-    (ctxtLookupType g y)
-needToDiscard (TpArr tp1 tp2) = error "Hmm... This shouldn't happen"
-needToDiscard (TpAmp tps) = return True
-needToDiscard (TpProd tps) = mapM needToDiscard tps >>= return . or
-
 -- Maps something to Unit
 -- For example, take x : Bool, which becomes
 -- case x of false -> unit | true -> unit
@@ -77,9 +67,10 @@ discard' x (TpVar y) =
 -- case x.2 of unit -> tm
 discard :: Var -> Type -> Term -> AffLinM Term
 discard x tp tm =
-  needToDiscard tp >>= \ has_arr ->
-  if has_arr
-    then (discard' (TmVarL x tp) tp >>= \ dtm -> return (TmLet "_" dtm tpUnit tm (getType tm))) -- (tmElimUnit dtm tm (getType tm)))
+  ask >>= \ g ->
+  if useOnlyOnce g tp
+    then (discard' (TmVarL x tp) tp >>= \ dtm ->
+          return (TmLet "_" dtm tpUnit tm (getType tm)))
     else return tm
 
 -- Discard a set of variables
@@ -87,7 +78,11 @@ discards :: FreeVars -> Term -> AffLinM Term
 discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm) fvs
 
 -- Convert the type of an affine term to what it will be when linear
--- That is, recursively change every T1 -> T2 to be (T1 -> T2) & Unit
+-- That is, apply the following transformations:
+--   `T1 -> T2 -> ... -> Tn`    =>    `(T1 -> T2 -> ... -> Tn) & Unit`
+--   `T1 & T2 & ... & Tn`       =>    `T1 & T2 & ... & Tn & Unit`
+-- So that if we want to discard such a term, we can just select its
+-- (n+1)th element, which is Unit, and discard that
 affLinTp :: Type -> AffLinM Type
 affLinTp (TpVar y) = return (TpVar y)
 affLinTp (TpAmp tps) = pure TpAmp <*> mapM affLinTp (tps ++ [tpUnit])
@@ -105,6 +100,9 @@ affLinCase (Case x ps tm) =
   alBinds ps' (affLin tm) >>=
   return . Case x ps'
 
+-- Converts a lambda term to an ampersand pair with Unit, where the
+-- Unit side discards all the free variables from the body of the lambda
+-- ambFun `\ x : T. tm` = `<\ x : T. tm, Z(FV(\ x : T. tm))>`,
 ambFun :: Term -> FreeVars -> AffLinM Term
 ambFun tm fvs =
   let tp = getType tm in
@@ -114,19 +112,20 @@ ambFun tm fvs =
         return (TmAmpIn [(tm, tp), (ntm, tpUnit)])
       _ -> return tm
 
-ambElim :: Term -> (Term -> AffLinM Term) -> AffLinM Term
-ambElim tm app =
+-- Extract the function from a linearized term, if possible
+-- So ambElim `<f, unit>` = `f`
+ambElim :: Term -> Term
+ambElim tm =
   case getType tm of
     TpAmp [tp, unittp] ->
-      app (TmAmpOut tm [tp, unittp] 0)
-    _ -> app tm
+      TmAmpOut tm [tp, unittp] 0
+    _ -> tm
 
 affLinParams :: [Param] -> Term -> AffLinM ([Param], Term, FreeVars)
 affLinParams ps body =
   mapParamsM affLinTp ps >>= \ lps ->
   listen (alBinds lps (affLin body)) >>= \ (body', fvs) ->
-  ambElim body' return >>= \ body'' ->
-  return (lps, body'', fvs)
+  return (lps, ambElim body', fvs)
       
 affLinLams :: Term -> AffLinM ([Param], Term, FreeVars)
 affLinLams = uncurry affLinParams . splitLams
@@ -139,51 +138,71 @@ affLinBranches alf dscrd als =
 -- Make a term linear, returning the local vars that occur free in it
 affLin :: Term -> AffLinM Term
 affLin (TmVarL x tp) =
+  -- L(`x`) => `x`
   affLinTp tp >>= \ ltp ->
   tell (Map.singleton x ltp) >>
   return (TmVarL x ltp)
 affLin (TmVarG gv x as y) =
+  -- L(x) => x
   mapArgsM affLin as >>= \ as' ->
   affLinTp y >>= \ y' ->
   return (TmVarG gv x as' y')
 affLin (TmLam x tp tm tp') =
+  -- L(\ x : tp. tm) => <\ x : tp. L(tm), Z(FV(\ x : tp. tm))>
   affLinLams (TmLam x tp tm tp') >>= \ (lps, body, fvs) ->
   ambFun (joinLams lps body) fvs
 affLin (TmApp tm1 tm2 tp2 tp) =
+  -- L(tm1 tm2) => L(tm1).1 L(tm2)
   let (tm, as) = splitApps (TmApp tm1 tm2 tp2 tp) in
     listen (pure (,) <*> affLin tm <*> mapArgsM affLin as) >>= \ ((tm', as'), fvs) ->
-    ambElim tm' (\ tm -> ambFun (joinApps tm as') fvs)
+    ambFun (joinApps (ambElim tm') as') fvs
 affLin (TmLet x xtm xtp tm tp) =
+  -- L(let x = xtm in tm) => let x = L(xtm) in L(tm)
   affLin xtm >>= \ xtm' ->
   let xtp' = getType xtm' in
     alBind x xtp' (affLin tm) >>= \ tm' ->
     return (TmLet x xtm' xtp' tm' (getType tm'))
 affLin (TmCase tm y cs tp) =
+  -- L(case tm of C1 | C2 | ... | Cn) => case L(tm) of L*(C1) | L*(C2) | ... | L*(Cn),
+  -- where L*(C) = let _ = Z((FV(C1) ∪ FV(C2) ∪ ... ∪ FV(Cn)) - FV(C)) in L(C)
   affLin tm >>= \ tm' ->
---  listen (mapM (listen . affLinCase) cs) >>= \ (csxs, xsAny) ->
---  mapM (\ (Case x as tm, xs) -> fmap (Case x as)
---             (discards (Map.difference xsAny xs) tm)) csxs >>= \ cs' ->
-  affLinBranches affLinCase (\ xs (Case x as tm) -> fmap (Case x as) (discards xs tm)) cs >>= \ cs' ->
-  case cs' of
+  affLinBranches affLinCase
+    (\ xs (Case x as tm) -> fmap (Case x as) (discards xs tm)) cs >>= \ cs' ->
+  -- I think that the below line should work fine...
+  -- If buggy, try to use the type of the first case
+  affLinTp tp >>= return . TmCase tm' y cs'
+{-  case cs' of
     [] -> affLinTp tp >>= return . TmCase tm' y cs'
     (Case _ _ xtm) : rest -> return (TmCase tm' y cs' (getType xtm))
+-}
 affLin (TmSamp d tp) =
+  -- L(sample d) => sample d
   affLinTp tp >>= \ tp' ->
   return (TmSamp d tp')
 affLin (TmAmb tms tp) =
---  listen (mapM (listen . affLin) tms) >>= \ (tmsxs, xsAny) ->
---  mapM (\ (tm, xs) -> discards (Map.difference xsAny xs) tm) tmsxs >>= \ tms' ->
+  -- L(amb tm1 tm2 ... tmn) => amb L*(tm1) L*(tm2) ... L*(tmn)
+  -- where L*(tm) = let _ = Z((FV(tm1) ∪ FV(tm2) ∪ ... ∪ FV(tmn)) - FV(tm)) in L(tm)
   affLinBranches affLin discards tms >>= \ tms' ->
-  (if null tms' then affLinTp tp else return (getType (head tms'))) >>= \ tp' ->
+  -- Same as in TmCase above, I think the below should work; if not, use type of first tm
+  affLinTp tp >>= \ tp' ->
+  --  (if null tms' then affLinTp tp else return (getType (head tms'))) >>= \ tp' ->
   return (TmAmb tms' tp')
 affLin (TmAmpIn as) =
+  -- L(<tm1, tm2, ..., tmn>) => <L*(tm1), L*(tm2), ..., L*(tmn), L*(unit)>,
+  -- where L*(tm) = let _ = Z((FV(tm1) ∪ FV(tm2) ∪ ... ∪ FV(tmn)) - FV(tm)) in L(tm)
   pure TmAmpIn <*> affLinBranches (mapArgM affLin) (mapArgM . discards) (as ++ [(tmUnit, tpUnit)])
 affLin (TmAmpOut tm tps o) =
+  -- L(tm.o) => L(tm).on
   pure TmAmpOut <*> affLin tm <*> mapM affLinTp (tps ++ [tpUnit]) <*> pure o
-affLin (TmProdIn as) = pure TmProdIn <*> mapArgsM affLin as
+affLin (TmProdIn as) =
+  -- L(tm1, tm2, ..., tmn) => (L(tm1), L(tm2), ..., L(tmn))
+  pure TmProdIn <*> mapArgsM affLin as
 affLin (TmProdOut tm ps tm' tp) =
+  -- L(let (x1, x2, ..., xn) = tm in tm') =>
+  --    let (x1, x2, ..., xn) = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')
   affLin tm >>= \ tm ->
   affLinParams ps tm' >>= \ (ps, tm', fvs) ->
+  -- Discard all ps that are not used in tm'
   discards (Map.intersection (Map.fromList ps) fvs) tm' >>= \ tm' ->
   return (TmProdOut tm ps tm' (getType tm'))
 

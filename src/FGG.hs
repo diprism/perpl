@@ -67,18 +67,6 @@ weights_to_json :: Weights -> JSON
 weights_to_json (Scalar n) = JSdouble n
 weights_to_json (Vector ts) = JSarray [weights_to_json v | v <- ts]
 
--- Print a comma-separated list
-join_list :: Show a => [a] -> String
-join_list [] = ""
-join_list (a : []) = show a
-join_list (a : as) = show a ++ "," ++ join_list as
-
--- Print a comma-separated key-value dict
-join_dict :: Show a => [(String, a)] -> String
-join_dict [] = ""
-join_dict ((k, v) : []) = show k ++ ":" ++ show v
-join_dict ((k, v) : kvs) = show k ++ ":" ++ show v ++ "," ++ join_dict kvs
-
 -- Convert an FGG into a JSON
 fgg_to_json :: FGG_JSON -> JSON
 fgg_to_json (FGG_JSON ds fs nts s rs) =

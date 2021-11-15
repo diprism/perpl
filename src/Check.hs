@@ -23,6 +23,10 @@ err msg = Left (msg, [])
 ifErr :: Bool -> String -> Either ErrMsg ()
 ifErr b e = if b then err e else okay
 
+mErr :: Maybe a -> String -> Either ErrMsg a
+mErr Nothing e = err e
+mErr (Just a) e = Right a
+
 -- Error if x \in g
 ifBound :: [Var] -> Var -> Either ErrMsg ()
 ifBound ds x = ifErr (x `elem` ds) ("'" ++ x ++ "' has multiple definitions")
@@ -41,22 +45,27 @@ checkTermh :: Ctxt -> UsTm -> Either ErrMsg Term
 
 -- Checks and elaborates a term variable, if it is one
 checkTermVar :: Bool -> Ctxt -> UsTm -> Either ErrMsg Term
-checkTermVar eta g (UsVar x) = maybe2 (ctxtLookupTerm g x)
-  (err ("Variable '" ++ x ++ "' not in scope"))
-  $ \ (sc, tp) -> case (eta, sc) of
-    (_, ScopeLocal) -> return (TmVarL x tp)
-    (True, sc) ->
-      let (tps, end) = splitArrows tp in
-        return (etaExpand (if sc == ScopeGlobal then DefVar else CtorVar) x [] (nameParams x tps) end)
-    (False, sc) -> return (TmVarG (if sc == ScopeGlobal then DefVar else CtorVar) x [] tp)
+checkTermVar eta g (UsVar x) =
+  mErr (ctxtLookupTerm g x) ("Variable '" ++ x ++ "' not in scope") >>= \ (sc, tp) ->
+  if sc == ScopeLocal then
+    return (TmVarL x tp)
+  else
+    let vt = if sc == ScopeGlobal then DefVar else CtorVar in
+      if eta then
+        let (tps, end) = splitArrows tp in
+          return (etaExpand vt x [] (nameParams x tps) end)
+      else
+        return (TmVarG vt x [] tp)
 checkTermVar eta g tm = checkTermh g tm
 
+-- Auxiliary wrapper for checkTermh
 checkTerm g tm =
   mapLeft (\ (s, h) -> (s, ("in the term " ++ show tm ++ ": ") : h))
     (checkTermh g tm) >>= \ tm' ->
   return (toArg tm')
 
-checkTermh g (UsVar x) = checkTermVar True g (UsVar x)
+checkTermh g (UsVar x) =
+  checkTermVar True g (UsVar x)
 
 checkTermh g (UsLam x tp tm) =
   checkAffLin g x tp tm >>
@@ -72,25 +81,26 @@ checkTermh g (UsApp tm1 tm2) =
         numErrMsg = "Expected " ++ show (length tps) ++
                     " arguments at most, but got " ++ show (length as)
         expVsActTpMsg = \ exp act -> "Expected arg of type " ++
-                                     show exp ++ ", but got " ++ show act in
+                                     show exp ++ ", but got " ++ show act
+        tps' = take (length as) tps
+    in
       ifErr (length as > length tps) numErrMsg >>
-      let tps' = take (length as) tps in
-      sequence (map (checkTerm g) as) >>= \ as' ->
+      sequence [checkTerm g a | a <- as] >>= \ as' ->
       sequence [ifErr (atp /= tp) (expVsActTpMsg tp atp) | ((a, atp), tp) <- zip as' tps'] >>
       case hd' of
         (TmVarG gv x [] tp) ->
           let etas = nameParams x tps
               etas' = drop (length as') etas in
-          return (etaExpand gv x as' etas' end)
+            return (etaExpand gv x as' etas' end)
         _ -> return (joinApps hd' as')
 
 checkTermh g (UsCase tm cs) =
   checkTerm g tm >>= \ (tm', tp) ->
   case tp of
-    (TpVar y) -> maybe2 (ctxtLookupType g y)
-      (err "Error in checkTerm UsCase") -- shouldn't happen
-      $ \ ycs -> checkCases g ycs (sortCases ycs cs) >>= \ (cs', tp') ->
-        return (TmCase tm' y cs' tp')
+    (TpVar y) ->
+      mErr (ctxtLookupType g y) "Error in checkTerm UsCase" >>= \ ycs ->
+      checkCases g ycs (sortCases ycs cs) >>= \ (cs', tp') ->
+      return (TmCase tm' y cs' tp')
     _ -> err "Case splitting on non-datatype"
 
 checkTermh g (UsSamp d tp) =
@@ -141,9 +151,8 @@ checkTermh g (UsProdOut tm xs tm') =
 -- Check a type under a context
 checkType :: Ctxt -> Type -> Either ErrMsg ()
 
-checkType g (TpVar y) = maybe2 (ctxtLookupType g y)
-  (err ("Type variable '" ++ y ++ "' not in scope"))
-  $ \ cs -> okay
+checkType g (TpVar y) =
+  mErr (ctxtLookupType g y) ("Type variable '" ++ y ++ "' not in scope") >>= \ cs -> okay
 
 checkType g (TpArr tp1 tp2) =
   checkType g tp1 >>
@@ -164,9 +173,9 @@ checkCase g (Ctor x as) (CaseUs x' as' tm) =
       x ++ "', but got " ++ show (length as')) >>
   let g' = ctxtDeclArgs g (zip as' as)
       as'' = zip as' as in
-  mapM (\ (a, atp) -> checkAffLin g a atp tm) as'' >>
-  checkTerm g' tm >>= \ (tm', tp) ->
-  return (Case x as'' tm', tp)
+    mapM (\ (a, atp) -> checkAffLin g a atp tm) as'' >>
+    checkTerm g' tm >>= \ (tm', tp) ->
+    return (Case x as'' tm', tp)
 
 -- Check and elaborate a list of cases under a context
 checkCases :: Ctxt -> [Ctor] -> [CaseUs] -> Either ErrMsg ([Case], Type)
