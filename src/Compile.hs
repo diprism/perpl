@@ -77,13 +77,6 @@ ctorRules g (Ctor x as) y cs =
     let [vy] = newNames [y] in
       mkRule tm (vy : as') [Edge' (as' ++ [vy]) fac] (as' ++ [vy])
 
-ctorsRules :: Ctxt -> [Ctor] -> Type -> RuleM
-ctorsRules g cs y =
-  foldr (\ (fac, ws) rm -> addFactor fac ws +> rm) returnRule
-    (getCtorWeightsAll (domainValues g) cs y) +>
-  foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) y cs) returnRule cs +>
-  type2fgg g y
-
 -- Add a rule for this particular case in a case-of statement
 caseRule :: Ctxt -> FreeVars -> [External] -> Term -> Var -> [Case] -> Type -> Case -> RuleM
 caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
@@ -264,7 +257,10 @@ prog2fgg g (ProgExtern x xp ps tp) =
       (vps ++ [vtp]) +>
     addFactor xp (getExternWeights (domainValues g) ps tp)
 prog2fgg g (ProgData y cs) =
-  ctorsRules g cs (TpVar y)
+  foldr (\ (fac, ws) rm -> addFactor fac ws +> rm) returnRule
+    (getCtorWeightsAll (domainValues g) cs (TpVar y)) +>
+  foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) (TpVar y) cs) returnRule cs +>
+  type2fgg g (TpVar y)
 
 -- Goes through a program and adds all the rules for it
 progs2fgg :: Ctxt -> Progs -> RuleM
