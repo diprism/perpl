@@ -52,6 +52,7 @@ bindCases xs =
 discardEdges' :: [(Var, Type)] -> [(Var, Type)] -> [Edge']
 discardEdges' d_xs d_ns = [Edge' [(x, tp), vn] x | ((x, tp), vn) <- zip d_xs d_ns]
 
+-- Pick throwaway var names
 newNames :: [a] -> [(Var, a)]
 newNames as = [(" " ++ show j, atp) | (j, atp) <- enumerate as]
 
@@ -132,10 +133,8 @@ term2fgg g (TmVarL x tp) =
 term2fgg g (TmVarG gv x [] tp) =
   returnRule -- If this is a ctor/def with no args, we already add its rule when it gets defined
 term2fgg g (TmVarG gv x as y) =
-  [term2fgg g a | (a, atp) <- reverse as] +*>= \ xss' ->
-  -- TODO: instead of reversing, just have (+*>=) do that
-  let xss = reverse xss'
-      (vy : ps) = newNames (y : snds as) in
+  [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
+  let (vy : ps) = newNames (y : snds as) in
     mkRule (TmVarG gv x as y) (vy : ps ++ concat xss)
       (Edge' (ps ++ [vy]) (if gv == CtorVar then ctorFactorNameDefault x (snds as) y else x) :
         [Edge' (xs ++ [vtp]) (show atm) | (xs, (atm, atp), vtp) <- zip3 xss as ps])
@@ -168,9 +167,11 @@ term2fgg g (TmSamp d tp) =
   let dvs = domainValues g tp in
   case d of
     DistFail ->
-      addFactor (show $ TmSamp d tp) (vector [0.0 | _ <- [0..length dvs - 1]])
+      addFactor (show $ TmSamp d tp)
+        (vector [0.0 | _ <- [0..length dvs - 1]])
     DistUni  ->
-      addFactor (show $ TmSamp d tp) (vector [1.0 / fromIntegral (length dvs) | _ <- [0..length dvs - 1]])
+      addFactor (show $ TmSamp d tp)
+        (vector [1.0 / fromIntegral (length dvs) | _ <- [0..length dvs - 1]])
     DistAmb  -> -- TODO: is this fine, or do we need to add a rule with one node and one edge (that has the factor below)?
       addFactor (show $ TmSamp d tp) (vector [1.0 | _ <- [0..length dvs - 1]])
 term2fgg g (TmAmb tms tp) =
@@ -205,16 +206,15 @@ term2fgg g (TmAmpOut tm tps o) =
       (tmxs ++ [vtp]) +>
     addAmpFactors g tps
 term2fgg g (TmProdIn as) =
-  [term2fgg g a | (a, atp) <- reverse as] +*>= \ xss' ->
-  -- TODO: instead of reversing, just have (+*>=) do that
-  let xss = reverse xss'  
-      tps = snds as
+  [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
+  let tps = snds as
       ptp = TpProd tps
       (vptp : vtps) = newNames (ptp : tps)
   in
     addProdFactors g tps +>
     mkRule (TmProdIn as) (vptp : vtps ++ concat xss)
-      (Edge' (vtps ++ [vptp]) (prodFactorName (snds as)) : [Edge' (tmxs ++ [vtp]) (show atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
+      (Edge' (vtps ++ [vptp]) (prodFactorName (snds as)) :
+        [Edge' (tmxs ++ [vtp]) (show atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
       (concat xss ++ [vptp])
 term2fgg g (TmProdOut ptm ps tm tp) =
   term2fgg g ptm +>= \ ptmxs ->
@@ -235,7 +235,9 @@ term2fgg g (TmProdOut ptm ps tm tp) =
          (ptmxs ++ foldr delete tmxs ps ++ [vtp])
 
 type2fgg :: Ctxt -> Type -> RuleM
-type2fgg g tp = type2fgg' g tp +> addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp))
+type2fgg g tp =
+  type2fgg' g tp +>
+  addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp))
 
 type2fgg' :: Ctxt -> Type -> RuleM
 type2fgg' g (TpVar y) = returnRule
@@ -246,7 +248,7 @@ type2fgg' g (TpProd tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
 
 -- Adds the rules for a Prog
 prog2fgg :: Ctxt -> Prog -> RuleM
-prog2fgg g (ProgFun x ps tm tp) = -- TODO: add factor for joinArrows ps tp
+prog2fgg g (ProgFun x ps tm tp) =
   bindExts True ps $ term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
   let unused_ps = Map.toList (Map.difference (Map.fromList ps) (Map.fromList tmxs))
       (unused_x, unused_tp) = unzip unused_ps

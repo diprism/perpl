@@ -13,7 +13,7 @@ data RuleM = RuleM [(Int, Rule)] [External] [Nonterminal] [Factor]
 
 -- RuleM instances of >>= and >= (since not
 -- technically a monad, need to pick new names)
-infixl 1 +>=, +>, +*>=
+infixl 1 +>=, +>, +>=*
 (+>=) :: RuleM -> ([External] -> RuleM) -> RuleM
 RuleM rs xs nts fs +>= g =
   let RuleM rs' xs' nts' fs' = g xs in
@@ -26,10 +26,10 @@ RuleM rs xs nts fs +>= g =
 r1 +> r2 = r1 +>= \ _ -> r2
 
 -- Sequence together RuleMs, collecting each's externals
-(+*>=) :: [RuleM] -> ([[External]] -> RuleM) -> RuleM
-rs +*>= rf =
-  let (r, xss) = foldr (\ r' (r, xss) -> let RuleM rs' xs' nts' fs' = r' in (r +> r', xs' : xss)) (returnRule, []) rs in
-    r +> rf xss
+(+>=*) :: [RuleM] -> ([[External]] -> RuleM) -> RuleM
+rs +>=* rf =
+  let (r, xss) = foldl (\ (r, xss) r' -> let RuleM rs' xs' nts' fs' = r' in (r +> r', xs' : xss)) (returnRule, []) rs in
+    r +> rf (reverse xss)
 
 -- Add a list of external nodes
 addExts :: [External] -> RuleM
