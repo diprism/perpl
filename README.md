@@ -46,11 +46,9 @@ In order to compile, each recursive datatype must satisfy at least one of the tw
 --:| ------------------------- | ----------------------------------------------- | -----
  1 | Lex                       | File contents -> list of tokens                 |
  2 | Parse                     | List of tokens -> expressions                   |
- 3 | Alpha-rename              | Pick fresh names for all bound variables        | -a
- 4 | Type check                | Check file for type errors                      | -t
- 5 | Optimize                  | Apply various optimizations                     | -o
- 6 | De/refunctionalize        | De/refunctionalize all recursive datatypes      | -d, -r
- 7 | Affine-to-linear          | Ensure every function gets called exactly once  | -l
- 8 | Optimize (again)          | Apply various optimizations, again              | -o
- 9 | Alpha-rename (again)      | Pick fresh names for all bound variables, again | -a
-10 | Compile to FGG            | Create FGG rules for all subexpressions         | -c
+ 3 | Type check                | Check file for type errors                      | -t
+ 4 | Optimize                  | Apply various optimizations                     | -o
+ 5 | De/refunctionalize        | De/refunctionalize all recursive datatypes      | -d, -r
+ 6 | Affine-to-linear          | Ensure every function gets called exactly once  | -l
+ 7 | Optimize (again)          | Apply various optimizations, again              | -o
+ 8 | Compile to FGG            | Create FGG rules for all subexpressions         | -c
