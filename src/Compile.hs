@@ -31,7 +31,7 @@ varRule x tp =
 -- Bind a list of external nodes, and add rules for them
 bindExts :: Bool -> [Param] -> RuleM -> RuleM
 bindExts addVarRules xs' (RuleM rs xs nts fs) =
-  let keep = not . flip elem (fsts xs') . fst
+  let keep x = not (elem (fst x) (fsts xs'))
       rm = RuleM rs (filter keep xs) nts fs in
     if addVarRules
       then foldr (\ (x, tp) r -> varRule x tp +> r) rm xs'
@@ -118,6 +118,9 @@ addProdFactors g tps =
     addFactor (prodFactorName tps) (getProdWeightsV tpvs) +>
     foldr (\ (as', w) r -> r +> addFactor (prodFactorName' as') w) returnRule (getProdWeights tpvs)
 
+addPairFactor :: Ctxt -> Type -> Type -> RuleM
+addPairFactor g tp tp' = addFactor (pairFactorName tp tp') (getPairWeights (domainSize g tp) (domainSize g tp'))
+
 -- Traverse a term and add all rules for subexpressions
 term2fgg :: Ctxt -> Term -> RuleM
 term2fgg g (TmVarL x tp) =
@@ -133,20 +136,21 @@ term2fgg g (TmVarG gv x as y) =
         [Edge' (xs ++ [vtp]) (show atm) | (xs, (atm, atp), vtp) <- zip3 xss as ps])
       (concat xss ++ [vy])
 term2fgg g (TmLam x tp tm tp') =
-  bindExt True x tp $
-  term2fgg (ctxtDeclTerm g x tp) tm +>= \ tmxs ->
-  addFactor (pairFactorName tp tp') (getPairWeights (domainSize g tp) (domainSize g tp')) +>
-  let [vtp', varr] = newNames [tp', TpArr tp tp']
-      vtp = (x, tp) in
-    mkRule (TmLam x tp tm tp') (vtp : vtp' : varr : tmxs)
-      [Edge' (tmxs ++ [vtp']) (show tm), Edge' [vtp, vtp', varr] (pairFactorName tp tp')]
-      (delete vtp tmxs ++ [varr])
+  bindExt True x tp
+    (term2fgg (ctxtDeclTerm g x tp) tm +>= \ tmxs ->
+     addPairFactor g tp tp' +>
+     type2fgg g tp +>
+     let [vtp', varr] = newNames [tp', TpArr tp tp']
+         vtp = (x, tp) in
+       mkRule (TmLam x tp tm tp') (vtp : vtp' : varr : tmxs)
+         [Edge' (tmxs ++ [vtp']) (show tm), Edge' [vtp, vtp', varr] (pairFactorName tp tp')]
+         (delete vtp tmxs ++ [varr]))
 term2fgg g (TmApp tm1 tm2 tp2 tp) =
   term2fgg g tm1 +>= \ xs1 ->
   term2fgg g tm2 +>= \ xs2 ->
   let fac = pairFactorName tp2 tp
       [vtp2, vtp, varr] = newNames [tp2, tp, TpArr tp2 tp] in
-    addFactor fac (getPairWeights (domainSize g tp2) (domainSize g tp)) +>
+    addPairFactor g tp2 tp +> --addFactor fac (getPairWeights (domainSize g tp2) (domainSize g tp)) +>
     mkRule (TmApp tm1 tm2 tp2 tp) (vtp2 : vtp : varr : xs1 ++ xs2)
       [Edge' (xs2 ++ [vtp2]) (show tm2),
        Edge' (xs1 ++ [varr]) (show tm1),
@@ -229,8 +233,8 @@ term2fgg g (TmProdOut ptm ps tm tp) =
 
 type2fgg :: Ctxt -> Type -> RuleM
 type2fgg g tp =
-  type2fgg' g tp +>
-  addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp))
+  addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp)) +>
+  type2fgg' g tp
 
 type2fgg' :: Ctxt -> Type -> RuleM
 type2fgg' g (TpVar y) = returnRule
@@ -242,6 +246,7 @@ type2fgg' g (TpProd tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
 -- Adds the rules for a Prog
 prog2fgg :: Ctxt -> Prog -> RuleM
 prog2fgg g (ProgFun x ps tm tp) =
+  type2fgg g (joinArrows (snds ps) tp) +>= \ _ ->
   bindExts True ps $ term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
   let unused_ps = Map.toList (Map.difference (Map.fromList ps) (Map.fromList tmxs))
       (unused_x, unused_tp) = unzip unused_ps
@@ -251,6 +256,7 @@ prog2fgg g (ProgFun x ps tm tp) =
       (Edge' (tmxs ++ [vtp]) (show tm) : discardEdges' unused_ps unused_n)
       (ps ++ [vtp])
 prog2fgg g (ProgExtern x xp ps tp) =
+  type2fgg g (joinArrows ps tp) +>= \ _ ->
   let (vtp : vps) = newNames (tp : ps) in
     mkRule (TmVarG DefVar x [] tp) (vtp : vps)
       [Edge' (vps ++ [vtp]) xp]
