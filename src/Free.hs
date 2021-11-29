@@ -26,6 +26,8 @@ freeVars (UsVar x) = Map.singleton x 1
 freeVars (UsLam x tp tm) = Map.delete x $ freeVars tm
 freeVars (UsApp tm tm') = Map.unionWith (+) (freeVars tm) (freeVars tm')
 freeVars (UsCase tm cs) = foldr (Map.unionWith max . freeVarsCase) (freeVars tm) cs
+freeVars (UsIf tm1 tm2 tm3) = Map.unionsWith (+) [freeVars tm1, freeVars tm2, freeVars tm3]
+freeVars (UsTmBool b) = Map.empty
 freeVars (UsSamp d tp) = Map.empty
 freeVars (UsLet x tm tm') = Map.unionWith max (freeVars tm) (Map.delete x $ freeVars tm')
 freeVars (UsAmb tms) = Map.unionsWith max (map freeVars tms)
@@ -95,6 +97,8 @@ isLin x tm = h tm == LinYes where
     (foldr (\ c -> linIf' (linCase c) LinErr) LinYes cs)
     -- make sure x is linear in all the cases, or in none of the cases
     (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
+  h (UsIf tm1 tm2 tm3) = h_as LinErr [tm1, tm2, tm3]
+  h (UsTmBool b) = LinNo
   h (UsSamp d tp) = LinNo
   h (UsLet x' tm tm') =
     if x == x' then h tm else h_as LinErr [tm, tm']

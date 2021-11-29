@@ -1,6 +1,5 @@
 -- Recognizes the language { 0^n 1^n }
 
-data Bool = F | T;
 data WSymbol = WSym0 | WSym1;
 data ZSymbol = ZSym0 | ZDollar;
 data State = q0s | q1s | sink;
@@ -20,13 +19,13 @@ define transition' : State -> WSymbol -> ZSymbol -> Action =
 
 define in_accept' : State -> ZSymbol -> Bool =
   \ q : State. \ z : ZSymbol. case q of
-    | q0s -> F
-    | q1s -> (case z of ZSym0 -> F | ZDollar -> T)
-    | sink -> F;
+    | q0s -> False
+    | q1s -> (case z of ZSym0 -> False | ZDollar -> True)
+    | sink -> False;
 
 define rec_pda : State -> String -> Stack -> Bool =
   \ q' : State. \ ws : String. \ zs : Stack. case zs of
-    | ZNil -> F
+    | ZNil -> False
     | ZCons z zs -> (case ws of
       | WNil -> in_accept' q' z
       | WCons w ws -> (case transition' q' w z of

@@ -9,7 +9,6 @@ even in the middle of a line of code.
 -}
 
 -- You can define datatypes like this:
-data Bool = False | True;
 
 data String = Nil | Cons Bool String;
 
@@ -17,17 +16,13 @@ data State = q0 | q1 | q2;
 
 -- Unfortunately we need to state types at def and also in lambdas
 define not : Bool -> Bool =
-  \ b : Bool. case b of False -> True | True -> False;
+  \ b : Bool. if b then False else True;
 
 define and : Bool -> Bool -> Bool =
-  \ a : Bool, b : Bool. case a of
-    | False -> False
-    | True -> b;
+  \ a : Bool, b : Bool. if a then b else False;
 
 define iff : Bool -> Bool -> Bool =
-  \ a : Bool, b : Bool. case a of
-    | False -> not b
-    | True -> b;
+  \ a : Bool, b : Bool. if a then b else not b;
 
 
 define string_eq : String -> String -> Bool = \ w1 : String. \ w2 : String.
@@ -42,9 +37,7 @@ extern transition : State -> Bool * State;
 extern accept : State -> Bool;
 
 define gen : State -> String =
-  \ q : State. case accept q of
-    | True -> Nil
-    | False -> (let (a, r) = transition q in Cons a (gen r));
+  \ q : State. if accept q then Nil else (let (a, r) = transition q in Cons a (gen r));
 
 define products : Bool * State -> Bool & State -> Bool =
   \ prod : Bool * State, amp : Bool & State.

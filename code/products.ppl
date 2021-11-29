@@ -1,9 +1,8 @@
-data Bool = F | T;
 data Color = R | G | B;
 data Direction = N | E | S | W;
 
-define prod : Bool * Color * Direction = (T, G, S);
-define amp  : Bool & Color & Direction = <T, G, S>;
+define prod : Bool * Color * Direction = (True, G, S);
+define amp  : Bool & Color & Direction = <True, G, S>;
 
 define use_prod : Bool * Color * Direction -> Direction =
   \ p : Bool * Color * Direction. let (x, y, z) = p in z;

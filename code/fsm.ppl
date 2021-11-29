@@ -1,4 +1,3 @@
-data Bool = F | T;
 data Symbol = Sym0 | Sym1;
 data State = q1 | q2 | q3;
 data String = Nil | Cons Symbol String;
@@ -10,9 +9,9 @@ extern in_accept' : State -> Bool;
 extern q0 : State;
 extern q0' : State;
 
-define gen : State -> String = \ q : State. case in_accept q of
-  | T -> Nil
-  | F -> (let (w, x) = transition q in Cons w (gen x));
+define gen : State -> String = \ q : State. if in_accept q
+  then Nil
+  else (let (w, x) = transition q in Cons w (gen x));
 
 define rec : State -> String -> Bool =
   \ q' : State. \ ws : String. case ws of

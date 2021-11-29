@@ -1,5 +1,3 @@
-data Bool = False | True;
-
 define testAmb : Bool = amb True False True False False;
 
 testAmb;

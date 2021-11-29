@@ -85,3 +85,5 @@ tmElimUnit utm tm tp = TmCase utm tpUnitName [Case tmUnitName [] tm] tp
 unitCtors = [Ctor tmUnitName []]
 maybeCtors i tp = [Ctor (tmNothingName i) [], Ctor (tmJustName i) [tp]]
 
+progBool :: UsProgs -> UsProgs
+progBool = UsProgData "Bool" [Ctor "False" [], Ctor "True" []]

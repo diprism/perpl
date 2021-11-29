@@ -4,7 +4,6 @@
 
 -- For simplicity, the PDA doesn't have a state.
 
-data Bool = True | False;
 data Symbol = A | B | Bot;
 data String = NilString | Snoc String Symbol;
 data Stack = NilStack |  Cons Symbol Stack;

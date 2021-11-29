@@ -38,6 +38,8 @@ data UsTm = -- User Term
   | UsAmpOut UsTm Int
   | UsProdIn [UsTm]
   | UsProdOut UsTm [Var] UsTm
+  | UsTmBool Bool
+  | UsIf UsTm UsTm UsTm
   deriving (Eq, Ord)
 
 data GlobalVar = CtorVar | DefVar

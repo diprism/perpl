@@ -1,4 +1,3 @@
-data Bool = False | True;
 data Nat = Zero | Succ Nat;
 
 define even : Nat -> Bool = \ n : Nat. case n of

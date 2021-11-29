@@ -31,6 +31,10 @@ data Token =
   | TkFun
   | TkExtern
   | TkData
+  | TkBool
+  | TkIf
+  | TkThen
+  | TkElse
   deriving Eq
 
 instance Show Token where
@@ -64,6 +68,10 @@ instance Show Token where
   show TkFun = "define"
   show TkExtern  = "extern"
   show TkData = "data"
+  show TkBool = "Bool"
+  show TkIf = "if"
+  show TkThen = "then"
+  show TkElse = "else"
 
 
 type Pos = (Int, Int) -- Line, column
@@ -80,7 +88,7 @@ next (line, column) = (succ line, 0)
 -- List of punctuation tokens
 punctuation = [TkLam, TkParenL, TkParenR, TkEq, TkArr, TkLeftArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkStar, TkAmp, TkLangle, TkRangle]
 -- List of keyword tokens (use alphanumeric chars)
-keywords = [TkFail, TkAmb, TkUni, TkCase, TkOf, TkLet, TkIn, TkUni, TkSample, TkFun, TkExtern, TkData]
+keywords = [TkFail, TkAmb, TkUni, TkCase, TkOf, TkLet, TkIn, TkUni, TkSample, TkFun, TkExtern, TkData, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
 
 lexPunctuation :: String -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
 lexPunctuation s =

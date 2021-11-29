@@ -1,4 +1,3 @@
-data Bool = False | True;
 data Paren = L | R;
 data Word = Nil | Cons Paren Word; -- D
 data Nat = Zero | Succ Nat; -- R

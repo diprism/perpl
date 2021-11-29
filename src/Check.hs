@@ -103,6 +103,17 @@ checkTermh g (UsCase tm cs) =
       return (TmCase tm' y cs' tp')
     _ -> err "Case splitting on non-datatype"
 
+checkTermh g (UsIf tm1 tm2 tm3) =
+  checkTerm g tm1 >>= \ (tm1', tp1) ->
+  checkTerm g tm2 >>= \ (tm2', tp2) ->
+  checkTerm g tm3 >>= \ (tm3', tp3) ->
+  ifErr (tp1 /= TpVar "Bool") "If-then-else expects the first term to be a Bool" >>
+  ifErr (tp2 /= tp2) "Then- and else-cases have different types" >>
+  return (TmCase tm1' "Bool" [Case "False" [] tm3', Case "True" [] tm2'] tp2)
+
+checkTermh g (UsTmBool b) =
+  return (TmVarG CtorVar (if b then "True" else "False") [] (TpVar "Bool"))
+
 checkTermh g (UsSamp d tp) =
   checkType g tp >>
   return (TmSamp d tp)
@@ -226,4 +237,6 @@ checkProgs ds g (UsProgData x cs ps) =
 
 -- Check and elaborate a file
 checkFile :: UsProgs -> Either String Progs
-checkFile ps = pickErrHist (checkProgs [] (ctxtDefUsProgs ps) ps)
+checkFile ps =
+  let bps = progBool ps in
+    pickErrHist (checkProgs [] (ctxtDefUsProgs bps) bps)

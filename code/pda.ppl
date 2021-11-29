@@ -1,4 +1,3 @@
-data Bool = F | T;
 data WSymbol = WSym0 | WSym1;
 data ZSymbol = ZSym0 | ZSym1;
 data State = q1 | q2 | q3;
@@ -14,15 +13,15 @@ extern q0 : State;
 extern q0' : State;
 extern z0 : ZSymbol;
 
-define gen_fa : State -> String = \ q : State. case in_accept q of
-  | T -> WNil
-  | F -> (let (w, r) = transition q in WCons w (gen_fa r));
+define gen_fa : State -> String = \ q : State. if in_accept q
+  then WNil
+  else (let (w, r) = transition q in WCons w (gen_fa r));
 
 define rec_pda : State -> String -> Stack -> Bool =
   \ q' : State. \ ws : String. \ zs : Stack. case ws of
     | WNil -> in_accept' q'
     | WCons w ws -> (case zs of
-      | ZNil -> F
+      | ZNil -> False
       | ZCons z zs -> (case transition' q' w z of
         | Pop r' -> rec_pda r' ws zs
         | Push r' znew -> rec_pda r' ws (ZCons znew (ZCons z zs))

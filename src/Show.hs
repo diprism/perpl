@@ -11,6 +11,8 @@ toUsTm (TmVarG gv x as tp) =
 toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
+--toUsTm (TmCase tm "Bool" [Case "True" [] thentm, Case "False" [] elsetm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
+toUsTm (TmCase tm "Bool" [Case "False" [] elsetm, Case "True" [] thentm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
 toUsTm (TmAmb tms tp) = UsAmb [toUsTm tm | tm <- tms]
@@ -29,6 +31,7 @@ toUsProgs' (ProgData y cs : ds) end = UsProgData y cs (toUsProgs' ds end)
 toUsProgs' [] end = UsProgExec end
 
 toUsProgs :: Progs -> UsProgs
+toUsProgs (Progs (ProgData "Bool" [fctor, tctor] : ps) tm) = toUsProgs' ps (toUsTm tm)
 toUsProgs (Progs ps tm) = toUsProgs' ps (toUsTm tm)
 
 
@@ -52,6 +55,9 @@ showTermParens (UsApp _ _      ) ShowAppR = True
 showTermParens (UsCase _ _     ) ShowAppL = True
 showTermParens (UsCase _ _     ) ShowAppR = True
 showTermParens (UsCase _ _     ) ShowCase = True
+showTermParens (UsIf _ _ _   ) ShowAppL = True
+showTermParens (UsIf _ _ _   ) ShowAppR = True
+showTermParens (UsIf _ _ _   ) ShowCase = True
 showTermParens (UsSamp _ _     ) ShowAppL = True
 showTermParens (UsSamp _ _     ) ShowAppR = True
 showTermParens (UsLet _ _ _    ) ShowAppL = True
@@ -79,6 +85,8 @@ showTermh (UsVar x) = x
 showTermh (UsLam x tp tm) = "\\ " ++ x ++ " : " ++ show tp ++ ". " ++ showTerm tm ShowNone
 showTermh (UsApp tm1 tm2) = showTerm tm1 ShowAppL ++ " " ++ showTerm tm2 ShowAppR
 showTermh (UsCase tm cs) = "case " ++ showTerm tm ShowCase ++ " of " ++ showCasesCtors cs
+showTermh (UsIf tm1 tm2 tm3) = "if " ++ showTerm tm1 ShowCase ++ " then " ++ showTerm tm2 ShowCase ++ " else " ++ showTerm tm3 ShowCase
+showTermh (UsTmBool b) = if b then "True" else "False"
 showTermh (UsSamp d tp) = "sample " ++ show d ++ " : " ++ show tp
 showTermh (UsLet x tm tm') = "let " ++ x ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
 showTermh (UsAmb tms) = foldr (\ tm s -> s ++ " " ++ showTerm tm ShowAppR) "amb" tms

@@ -1,6 +1,5 @@
 -- Language: { 0^{2i}1^{2j+1} | i and j are integers}
 
-data Bool = F | T;
 data Symbol = Sym0 | Sym1;
 data State = q0e | q0o | q1e | q1o | sink;
 data String = Nil | Cons Symbol String;
@@ -22,7 +21,7 @@ define transition : Symbol -> State -> State = \ s : Symbol, q : State. case s o
     );
 
 define in_accept : State -> Bool = \ q : State. case q of
-  | q0e -> F | q0o -> F | q1e -> F | q1o -> T | sink -> F;
+  | q0e -> False | q0o -> False | q1e -> False | q1o -> True | sink -> False;
 
 define q0 : State = q0e;
 

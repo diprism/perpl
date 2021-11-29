@@ -117,6 +117,8 @@ parseTerm1 :: ParseM UsTm
 parseTerm1 = parsePeeks 2 $ \ t1t2 -> case t1t2 of
 -- case term of term
   [TkCase, _] -> parseEat *> pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
+-- if term then term else term
+  [TkIf, _] -> parseEat *> pure UsIf <*> parseTerm1 <* parseDrop TkThen <*> parseTerm1 <* parseDrop TkElse <*> parseTerm1
 -- \ x : type. term
   [TkLam, _] -> parseEat *> pure (flip (foldr (uncurry UsLam))) <*> parseLamArgs <* parseDrop TkDot <*> parseTerm1
 -- let (x, y, ...) = term in term
@@ -201,6 +203,7 @@ parseType2 = parseType3 >>= \ tp -> parsePeek $ \ t -> case t of
 parseType3 :: ParseM Type
 parseType3 = parsePeek $ \ t -> case t of
   TkVar v -> parseEat *> pure (TpVar v)
+  TkBool -> parseEat *> pure (TpVar "Bool")
   TkParenL -> parseEat *> parseType1 <* parseDrop TkParenR
   _ -> parseErr "couldn't parse a type here; perhaps add parentheses?"
 

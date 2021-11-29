@@ -32,6 +32,13 @@ renameUsTm (UsCase tm cs) =
   pure UsCase
     <*> renameUsTm tm
     <*> mapM renameCaseUs cs
+renameUsTm (UsIf tm1 tm2 tm3) =
+  pure UsIf
+    <*> renameUsTm tm1
+    <*> renameUsTm tm2
+    <*> renameUsTm tm3
+renameUsTm (UsTmBool b) =
+  pure (UsTmBool b)
 renameUsTm (UsSamp d tp) =
   pure (UsSamp d) <*> renameType tp
 renameUsTm (UsLet x xtm tm) =
@@ -175,7 +182,6 @@ substType xi xf (TpAmp tps) =
   TpAmp [substType xi xf tp | tp <- tps]
 substType xi xf (TpProd tps) =
   TpProd [substType xi xf tp | tp <- tps]
-
 
 
 {- ====== Fresh Variable Functions ====== -}
