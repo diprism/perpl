@@ -92,10 +92,9 @@ We have two kinds of products: multiplicative and additive. When you
 consume a multiplicative product, you consume all its members:
 
 ```
-define f: Bool -> Bool = \x: Bool . x
-(f, True)                     -- type (Bool -> Bool) * Bool
-(f, f)                        -- error: f is used twice
-let (g, b) = (f, True) in g b -- True
+(\x: Bool. x, True)                     -- type (Bool -> Bool) * Bool
+let f = \x: Bool. x in (f, f)           -- error: f is used twice
+let (f, b) = (\x: Bool. x, True) in f b -- True
 ```
 
 On the other hand, when you consume an additive product, you consume
@@ -103,11 +102,10 @@ just one of its members. Additive products must also be used no more
 than once.
 
 ```
-define f: Bool -> Bool = \x: Bool . x
-<f, True>                              -- type (Bool -> Bool) & Bool
-<f, f>                                 -- type (Bool -> Bool) & (Bool -> Bool)
-let p = <f, f> in p.1 True             -- True
-let p = <f, f> in (p.1 True, p.2 True) -- error: p is used twice
+<\x: Bool. x, True>                    -- type (Bool -> Bool) & Bool
+let f = \x: Bool. x in <f, f>          -- type (Bool -> Bool) & (Bool -> Bool)
+let f = \x: Bool. x in <f, f>.1 True   -- True
+let p = <True, True> in (p.1, p.2)     -- error: p is used twice
 ```
 
 ## De-/Refunctionalization
