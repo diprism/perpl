@@ -1,0 +1,11 @@
+define coin : Bool = (sample uniform : Bool) ;
+
+(coin, coin)
+
+{- Should be { (False, False): 0.25,
+               (False, True): 0.25,
+               (True, False): 0.25,
+               (True, True): 0.25 }
+ -}
+
+
