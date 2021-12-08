@@ -73,16 +73,64 @@ data Children =
 
 ### Expressions
 
-Lambdas (`\`), additive products (`<...>`), and recursive types must
-be used _affinely_, that is, no more than once.
+Lambdas (`\`) and recursive types must be used _affinely_, that is, no
+more than once. So it's an error to write
+
+```
+let f: Bool -> Bool = \x: Bool . x in (f True, f True)
+```
+
+or
+
+```
+data Nat = Zero | Succ Nat;
+extern eq: Nat -> Nat -> Bool;
+let one = Succ Zero in eq one one; -- error: one is used twice
+```
+
+We have two kinds of products: multiplicative and additive. When you
+consume a multiplicative product, you consume all its members:
+
+```
+define f: Bool -> Bool = \x: Bool . x
+(f, True)                     -- type (Bool -> Bool) * Bool
+(f, f)                        -- error: f is used twice
+let (g, b) = (f, True) in g b -- True
+```
+
+On the other hand, when you consume an additive product, you consume
+just one of its members. Additive products must also be used no more
+than once.
+
+```
+define f: Bool -> Bool = \x: Bool . x
+<f, True>                              -- type (Bool -> Bool) & Bool
+<f, f>                                 -- type (Bool -> Bool) & (Bool -> Bool)
+let p = <f, f> in p.1 True             -- True
+let p = <f, f> in (p.1 True, p.2 True) -- error: p is used twice
+```
 
 ## De-/Refunctionalization
 
-Let `M` be a recursive datatype. Then
-- We can _defunctionalize_ `M` when, for each `M` constructor occurrence, the types of the args it is instantiated with do not depend on `M`.
-- We can _refunctionalize_ `M` when, for each `M` case-of, neither the return type nor the types of the free vars in each case depend on `M`. Note that you _can_ use the constructor args you are given in each case even if their types depend on `M`.
+Our language allows infinite (recursive) types, but the target FGG
+must have only finite types. So recursive types need to be eliminated
+in one of two ways.
 
-In order to compile, each recursive datatype must satisfy at least one of the two conditions above.
+Let `A` be a recursive datatype.
+
+- `A` can be _defunctionalized_ if, for every constructor `Con` of
+  `A`, no expression `Con e` has a free variable whose types
+  contains `A`.
+
+- `A` can be _refunctionalized_ if for every expression `case e of
+  ...` where `e` is of type `A`, the type of the case-of expression
+  does not contain `A`, and the free variables in each case `Con x1
+  ... xn -> e'` have types that do not contain `A`. Note that the
+  variables `x1 ... xn` are not considered free here, so their types
+  _can_ contain `A`.
+
+In order to compile, each recursive datatype must satisfy at least one
+of the two conditions above.
 
 ## Compilation Stages
 
