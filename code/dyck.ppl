@@ -1,3 +1,5 @@
+{- Recognize Dyck-1 (the language of balanced parentheses) using a counter. -}
+
 data Paren = L | R;
 data Word = Nil | Cons Paren Word; -- D
 data Nat = Zero | Succ Nat; -- R
@@ -12,6 +14,6 @@ define run : Word -> Nat -> Bool =
       | L -> run ps (Succ c)
       | R -> (case c of Zero -> False | Succ c -> run ps c));
 
--- (()(()))
+{- Test whether the string (()(())) belongs to Dyck-1. -}
 recognize (Cons L (Cons L (Cons R (Cons L (Cons L (Cons R (Cons R (Cons R Nil))))))));
 
