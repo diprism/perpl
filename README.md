@@ -1,29 +1,98 @@
 # PPL-to-FGG compiler
 
+## Usage
+
+Building the compiler requires [GHC](https://www.haskell.org/ghc/):
+`make`
+
 Compile a PPL file to FGG (JSON-formatted):
 `./compiler.exe < FILE.ppl > OUTPUT.json`
 
 Run tests:
 `make tests`
 
-Example: Remove recursive datatypes from code/pda2.ppl
-`./compiler.exe --linearize=no --compile=no < code/pda2.ppl`
+## Expressions
 
-## Syntax
+The basic syntax is mostly Haskell-like. These are all expressions:
+
+Booleans:
+
+    True
+    False
+    if True then False else True
+    
+Functions:
+
+    \x: Bool. x                       -- the variable must be annotated with a type
+    (\x: Bool. x) True                -- application
+    (\x: Bool. \y: Bool. x) True True -- function of two arguments
+    (\x: Bool, y: Bool. x)  True True -- another way of writing the same thing
+
+Let:
+
+    let x = True in x
+
+There are two kinds of tuples, which are accessed in different ways:
+
+    {- Multiplicative product -}
+    (True, False, False)                      -- type Bool * Bool * Bool
+    let (x, y, z) = (True, False, False) in y
+
+    {- Additive product -}
+    <True, False, False>                      -- type Bool & Bool & Bool
+    <True, False, False>.2
+
+## Affine types
+
+Lambdas (`\`) must be used _affinely_, that is, no more than once. So
+it's an error to write
+
+```
+let f: Bool -> Bool = \x: Bool . x in (f True, f True)
+```
+
+or
+
+```
+data Nat = Zero | Succ Nat;
+extern eq: Nat -> Nat -> Bool;
+let one = Succ Zero in eq one one; -- error: one is used twice
+```
+
+This is why we have two kinds of products, multiplicative and
+additive. When you consume a multiplicative product, you consume all
+its members:
+
+```
+(\x: Bool. x, True)                     -- type (Bool -> Bool) * Bool
+let f = \x: Bool. x in (f, f)           -- error: f is used twice
+let (f, b) = (\x: Bool. x, True) in f b -- True
+```
+
+On the other hand, when you consume an additive product, you consume
+just one of its members. Additive products must also be used no more
+than once.
+
+```
+<\x: Bool. x, True>                    -- type (Bool -> Bool) & Bool
+let f = \x: Bool. x in <f, f>          -- type (Bool -> Bool) & (Bool -> Bool)
+let f = \x: Bool. x in <f, f>.1 True   -- True
+let p = <True, True> in (p.1, p.2)     -- error: p is used twice
+```
+
+## Programs
 
 A program consists of zero or more definitions and declarations, followed by an expression.
 
-### Global Definitions
+### Global definitions
 
 A global definition looks like this:
 
     define flip : (Bool -> Unit -> Nat) -> Unit -> Bool -> Nat =
       \ f : Bool -> Unit -> Nat, b : Unit, a : Bool. f a b;
     
-
 Notes:
 - The defined symbol (`flip`) must have a type (`(Bool -> Unit -> Nat) -> Unit -> Bool -> Nat`).
-- The argument of a lambda expression (`\ f`) must also have a type.
 - The definition must end with a semicolon (`;`).
 - The right-hand side of a definition is usually a lambda expression, but doesn't have to be.
 
@@ -34,7 +103,7 @@ You can use a globally defined symbol any number of times. They are macro-like i
 
 This flips a fair coin twice, that is, four outcomes with probability 0.25 each.
 
-### External Declarations
+### External declarations
 
 An external declaration looks like this:
 
@@ -42,7 +111,7 @@ An external declaration looks like this:
 
 The target FGG will have a nonterminal symbol `flip` whose rules should be added to it.
 
-### Datatype Declarations
+### Datatype declarations
 
 The type `Bool` is built-in, but its definition would look like this:
 ```
@@ -71,42 +140,23 @@ data Children =
   | Cons Tree Children;
 ```
 
-### Expressions
+Expressions of recursive type must also be affinely used.
 
-Lambdas (`\`) and recursive types must be used _affinely_, that is, no
-more than once. So it's an error to write
+## Probabilistic computation
 
-```
-let f: Bool -> Bool = \x: Bool . x in (f True, f True)
-```
-
-or
-
-```
-data Nat = Zero | Succ Nat;
-extern eq: Nat -> Nat -> Bool;
-let one = Succ Zero in eq one one; -- error: one is used twice
-```
-
-We have two kinds of products: multiplicative and additive. When you
-consume a multiplicative product, you consume all its members:
+A `sample` expression nondeterministically samples from a distribution
+(which might or might not sum to one). There are three built-in
+distributions you can sample from: `uniform` (every outcome gets equal
+probability, summing to one), `amb` (every outcome gets a weight of
+one), and `fail` (every outcome gets a weight of zero).
 
 ```
-(\x: Bool. x, True)                     -- type (Bool -> Bool) * Bool
-let f = \x: Bool. x in (f, f)           -- error: f is used twice
-let (f, b) = (\x: Bool. x, True) in f b -- True
+sample uniform : Bool -- True : 0.5, False : 0.5
+sample amb : Bool     -- True : 1,   False : 1
+sample fail : Bool    -- True : 0,   False : 0
 ```
 
-On the other hand, when you consume an additive product, you consume
-just one of its members. Additive products must also be used no more
-than once.
-
-```
-<\x: Bool. x, True>                    -- type (Bool -> Bool) & Bool
-let f = \x: Bool. x in <f, f>          -- type (Bool -> Bool) & (Bool -> Bool)
-let f = \x: Bool. x in <f, f>.1 True   -- True
-let p = <True, True> in (p.1, p.2)     -- error: p is used twice
-```
+An external definition might also be probabilistic.
 
 ## De-/Refunctionalization
 
