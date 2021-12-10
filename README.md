@@ -1,12 +1,15 @@
 # PPL-to-FGG compiler
 
-Building the compiler requires [GHC](https://www.haskell.org/ghc/):
+To build the compiler (requires [GHC](https://www.haskell.org/ghc/)):
+
     make
 
-Compile a PPL file to FGG (JSON-formatted):
+To compile a PPL file to FGG (JSON-formatted):
+
     ./compiler.exe < FILE.ppl > OUTPUT.json
 
-Run tests:
+To run tests:
+
     make tests
 
 For more about the language, see [language.md](language.md).
