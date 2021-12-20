@@ -33,3 +33,7 @@ turn the corresponding stage on or off.
 The `-d` and `-r` options are followed by a type name and force
 defunctionalization or refunctionalization (respectively) for that
 type.
+
+## Credits
+
+This code is written by Colin McDonald at the University of Notre Dame and is licensed under the MIT License.
