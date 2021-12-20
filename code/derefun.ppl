@@ -3,7 +3,7 @@ data Nat = zero | succ Nat;
 define not : Bool -> Bool =
   \ b : Bool. if b then False else True;
 define and : Bool -> Bool -> Bool =
-  \ a : Bool, b : Bool. if a then b else False;
+  \ a : Bool. \ b : Bool. if a then b else False;
 
 define even : Nat -> Bool =
   \ n : Nat. case n of zero -> True | succ n' -> not (even n');
@@ -12,12 +12,12 @@ define iszero : Nat -> Bool =
   \ n : Nat. case n of zero -> True | succ n' -> False;
 
 --define bothzero_worse : Nat -> Nat -> Bool =
---  \ m : Nat, n : Nat. case m of
+--  \ m : Nat. \ n : Nat. case m of
 --    | zero -> iszero n
 --    | succ m' -> False;
 
 define bothzero_better : Nat -> Nat -> Bool =
-  \ m : Nat, n : Nat. let iszero_n = iszero n in
+  \ m : Nat. \ n : Nat. let iszero_n = iszero n in
     case m of
       | zero -> iszero_n
       | succ m' -> False;
