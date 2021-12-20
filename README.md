@@ -1,54 +1,39 @@
 # PPL-to-FGG compiler
 
-Compile a PPL file to FGG (JSON-formatted):
-`./compiler.exe < FILE.ppl > OUTPUT.json`
+To build the compiler (requires [GHC](https://www.haskell.org/ghc/)):
 
-Run tests:
-`make tests`
+    make
 
-Example: Remove recursive datatypes from code/pda2.ppl
-`./compiler.exe --linearize=no --compile=no < code/pda2.ppl`
+To compile a PPL file to FGG (JSON-formatted):
 
-## Syntax
+    ./compiler.exe < FILE.ppl > OUTPUT.json
 
-### Function Definitions
+To run tests:
 
-TODO: way more documentation
-```
-define flip : (Bool -> Unit -> Nat) -> Unit -> Bool -> Nat =
-  \ f : Bool -> Unit -> Nat, b : Unit, a : Bool. f a b;
-```
+    make tests
 
-### Datatype Declarations
+For more about the language, see [language.md](language.md).
 
-```
-data Bool =
-    False
-  | True;
+Compilation has the following stages:
 
-data List =
-    Nil
-  | Cons Bool List;
-```
+\# | Pipeline Stage      | Description                                     | Flag
+--:| ------------------- | ----------------------------------------------- | -----
+ 1 | Lex                 | File contents -> list of tokens                 |
+ 2 | Parse               | List of tokens -> expressions                   |
+ 3 | Type check          | Check file for type errors                      |
+ 4 | Optimize            | Apply various optimizations                     | -o
+ 5 | De/refunctionalize  | De/refunctionalize all recursive datatypes      | -d, -r
+ 6 | Affine-to-linear    | Ensure every function gets called exactly once  | -l
+ 7 | Optimize (again)    | Apply various optimizations, again              | -o
+ 8 | Compile to FGG      | Create FGG rules for all subexpressions         | -c
 
+The `-o`, `-l`, and `-c` options are followed by either `Y` or `N` and
+turn the corresponding stage on or off.
 
+The `-d` and `-r` options are followed by a type name and force
+defunctionalization or refunctionalization (respectively) for that
+type.
 
-## De-/Refunctionalization
-Let `M` be a recursive datatype. Then
-- We can _defunctionalize_ `M` when, for each `M` constructor occurrence, the types of the args it is instantiated with do not depend on `M`.
-- We can _refunctionalize_ `M` when, for each `M` case-of, neither the return type nor the types of the free vars in each case depend on `M`. Note that you _can_ use the constructor args you are given in each case even if their types depend on `M`.
+## Credits
 
-In order to compile, each recursive datatype must satisfy at least one of the two conditions above.
-
-
-## Compilation Stages
-\# | Pipeline Stage            | Description                                     | Flag
---:| ------------------------- | ----------------------------------------------- | -----
- 1 | Lex                       | File contents -> list of tokens                 |
- 2 | Parse                     | List of tokens -> expressions                   |
- 3 | Type check                | Check file for type errors                      | -t
- 4 | Optimize                  | Apply various optimizations                     | -o
- 5 | De/refunctionalize        | De/refunctionalize all recursive datatypes      | -d, -r
- 6 | Affine-to-linear          | Ensure every function gets called exactly once  | -l
- 7 | Optimize (again)          | Apply various optimizations, again              | -o
- 8 | Compile to FGG            | Create FGG rules for all subexpressions         | -c
+This code is written by Colin McDonald at the University of Notre Dame and is licensed under the MIT License.

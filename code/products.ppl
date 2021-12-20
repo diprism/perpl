@@ -9,5 +9,8 @@ define use_prod : Bool * Color * Direction -> Direction =
 
 define use_amp  : Bool & Color & Direction -> Direction =
   \ a : Bool & Color & Direction. a.3;
+  
+{- define use_amp_error  : Bool & Color & Direction -> Direction =
+  \ a : Bool & Color & Direction. (a.1, a.2, a.3); -}
 
 use_amp amp;
