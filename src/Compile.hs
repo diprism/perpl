@@ -268,12 +268,18 @@ prog2fgg g (ProgFun x ps tm tp) =
       (Edge' (tmxs ++ [vtp]) (show tm) : discardEdges' unused_ps unused_n)
       (ps ++ [vtp])
 prog2fgg g (ProgExtern x xp ps tp) =
+  let tp' = (joinArrows ps tp) in
+    type2fgg g tp' +>
+    -- addNonterm x tp' +>
+    addIncompleteFactor x
+  {-
   type2fgg g (joinArrows ps tp) +>= \ _ ->
   let (vtp : vps) = newNames (tp : ps) in
     mkRule (TmVarG DefVar x [] tp) (vtp : vps)
       [Edge' (vps ++ [vtp]) xp]
       (vps ++ [vtp]) +>
     addFactor xp (getExternWeights (domainValues g) ps tp)
+  -}
 prog2fgg g (ProgData y cs) =
   foldr (\ (fac, ws) rm -> addFactor fac ws +> rm) returnRule
     (getCtorWeightsAll (domainValues g) cs (TpVar y)) +>
