@@ -118,6 +118,7 @@ addProdFactors g tps =
     addFactor (prodFactorName tps) (getProdWeightsV tpvs) +>
     foldr (\ (as', w) r -> r +> addFactor (prodFactorName' as') w) returnRule (getProdWeights tpvs)
 
+
 addPairFactor :: Ctxt -> Type -> Type -> RuleM
 addPairFactor g tp tp' = addFactor (pairFactorName tp tp') (getPairWeights (domainSize g tp) (domainSize g tp'))
 
@@ -230,6 +231,17 @@ term2fgg g (TmProdOut ptm ps tm tp) =
             Edge' (tmxs ++ [vtp]) (show tm) :
             discardEdges' unused_ps unused_nps)
          (ptmxs ++ foldr delete tmxs ps ++ [vtp])
+term2fgg g (TmEqs tms) =
+  [term2fgg g tm | tm <- tms] +>=* \ xss ->
+  let tmstp = getType (head tms)
+      ntms = length tms
+      fac = eqFactorName tmstp ntms
+      (vbtp : vtps) = newNames (TpVar "Bool" : [getType tm | tm <- tms]) in
+    addFactor fac (getEqWeights (domainSize g tmstp) ntms) +>
+    mkRule (TmEqs tms)
+      (vbtp : vtps ++ concat xss)
+      (Edge' (vtps ++ [vbtp]) fac : [Edge' (xs ++ [vtp]) (show tm) | (tm, vtp, xs) <- zip3 tms vtps xss])
+      (concat xss ++ [vbtp])
 
 type2fgg :: Ctxt -> Type -> RuleM
 type2fgg g tp =
