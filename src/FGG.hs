@@ -29,6 +29,12 @@ instance Show JSON where
   show (JSarray js) = '[' : delimitWith "," [show a | a <- js] ++ "]"
   show (JSobject kvs) = '{' : delimitWith "," [show k ++ ":" ++ show v | (k, v) <- kvs] ++ "}"
 
+pprint_json :: JSON -> String
+pprint_json j = pp j 0 where
+  indent i = "\n" ++ (delimitWith "" (replicate i " "))
+  pp (JSarray js) i = "[" ++ delimitWith "," [indent (i+2) ++ pp j (i+2) | j <- js] ++ indent i ++ "]"
+  pp (JSobject kvs) i = "{" ++ delimitWith "," [indent (i+2) ++ show k ++ ": " ++ pp v (i+2) | (k, v) <- kvs] ++ indent i ++ "}"
+  pp j i = show j
 
 {- ====== FGG Functions ====== -}
 

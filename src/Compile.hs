@@ -305,4 +305,4 @@ compileFile ps =
       Progs _ end = ps
       rm = progs2fgg g ps
       (end', RuleM rs xs nts fs) = addStartRuleIfNecessary end rm in
-    return (show (rulesToFGG (domainValues g) end' (reverse rs) nts fs))
+    return (pprint_json (fgg_to_json (rulesToFGG (domainValues g) end' (reverse rs) nts fs)))
