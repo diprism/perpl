@@ -20,6 +20,7 @@ toUsTm (TmAmpIn as) = UsAmpIn [toUsTm tm | (tm, _) <- as]
 toUsTm (TmAmpOut tm tps o) = UsAmpOut (toUsTm tm) o
 toUsTm (TmProdIn as) = UsProdIn [toUsTm tm | (tm, _) <- as]
 toUsTm (TmProdOut tm ps tm' tp) = UsProdOut (toUsTm tm) [x | (x, _) <- ps] (toUsTm tm')
+toUsTm (TmEqs tms) = UsEqs [toUsTm tm | tm <- tms]
 
 toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (fsts as) (toUsTm tm)
@@ -55,9 +56,11 @@ showTermParens (UsApp _ _      ) ShowAppR = True
 showTermParens (UsCase _ _     ) ShowAppL = True
 showTermParens (UsCase _ _     ) ShowAppR = True
 showTermParens (UsCase _ _     ) ShowCase = True
-showTermParens (UsIf _ _ _   ) ShowAppL = True
-showTermParens (UsIf _ _ _   ) ShowAppR = True
-showTermParens (UsIf _ _ _   ) ShowCase = True
+showTermParens (UsIf _ _ _     ) ShowAppL = True
+showTermParens (UsIf _ _ _     ) ShowAppR = True
+showTermParens (UsIf _ _ _     ) ShowCase = True
+showTermParens (UsEqs _        ) ShowAppL = True
+showTermParens (UsEqs _        ) ShowAppR = True
 showTermParens (UsSamp _ _     ) ShowAppL = True
 showTermParens (UsSamp _ _     ) ShowAppR = True
 showTermParens (UsLet _ _ _    ) ShowAppL = True
@@ -65,8 +68,6 @@ showTermParens (UsLet _ _ _    ) ShowAppR = True
 showTermParens (UsLet _ _ _    ) ShowCase = True
 showTermParens (UsAmb _        ) ShowAppL = True
 showTermParens (UsAmb _        ) ShowAppR = True
---showTermParens (UsAmpIn _      ) _        = True -- todo
---showTermParens (UsAmpOut _ _   ) _        = True -- todo
 showTermParens (UsProdIn _     ) _        = False -- todo
 showTermParens (UsProdOut _ _ _) _        = False -- todo
 showTermParens _                 _        = False
@@ -94,6 +95,7 @@ showTermh (UsAmpIn tms) = "<" ++ delimitWith ", " [showTerm tm ShowAppL | tm <- 
 showTermh (UsAmpOut tm o) = showTerm tm ShowAppR ++ "." ++ show (o + 1)
 showTermh (UsProdIn tms) = "(" ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ ")"
 showTermh (UsProdOut tm xs tm') = "let (" ++ delimitWith ", " xs ++ ") = " ++ showTerm tm ShowCase ++ " in " ++ showTerm tm' ShowCase
+showTermh (UsEqs tms) = delimitWith " == " [showTerm tm ShowAppL | tm <- tms]
 
 -- Type show helper (ignoring parentheses)
 showTypeh :: Type -> String

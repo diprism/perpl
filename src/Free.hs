@@ -35,6 +35,7 @@ freeVars (UsAmpIn tms) = Map.unionsWith max (map freeVars tms)
 freeVars (UsAmpOut tm o) = freeVars tm
 freeVars (UsProdIn tms) = Map.unionsWith (+) (map freeVars tms)
 freeVars (UsProdOut tm xs tm') = Map.unionWith (+) (freeVars tm) (foldr Map.delete (freeVars tm') xs)
+freeVars (UsEqs tms) = Map.unionsWith (+) (map freeVars tms)
 
 freeVarsCase :: CaseUs -> Map.Map Var Int
 freeVarsCase (CaseUs c xs tm) = foldr Map.delete (freeVars tm) xs
@@ -56,6 +57,7 @@ freeVars' (TmAmpIn as) = freeVarsArgs' as
 freeVars' (TmAmpOut tm tps o) = freeVars' tm
 freeVars' (TmProdIn as) = freeVarsArgs' as
 freeVars' (TmProdOut tm ps tm' tp) = Map.union (freeVars' tm) (foldr (Map.delete . fst) (freeVars' tm') ps)
+freeVars' (TmEqs tms) = Map.unions (map freeVars' tms)
 
 freeVarsCase' :: Case -> FreeVars
 freeVarsCase' (Case c as tm) = foldr (Map.delete . fst) (freeVars' tm) as
@@ -107,6 +109,7 @@ isLin x tm = h tm == LinYes where
   h (UsAmpOut tm o) = h tm
   h (UsProdIn tms) = h_as LinErr tms
   h (UsProdOut tm xs tm') = if x `elem` xs then h tm else h_as LinErr [tm, tm']
+  h (UsEqs tms) = h_as LinErr tms
 
 -- Returns if x appears exactly once in a term
 isLin' :: Var -> Term -> Bool
@@ -135,6 +138,7 @@ isLin' x = (LinYes ==) . h where
   h (TmProdIn as) = h_as LinErr (fsts as)
   h (TmProdOut tm ps tm' tp) =
     if x `elem` fsts ps then h tm else h_as LinErr [tm, tm']
+  h (TmEqs tms) = h_as LinErr tms
 
 -- Returns if a type has an infinite domain (i.e. it contains (mutually) recursive datatypes anywhere in it)
 typeIsRecursive :: Ctxt -> Type -> Bool

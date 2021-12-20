@@ -40,6 +40,7 @@ data UsTm = -- User Term
   | UsProdOut UsTm [Var] UsTm
   | UsTmBool Bool
   | UsIf UsTm UsTm UsTm
+  | UsEqs [UsTm]
   deriving (Eq, Ord)
 
 data GlobalVar = CtorVar | DefVar
@@ -58,6 +59,7 @@ data Term =
   | TmAmpOut Term [Type] Int
   | TmProdIn [Arg]
   | TmProdOut Term [Param] Term Type
+  | TmEqs [Term]
   deriving (Eq, Ord)
 
 data Type =

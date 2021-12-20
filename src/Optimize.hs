@@ -80,6 +80,9 @@ liftAmb (TmProdOut ptm ps tm tp) =
   joinAmbs (kronwith (\ ptm' tm' -> TmProdOut ptm' ps tm' tp)
              (splitAmbs (liftAmb ptm))
              (splitAmbs (liftAmb tm))) tp
+liftAmb (TmEqs tms) =
+  let tms' = [splitAmbs (liftAmb tm) | tm <- tms] in
+    joinAmbs (map TmEqs (kronall tms')) (TpVar "Bool")
 
 liftFail'' :: (Term, Maybe Term) -> Term
 liftFail'' (tm, Nothing) = TmSamp DistFail (getType tm)
@@ -115,6 +118,8 @@ liftFail' (TmProdIn as) =
   pure TmProdIn <*> mapArgsM liftFail' as
 liftFail' (TmProdOut tm ps tm' tp) =
   pure TmProdOut <*> liftFail' tm <*> pure ps <*> liftFail' tm' <*> pure tp
+liftFail' (TmEqs tms) =
+  pure TmEqs <*> mapM liftFail' tms
 
 -- If a term inevitably fails, just replace it with fail.
 -- For example, (sample fail : tp1 -> tp2) tm1 is the same
@@ -163,6 +168,7 @@ safe2sub g x xtm tm =
     noDefsSamps (TmAmpOut tm tps o) = noDefsSamps tm
     noDefsSamps (TmProdIn as) = all (noDefsSamps . fst) as
     noDefsSamps (TmProdOut tm ps tm' tp) = noDefsSamps tm && noDefsSamps tm'
+    noDefsSamps (TmEqs tms) = all noDefsSamps tms
 
 -- Applies various optimizations to a term
 optimizeTerm :: Ctxt -> Term -> Term
@@ -220,6 +226,8 @@ optimizeTerm g (TmProdIn as) =
   TmProdIn (mapArgs (optimizeTerm g) as) -- TODO
 optimizeTerm g (TmProdOut tm ps tm' tp) =
   TmProdOut (optimizeTerm g tm) ps (optimizeTerm (ctxtDeclArgs g ps) tm') tp
+optimizeTerm g (TmEqs tms) =
+  TmEqs [optimizeTerm g tm | tm <- tms]
 
 -- Applies various optimizations to a list of args
 optimizeArgs :: Ctxt -> [Arg] -> [Arg]

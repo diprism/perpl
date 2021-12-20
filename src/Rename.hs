@@ -57,6 +57,9 @@ renameUsTm (UsProdOut tm xs tm') =
   bindUsVars xs $ \ xs ->
   renameUsTm tm' >>= \ tm' ->
   return (UsProdOut tm xs tm')
+renameUsTm (UsEqs tms) =
+  pure UsEqs
+    <*> mapM renameUsTm tms
 
 -- Alpha-rename a term
 -- Note that this does NOT allow you to substitute global term vars (defines / ctors)
@@ -91,6 +94,9 @@ renameTerm (TmProdOut tm ps tm' tp) =
   bindVars ps $ \ ps ->
   renameTerm tm' >>= \ tm' ->
   return (TmProdOut tm ps tm' tp)
+renameTerm (TmEqs tms) =
+  pure TmEqs
+    <*> mapM renameTerm tms
 
 -- Alpha-rename an arg, given a function that alpha-renames its value
 renameArg' :: (a -> RenameM a) -> (a, Type) -> RenameM (a, Type)
