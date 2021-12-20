@@ -7,7 +7,7 @@ import Util
 import Name
 import Tensor
 
--- RuleM monad-like datatype and funcions
+-- RuleM monad-like datatype and functions
 type External = (Var, Type)
 data RuleM = RuleM [(Int, Rule)] [External] [Nonterminal] [Factor]
 
@@ -62,8 +62,11 @@ castHGF (HGF' ns es xs) =
       [Edge [m Map.! v | (v, tp) <- as] l | Edge' as l <- es]
       (nub [m Map.! v | (v, tp) <- xs])
 
+addIncompleteFactor :: Var -> RuleM
+addIncompleteFactor x = RuleM [] [] [] [(x, Nothing)]
+
 addFactor :: Var -> Weights -> RuleM
-addFactor x w = RuleM [] [] [] [(x, w)]
+addFactor x w = RuleM [] [] [] [(x, Just w)]
 
 -- Do nothing new
 returnRule :: RuleM
