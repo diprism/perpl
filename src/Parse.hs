@@ -109,6 +109,18 @@ parseCases = (*>) (parseDropSoft TkBar) $ parsePeek >>= \ t -> case t of
   TkVar _ -> pure (:) <*> parseCase <*> parseCases
   _ -> pure []
 
+{-
+
+TERM1 :=
+  | case TERM1 of VAR VAR* -> TERM2 \| ...
+  | if TERM1 then TERM1 else TERM1
+  | \ VAR : TYPE1. TERM1
+  | let (VAR, ...) = TERM1 in TERM1
+  | let VAR = TERM1 in TERM1
+  | TERM2
+
+ -}
+
 -- CaseOf, Lam, Let
 parseTerm1 :: ParseM UsTm
 parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
@@ -130,6 +142,16 @@ parseLamArgs =
   pure (curry (:)) <*> parseVar <* parseDrop TkColon <*> parseType1
     <*> parseElse [] (parseDrop TkComma >> parseLamArgs)
 
+
+{-
+
+TERM2 :=
+  | sample DIST : TYPE1
+  | amb TERM5*
+  | TERM3
+
+ -}
+
 -- Sample
 parseTerm2 :: ParseM UsTm
 parseTerm2 = parsePeek >>= \ t -> case t of
@@ -150,14 +172,29 @@ parseNum = parsePeek >>= \ t -> case t of
   TkNum o -> parseEat >> return (o - 1)
   _ -> parseErr "Expected a number here"
 
--- App
+
+{-
+
+TERM3 :=
+  | TERM4 . NUM
+  | TERM4
+
+ -}
+
 parseTerm3 :: ParseM UsTm
 parseTerm3 = parseTerm4 >>= \ tm -> parsePeek >>= \ t -> case t of
   -- TkComma -> pure UsProdIn <*> parseTmsDelim TkComma [tm]
   TkDot -> parseEat >> parseNum >>= return . UsAmpOut tm
   _ -> return tm
 
--- TODO: let (x, y) = tm1 in tm2
+{-
+
+TERM4 :=
+  | TERM5 == TERM5 == ...
+  | TERM5 TERM5*
+  | TERM5
+
+ -}
 
 parseTerm4 :: ParseM UsTm
 parseTerm4 =
@@ -174,6 +211,16 @@ parseAmbs tms =
 parseTermApp tm =
   parseElse tm $ parseTerm5 >>= parseTermApp . UsApp tm
 
+{-
+
+TERM5 :=
+  | VAR
+  | (TERM1)
+  | <TERM1, ...>
+  | error
+
+ -}
+
 -- Var, Parens
 parseTerm5 :: ParseM UsTm
 parseTerm5 = parsePeek >>= \ t -> case t of
@@ -187,11 +234,28 @@ parseTpsDelim tok tps = parsePeek >>= \ t ->
     then (parseEat >> parseType3 >>= \ tp' -> parseTpsDelim tok (tp' : tps))
     else pure (reverse tps)
 
+{-
+
+TYPE1 :=
+  | TYPE2 -> TYPE1
+  | TYPE2
+
+ -}
+
 -- Arrow
 parseType1 :: ParseM Type
 parseType1 = parseType2 >>= \ tp -> parsePeek >>= \ t -> case t of
   TkArr -> parseEat *> pure (TpArr tp) <*> parseType1
   _ -> pure tp
+
+{-
+
+TYPE2 :=
+  | TYPE3 * TYPE3 * ...
+  | TYPE3 & TYPE3 & ...
+  | TYPE3
+
+ -}
 
 -- Product, Ampersand
 parseType2 :: ParseM Type
@@ -199,6 +263,15 @@ parseType2 = parseType3 >>= \ tp -> parsePeek >>= \ t -> case t of
   TkStar -> pure TpProd <*> parseTpsDelim TkStar [tp]
   TkAmp  -> pure TpAmp <*> parseTpsDelim TkAmp [tp]
   _ -> pure tp
+
+{-
+
+TYPE3 :=
+  | VAR
+  | (TYPE1)
+  | error
+
+ -}
 
 -- TypeVar
 parseType3 :: ParseM Type
