@@ -141,9 +141,9 @@ checkTermh g (UsAmpOut tm o) =
   checkTerm g tm >>= \ (tm, tp) ->
   case tp of
     TpAmp tps ->
-      ifErr (not (0 <= o && o < length tps)) ("Expected a number between 0 and " ++ show (length tps)) >>
+      ifErr (not (0 <= o && o < length tps)) ("expected a number between 0 and " ++ show (length tps)) >>
       return (TmAmpOut tm tps o)
-    _ -> err "Expected ampersand type"
+    _ -> err "expected ampersand type"
 
 checkTermh g (UsProdIn tms) =
   mapM (checkTerm g) tms >>= return . TmProdIn
@@ -156,14 +156,23 @@ checkTermh g (UsProdOut tm xs tm') =
       let ps = zip xs tps in
         checkTerm (ctxtDeclArgs g ps) tm' >>= \ (tm', tp') ->
         return (TmProdOut tm ps tm' tp')
-    _ -> err "Expected product type"
+    _ -> err "expected product type"
 
+checkTermh g (UsEqs tms) =
+  mapM (checkTerm g) tms >>= \ tmtps ->
+  ifErr (length tmtps == 0) "expected one or more terms to compare with ==" >>
+  let (tms, tps) = unzip tmtps in
+    foldr (\ tp cr ->
+             ifErr (tp /= head tps) "== expects all terms to have the same type" >> cr)
+          okay (tail tps) >>
+    return (TmEqs tms)
+  
 
 -- Check a type under a context
 checkType :: Ctxt -> Type -> Either ErrMsg ()
 
 checkType g (TpVar y) =
-  mErr (ctxtLookupType g y) ("Type variable '" ++ y ++ "' not in scope") >>= \ cs -> okay
+  mErr (ctxtLookupType g y) ("type variable '" ++ y ++ "' not in scope") >>= \ cs -> okay
 
 checkType g (TpArr tp1 tp2) =
   checkType g tp1 >>

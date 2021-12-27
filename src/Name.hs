@@ -8,6 +8,8 @@ import Show()
 -- Naming convention for testing equality two terms of the same type
 typeFactorName tp = "==" ++ show tp
 
+eqFactorName tp n = "[" ++ show n ++ "]" ++ "==" ++ show tp
+
 -- Naming convention for factor v=(v1,v2)
 pairFactorName tp1 tp2 = "v=(" ++ show (TpArr tp1 tp2) ++ ")"
 

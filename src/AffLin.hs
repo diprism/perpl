@@ -205,6 +205,8 @@ affLin (TmProdOut tm ps tm' tp) =
   -- Discard all ps that are not used in tm'
   discards (Map.intersection (Map.fromList ps) fvs) tm' >>= \ tm' ->
   return (TmProdOut tm ps tm' (getType tm'))
+affLin (TmEqs tms) =
+  pure TmEqs <*> mapM affLin tms
 
 -- Make an affine Prog linear
 affLinProg :: Prog -> AffLinM Prog

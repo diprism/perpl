@@ -4,7 +4,7 @@ data Symbol = Sym0 | Sym1;
 data State = q0e | q0o | q1e | q1o | sink;
 data String = Nil | Cons Symbol String;
 
-define transition : Symbol -> State -> State = \ s : Symbol, q : State. case s of
+define transition : Symbol -> State -> State = \ s : Symbol. \ q : State. case s of
   | Sym0 -> (case q of
     | q0e -> q0o
     | q0o -> q0e

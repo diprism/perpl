@@ -39,13 +39,16 @@
             "function": "categorical",
             "type": ["Bool", "Bool"],
             "weights": [[0, 1], [1, 0]]
+        },
+        "sample_p": {
+            "function": "incomplete",
+            "type": ["Bool"]
         }
     },
     "nonterminals": {
         "odd":         { "type" : ["Bool"] },
         "lambda ...":  { "type" : ["Bool->Bool"] },
         "if ...":      { "type" : ["Bool", "Bool"] },
-        "sample_p":    { "type" : ["Bool"] },
         "odd (odd q)": { "type" : ["Bool", "Bool"] },
         "odd q":       { "type" : ["Bool", "Bool"] },
         "q":           { "type" : ["Bool", "Bool"] },

@@ -35,6 +35,7 @@ data Token =
   | TkIf
   | TkThen
   | TkElse
+  | TkDoubleEq
   deriving Eq
 
 instance Show Token where
@@ -56,6 +57,7 @@ instance Show Token where
   show TkRangle = ">"
   show TkBar = "|"
   show TkSemicolon = ";"
+  show TkDoubleEq = "=="
   -- Keyword tokens
   show TkSample = "sample"
   show TkFail = "fail"
@@ -86,7 +88,7 @@ next :: Pos -> Pos
 next (line, column) = (succ line, 0)
 
 -- List of punctuation tokens
-punctuation = [TkLam, TkParenL, TkParenR, TkEq, TkArr, TkLeftArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkStar, TkAmp, TkLangle, TkRangle]
+punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkLeftArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkStar, TkAmp, TkLangle, TkRangle]
 -- List of keyword tokens (use alphanumeric chars)
 keywords = [TkFail, TkAmb, TkUni, TkCase, TkOf, TkLet, TkIn, TkUni, TkSample, TkFun, TkExtern, TkData, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
 

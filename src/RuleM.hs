@@ -7,7 +7,7 @@ import Util
 import Name
 import Tensor
 
--- RuleM monad-like datatype and funcions
+-- RuleM monad-like datatype and functions
 type External = (Var, Type)
 data RuleM = RuleM [(Int, Rule)] [External] [Nonterminal] [Factor]
 
@@ -62,8 +62,11 @@ castHGF (HGF' ns es xs) =
       [Edge [m Map.! v | (v, tp) <- as] l | Edge' as l <- es]
       (nub [m Map.! v | (v, tp) <- xs])
 
+addIncompleteFactor :: Var -> RuleM
+addIncompleteFactor x = RuleM [] [] [] [(x, Nothing)]
+
 addFactor :: Var -> Weights -> RuleM
-addFactor x w = RuleM [] [] [] [(x, w)]
+addFactor x w = RuleM [] [] [] [(x, Just w)]
 
 -- Do nothing new
 returnRule :: RuleM
@@ -159,6 +162,20 @@ getProdWeights tpvs =
 
 getProdWeightsV :: [[String]] -> Weights
 getProdWeightsV tpvs = tensorId [length vs | vs <- tpvs]
+
+getEqWeights :: Int -> Int -> Weights
+getEqWeights dom ntms =
+  foldr
+    (\ _ ws b mi -> Vector [ws (b && maybe True (== j) mi) (Just j) | j <- [0..dom-1]])
+    (\ b _ -> Vector (if b then [Scalar 0, Scalar 1] else [Scalar 1, Scalar 0]))
+    [0..ntms-1]
+    True
+    Nothing
+--  Vector [foldr
+--            (\ _ ws b -> Vector [ws (b && i == j) | j <- [0..dom-1]])
+--            (\ b -> Vector (if b then [Scalar 0, Scalar 1] else [Scalar 1, Scalar 0]))
+--            [1..dom - 1] True
+--          | i <- [0..dom - 1]]
 
 -- TODO: it is no longer necessary to be this complex—now the we just need
 -- to take and return a single (non-nested) list

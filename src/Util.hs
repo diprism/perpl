@@ -60,6 +60,7 @@ getType (TmAmpIn as) = TpAmp (snds as)
 getType (TmAmpOut tm tps o) = tps !! o
 getType (TmProdIn as) = TpProd (snds as)
 getType (TmProdOut tm ps tm' tp) = tp
+getType (TmEqs tms) = TpVar "Bool"
 
 -- Sorts cases according to the order they are appear in the datatype definition
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
