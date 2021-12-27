@@ -78,41 +78,50 @@ fgg_to_json :: FGG_JSON -> JSON
 fgg_to_json (FGG_JSON ds fs nts s rs) =
   let mapToList = \ ds f -> JSobject $ Map.toList $ fmap f ds in
   JSobject
-    [("domains", mapToList ds $
-       \ ds' -> JSobject [
-         ("class", JSstring "finite"),
-         ("values", JSarray $ map JSstring ds')
-       ]),
-      
-     ("factors", mapToList fs $
-       \ (d, ws) -> JSobject [
-         ("function", JSstring "categorical"),
-         ("type", JSarray $ map JSstring d),
-         ("weights", weights_to_json ws)
-       ]),
-      
-     ("nonterminals", mapToList nts $
-       \ d -> JSobject [
-         ("type", JSarray $ map JSstring d)
-       ]),
+    [("grammar",
+      JSobject
+        [("terminals", mapToList fs $
+           \ (d, ws) -> JSobject [
+             ("type", JSarray $ map JSstring d)
+           ]),
 
-     ("start", JSstring s),
-
-     ("rules", JSarray $ concat $ flip map (nub rs) $
-       \ (reps, Rule lhs (HGF ns es xs)) -> replicate reps $ JSobject [
-           ("lhs", JSstring lhs),
-           ("rhs", JSobject [
-               ("nodes", JSarray [JSobject [("label", JSstring (show n))] | n <- ns]),
-               ("edges", JSarray $ flip map es $
-                 \ (Edge atts l) -> JSobject [
-                   ("attachments", JSarray (map JSint atts)),
-                   ("label", JSstring l)
-                 ]),
-               ("externals", JSarray $ map JSint xs)
-             ])
-       ])
+          ("nonterminals", mapToList nts $
+           \ d -> JSobject [
+             ("type", JSarray $ map JSstring d)
+           ]),
+    
+         ("start", JSstring s),
+    
+         ("rules", JSarray $ concat $ flip map (nub rs) $
+           \ (reps, Rule lhs (HGF ns es xs)) -> replicate reps $ JSobject [
+               ("lhs", JSstring lhs),
+               ("rhs", JSobject [
+                   ("nodes", JSarray [JSobject [("label", JSstring (show n))] | n <- ns]),
+                   ("edges", JSarray $ flip map es $
+                     \ (Edge atts l) -> JSobject [
+                       ("attachments", JSarray (map JSint atts)),
+                       ("label", JSstring l)
+                     ]),
+                   ("externals", JSarray $ map JSint xs)
+                 ])
+           ])
+        ]),
+      ("interpretation", JSobject
+        [("domains", mapToList ds $
+           \ ds' -> JSobject [
+             ("class", JSstring "finite"),
+             ("values", JSarray $ map JSstring ds')
+           ]),
+          
+         ("factors", mapToList fs $
+           \ (d, ws) -> JSobject [
+             ("function", JSstring "categorical"),
+             ("type", JSarray $ map JSstring d),
+             ("weights", weights_to_json ws)
+           ])
+        ])
     ]
-
+    
 instance Show FGG_JSON where
   show = show . fgg_to_json
 
