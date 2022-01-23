@@ -117,8 +117,9 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
          ])
     ])]
 
+
 instance Show FGG_JSON where
-  show = show . fgg_to_json
+  show = pprint_json . fgg_to_json
 
 
 -- Default FGG
