@@ -42,7 +42,7 @@ type Nonterminal = (Var, Type)
 type Domain = [String]
 type Value = String
 type FType = [Value]
-type Factor = (String, Weights)
+type Factor = (String, Maybe Weights)
 type Prob = Double
 type Weights = Tensor Prob
 data Edge = Edge { edge_atts :: [Int], edge_label :: String }
@@ -57,7 +57,7 @@ data Rule = Rule String HGF
   deriving Eq
 data FGG_JSON = FGG_JSON {
   domains :: Map.Map String FType,
-  factors :: Map.Map String (Domain, Weights),
+  factors :: Map.Map String (Domain, Maybe Weights),
   nonterminals :: Map.Map String Domain,
   start :: String,
   rules :: [(Int, Rule)]
@@ -65,9 +65,9 @@ data FGG_JSON = FGG_JSON {
 
 concatFactors :: [Factor] -> [Factor] -> [Factor]
 concatFactors [] gs = gs
-concatFactors ((x, w) : fs) gs =
+concatFactors ((x, tw) : fs) gs =
   let hs = concatFactors fs gs in
-    maybe ((x, w) : hs) (\ _ -> hs) (lookup x gs)
+    maybe ((x, tw) : hs) (const hs) (lookup x hs)
 
 weights_to_json :: Weights -> JSON
 weights_to_json (Scalar n) = JSdouble n
@@ -80,16 +80,14 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
   JSobject
     [("grammar", JSobject 
       [("terminals", mapToList fs $
-         \ (d, ws) -> JSobject [("type", JSarray $ map JSstring d)]),
+         \ (d, mws) -> JSobject [("type", JSarray $ map JSstring d)]),
        ("nonterminals", mapToList nts $
          \ d -> JSobject [
            ("type", JSarray $ map JSstring d)
          ]),
-  
-       ("start", JSstring s),
-  
-       ("rules", JSarray $ concat $ flip map (nub rs) $
-         \ (reps, Rule lhs (HGF ns es xs)) -> replicate reps $ JSobject [
+        ("start", JSstring s),
+        ("rules", JSarray $ concat $ flip map (nub rs) $
+          \ (reps, Rule lhs (HGF ns es xs)) -> replicate reps $ JSobject [
              ("lhs", JSstring lhs),
              ("rhs", JSobject [
                  ("nodes", JSarray [JSobject [("label", JSstring (show n))] | n <- ns]),
@@ -108,19 +106,26 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
            ("class", JSstring "finite"),
            ("values", JSarray $ map JSstring ds')
          ]),
-        
-       ("factors", mapToList fs $
+{-       ("factors", mapToList fs $
          \ (d, ws) -> JSobject [
            ("function", JSstring "categorical"),
            ("type", JSarray $ map JSstring d),
            ("weights", weights_to_json ws)
          ])
-    ])]
-
-
+    ])]-}
+         ("factors",
+          let fs_filtered = Map.mapMaybe (\ (d, mws) -> maybe Nothing (\ ws -> Just (d, ws)) mws) fs in
+          mapToList fs_filtered $
+           \ (d, ws) -> JSobject [
+             ("function", JSstring "categorical"),
+               ("type", JSarray $ map JSstring d),
+               ("weights", weights_to_json ws)
+             ])
+        ])
+    ]
+    
 instance Show FGG_JSON where
   show = pprint_json . fgg_to_json
-
 
 -- Default FGG
 emptyFGG :: String -> FGG_JSON
