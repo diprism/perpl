@@ -100,7 +100,7 @@ parseVarsCommas = parsePeeks 2 >>= \ ts -> case ts of
 -- Parse a branch of a case expression.
 parseCase :: ParseM CaseUs
 parseCase = (*>) (parseDropSoft TkBar) $ parsePeek >>= \ t -> case t of
-  TkVar c -> parseEat *> pure (CaseUs c) <*> parseVars <* parseDrop TkArr <*> parseTerm2
+  TkVar c -> parseEat *> pure (CaseUs c) <*> parseVars <* parseDrop TkArr <*> parseTerm1
   _ -> parseErr "expecting another case"
 
 -- Parse zero or more branches of a case expression.
