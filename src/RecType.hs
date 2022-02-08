@@ -445,11 +445,12 @@ pickNextDR explicit_drs res drs = Map.foldrWithKey (\ rtp rds dr_else -> tryPick
 
 spanGraphError :: RecEdges -> [(Var, DeRe)] -> Either String a
 spanGraphError res chosen =
-  let ys = Map.keys res
-      base_msg = "Failed to eliminate recursive datatype"
-      plural_msg = if length ys > 1 then base_msg ++ "s" else base_msg
-  in
-    Left (foldl (\ s rtp -> s ++ " " ++ rtp) plural_msg ys)
+  Left $ "Failed to resolve the following dependencies:\n" ++
+    (delimitWith "\n" $ uncurry depmsg <$> Map.toList res)
+    where
+      depmsg rtp (RecDeps defs refs) = depstr 'D' rtp defs ++ "\n" ++ depstr 'R' rtp refs
+      depstr :: Char -> Var -> [Var] -> String
+      depstr dr name deps = dr : "[" ++ name ++ "] <- " ++ delimitWith ", " deps
 
 -- Pops nodes from the graph that satisfy pickNextDR until none remain, returning
 -- the recursive datatype names and whether to de- or refunctionalize them
