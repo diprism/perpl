@@ -41,27 +41,27 @@ etaName x i = "?" ++ x ++ show i
 nameParams :: Var -> [Type] -> [Param]
 nameParams x = zip (map (etaName x) [0..])
 
-startName = "%start%"
+startName = "_start_"
 
 -- Names used for de-/refunctionalization
-applyName y = "%apply" ++ y ++ "%"
-unfoldName y = "%unapply" ++ y ++ "%"
-targetName = "%this%"
-foldCtorName y i = "%fold" ++ y ++ "_" ++ show i ++ "%"
-foldTypeName y = "%Fold" ++ y ++ "%"
-unfoldTypeName y = "%Unfold" ++ y ++ "%"
-unfoldCtorName y = "%unfold" ++ y ++ "%"
-unfoldCtorArgName y i = "%unfold" ++ y ++ "_" ++ show i ++ "%"
+applyName y = "_apply" ++ y ++ "_"
+unfoldName y = "_unapply" ++ y ++ "_"
+targetName = "_this_"
+foldCtorName y i = "_fold" ++ y ++ "_" ++ show i ++ "_"
+foldTypeName y = "_Fold" ++ y ++ "_"
+unfoldTypeName y = "_Unfold" ++ y ++ "_"
+unfoldCtorName y = "_unfold" ++ y ++ "_"
+unfoldCtorArgName y i = "_unfold" ++ y ++ "_" ++ show i ++ "_"
 unfoldCtorArgNames y n = [unfoldCtorArgName y i | i <- [0..n-1]]
 
 
 -- Names used for affLin
-affLinName x = '%' : x
-tpUnitName = "%Unit%"
-tmUnitName = "%unit%"
-tmNothingName i = "%nothing" ++ show i ++ "%"
-tmJustName i = "%just" ++ show i ++ "%"
-tpMaybeName i = "%Maybe" ++ show i ++ "%"
+affLinName x = '_' : x
+tpUnitName = "_Unit_"
+tmUnitName = "_unit_"
+tmNothingName i = "_nothing" ++ show i ++ "_"
+tmJustName i = "_just" ++ show i ++ "_"
+tpMaybeName i = "_Maybe" ++ show i ++ "_"
 
 -- Constructors and case-ofs for affLin-generated datatypes
 tmNothing :: Int -> Term

@@ -109,11 +109,11 @@ collectUnfoldsFile = collectFile . collectUnfolds
 -- See collectFolds
 collectFoldsFile = collectFile . collectFolds
 
--- Makes the %UnfoldY% datatype, given results from collectUnfolds
+-- Makes the _UnfoldY_ datatype, given results from collectUnfolds
 makeUnfoldDatatype :: Var -> [(FreeVars, Type)] -> Prog
 makeUnfoldDatatype y us = ProgData (unfoldTypeName y) [Ctor (unfoldCtorName y) [TpAmp [joinArrows (Map.elems fvs) tp | (fvs, tp) <- us]]]
 
--- Makes the %FoldY% datatype, given results from collectFolds
+-- Makes the _FoldY_ datatype, given results from collectFolds
 makeFoldDatatype :: Var -> [(Var, FreeVars)] -> Prog
 makeFoldDatatype y fs = ProgData (foldTypeName y) [Ctor (foldCtorName y i) (snds (Map.toList fvs)) | (i, (x, fvs)) <- enumerate fs]
 
@@ -123,7 +123,7 @@ makeDisentangle g y us css =
   let ytp = TpVar y
       utp = TpVar (unfoldTypeName y)
       dat = makeUnfoldDatatype y us
-      x = "%abc" -- targetName -- TODO
+      x = "_abc" -- targetName -- TODO
       sub_ps ps = [(x, derefunSubst Refun y tp) | (x, tp) <- ps]
       alls = zipWith3 (\ (fvs, tp) cs i -> (fvs, tp, cs, i)) us css [0..]
       cscs = [let ps = sub_ps (Map.toList fvs)
@@ -142,7 +142,7 @@ makeDefold :: Ctxt  -> Var -> [Term] -> (Prog, Prog)
 makeDefold g y tms =
   let fname = applyName y
       tname = foldTypeName y
-      x = "%ghi" -- targetName -- TODO
+      x = "_ghi" -- targetName -- TODO
       ftp = TpVar tname
       ps = [(x, ftp)]
       casesf = \ (i, tm) -> let ps' = Map.toList (freeVars' tm) in Case (foldCtorName y i) ps' (derefunTerm Defun (ctxtDeclArgs g ps') y tm)
@@ -178,7 +178,7 @@ disentangleTerm rtp cases = h where
       mapCasesM (\ _ _ -> h) cs >>= \ cs' ->
       State.get >>= \ unfolds ->
       let i = length unfolds
-          x' = "%def" -- targetName -- TODO
+          x' = "_def" -- targetName -- TODO
           get_ps = \ (cfvs, ctp2) -> Map.toList cfvs
           get_as = \ (cfvs, ctp2) -> paramsToArgs (Map.toList cfvs)
           get_arr = \ (cfvs, ctp2) -> joinArrows (snds (get_ps (cfvs, ctp2))) ctp2
