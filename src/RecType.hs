@@ -448,9 +448,14 @@ spanGraphError res chosen =
   Left $ "Failed to resolve the following dependencies:\n" ++
     (delimitWith "\n" $ uncurry depmsg <$> Map.toList res)
     where
+      depmsg :: Var -> RecDeps -> String
       depmsg rtp (RecDeps defs refs) = depstr 'D' rtp defs ++ "\n" ++ depstr 'R' rtp refs
+      
+      relevantDeps :: [Var] -> [Var]
+      relevantDeps = filter $ flip Map.member res
+      
       depstr :: Char -> Var -> [Var] -> String
-      depstr dr name deps = dr : "[" ++ name ++ "] <- " ++ delimitWith ", " deps
+      depstr dr name deps = dr : "[" ++ name ++ "] <- " ++ delimitWith ", " (relevantDeps deps)
 
 -- Pops nodes from the graph that satisfy pickNextDR until none remain, returning
 -- the recursive datatype names and whether to de- or refunctionalize them
