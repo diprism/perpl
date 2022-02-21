@@ -35,8 +35,8 @@ Options:
         
 	-o OUTFILE	Output to OUTFILE
 	-O0 -O1		Optimization level (0 = off, 1 = on, for now)
-	-c			Compile only to PPL code (not to FGG)
-	-l			Don't linearize the file (implies -c)
+	-c		Compile only to PPL code (not to FGG)
+	-l		Don't linearize the file (implies -c)
 	-d DTYPES	Defunctionalize recursive datatypes DTYPES
 	-r DTYPES	Refunctionalize recursive datatypes DTYPES
 
