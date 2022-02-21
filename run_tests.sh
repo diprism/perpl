@@ -5,7 +5,7 @@ my_errs=()
 for file in code/*.ppl
 do
     printf '%-40s' "Compiling ${file}... "
-    my_err=$(./compiler.exe < $file 2>&1 > /dev/null)
+    my_err=$(./compiler.exe $file -o /dev/null 2>&1 > /dev/null)
     if [ $? = 0 ]
     then
         echo "Success"

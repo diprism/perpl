@@ -7,21 +7,23 @@ import Parse
 import Lex
 import Check
 import Compile
-import Util
 import RecType
 import Rename
 import AffLin
 import Optimize
 
-data Options = Options {
+data CmdArgs = CmdArgs {
+  optInfile :: String,
+  optOutfile :: String,
   optCompile :: Bool,
   optDerefun :: [(Var, DeRe)],
   optLin :: Bool,
---  optAlpha :: Bool,
   optOptimize :: Bool
 }
 
-optionsDefault = Options {
+optionsDefault = CmdArgs {
+  optInfile = "/dev/stdin",
+  optOutfile = "/dev/stdout",
   optCompile = True,
   optDerefun = [],
   optLin = True,
@@ -31,59 +33,36 @@ optionsDefault = Options {
 putStrLnErr :: String -> IO ()
 putStrLnErr = hPutStrLn stderr
 
-help :: IO String
-help = getProgName >>= \ name -> return $
-  name ++ " [option] < filename.ppl\n" ++
-  "Options:\n" ++
-  " -c Y/N, --compile=Y/N            Compile to FGG (default)\n" ++
-  " -d VAR, --defunctionalize=VAR    Defunctionalize recursive datatype VAR\n" ++
-  " -r VAR, --refunctionalize=VAR    Refunctionalize recursive datatype VAR\n" ++
-  " -l Y/N, --linearize=Y/N          Linearize the file (from affine)\n" ++
---  " -a Y/N, --alpha=Y/N              Alpha-rename\n" ++
-  " -o Y/N, --optimize=Y/N           Apply optimizations"
+help :: IO ()
+help =
+  getProgName >>= \ name ->
+  die (name ++
+        " [options] filename.ppl\n" ++
+        "Options:\n" ++
+        "  -o OUTFILE\tOutput to OUTFILE\n" ++
+        "  -O0 -O1\tOptimization level (0 = off, 1 = on, for now)\n" ++
+        "  -c\t\tCompile only to PPL code (not to FGG)\n" ++
+        "  -l\t\tDon't linearize the file (implies -c)\n" ++
+        "  -d DTYPES\tDefunctionalize recursive datatypes DTYPES\n" ++
+        "  -r DTYPES\tRefunctionalize recursive datatypes DTYPES")
 
-noStrings  = ["no",  "No",  "NO",  "N", "n", "0", "false", "False", "FALSE", "F", "f", "off", "Off", "OFF"]
-yesStrings = ["yes", "Yes", "YES", "Y", "y", "1", "true",  "True",  "TRUE",  "T", "t", "on",  "On",  "ON" ]
-processYN :: String -> Maybe Bool
-processYN s
-  | s `elem` noStrings  = Just False
-  | s `elem` yesStrings = Just True
-  | otherwise = Nothing
-
-isLongArg :: String -> Maybe (String, String)
-isLongArg "" = Nothing
-isLongArg ('=' : s) = Just ("", s)
-isLongArg (c : s) = fmap (\ (a, yn) -> (c : a, yn)) (isLongArg s)
-
-processArgs'' :: String -> String -> Options -> Maybe Options
-processArgs'' a val o = h a o where
-  h arg (Options c dr l o)
-    | arg `elem` ["-c", "--compile"] =
-        processYN val >>= \ yn -> Just (Options yn dr l o)
-    | arg `elem` ["-d", "--defunctionalize"] =
-        Just (Options c (dr ++ [(val, Defun)]) l o)
-    | arg `elem` ["-r", "--refunctionalize"] =
-        Just (Options c (dr ++ [(val, Refun)]) l o)
-    | arg `elem` ["-l", "--linearize"] =
-        processYN val >>= \ yn -> Just (Options c dr yn o)
---    | arg `elem` ["-a", "--alpha"] =
---        processYN val >>= \ yn -> Just (Options c dr l yn o)
-    | arg `elem` ["-o", "--optimize"] =
-        processYN val >>= \ yn -> Just (Options c dr l yn)
-    | otherwise = Nothing
-
-processArgs' :: Options -> [String] -> Maybe Options
+processArgs' :: CmdArgs -> [String] -> Maybe CmdArgs
+processArgs' o ("-o" : fn : as) = processArgs' (o {optOutfile = fn}) as
+processArgs' o ("-O0" : as) = processArgs' (o {optOptimize = False}) as
+processArgs' o ("-O1" : as) = processArgs' (o {optOptimize = True}) as
+processArgs' o ("-c" : as) = processArgs' (o {optCompile = False}) as
+processArgs' o ("-l" : as) = processArgs' (o {optLin = False}) as
+processArgs' o ("-d" : a : as) =
+  processArgs' (o {optDerefun = map (flip (,) Defun) (words a) ++ optDerefun o}) as
+processArgs' o ("-r" : a : as) =
+  processArgs' (o {optDerefun = map (flip (,) Refun) (words a) ++ optDerefun o}) as
+processArgs' o (('-' : _) : _) = Nothing
+processArgs' o (fn : as) = processArgs' (o {optInfile = fn}) as
 processArgs' o [] = Just o
-processArgs' o (a : []) = isLongArg a >>= \ (a, yn) -> processArgs'' a yn o
-processArgs' o (a : a' : as) =
-  maybe
-    (processArgs'' a a' o >>= \ o -> processArgs' o as)
-    (\ (a, yn) -> processArgs'' a yn o >>= \ o -> processArgs' o (a' : as))
-    (isLongArg a)
 
-processArgs :: IO (Either () Options)
-processArgs = getArgs >>= return . maybe (Left ()) Right . processArgs' optionsDefault
-
+processArgs :: IO (Either () CmdArgs)
+processArgs =
+  maybe (Left ()) Right <$> processArgs' optionsDefault <$> getArgs
 
 doIf :: Bool -> (a -> Either String a) -> a -> Either String a
 doIf True f = f
@@ -92,8 +71,8 @@ doIf False f = return
 showFile :: Progs -> Either String String
 showFile = return . show
 
---process :: Show a => Options -> String -> a
-processContents (Options c dr l o) s = return s
+--process :: Show a => CmdArgs -> String -> a
+processContents (CmdArgs ifn ofn c dr l o) s = return s
   -- String to list of tokens
   >>= lexFile
   -- List of tokens to UsProgs
@@ -118,7 +97,7 @@ processContents (Options c dr l o) s = return s
 -- Parse a file, check and elaborate it, then compile to FGG and output it
 main :: IO ()
 main =
-  processArgs >>= \ mopts ->
-  getContents >>= \ input ->
-  either (\ e -> e >>= die) (\ a -> putStrLn a >> exitSuccess)
-    (mapLeft (const help) mopts >>= \ opts -> mapLeft return (processContents opts input))
+  processArgs >>= either (const help) (\ opts ->
+    (openFile (optInfile opts) ReadMode) >>= \ fh ->
+     hGetContents fh >>= \ input ->
+     either die (\ a -> putStrLn a >> exitSuccess) (processContents opts input))
