@@ -112,14 +112,14 @@ class Substitutable a where
   freeVars :: a -> FreeVars
   substM :: a -> SubstM a
   
-  subst :: Subst -> a -> a
-  subst r a = let (a', r', ()) = runRWS (substM a) () r in a'
+subst :: Substitutable a => Subst -> a -> a
+subst r a = let (a', r', ()) = runRWS (substM a) () r in a'
 
-  substWithCtxt :: Ctxt -> Subst -> a -> a
-  substWithCtxt g s = subst (Map.union (Map.mapWithKey (const . SubVar) g) s)
+substWithCtxt :: Substitutable a => Ctxt -> Subst -> a -> a
+substWithCtxt g s = subst (Map.union (Map.mapWithKey (const . SubVar) g) s)
 
-  alphaRename :: Ctxt -> a -> a
-  alphaRename g = substWithCtxt g Map.empty
+alphaRename :: Substitutable a => Ctxt -> a -> a
+alphaRename g = substWithCtxt g Map.empty
 
 substF :: (Functor t, Traversable t, Substitutable a) => t a -> SubstM (t a)
 substF fa = sequence (fmap substM fa)
@@ -344,11 +344,6 @@ substType xi xf (TpArr tp1 tp2) =
 substType xi xf (TpProd am tps) =
   TpProd am [substType xi xf tp | tp <- tps]
 substType xi xf NoTp = NoTp
-
--- Rename all occurrences of xi to xf in something
---substs :: Substitutable a => Ctxt -> [(Var, Either Term Type)] -> a -> a
---substs g subs =
---  subst (foldr (uncurry Map.insert) (Map.mapWithKey (const . SubVar) g) (map (fmap (either SubTm SubTp)) subs))
 
 freshVar :: Ctxt -> Var -> Var
 freshVar g x =
