@@ -17,8 +17,7 @@ isRecType' g y = h [] where
   h :: [Var] -> [Type] -> Bool
   h hist [] = False
   h hist (TpArr tp1 tp2 : tps) = h hist (tp1 : tp2 : tps)
-  h hist (TpAmp tps' : tps) = h hist (tps' ++ tps)
-  h hist (TpProd tps' : tps) = h hist (tps' ++ tps)
+  h hist (TpProd am tps' : tps) = h hist (tps' ++ tps)
   h hist (TpVar y' : tps)
     | y == y' = True
     | y' `elem` hist = h hist tps
@@ -68,10 +67,9 @@ collectUnfolds rtp (TmCase tm y cs tp) =
       ++ this
 collectUnfolds rtp (TmSamp d tp) = []
 collectUnfolds rtp (TmAmb tms tp) = concatMap (collectUnfolds rtp) tms
-collectUnfolds rtp (TmAmpIn as) = concatMap (\ (atm, atp) -> collectUnfolds rtp atm) as
-collectUnfolds rtp (TmAmpOut tm tps o) = collectUnfolds rtp tm
-collectUnfolds rtp (TmProdIn as) = concatMap (\ (atm, atp) -> collectUnfolds rtp atm) as
-collectUnfolds rtp (TmProdOut tm ps tm' tp) = collectUnfolds rtp tm ++ collectUnfolds rtp tm'
+collectUnfolds rtp (TmProd am as) = concatMap (\ (atm, atp) -> collectUnfolds rtp atm) as
+collectUnfolds rtp (TmElimAmp tm tps o) = collectUnfolds rtp tm
+collectUnfolds rtp (TmElimProd tm ps tm' tp) = collectUnfolds rtp tm ++ collectUnfolds rtp tm'
 collectUnfolds rtp (TmEqs tms) = concatMap (collectUnfolds rtp) tms
 
 -- Collects all the usages of constructors for type rtp,
@@ -88,10 +86,9 @@ collectFolds rtp (TmLet x xtm xtp tm tp) = collectFolds rtp xtm ++ collectFolds 
 collectFolds rtp (TmCase tm y cs tp) = collectFolds rtp tm ++ concatMap (\ (Case cx cps ctm) -> collectFolds rtp ctm) cs
 collectFolds rtp (TmSamp d tp) = []
 collectFolds rtp (TmAmb tms tp) = concatMap (collectFolds rtp) tms
-collectFolds rtp (TmAmpIn as) = concatMap (\ (atm, atp) -> collectFolds rtp atm) as
-collectFolds rtp (TmAmpOut tm tps o) = collectFolds rtp tm
-collectFolds rtp (TmProdIn as) = concatMap (\ (atm, atp) -> collectFolds rtp atm) as
-collectFolds rtp (TmProdOut tm ps tm' tp) = collectFolds rtp tm ++ collectFolds rtp tm'
+collectFolds rtp (TmProd am as) = concatMap (\ (atm, atp) -> collectFolds rtp atm) as
+collectFolds rtp (TmElimAmp tm tps o) = collectFolds rtp tm
+collectFolds rtp (TmElimProd tm ps tm' tp) = collectFolds rtp tm ++ collectFolds rtp tm'
 collectFolds rtp (TmEqs tms) = concatMap (collectFolds rtp) tms
 
 -- Runs collect[Un]folds on a Prog
@@ -111,7 +108,7 @@ collectFoldsFile = collectFile . collectFolds
 
 -- Makes the _UnfoldY_ datatype, given results from collectUnfolds
 makeUnfoldDatatype :: Var -> [(FreeVars, Type)] -> Prog
-makeUnfoldDatatype y us = ProgData (unfoldTypeName y) [Ctor (unfoldCtorName y) [TpAmp [joinArrows (Map.elems fvs) tp | (fvs, tp) <- us]]]
+makeUnfoldDatatype y us = ProgData (unfoldTypeName y) [Ctor (unfoldCtorName y) [TpProd amAdd [joinArrows (Map.elems fvs) tp | (fvs, tp) <- us]]]
 
 -- Makes the _FoldY_ datatype, given results from collectFolds
 makeFoldDatatype :: Var -> [(Var, FreeVars)] -> Prog
@@ -133,7 +130,7 @@ makeDisentangle g y us css =
                  (joinLams ps (TmCase (TmVarL x ytp) y cs' tp),
                    joinArrows (tpUnit : snds ps) tp)
              | (fvs, tp, cs, i) <- alls]
-      fun = ProgFun (unfoldName y) [] (TmLam x ytp (TmVarG CtorVar (unfoldCtorName y) [(TmAmpIn cscs, TpAmp (snds cscs))] utp) utp) (TpArr ytp utp)
+      fun = ProgFun (unfoldName y) [] (TmLam x ytp (TmVarG CtorVar (unfoldCtorName y) [(TmProd amAdd cscs, TpProd amAdd (snds cscs))] utp) utp) (TpArr ytp utp)
   in
     (dat, fun)
 
@@ -183,8 +180,8 @@ disentangleTerm rtp cases = h where
           get_as = \ (cfvs, ctp2) -> paramsToArgs (Map.toList cfvs)
           get_arr = \ (cfvs, ctp2) -> joinArrows (snds (get_ps (cfvs, ctp2))) ctp2
           xtps = map get_arr cases
-          xtp = TpAmp xtps
-          cs'' = [Case (unfoldCtorName rtp) [(x', xtp)] (let cfvstp2 = cases !! i in joinApps (TmAmpOut (TmVarL x' xtp) xtps i) (get_as cfvstp2))]
+          xtp = TpProd amAdd xtps
+          cs'' = [Case (unfoldCtorName rtp) [(x', xtp)] (let cfvstp2 = cases !! i in joinApps (TmElimAmp (TmVarL x' xtp) xtps i) (get_as cfvstp2))]
           rtm = TmCase tm (unfoldTypeName rtp) cs'' tp
       in
         State.put (unfolds ++ [cs']) >>
@@ -195,14 +192,12 @@ disentangleTerm rtp cases = h where
     pure (TmSamp d tp)
   h (TmAmb tms tp) =
     pure TmAmb <*> mapM h tms <*> pure tp
-  h (TmAmpIn as) =
-    pure TmAmpIn <*> mapArgsM h as
-  h (TmAmpOut tm tps o) =
-    pure TmAmpOut <*> h tm <*> pure tps <*> pure o
-  h (TmProdIn as) =
-    pure TmProdIn <*> mapArgsM h as
-  h (TmProdOut tm ps tm' tp) =
-    pure TmProdOut <*> h tm <*> pure ps <*> h tm' <*> pure tp
+  h (TmProd am as) =
+    pure (TmProd am) <*> mapArgsM h as
+  h (TmElimAmp tm tps o) =
+    pure TmElimAmp <*> h tm <*> pure tps <*> pure o
+  h (TmElimProd tm ps tm' tp) =
+    pure TmElimProd <*> h tm <*> pure ps <*> h tm' <*> pure tp
   h (TmEqs tms) =
     pure TmEqs <*> mapM h tms
 
@@ -235,14 +230,12 @@ defoldTerm rtp = h where
   h (TmCase tm y cs tp) = pure TmCase <*> h tm <*> pure y <*> mapCasesM (\ _ _ -> h) cs <*> pure tp
   h (TmSamp d tp) = pure (TmSamp d tp)
   h (TmAmb tms tp) = pure TmAmb <*> mapM h tms <*> pure tp
-  h (TmAmpIn as) =
-    pure TmAmpIn <*> mapArgsM h as
-  h (TmAmpOut tm tps o) =
-    pure TmAmpOut <*> h tm <*> pure tps <*> pure o
-  h (TmProdIn as) =
-    pure TmProdIn <*> mapArgsM h as
-  h (TmProdOut tm ps tm' tp) =
-    pure TmProdOut <*> h tm <*> pure ps <*> h tm' <*> pure tp
+  h (TmProd am as) =
+    pure (TmProd am) <*> mapArgsM h as
+  h (TmElimAmp tm tps o) =
+    pure TmElimAmp <*> h tm <*> pure tps <*> pure o
+  h (TmElimProd tm ps tm' tp) =
+    pure TmElimProd <*> h tm <*> pure ps <*> h tm' <*> pure tp
   h (TmEqs tms) =
     pure TmEqs <*> mapM h tms
 
@@ -317,20 +310,18 @@ derefunTerm dr g rtp = fst . h where
     let tms' = map h tms
         tp' = if null tms' then sub tp else snd (head tms') in
       TmAmb (fsts tms') tp'
-  h' (TmAmpIn as) =
-    TmAmpIn [h tm | (tm, _) <- as]
-  h' (TmAmpOut tm tps o) =
-    let (tm', TpAmp tps') = h tm in
-      TmAmpOut tm' tps' o
-  h' (TmProdIn as) =
-    TmProdIn [h tm | (tm, _) <- as]
-  h' (TmProdOut tm ps tm' tp) =
-    let (tm2, TpProd tps) = h tm
+  h' (TmProd am as) =
+    TmProd am [h tm | (tm, _) <- as]
+  h' (TmElimAmp tm tps o) =
+    let (tm', TpProd _ tps') = h tm in
+      TmElimAmp tm' tps' o
+  h' (TmElimProd tm ps tm' tp) =
+    let (tm2, TpProd amMult tps) = h tm
         (tm2', tp) = h tm'
         xs = [x | (x, _) <- ps]
         ps' = zip xs tps
     in
-      TmProdOut tm2 ps' tm2' tp
+      TmElimProd tm2 ps' tm2' tp
   h' (TmEqs tms) =
     TmEqs [h' tm | tm <- tms]
 
@@ -408,8 +399,7 @@ recDeps g recs (TpVar y)
       (nub . concatMap (\ (Ctor _ tps) -> concatMap (recDeps g recs) tps))
       (ctxtLookupType g y)
 recDeps g recs (TpArr tp1 tp2) = nub (recDeps g recs tp1 ++ recDeps g recs tp2)
-recDeps g recs (TpAmp tps) = nub (concatMap (recDeps g recs) tps)
-recDeps g recs (TpProd tps) = nub (concatMap (recDeps g recs) tps)
+recDeps g recs (TpProd am tps) = nub (concatMap (recDeps g recs) tps)
 
 getRefunDeps :: Ctxt -> [Var] -> [(FreeVars, Type)] -> [Var]
 getRefunDeps g recs =

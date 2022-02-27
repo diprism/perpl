@@ -3,11 +3,11 @@ import Data.List
 import qualified Data.Map as Map
 import Exprs
 
-fsts :: [(a, b)] -> [a]
-fsts = fst . unzip
+fsts :: Functor f => f (a, b) -> f a
+fsts = fmap fst
 
-snds :: [(a, b)] -> [b]
-snds = snd . unzip
+snds :: Functor f => f (a, b) -> f b
+snds = fmap snd
 
 mapLeft :: (a -> b) -> Either a c -> Either b c
 mapLeft f (Left a) = Left (f a)
@@ -38,6 +38,10 @@ enumerate = zip [0..]
 maybe2 :: Maybe a -> b -> (a -> b) -> b
 maybe2 m n j = maybe n j m
 
+infixl 4 <**>
+(<**>) :: Applicative f => f (a -> b -> c) -> f (a, b) -> f c
+(<**>) = (<*>) . fmap uncurry
+
 infixr 2 |?|
 (|?|) :: Maybe a -> Maybe a -> Maybe a
 Nothing |?| m_else = m_else
@@ -56,10 +60,9 @@ getType (TmLet x xtm xtp tm tp) = tp
 getType (TmCase ctm y cs tp) = tp
 getType (TmSamp d tp) = tp
 getType (TmAmb tms tp) = tp
-getType (TmAmpIn as) = TpAmp (snds as)
-getType (TmAmpOut tm tps o) = tps !! o
-getType (TmProdIn as) = TpProd (snds as)
-getType (TmProdOut tm ps tm' tp) = tp
+getType (TmProd am as) = TpProd am (snds as)
+getType (TmElimAmp tm tps o) = tps !! o
+getType (TmElimProd tm ps tm' tp) = tp
 getType (TmEqs tms) = TpVar "Bool"
 
 -- Sorts cases according to the order they are appear in the datatype definition

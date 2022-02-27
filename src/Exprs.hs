@@ -34,10 +34,9 @@ data UsTm = -- User Term
   | UsSamp Dist Type
   | UsLet Var UsTm UsTm
   | UsAmb [UsTm]
-  | UsAmpIn [UsTm]
-  | UsAmpOut UsTm Int
-  | UsProdIn [UsTm]
-  | UsProdOut UsTm [Var] UsTm
+  | UsProd AddMult [UsTm]
+  | UsElimAmp UsTm Int
+  | UsElimProd UsTm [Var] UsTm
   | UsTmBool Bool
   | UsIf UsTm UsTm UsTm
   | UsEqs [UsTm]
@@ -55,18 +54,21 @@ data Term =
   | TmCase Term Var [Case] Type
   | TmSamp Dist Type
   | TmAmb [Term] Type
-  | TmAmpIn [Arg]
-  | TmAmpOut Term [Type] Int
-  | TmProdIn [Arg]
-  | TmProdOut Term [Param] Term Type
+  | TmProd AddMult [Arg]
+  | TmElimAmp Term [Type] Int
+  | TmElimProd Term [Param] Term Type
   | TmEqs [Term]
   deriving (Eq, Ord)
+
+type AddMult = Bool -- False = Additive, True = Multiplicative
+amAdd = False
+amMult = True
 
 data Type =
     TpArr Type Type
   | TpVar Var
-  | TpAmp [Type]
-  | TpProd [Type]
+  | TpProd AddMult [Type]
+  | NoTp
   deriving (Eq, Ord)
 
 data CaseUs = CaseUs Var [Var] UsTm

@@ -132,7 +132,7 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 --  [TkLam, _] -> parseEat *> pure (flip (foldr (uncurry UsLam))) <*> parseLamArgs <* parseDrop TkDot <*> parseTerm1
   [TkLam, _] -> parseEat *> pure UsLam <*> parseVar <* parseDrop TkColon <*> parseType1 <* parseDrop TkDot <*> parseTerm1
 -- let (x, y, ...) = term in term
-  [TkLet, TkParenL] -> parseEat *> parseEat *> pure (flip UsProdOut) <*> parseVarsCommas <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
+  [TkLet, TkParenL] -> parseEat *> parseEat *> pure (flip UsElimProd) <*> parseVarsCommas <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- let x = term in term
   [TkLet, _] -> parseEat *> pure UsLet <*> parseVar <* parseDrop TkEq
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
@@ -185,7 +185,7 @@ TERM3 :=
 parseTerm3 :: ParseM UsTm
 parseTerm3 = parseTerm4 >>= \ tm -> parsePeek >>= \ t -> case t of
   -- TkComma -> pure UsProdIn <*> parseTmsDelim TkComma [tm]
-  TkDot -> parseEat >> parseNum >>= return . UsAmpOut tm
+  TkDot -> parseEat >> parseNum >>= return . UsElimAmp tm
   _ -> return tm
 
 {-
@@ -226,8 +226,8 @@ TERM5 :=
 parseTerm5 :: ParseM UsTm
 parseTerm5 = parsePeek >>= \ t -> case t of
   TkVar v -> parseEat *> pure (UsVar v)
-  TkParenL -> parseEat *> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProdIn tms)) <* parseDrop TkParenR -- TODO: product
-  TkLangle -> parseEat *> pure UsAmpIn <*> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm]) <* parseDrop TkRangle
+  TkParenL -> parseEat *> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd amMult tms)) <* parseDrop TkParenR -- TODO: product
+  TkLangle -> parseEat *> pure (UsProd amAdd) <*> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm]) <* parseDrop TkRangle
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
 parseTpsDelim tok tps = parsePeek >>= \ t ->
@@ -261,8 +261,8 @@ TYPE2 :=
 -- Product, Ampersand
 parseType2 :: ParseM Type
 parseType2 = parseType3 >>= \ tp -> parsePeek >>= \ t -> case t of
-  TkStar -> pure TpProd <*> parseTpsDelim TkStar [tp]
-  TkAmp  -> pure TpAmp <*> parseTpsDelim TkAmp [tp]
+  TkStar -> pure (TpProd amMult) <*> parseTpsDelim TkStar [tp]
+  TkAmp  -> pure (TpProd amAdd) <*> parseTpsDelim TkAmp [tp]
   _ -> pure tp
 
 {-

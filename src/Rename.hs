@@ -46,17 +46,15 @@ renameUsTm (UsLet x xtm tm) =
   bindVar x $ \ x' -> pure (UsLet x' xtm') <*> renameUsTm tm
 renameUsTm (UsAmb tms) =
   pure UsAmb <*> mapM renameUsTm tms
-renameUsTm (UsAmpIn tms) =
-  pure UsAmpIn <*> mapM renameUsTm tms
-renameUsTm (UsAmpOut tm o) =
-  pure UsAmpOut <*> renameUsTm tm <*> pure o
-renameUsTm (UsProdIn tms) =
-  pure UsProdIn <*> mapM renameUsTm tms
-renameUsTm (UsProdOut tm xs tm') =
+renameUsTm (UsElimAmp tm o) =
+  pure UsElimAmp <*> renameUsTm tm <*> pure o
+renameUsTm (UsProd am tms) =
+  pure (UsProd am) <*> mapM renameUsTm tms
+renameUsTm (UsElimProd tm xs tm') =
   renameUsTm tm >>= \ tm ->
   bindUsVars xs $ \ xs ->
   renameUsTm tm' >>= \ tm' ->
-  return (UsProdOut tm xs tm')
+  return (UsElimProd tm xs tm')
 renameUsTm (UsEqs tms) =
   pure UsEqs
     <*> mapM renameUsTm tms
@@ -82,18 +80,16 @@ renameTerm (TmSamp d tp) =
   pure (TmSamp d) <*> renameType tp
 renameTerm (TmAmb tms tp) =
   pure TmAmb <*> mapM renameTerm tms <*> renameType tp
-renameTerm (TmAmpIn as) =
-  pure TmAmpIn <*> renameArgs as
-renameTerm (TmAmpOut tm tps o) =
-  pure TmAmpOut <*> renameTerm tm <*> mapM renameType tps <*> pure o
-renameTerm (TmProdIn as) =
-  pure TmProdIn <*> renameArgs as
-renameTerm (TmProdOut tm ps tm' tp) =
+renameTerm (TmElimAmp tm tps o) =
+  pure TmElimAmp <*> renameTerm tm <*> mapM renameType tps <*> pure o
+renameTerm (TmProd am as) =
+  pure (TmProd am) <*> renameArgs as
+renameTerm (TmElimProd tm ps tm' tp) =
   renameTerm tm >>= \ tm ->
   renameType tp >>= \ tp ->
   bindVars ps $ \ ps ->
   renameTerm tm' >>= \ tm' ->
-  return (TmProdOut tm ps tm' tp)
+  return (TmElimProd tm ps tm' tp)
 renameTerm (TmEqs tms) =
   pure TmEqs
     <*> mapM renameTerm tms
@@ -119,10 +115,10 @@ renameType (TpVar y) =
   lookupType y TpVar
 renameType (TpArr tp1 tp2) =
   pure TpArr <*> renameType tp1 <*> renameType tp2
-renameType (TpAmp tps) =
-  pure TpAmp <*> mapM renameType tps
-renameType (TpProd tps) =
-  pure TpProd <*> mapM renameType tps
+renameType (TpProd am tps) =
+  pure (TpProd am) <*> mapM renameType tps
+renameType NoTp =
+  pure NoTp
 
 -- Alpha-rename a constructor definition
 renameCtor :: Ctor -> RenameM' tm Ctor
@@ -184,10 +180,9 @@ substType xi xf (TpVar y) =
   TpVar (if xi == y then xf else y)
 substType xi xf (TpArr tp1 tp2) =
   TpArr (substType xi xf tp1) (substType xi xf tp2)
-substType xi xf (TpAmp tps) =
-  TpAmp [substType xi xf tp | tp <- tps]
-substType xi xf (TpProd tps) =
-  TpProd [substType xi xf tp | tp <- tps]
+substType xi xf (TpProd am tps) =
+  TpProd am [substType xi xf tp | tp <- tps]
+substType xi xf NoTp = NoTp
 
 
 {- ====== Fresh Variable Functions ====== -}

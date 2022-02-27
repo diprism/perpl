@@ -69,15 +69,15 @@ liftAmb (TmCase tm y cs tp) =
 liftAmb (TmSamp d tp) = TmSamp d tp
 liftAmb (TmAmb tms tp) =
   TmAmb (concatMap (splitAmbs . liftAmb) tms) tp
-liftAmb (TmAmpIn as) =
-  TmAmpIn (mapArgs liftAmb as)
-liftAmb (TmAmpOut tm tps o) =
-  joinAmbs [TmAmpOut tm tps o | tm <- splitAmbs (liftAmb tm)] (tps !! o)
-liftAmb (TmProdIn as) =
-  let as' = [[(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
-    joinAmbs (map TmProdIn (kronall as')) (TpProd (snds as))
-liftAmb (TmProdOut ptm ps tm tp) =
-  joinAmbs (kronwith (\ ptm' tm' -> TmProdOut ptm' ps tm' tp)
+liftAmb (TmProd am as)
+  | am == amMult =
+    let as' = [[(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
+      joinAmbs (map (TmProd am) (kronall as')) (TpProd am (snds as))
+  | otherwise = TmProd am (mapArgs liftAmb as)
+liftAmb (TmElimAmp tm tps o) =
+  joinAmbs [TmElimAmp tm tps o | tm <- splitAmbs (liftAmb tm)] (tps !! o)
+liftAmb (TmElimProd ptm ps tm tp) =
+  joinAmbs (kronwith (\ ptm' tm' -> TmElimProd ptm' ps tm' tp)
              (splitAmbs (liftAmb ptm))
              (splitAmbs (liftAmb tm))) tp
 liftAmb (TmEqs tms) =
@@ -106,18 +106,16 @@ liftFail' (TmCase tm y cs tp) =
 liftFail' (TmAmb tms tp) =
   let tms' = concatMap (maybe [] (\ tm -> [tm]) . liftFail') tms in
     if null tms' then Nothing else pure (joinAmbs tms' tp)
-liftFail' (TmAmpIn as) =
-  let as' = map (mapArgM liftFail') as in
---  if any isJust as' then
-    pure (TmAmpIn [maybe (TmSamp DistFail tp, tp) id ma | ((_, tp), ma) <- zip as as'])
---  else
---    Nothing
-liftFail' (TmAmpOut tm tps o) =
-  pure TmAmpOut <*> liftFail' tm <*> pure tps <*> pure o
-liftFail' (TmProdIn as) =
-  pure TmProdIn <*> mapArgsM liftFail' as
-liftFail' (TmProdOut tm ps tm' tp) =
-  pure TmProdOut <*> liftFail' tm <*> pure ps <*> liftFail' tm' <*> pure tp
+liftFail' (TmProd am as)
+  | am == amMult =
+    pure (TmProd am) <*> mapArgsM liftFail' as
+  | otherwise =
+    let as' = map (mapArgM liftFail') as in
+      pure (TmProd am [maybe (TmSamp DistFail tp, tp) id ma | ((_, tp), ma) <- zip as as'])
+liftFail' (TmElimAmp tm tps o) =
+  pure TmElimAmp <*> liftFail' tm <*> pure tps <*> pure o
+liftFail' (TmElimProd tm ps tm' tp) =
+  pure TmElimProd <*> liftFail' tm <*> pure ps <*> liftFail' tm' <*> pure tp
 liftFail' (TmEqs tms) =
   pure TmEqs <*> mapM liftFail' tms
 
@@ -164,10 +162,9 @@ safe2sub g x xtm tm =
     noDefsSamps (TmCase tm y cs tp) = noDefsSamps tm && all (\ (Case x xps xtm) -> noDefsSamps xtm) cs
     noDefsSamps (TmSamp d tp) = False
     noDefsSamps (TmAmb tms tp) = False
-    noDefsSamps (TmAmpIn as) = all (noDefsSamps . fst) as
-    noDefsSamps (TmAmpOut tm tps o) = noDefsSamps tm
-    noDefsSamps (TmProdIn as) = all (noDefsSamps . fst) as
-    noDefsSamps (TmProdOut tm ps tm' tp) = noDefsSamps tm && noDefsSamps tm'
+    noDefsSamps (TmProd am as) = all (noDefsSamps . fst) as
+    noDefsSamps (TmElimAmp tm tps o) = noDefsSamps tm
+    noDefsSamps (TmElimProd tm ps tm' tp) = noDefsSamps tm && noDefsSamps tm'
     noDefsSamps (TmEqs tms) = all noDefsSamps tms
 
 -- Applies various optimizations to a term
@@ -217,15 +214,13 @@ optimizeTerm g (TmCase tm y cs tp) =
         in
           joinLams ps' (TmCase tm' y cs' end)
 optimizeTerm g (TmAmb tms tp) = TmAmb (map (optimizeTerm g) tms) tp
-optimizeTerm g (TmAmpIn as) = TmAmpIn (mapArgs (optimizeTerm g) as)
-optimizeTerm g (TmAmpOut tm tps o) =
+optimizeTerm g (TmProd am as) = TmProd am (mapArgs (optimizeTerm g) as)
+optimizeTerm g (TmElimAmp tm tps o) =
   case optimizeTerm g tm of
-    (TmAmpIn as) -> fst (as !! o)
-    tm' -> TmAmpOut tm' tps o
-optimizeTerm g (TmProdIn as) =
-  TmProdIn (mapArgs (optimizeTerm g) as) -- TODO
-optimizeTerm g (TmProdOut tm ps tm' tp) =
-  TmProdOut (optimizeTerm g tm) ps (optimizeTerm (ctxtDeclArgs g ps) tm') tp
+    (TmProd False as) -> fst (as !! o)
+    tm' -> TmElimAmp tm' tps o
+optimizeTerm g (TmElimProd tm ps tm' tp) =
+  TmElimProd (optimizeTerm g tm) ps (optimizeTerm (ctxtDeclArgs g ps) tm') tp
 optimizeTerm g (TmEqs tms) =
   TmEqs [optimizeTerm g tm | tm <- tms]
 

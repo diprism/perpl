@@ -48,8 +48,9 @@ alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
 discard' :: Term -> Type -> AffLinM Term
 discard' x (TpArr tp1 tp2) =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
-discard' x (TpAmp tps) = discard' (TmAmpOut x tps (length tps - 1)) (last tps)
-discard' x (TpProd tps) = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in discards (Map.fromList ps) tmUnit >>= \ tm -> return (TmProdOut x ps tm tpUnit)
+discard' x (TpProd am tps)
+  | am == amAdd = discard' (TmElimAmp x tps (length tps - 1)) (last tps)
+  | otherwise = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in discards (Map.fromList ps) tmUnit >>= \ tm -> return (TmElimProd x ps tm tpUnit)
 discard' x (TpVar y) =
   ask >>= \ g ->
   maybe2 (ctxtLookupType g y)
@@ -59,6 +60,7 @@ discard' x (TpVar y) =
                  alBinds as' (return tmUnit) >>= \ tm ->
                  return (Case x' as' tm))) >>= \ cs' ->
   return (TmCase x y cs' tpUnit)
+discard' x NoTp = error "Trying to discard a NoTp"
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard
 -- it to maintain correct probabilities, but without changing the value or type
@@ -85,13 +87,13 @@ discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm
 -- (n+1)th element, which is Unit, and discard that
 affLinTp :: Type -> AffLinM Type
 affLinTp (TpVar y) = return (TpVar y)
-affLinTp (TpAmp tps) = pure TpAmp <*> mapM affLinTp (tps ++ [tpUnit])
-affLinTp (TpProd tps) = pure TpProd <*> mapM affLinTp tps
+affLinTp (TpProd am tps) = pure (TpProd am) <*> mapM affLinTp (tps ++ (if am == amAdd then [tpUnit] else []))
 affLinTp (TpArr tp1 tp2) =
   let (tps, end) = splitArrows (TpArr tp1 tp2) in
     mapM affLinTp tps >>= \ tps' ->
     affLinTp end >>= \ end' ->
-    return (TpAmp [joinArrows tps' end', tpUnit])
+    return (TpProd amAdd [joinArrows tps' end', tpUnit])
+affLinTp NoTp = error "Trying to affLin a NoTp"
 
 -- Make a case linear, returning the local vars that occur free in it
 affLinCase :: Case -> AffLinM Case
@@ -109,7 +111,7 @@ ambFun tm fvs =
     case tp of
       TpArr _ _ ->
         discards fvs tmUnit >>= \ ntm ->
-        return (TmAmpIn [(tm, tp), (ntm, tpUnit)])
+        return (TmProd amAdd [(tm, tp), (ntm, tpUnit)])
       _ -> return tm
 
 -- Extract the function from a linearized term, if possible
@@ -117,8 +119,8 @@ ambFun tm fvs =
 ambElim :: Term -> Term
 ambElim tm =
   case getType tm of
-    TpAmp [tp, unittp] ->
-      TmAmpOut tm [tp, unittp] 0
+    TpProd False [tp, unittp] ->
+      TmElimAmp tm [tp, unittp] 0
     _ -> tm
 
 affLinParams :: [Param] -> Term -> AffLinM ([Param], Term, FreeVars)
@@ -187,24 +189,25 @@ affLin (TmAmb tms tp) =
   affLinTp tp >>= \ tp' ->
   --  (if null tms' then affLinTp tp else return (getType (head tms'))) >>= \ tp' ->
   return (TmAmb tms' tp')
-affLin (TmAmpIn as) =
-  -- L(<tm1, tm2, ..., tmn>) => <L*(tm1), L*(tm2), ..., L*(tmn), L*(unit)>,
-  -- where L*(tm) = let _ = Z((FV(tm1) ∪ FV(tm2) ∪ ... ∪ FV(tmn)) - FV(tm)) in L(tm)
-  pure TmAmpIn <*> affLinBranches (mapArgM affLin) (mapArgM . discards) (as ++ [(tmUnit, tpUnit)])
-affLin (TmAmpOut tm tps o) =
+affLin (TmProd am as)
+  | am == amAdd =
+    -- L(<tm1, tm2, ..., tmn>) => <L*(tm1), L*(tm2), ..., L*(tmn), L*(unit)>,
+    -- where L*(tm) = let _ = Z((FV(tm1) ∪ FV(tm2) ∪ ... ∪ FV(tmn)) - FV(tm)) in L(tm)
+    pure (TmProd am) <*> affLinBranches (mapArgM affLin) (mapArgM . discards) (as ++ [(tmUnit, tpUnit)])
+  | otherwise =
+    -- L(tm1, tm2, ..., tmn) => (L(tm1), L(tm2), ..., L(tmn))
+    pure (TmProd am) <*> mapArgsM affLin as
+affLin (TmElimAmp tm tps o) =
   -- L(tm.o) => L(tm).on
-  pure TmAmpOut <*> affLin tm <*> mapM affLinTp (tps ++ [tpUnit]) <*> pure o
-affLin (TmProdIn as) =
-  -- L(tm1, tm2, ..., tmn) => (L(tm1), L(tm2), ..., L(tmn))
-  pure TmProdIn <*> mapArgsM affLin as
-affLin (TmProdOut tm ps tm' tp) =
+  pure TmElimAmp <*> affLin tm <*> mapM affLinTp (tps ++ [tpUnit]) <*> pure o
+affLin (TmElimProd tm ps tm' tp) =
   -- L(let (x1, x2, ..., xn) = tm in tm') =>
   --    let (x1, x2, ..., xn) = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')
   affLin tm >>= \ tm ->
   affLinParams ps tm' >>= \ (ps, tm', fvs) ->
   -- Discard all ps that are not used in tm'
   discards (Map.intersection (Map.fromList ps) fvs) tm' >>= \ tm' ->
-  return (TmProdOut tm ps tm' (getType tm'))
+  return (TmElimProd tm ps tm' (getType tm'))
 affLin (TmEqs tms) =
   pure TmEqs <*> mapM affLin tms
 

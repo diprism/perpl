@@ -114,7 +114,7 @@ addAmpFactors g tps =
 addProdFactors :: Ctxt -> [Type] -> RuleM
 addProdFactors g tps =
   let tpvs = [domainValues g tp | tp <- tps] in
-    type2fgg g (TpProd tps) +>
+    type2fgg g (TpProd amMult tps) +>
     addFactor (prodFactorName tps) (getProdWeightsV tpvs) +>
     foldr (\ (as', w) r -> r +> addFactor (prodFactorName' as') w) returnRule (getProdWeights tpvs)
 
@@ -184,47 +184,48 @@ term2fgg g (TmLet x xtm xtp tm tp) =
     mkRule (TmLet x xtm xtp tm tp) (vxtp : vtp : xtmxs ++ tmxs)
       [Edge' (xtmxs ++ [vxtp]) (show xtm), Edge' (tmxs ++ [vtp]) (show tm)]
       (xtmxs ++ delete vxtp tmxs ++ [vtp])
-term2fgg g (TmAmpIn as) =
-  let tps = [tp | (_, tp) <- as] in
-    foldr
-      (\ (i, (atm, tp)) r -> r +>
-        term2fgg g atm +>= \ tmxs ->
-        let [vamp, vtp] = newNames [TpAmp tps, tp] in
-          mkRule (TmAmpIn as) (vamp : vtp : tmxs)
-            ([Edge' (tmxs ++ [vtp]) (show atm), Edge' [vamp, vtp] (ampFactorName tps i)])
-            (tmxs ++ [vamp])
-      )
-      (addAmpFactors g tps) (enumerate as)
-term2fgg g (TmAmpOut tm tps o) =
+term2fgg g (TmProd am as)
+  | am == amAdd =
+    let tps = [tp | (_, tp) <- as] in
+      foldr
+        (\ (i, (atm, tp)) r -> r +>
+          term2fgg g atm +>= \ tmxs ->
+          let [vamp, vtp] = newNames [TpProd am tps, tp] in
+            mkRule (TmProd am as) (vamp : vtp : tmxs)
+              ([Edge' (tmxs ++ [vtp]) (show atm), Edge' [vamp, vtp] (ampFactorName tps i)])
+              (tmxs ++ [vamp])
+        )
+        (addAmpFactors g tps) (enumerate as)
+  | otherwise =
+    [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
+    let tps = snds as
+        ptp = TpProd am tps
+        (vptp : vtps) = newNames (ptp : tps)
+    in
+      addProdFactors g tps +>
+      mkRule (TmProd am as) (vptp : vtps ++ concat xss)
+        (Edge' (vtps ++ [vptp]) (prodFactorName (snds as)) :
+          [Edge' (tmxs ++ [vtp]) (show atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
+        (concat xss ++ [vptp])
+term2fgg g (TmElimAmp tm tps o) =
   term2fgg g tm +>= \ tmxs ->
   let tp = tps !! o
-      [vtp, vamp] = newNames [tp, TpAmp tps] in
-    mkRule (TmAmpOut tm tps o) (vtp : vamp : tmxs)
+      [vtp, vamp] = newNames [tp, TpProd amAdd tps] in
+    mkRule (TmElimAmp tm tps o) (vtp : vamp : tmxs)
       ([Edge' (tmxs ++ [vamp]) (show tm), Edge' [vamp, vtp] (ampFactorName tps o)])
       (tmxs ++ [vtp]) +>
     addAmpFactors g tps
-term2fgg g (TmProdIn as) =
-  [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
-  let tps = snds as
-      ptp = TpProd tps
-      (vptp : vtps) = newNames (ptp : tps)
-  in
-    addProdFactors g tps +>
-    mkRule (TmProdIn as) (vptp : vtps ++ concat xss)
-      (Edge' (vtps ++ [vptp]) (prodFactorName (snds as)) :
-        [Edge' (tmxs ++ [vtp]) (show atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
-      (concat xss ++ [vptp])
-term2fgg g (TmProdOut ptm ps tm tp) =
+term2fgg g (TmElimProd ptm ps tm tp) =
   term2fgg g ptm +>= \ ptmxs ->
   bindExts True ps $
   term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
   let tps = [tp | (_, tp) <- ps]
-      ptp = TpProd tps
+      ptp = TpProd amMult tps
       unused_ps = Map.toList (Map.difference (Map.fromList ps) (Map.fromList tmxs))
       vtp : vptp : unused_nps = newNames (tp : ptp : snds unused_ps)
   in
     addProdFactors g tps +>
-    mkRule (TmProdOut ptm ps tm tp)
+    mkRule (TmElimProd ptm ps tm tp)
       (vtp : vptp : ps ++ unused_ps ++ unused_nps ++ tmxs ++ ptmxs)
          (Edge' (ptmxs ++ [vptp]) (show ptm) :
             Edge' (ps ++ [vptp]) (prodFactorName tps) :
@@ -251,8 +252,8 @@ type2fgg g tp =
 type2fgg' :: Ctxt -> Type -> RuleM
 type2fgg' g (TpVar y) = returnRule
 type2fgg' g (TpArr tp1 tp2) = type2fgg g tp1 +> type2fgg g tp2
-type2fgg' g (TpAmp tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
-type2fgg' g (TpProd tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
+type2fgg' g (TpProd am tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
+type2fgg' g NoTp = error "Compiling NoTp to FGG rule"
 
 
 -- Adds the rules for a Prog
@@ -307,11 +308,13 @@ domainValues g = tpVals where
       concat [foldl (kronwith $ \ d da -> d ++ " " ++ parens da) [x] (map tpVals as)
              | (Ctor x as) <- cs]
   tpVals (TpArr tp1 tp2) = uncurry arrVals (splitArrows (TpArr tp1 tp2))
-  tpVals (TpAmp tps) =
-    let tpvs = map tpVals tps in
-      concatMap (\ (i, vs) -> ["<" ++ delimitWith ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
-  tpVals (TpProd tps) =
-    [prodValName' tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
+  tpVals (TpProd am tps)
+    | am == amAdd =
+      let tpvs = map tpVals tps in
+        concatMap (\ (i, vs) -> ["<" ++ delimitWith ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
+    | otherwise =
+      [prodValName' tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
+  tpVals NoTp = error "Enumerating values of a NoTp"
 
 domainSize :: Ctxt -> Type -> Int
 domainSize g = length . domainValues g

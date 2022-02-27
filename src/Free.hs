@@ -31,10 +31,9 @@ freeVars (UsTmBool b) = Map.empty
 freeVars (UsSamp d tp) = Map.empty
 freeVars (UsLet x tm tm') = Map.unionWith max (freeVars tm) (Map.delete x $ freeVars tm')
 freeVars (UsAmb tms) = Map.unionsWith max (map freeVars tms)
-freeVars (UsAmpIn tms) = Map.unionsWith max (map freeVars tms)
-freeVars (UsAmpOut tm o) = freeVars tm
-freeVars (UsProdIn tms) = Map.unionsWith (+) (map freeVars tms)
-freeVars (UsProdOut tm xs tm') = Map.unionWith (+) (freeVars tm) (foldr Map.delete (freeVars tm') xs)
+freeVars (UsElimAmp tm o) = freeVars tm
+freeVars (UsProd am tms) = Map.unionsWith (if am == amAdd then max else (+)) (map freeVars tms)
+freeVars (UsElimProd tm xs tm') = Map.unionWith (+) (freeVars tm) (foldr Map.delete (freeVars tm') xs)
 freeVars (UsEqs tms) = Map.unionsWith (+) (map freeVars tms)
 
 freeVarsCase :: CaseUs -> Map.Map Var Int
@@ -53,10 +52,9 @@ freeVars' (TmLet x xtm xtp tm tp) = Map.union (freeVars' xtm) (Map.delete x (fre
 freeVars' (TmCase tm y cs tp') = Map.union (freeVars' tm) (freeVarsCases' cs)
 freeVars' (TmSamp d tp) = Map.empty
 freeVars' (TmAmb tms tp) = Map.unions (map freeVars' tms)
-freeVars' (TmAmpIn as) = freeVarsArgs' as
-freeVars' (TmAmpOut tm tps o) = freeVars' tm
-freeVars' (TmProdIn as) = freeVarsArgs' as
-freeVars' (TmProdOut tm ps tm' tp) = Map.union (freeVars' tm) (foldr (Map.delete . fst) (freeVars' tm') ps)
+freeVars' (TmElimAmp tm tps o) = freeVars' tm
+freeVars' (TmProd am as) = freeVarsArgs' as
+freeVars' (TmElimProd tm ps tm' tp) = Map.union (freeVars' tm) (foldr (Map.delete . fst) (freeVars' tm') ps)
 freeVars' (TmEqs tms) = Map.unions (map freeVars' tms)
 
 freeVarsCase' :: Case -> FreeVars
@@ -105,10 +103,9 @@ isLin x tm = h tm == LinYes where
   h (UsLet x' tm tm') =
     if x == x' then h tm else h_as LinErr [tm, tm']
   h (UsAmb tms) = h_as LinYes tms
-  h (UsAmpIn tms) = h_as LinYes tms
-  h (UsAmpOut tm o) = h tm
-  h (UsProdIn tms) = h_as LinErr tms
-  h (UsProdOut tm xs tm') = if x `elem` xs then h tm else h_as LinErr [tm, tm']
+  h (UsElimAmp tm o) = h tm
+  h (UsProd am tms) = h_as (if am == amAdd then LinYes else LinErr) tms
+  h (UsElimProd tm xs tm') = if x `elem` xs then h tm else h_as LinErr [tm, tm']
   h (UsEqs tms) = h_as LinErr tms
 
 -- Returns if x appears exactly once in a term
@@ -133,10 +130,9 @@ isLin' x = (LinYes ==) . h where
     (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
   h (TmSamp d tp) = LinNo
   h (TmAmb tms tp) = h_as LinYes tms
-  h (TmAmpIn as) = h_as LinYes (fsts as)
-  h (TmAmpOut tm tps o) = h tm
-  h (TmProdIn as) = h_as LinErr (fsts as)
-  h (TmProdOut tm ps tm' tp) =
+  h (TmProd am as) = h_as (if am == amAdd then LinYes else LinErr) (fsts as)
+  h (TmElimAmp tm tps o) = h tm
+  h (TmElimProd tm ps tm' tp) =
     if x `elem` fsts ps then h tm else h_as LinErr [tm, tm']
   h (TmEqs tms) = h_as LinErr tms
 
@@ -149,13 +145,13 @@ typeIsRecursive g = h [] where
         (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps)
         (ctxtLookupType g y)
   h visited (TpArr tp1 tp2) = h visited tp1 || h visited tp2
-  h visited (TpAmp tps) = any (h visited) tps
-  h visited (TpProd tps) = any (h visited) tps
+  h visited (TpProd am tps) = any (h visited) tps
+  h visited NoTp = False
 
 -- Returns if a type has an arrow, ampersand, or recursive datatype anywhere in it
 useOnlyOnce :: Ctxt -> Type -> Bool
 useOnlyOnce g = h [] where
   h visited (TpVar y) = (y `elem` visited) || maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (ctxtLookupType g y)
   h visited (TpArr _ _) = True
-  h visited (TpAmp tps) = True
-  h visited (TpProd tps) = any (h visited) tps
+  h visited (TpProd am tps) = am == amAdd || any (h visited) tps
+  h visited NoTp = False

@@ -16,10 +16,9 @@ toUsTm (TmCase tm "Bool" [Case "False" [] elsetm, Case "True" [] thentm] tp) = U
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
 toUsTm (TmAmb tms tp) = UsAmb [toUsTm tm | tm <- tms]
-toUsTm (TmAmpIn as) = UsAmpIn [toUsTm tm | (tm, _) <- as]
-toUsTm (TmAmpOut tm tps o) = UsAmpOut (toUsTm tm) o
-toUsTm (TmProdIn as) = UsProdIn [toUsTm tm | (tm, _) <- as]
-toUsTm (TmProdOut tm ps tm' tp) = UsProdOut (toUsTm tm) [x | (x, _) <- ps] (toUsTm tm')
+toUsTm (TmProd am as) = UsProd am [toUsTm tm | (tm, _) <- as]
+toUsTm (TmElimAmp ptm tps o) = UsElimAmp (toUsTm ptm) o
+toUsTm (TmElimProd tm ps tm' tp) = UsElimProd (toUsTm tm) [x | (x, _) <- ps] (toUsTm tm')
 toUsTm (TmEqs tms) = UsEqs [toUsTm tm | tm <- tms]
 
 toCaseUs :: Case -> CaseUs
@@ -68,16 +67,15 @@ showTermParens (UsLet _ _ _    ) ShowAppR = True
 showTermParens (UsLet _ _ _    ) ShowCase = True
 showTermParens (UsAmb _        ) ShowAppL = True
 showTermParens (UsAmb _        ) ShowAppR = True
-showTermParens (UsProdIn _     ) _        = False -- todo
-showTermParens (UsProdOut _ _ _) _        = False -- todo
+--showTermParens (UsProdIn _     ) _        = False -- todo
+showTermParens (UsElimProd _ _ _) _       = False -- todo
 showTermParens _                 _        = False
 
 -- Should we add parens to this type, given its parent type?
 showTypeParens :: Type -> ShowHist -> Bool
 showTypeParens (TpArr _ _) ShowArrL = True
 showTypeParens (TpArr _ _) ShowTypeArg = True
-showTypeParens (TpAmp _  ) ShowTypeArg = True
-showTypeParens (TpProd _ ) ShowTypeArg = True
+showTypeParens (TpProd am _ ) ShowTypeArg = am == amMult
 showTypeParens _ _ = False
 
 -- Term show helper (ignoring parentheses)
@@ -91,18 +89,21 @@ showTermh (UsTmBool b) = if b then "True" else "False"
 showTermh (UsSamp d tp) = "sample " ++ show d ++ " : " ++ show tp
 showTermh (UsLet x tm tm') = "let " ++ x ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
 showTermh (UsAmb tms) = foldr (\ tm s -> s ++ " " ++ showTerm tm ShowAppR) "amb" tms
-showTermh (UsAmpIn tms) = "<" ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ ">"
-showTermh (UsAmpOut tm o) = showTerm tm ShowAppR ++ "." ++ show (o + 1)
-showTermh (UsProdIn tms) = "(" ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ ")"
-showTermh (UsProdOut tm xs tm') = "let (" ++ delimitWith ", " xs ++ ") = " ++ showTerm tm ShowCase ++ " in " ++ showTerm tm' ShowCase
+--showTermh (UsAmpIn tms) = "<" ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ ">"
+showTermh (UsElimAmp tm o) = showTerm tm ShowAppR ++ "." ++ show (o + 1)
+showTermh (UsProd am tms) =
+  let (l, r) = if am then ("<", ">") else ("(", ")") in
+    l ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ r
+showTermh (UsElimProd tm xs tm') = "let (" ++ delimitWith ", " xs ++ ") = " ++ showTerm tm ShowCase ++ " in " ++ showTerm tm' ShowCase
 showTermh (UsEqs tms) = delimitWith " == " [showTerm tm ShowAppL | tm <- tms]
 
 -- Type show helper (ignoring parentheses)
 showTypeh :: Type -> String
 showTypeh (TpVar y) = y
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
-showTypeh (TpAmp tps) = delimitWith " & " [showType tp ShowTypeArg | tp <- tps]
-showTypeh (TpProd tps) = delimitWith " * " [showType tp ShowTypeArg | tp <- tps]
+--showTypeh (TpAmp tps) = delimitWith " & " [showType tp ShowTypeArg | tp <- tps]
+showTypeh (TpProd am tps) = delimitWith (if am == amAdd then " & " else " * ") [showType tp ShowTypeArg | tp <- tps]
+showTypeh NoTp = ""
 
 -- Show a term, given its parent for parentheses
 showTerm :: UsTm -> ShowHist -> String
