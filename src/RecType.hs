@@ -121,7 +121,7 @@ makeDisentangle g y us css =
   let ytp = TpVar y
       utp = TpVar (unfoldTypeName y)
       dat = makeUnfoldDatatype y us
-      x = "_abc" -- targetName -- TODO
+      x = freshVar g targetName
       sub_ps ps = [(x, derefunSubst Refun y tp) | (x, tp) <- ps]
       alls = zipWith3 (\ (fvs, tp) cs i -> (fvs, tp, cs, i)) us css [0..]
       cscs = [let ps = sub_ps (Map.toList fvs)
@@ -140,7 +140,7 @@ makeDefold :: Ctxt  -> Var -> [Term] -> (Prog, Prog)
 makeDefold g y tms =
   let fname = applyName y
       tname = foldTypeName y
-      x = "_ghi" -- targetName -- TODO
+      x = freshVar g targetName
       ftp = TpVar tname
       ps = [(x, ftp)]
       casesf = \ (i, tm) -> let ps' = Map.toList (freeVars tm) in Case (foldCtorName y i) ps' (derefunTerm Defun (ctxtDeclArgs g ps') y tm)
@@ -176,7 +176,7 @@ disentangleTerm rtp cases = h where
       mapCasesM (\ _ _ -> h) cs >>= \ cs' ->
       State.get >>= \ unfolds ->
       let i = length unfolds
-          x' = "_def" -- targetName -- TODO
+          x' = targetName -- TODO: pick fresh var?
           get_ps = \ (cfvs, ctp2) -> Map.toList cfvs
           get_as = \ (cfvs, ctp2) -> paramsToArgs (Map.toList cfvs)
           get_arr = \ (cfvs, ctp2) -> joinArrows (snds (get_ps (cfvs, ctp2))) ctp2
