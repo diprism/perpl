@@ -6,6 +6,7 @@ import Ctxt
 import Util
 import Name
 import Free
+import Subst
 
 {- ====== Affine to Linear Functions ====== -}
 -- These functions convert affine terms to

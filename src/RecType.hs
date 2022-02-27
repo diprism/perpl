@@ -5,6 +5,7 @@ import Data.List
 import Exprs
 import Util
 import Free
+import Subst
 import Ctxt
 import Name
 import Rename
@@ -25,6 +26,7 @@ isRecType' g y = h [] where
       (h hist tps)
       (\ cs -> h (y' : hist) (foldr (\ (Ctor x as) tps -> as ++ tps) tps cs))
       (ctxtLookupType g y')
+  h hist (NoTp : tps) = h hist tps
 
 -- Returns if y is a recursive datatype
 isRecDatatype :: Ctxt -> Var -> Bool
@@ -60,7 +62,7 @@ collectUnfolds rtp (TmLam x tp tm tp') = collectUnfolds rtp tm
 collectUnfolds rtp (TmApp tm1 tm2 tp2 tp) = collectUnfolds rtp tm1 ++ collectUnfolds rtp tm2
 collectUnfolds rtp (TmLet x xtm xtp tm tp) = collectUnfolds rtp xtm ++ collectUnfolds rtp tm
 collectUnfolds rtp (TmCase tm y cs tp) =
-  let fvs = freeVarsCases' cs
+  let fvs = freeVars cs
       this = if y == rtp then [(fvs, tp)] else [] in
     collectUnfolds rtp tm
       ++ concatMap (\ (Case cx cps ctm) -> collectUnfolds rtp ctm) cs
@@ -78,7 +80,7 @@ collectUnfolds rtp (TmEqs tms) = concatMap (collectUnfolds rtp) tms
 collectFolds :: Var -> Term -> [(Var, FreeVars)]
 collectFolds rtp (TmVarL x tp) = []
 collectFolds rtp (TmVarG gv x as tp) =
-  let this = if TpVar rtp == tp && gv == CtorVar then [(x, freeVarsArgs' as)] else [] in
+  let this = if TpVar rtp == tp && gv == CtorVar then [(x, freeVars as)] else [] in
     concatMap (\ (atm, atp) -> collectFolds rtp atm) as ++ this
 collectFolds rtp (TmLam x tp tm tp') = collectFolds rtp tm
 collectFolds rtp (TmApp tm1 tm2 tp2 tp) = collectFolds rtp tm1 ++ collectFolds rtp tm2
@@ -142,7 +144,7 @@ makeDefold g y tms =
       x = "_ghi" -- targetName -- TODO
       ftp = TpVar tname
       ps = [(x, ftp)]
-      casesf = \ (i, tm) -> let ps' = Map.toList (freeVars' tm) in Case (foldCtorName y i) ps' (derefunTerm Defun (ctxtDeclArgs g ps') y tm)
+      casesf = \ (i, tm) -> let ps' = Map.toList (freeVars tm) in Case (foldCtorName y i) ps' (derefunTerm Defun (ctxtDeclArgs g ps') y tm)
       cases = map casesf (enumerate tms)
       ctors = [Ctor x (snds ps) | Case x ps tm <- cases]
       tm = TmCase (TmVarL x ftp) tname cases (TpVar y)
@@ -215,7 +217,7 @@ defoldTerm rtp = h where
     | gv == CtorVar && tp == TpVar rtp =
         mapArgsM h as >>= \ as' ->
         State.get >>= \ fs ->
-        let fvs = Map.toList (freeVarsArgs' as')
+        let fvs = Map.toList (freeVars as')
             cname = foldCtorName rtp (length fs)
             tname = foldTypeName rtp
             aname = applyName rtp
@@ -400,6 +402,7 @@ recDeps g recs (TpVar y)
       (ctxtLookupType g y)
 recDeps g recs (TpArr tp1 tp2) = nub (recDeps g recs tp1 ++ recDeps g recs tp2)
 recDeps g recs (TpProd am tps) = nub (concatMap (recDeps g recs) tps)
+recDeps g recs NoTp = []
 
 getRefunDeps :: Ctxt -> [Var] -> [(FreeVars, Type)] -> [Var]
 getRefunDeps g recs =

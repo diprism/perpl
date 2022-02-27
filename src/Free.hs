@@ -2,6 +2,7 @@ module Free where
 import Exprs
 import Ctxt
 import Util
+import Subst
 import qualified Data.Map as Map
 
 -- For checking linearity, vars can appear:
@@ -19,65 +20,31 @@ linIf LinErr y n e = e
 linIf' :: Lin -> Lin -> Lin -> Lin
 linIf' i y n = linIf i y n LinErr
 
-
--- Returns a map of the free vars in a term, with the max number of occurrences
-freeVars :: UsTm -> Map.Map Var Int
-freeVars (UsVar x) = Map.singleton x 1
-freeVars (UsLam x tp tm) = Map.delete x $ freeVars tm
-freeVars (UsApp tm tm') = Map.unionWith (+) (freeVars tm) (freeVars tm')
-freeVars (UsCase tm cs) = foldr (Map.unionWith max . freeVarsCase) (freeVars tm) cs
-freeVars (UsIf tm1 tm2 tm3) = Map.unionWith (+) (freeVars tm1) (Map.unionWith max (freeVars tm2) (freeVars tm3))
-freeVars (UsTmBool b) = Map.empty
-freeVars (UsSamp d tp) = Map.empty
-freeVars (UsLet x tm tm') = Map.unionWith max (freeVars tm) (Map.delete x $ freeVars tm')
-freeVars (UsAmb tms) = Map.unionsWith max (map freeVars tms)
-freeVars (UsElimAmp tm o) = freeVars tm
-freeVars (UsProd am tms) = Map.unionsWith (if am == amAdd then max else (+)) (map freeVars tms)
-freeVars (UsElimProd tm xs tm') = Map.unionWith (+) (freeVars tm) (foldr Map.delete (freeVars tm') xs)
-freeVars (UsEqs tms) = Map.unionsWith (+) (map freeVars tms)
-
-freeVarsCase :: CaseUs -> Map.Map Var Int
-freeVarsCase (CaseUs c xs tm) = foldr Map.delete (freeVars tm) xs
-
-
--- Returns the local vars that occur free in a term, along with their types
-type FreeVars = Map.Map Var Type
-
-freeVars' :: Term -> FreeVars
-freeVars' (TmVarL x tp) = Map.singleton x tp
-freeVars' (TmVarG gv x as tp) = freeVarsArgs' as
-freeVars' (TmLam x tp tm tp') = Map.delete x $ freeVars' tm
-freeVars' (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars' tm1) (freeVars' tm2)
-freeVars' (TmLet x xtm xtp tm tp) = Map.union (freeVars' xtm) (Map.delete x (freeVars' tm))
-freeVars' (TmCase tm y cs tp') = Map.union (freeVars' tm) (freeVarsCases' cs)
-freeVars' (TmSamp d tp) = Map.empty
-freeVars' (TmAmb tms tp) = Map.unions (map freeVars' tms)
-freeVars' (TmElimAmp tm tps o) = freeVars' tm
-freeVars' (TmProd am as) = freeVarsArgs' as
-freeVars' (TmElimProd tm ps tm' tp) = Map.union (freeVars' tm) (foldr (Map.delete . fst) (freeVars' tm') ps)
-freeVars' (TmEqs tms) = Map.unions (map freeVars' tms)
-
-freeVarsCase' :: Case -> FreeVars
-freeVarsCase' (Case c as tm) = foldr (Map.delete . fst) (freeVars' tm) as
-
-freeVarsCases' :: [Case] -> FreeVars
-freeVarsCases' = Map.unions . map (freeVarsCase')
-
-freeVarsArgs' :: [Arg] -> FreeVars
-freeVarsArgs' = Map.unions . map (freeVars' . fst)
-
-
--- Returns the (max) number of occurrences of x in tm
-freeOccurrences :: Var -> UsTm -> Int
-freeOccurrences x tm = Map.findWithDefault 0 x (freeVars tm)
-
 -- Returns if x appears free in tm
 isFree :: Var -> UsTm -> Bool
 isFree x tm = Map.member x (freeVars tm)
 
 -- Returns if x occurs at most once in tm
 isAff :: Var -> UsTm -> Bool
-isAff x tm = freeOccurrences x tm <= 1
+isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
+  where
+    countOccs :: UsTm -> Map.Map Var Int
+    countOccs (UsVar x) = Map.singleton x 1
+    countOccs (UsLam x tp tm) = Map.delete x $ countOccs tm
+    countOccs (UsApp tm tm') = Map.unionWith (+) (countOccs tm) (countOccs tm')
+    countOccs (UsCase tm cs) = foldr (Map.unionWith max . countOccsCase) (countOccs tm) cs
+    countOccs (UsIf tm1 tm2 tm3) = Map.unionWith (+) (countOccs tm1) (Map.unionWith max (countOccs tm2) (countOccs tm3))
+    countOccs (UsTmBool b) = Map.empty
+    countOccs (UsSamp d tp) = Map.empty
+    countOccs (UsLet x tm tm') = Map.unionWith max (countOccs tm) (Map.delete x $ countOccs tm')
+    countOccs (UsAmb tms) = Map.unionsWith max (map countOccs tms)
+    countOccs (UsElimAmp tm o) = countOccs tm
+    countOccs (UsProd am tms) = Map.unionsWith (if am == amAdd then max else (+)) (map countOccs tms)
+    countOccs (UsElimProd tm xs tm') = Map.unionWith (+) (countOccs tm) (foldr Map.delete (countOccs tm') xs)
+    countOccs (UsEqs tms) = Map.unionsWith (+) (map countOccs tms)
+    
+    countOccsCase :: CaseUs -> Map.Map Var Int
+    countOccsCase (CaseUs c xs tm) = foldr Map.delete (countOccs tm) xs
 
 -- Returns if x appears exactly once in a user-term
 isLin :: Var -> UsTm -> Bool

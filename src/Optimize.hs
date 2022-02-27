@@ -7,6 +7,7 @@ import Util
 import Name
 import Rename
 import Free
+import Subst
 
 {- Provides various optimizations:
 1. (case t of C1 a* -> \x. t1 | C2 b* -> \y. t2 | C3 c* -> t3)
@@ -145,7 +146,7 @@ peelLams g ps tm =
 -- no free vars that aren't also free in the other term, and no ambs/fails/uniforms
 safe2sub :: Ctxt -> Var -> Term -> Term -> Bool
 safe2sub g x xtm tm =
-  isLin' x tm || (noDefsSamps xtm && fvsOkay (freeVars' xtm))
+  isLin' x tm || (noDefsSamps xtm && fvsOkay (freeVars xtm))
   where
     fvsOkay :: FreeVars -> Bool
     -- TODO: don't need to check typeIsRecursive g tp, once we can copy terms with recursive datatypes
