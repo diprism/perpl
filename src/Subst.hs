@@ -6,7 +6,7 @@ import qualified Data.Map as Map
 import Control.Monad.RWS.Lazy
 import Exprs
 import Util
-
+import Ctxt
 
 ----------------------------------------
 
@@ -115,8 +115,11 @@ class Substitutable a where
   subst :: Subst -> a -> a
   subst r a = let (a', r', ()) = runRWS (substM a) () r in a'
 
-  alphaRename :: a -> a
-  alphaRename = subst Map.empty
+  substWithCtxt :: Ctxt -> Subst -> a -> a
+  substWithCtxt g s = subst (Map.union (Map.mapWithKey (const . SubVar) g) s)
+
+  alphaRename :: Ctxt -> a -> a
+  alphaRename g = substWithCtxt g Map.empty
 
 substF :: (Functor t, Traversable t, Substitutable a) => t a -> SubstM (t a)
 substF fa = sequence (fmap substM fa)
@@ -330,3 +333,23 @@ instance Substitutable Progs where
     pure Progs <*> substM ps <*> substM tm
   freeVars (Progs ps tm) =
     Map.union (freeVars ps) (freeVars tm)
+
+-- For ad-hoc type var substitution,
+-- rename all occurrences of xi to xf in a type
+substType :: Var -> Var -> Type -> Type
+substType xi xf (TpVar y) =
+  TpVar (if xi == y then xf else y)
+substType xi xf (TpArr tp1 tp2) =
+  TpArr (substType xi xf tp1) (substType xi xf tp2)
+substType xi xf (TpProd am tps) =
+  TpProd am [substType xi xf tp | tp <- tps]
+substType xi xf NoTp = NoTp
+
+-- Rename all occurrences of xi to xf in something
+--substs :: Substitutable a => Ctxt -> [(Var, Either Term Type)] -> a -> a
+--substs g subs =
+--  subst (foldr (uncurry Map.insert) (Map.mapWithKey (const . SubVar) g) (map (fmap (either SubTm SubTp)) subs))
+
+freshVar :: Ctxt -> Var -> Var
+freshVar g x =
+  let (x', r', ()) = runRWS (freshen x) () (Map.mapWithKey (const . SubVar) g) in x'

@@ -5,7 +5,6 @@ import Exprs
 import Ctxt
 import Util
 import Name
-import Rename
 import Free
 import Subst
 
@@ -135,9 +134,9 @@ peelLams :: Ctxt -> [Param] -> Term -> Term
 peelLams g [] tm = tm
 peelLams g ps tm =
   let (ls, body) = splitLams tm
-      subs = zip (fsts ls) (map (Left . fst) (paramsToArgs ps))
+      subs = zip (fsts ls) (map (SubTm . fst) (paramsToArgs ps))
       -- See examples above
-      example1 = substs g subs (renameTerm body)
+      example1 = substWithCtxt g (Map.fromList subs) body
       example2 = joinApps example1 (paramsToArgs (drop (length ls) ps)) in
     example2
 
@@ -177,7 +176,7 @@ optimizeTerm g (TmLet x xtm xtp tm tp) =
   let xtm' = optimizeTerm g xtm
       tm' = optimizeTerm (ctxtDeclTerm g x xtp) tm in
   if safe2sub g x xtm' tm'
-    then optimizeTerm g (substs g [(x, Left xtm')] (renameTerm tm'))
+    then optimizeTerm g (substWithCtxt g (Map.fromList [(x, SubTm xtm')]) tm')
     else TmLet x xtm' xtp tm' tp
 optimizeTerm g (TmSamp d tp) = TmSamp d tp
 optimizeTerm g (TmLam x tp tm tp') =

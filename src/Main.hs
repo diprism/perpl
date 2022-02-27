@@ -8,9 +8,10 @@ import Lex
 import Check
 import Compile
 import RecType
-import Rename
 import AffLin
 import Optimize
+import Subst
+import Ctxt
 
 data CmdArgs = CmdArgs {
   optInfile :: String,
@@ -71,6 +72,10 @@ doIf False f = return
 showFile :: Progs -> Either String String
 showFile = return . show
 
+alphaRenameProgs :: Substitutable p => (p -> Ctxt) -> p -> Either String p
+alphaRenameProgs gf a = return (alphaRename (gf a) a)
+--ctxtDefProgs
+
 --process :: Show a => CmdArgs -> String -> a
 processContents (CmdArgs ifn ofn c dr l o) s = return s
   -- String to list of tokens
@@ -78,7 +83,7 @@ processContents (CmdArgs ifn ofn c dr l o) s = return s
   -- List of tokens to UsProgs
   >>= parseFile
   -- Pick a unique name for each bound var
-  >>= alphaRenameUsFile
+  >>= alphaRenameProgs ctxtDefUsProgs
   -- Type check the file (:: UsProgs -> Progs)
   >>= checkFile
   -- Apply various optimizations
@@ -90,7 +95,7 @@ processContents (CmdArgs ifn ofn c dr l o) s = return s
   -- Apply various optimizations (again) (disabled for now; joinApps problem after aff2lin introduces maybe types)
   >>= doIf o optimizeFile
   -- Pick a unique name for each bound var (again)
-  >>= alphaRenameFile
+  >>= alphaRenameProgs ctxtDefProgs
   -- Compile to FGG
   >>= if c then compileFile else showFile
 

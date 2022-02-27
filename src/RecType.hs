@@ -8,7 +8,6 @@ import Free
 import Subst
 import Ctxt
 import Name
-import Rename
 
 --------------------------------------------------
 
