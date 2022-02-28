@@ -133,7 +133,7 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- let (x, y, ...) = term in term
   [TkLet, TkParenL] -> parseEat *> parseEat *> pure (flip UsElimProd) <*> parseVarsCommas <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- let x = term in term
-  [TkLet, _] -> parseEat *> pure UsLet <*> parseVar <* parseDrop TkEq
+  [TkLet, _] -> parseEat *> pure UsLet <*> parseVar <*> parseTpAnn <* parseDrop TkEq
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
   _ -> parseTerm2
 

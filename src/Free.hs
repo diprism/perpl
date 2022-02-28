@@ -36,7 +36,7 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccs (UsIf tm1 tm2 tm3) = Map.unionWith (+) (countOccs tm1) (Map.unionWith max (countOccs tm2) (countOccs tm3))
     countOccs (UsTmBool b) = Map.empty
     countOccs (UsSamp d tp) = Map.empty
-    countOccs (UsLet x tm tm') = Map.unionWith max (countOccs tm) (Map.delete x $ countOccs tm')
+    countOccs (UsLet x tp tm tm') = Map.unionWith max (countOccs tm) (Map.delete x $ countOccs tm')
     countOccs (UsAmb tms) = Map.unionsWith max (map countOccs tms)
     countOccs (UsElimAmp tm o) = countOccs tm
     countOccs (UsProd am tms) = Map.unionsWith (if am == amAdd then max else (+)) (map countOccs tms)
@@ -67,7 +67,7 @@ isLin x tm = h tm == LinYes where
   h (UsIf tm1 tm2 tm3) = linIf' (h tm1) (h_as LinErr [tm2, tm3]) (h_as LinYes [tm2, tm3])
   h (UsTmBool b) = LinNo
   h (UsSamp d tp) = LinNo
-  h (UsLet x' tm tm') =
+  h (UsLet x' tp tm tm') =
     if x == x' then h tm else h_as LinErr [tm, tm']
   h (UsAmb tms) = h_as LinYes tms
   h (UsElimAmp tm o) = h tm

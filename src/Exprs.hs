@@ -32,7 +32,7 @@ data UsTm = -- User Term
   | UsApp UsTm UsTm
   | UsCase UsTm [CaseUs]
   | UsSamp Dist Type
-  | UsLet Var UsTm UsTm
+  | UsLet Var Type UsTm UsTm
   | UsAmb [UsTm]
   | UsProd AddMult [UsTm]
   | UsElimAmp UsTm Int

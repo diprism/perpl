@@ -65,6 +65,8 @@ getType (TmElimAmp tm tps o) = tps !! o
 getType (TmElimProd tm ps tm' tp) = tp
 getType (TmEqs tms) = TpVar "Bool"
 
+typeof = getType
+
 -- Sorts cases according to the order they are appear in the datatype definition
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
 sortCases ctors cases = snds $ sortBy (\ (a, _) (b, _) -> compare a b) (label cases) where
