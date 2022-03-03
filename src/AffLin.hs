@@ -50,7 +50,7 @@ discard' :: Term -> Type -> AffLinM Term
 discard' x (TpArr tp1 tp2) =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
 discard' x (TpProd am tps)
-  | am == amAdd = discard' (TmElimAmp x tps (length tps - 1)) (last tps)
+  | am == amAdd = discard' (TmElimAmp x (length tps - 1, length tps) tpUnit) (last tps)
   | otherwise = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in discards (Map.fromList ps) tmUnit >>= \ tm -> return (TmElimProd x ps tm tpUnit)
 discard' x (TpVar y) =
   ask >>= \ g ->
@@ -121,7 +121,7 @@ ambElim :: Term -> Term
 ambElim tm =
   case getType tm of
     TpProd False [tp, unittp] ->
-      TmElimAmp tm [tp, unittp] 0
+      TmElimAmp tm (0, 2) tp
     _ -> tm
 
 affLinParams :: [Param] -> Term -> AffLinM ([Param], Term, FreeVars)
@@ -198,9 +198,9 @@ affLin (TmProd am as)
   | otherwise =
     -- L(tm1, tm2, ..., tmn) => (L(tm1), L(tm2), ..., L(tmn))
     pure (TmProd am) <*> mapArgsM affLin as
-affLin (TmElimAmp tm tps o) =
-  -- L(tm.o) => L(tm).on
-  pure TmElimAmp <*> affLin tm <*> mapM affLinTp (tps ++ [tpUnit]) <*> pure o
+affLin (TmElimAmp tm (o, o') tp) =
+  -- L(tm.o.o') => L(tm).o.(o'+1) (add `Unit` to end of &-product)
+  pure TmElimAmp <*> affLin tm <*> pure (o, o' + 1) <*> affLinTp tp
 affLin (TmElimProd tm ps tm' tp) =
   -- L(let (x1, x2, ..., xn) = tm in tm') =>
   --    let (x1, x2, ..., xn) = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')

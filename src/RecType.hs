@@ -69,7 +69,7 @@ collectUnfolds rtp (TmCase tm y cs tp) =
 collectUnfolds rtp (TmSamp d tp) = []
 collectUnfolds rtp (TmAmb tms tp) = concatMap (collectUnfolds rtp) tms
 collectUnfolds rtp (TmProd am as) = concatMap (\ (atm, atp) -> collectUnfolds rtp atm) as
-collectUnfolds rtp (TmElimAmp tm tps o) = collectUnfolds rtp tm
+collectUnfolds rtp (TmElimAmp tm o tps) = collectUnfolds rtp tm
 collectUnfolds rtp (TmElimProd tm ps tm' tp) = collectUnfolds rtp tm ++ collectUnfolds rtp tm'
 collectUnfolds rtp (TmEqs tms) = concatMap (collectUnfolds rtp) tms
 
@@ -88,7 +88,7 @@ collectFolds rtp (TmCase tm y cs tp) = collectFolds rtp tm ++ concatMap (\ (Case
 collectFolds rtp (TmSamp d tp) = []
 collectFolds rtp (TmAmb tms tp) = concatMap (collectFolds rtp) tms
 collectFolds rtp (TmProd am as) = concatMap (\ (atm, atp) -> collectFolds rtp atm) as
-collectFolds rtp (TmElimAmp tm tps o) = collectFolds rtp tm
+collectFolds rtp (TmElimAmp tm o tp) = collectFolds rtp tm
 collectFolds rtp (TmElimProd tm ps tm' tp) = collectFolds rtp tm ++ collectFolds rtp tm'
 collectFolds rtp (TmEqs tms) = concatMap (collectFolds rtp) tms
 
@@ -182,7 +182,7 @@ disentangleTerm rtp cases = h where
           get_arr = \ (cfvs, ctp2) -> joinArrows (snds (get_ps (cfvs, ctp2))) ctp2
           xtps = map get_arr cases
           xtp = TpProd amAdd xtps
-          cs'' = [Case (unfoldCtorName rtp) [(x', xtp)] (let cfvstp2 = cases !! i in joinApps (TmElimAmp (TmVarL x' xtp) xtps i) (get_as cfvstp2))]
+          cs'' = [Case (unfoldCtorName rtp) [(x', xtp)] (let cfvstp2 = cases !! i in joinApps (TmElimAmp (TmVarL x' xtp) (i, length cases) (xtps !! i)) (get_as cfvstp2))]
           rtm = TmCase tm (unfoldTypeName rtp) cs'' tp
       in
         State.put (unfolds ++ [cs']) >>
@@ -313,9 +313,9 @@ derefunTerm dr g rtp = fst . h where
       TmAmb (fsts tms') tp'
   h' (TmProd am as) =
     TmProd am [h tm | (tm, _) <- as]
-  h' (TmElimAmp tm tps o) =
+  h' (TmElimAmp tm o tp) =
     let (tm', TpProd _ tps') = h tm in
-      TmElimAmp tm' tps' o
+      TmElimAmp tm' o (tps' !! fst o)
   h' (TmElimProd tm ps tm' tp) =
     let (tm2, TpProd amMult tps) = h tm
         (tm2', tp) = h tm'

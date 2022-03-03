@@ -44,7 +44,7 @@ define products : Bool * State -> Bool & State -> Bool =
     -- With *-types, you can access both parts like this:
     let (b, q) = prod in
     -- But with &-types, you can only access ONE part:
-    let b' = amp.1 in
+    let b' = amp.1.2 in
     -- or: let q' = amp.2 in ...
     -- You CANNOT do
     -- let <b', q'> = amp in ...

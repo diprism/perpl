@@ -8,7 +8,7 @@ define use_prod : Bool * Color * Direction -> Direction =
   \ p : Bool * Color * Direction. let (x, y, z) = p in z;
 
 define use_amp  : Bool & Color & Direction -> Direction =
-  \ a : Bool & Color & Direction. a.3;
+  \ a : Bool & Color & Direction. a.3.3;
   
 {- define use_amp_error  : Bool & Color & Direction -> Direction =
   \ a : Bool & Color & Direction. (a.1, a.2, a.3); -}

@@ -74,8 +74,8 @@ liftAmb (TmProd am as)
     let as' = [[(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
       joinAmbs (map (TmProd am) (kronall as')) (TpProd am (snds as))
   | otherwise = TmProd am (mapArgs liftAmb as)
-liftAmb (TmElimAmp tm tps o) =
-  joinAmbs [TmElimAmp tm tps o | tm <- splitAmbs (liftAmb tm)] (tps !! o)
+liftAmb (TmElimAmp tm o tp) =
+  joinAmbs [TmElimAmp tm o tp | tm <- splitAmbs (liftAmb tm)] tp
 liftAmb (TmElimProd ptm ps tm tp) =
   joinAmbs (kronwith (\ ptm' tm' -> TmElimProd ptm' ps tm' tp)
              (splitAmbs (liftAmb ptm))
@@ -215,10 +215,10 @@ optimizeTerm g (TmCase tm y cs tp) =
           joinLams ps' (TmCase tm' y cs' end)
 optimizeTerm g (TmAmb tms tp) = TmAmb (map (optimizeTerm g) tms) tp
 optimizeTerm g (TmProd am as) = TmProd am (mapArgs (optimizeTerm g) as)
-optimizeTerm g (TmElimAmp tm tps o) =
+optimizeTerm g (TmElimAmp tm o tp) =
   case optimizeTerm g tm of
-    (TmProd False as) -> fst (as !! o)
-    tm' -> TmElimAmp tm' tps o
+    (TmProd False as) -> fst (as !! fst o)
+    tm' -> TmElimAmp tm' o tp
 optimizeTerm g (TmElimProd tm ps tm' tp) =
   TmElimProd (optimizeTerm g tm) ps (optimizeTerm (ctxtDeclArgs g ps) tm') tp
 optimizeTerm g (TmEqs tms) =

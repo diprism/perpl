@@ -61,7 +61,7 @@ getType (TmCase ctm y cs tp) = tp
 getType (TmSamp d tp) = tp
 getType (TmAmb tms tp) = tp
 getType (TmProd am as) = TpProd am (snds as)
-getType (TmElimAmp tm tps o) = tps !! o
+getType (TmElimAmp tm o tp) = tp
 getType (TmElimProd tm ps tm' tp) = tp
 getType (TmEqs tms) = TpVar "Bool"
 

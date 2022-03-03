@@ -152,8 +152,8 @@ instance Substitutable Term where
     pure TmAmb <*> substM tms <*> pure tp
   substM (TmProd am as) =
     pure (TmProd am) <*> substM as
-  substM (TmElimAmp tm tps i) =
-    pure TmElimAmp <*> substM tm <*> substM tps <*> pure i
+  substM (TmElimAmp tm i tp) =
+    pure TmElimAmp <*> substM tm <*> pure i <*> substM tp
   substM (TmElimProd ptm ps tm tp) =
     pure TmElimProd <*> substM ptm <**> substParams ps (substM tm) <*> substM tp
   substM (TmEqs tms) =
@@ -168,7 +168,7 @@ instance Substitutable Term where
   freeVars (TmSamp d tp) = Map.empty
   freeVars (TmAmb tms tp) = freeVars tms
   freeVars (TmProd am as) = freeVars as
-  freeVars (TmElimAmp tm tps i) = freeVars tm
+  freeVars (TmElimAmp tm i tp) = freeVars tm
   freeVars (TmElimProd ptm ps tm tp) = Map.union (freeVars ptm) (foldr (Map.delete . fst) (freeVars tm) ps)
   freeVars (TmEqs tms) = freeVars tms
 

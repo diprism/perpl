@@ -17,7 +17,7 @@ toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
 toUsTm (TmAmb tms tp) = UsAmb [toUsTm tm | tm <- tms]
 toUsTm (TmProd am as) = UsProd am [toUsTm tm | (tm, _) <- as]
-toUsTm (TmElimAmp ptm tps o) = UsElimAmp (toUsTm ptm) o
+toUsTm (TmElimAmp ptm o tp) = UsElimAmp (toUsTm ptm) o
 toUsTm (TmElimProd tm ps tm' tp) = UsElimProd (toUsTm tm) [x | (x, _) <- ps] (toUsTm tm')
 toUsTm (TmEqs tms) = UsEqs [toUsTm tm | tm <- tms]
 
@@ -94,7 +94,7 @@ showTermh (UsSamp d tp) = "sample " ++ show d ++ showTpAnn tp
 showTermh (UsLet x tp tm tm') = "let " ++ x ++ showTpAnn tp ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
 showTermh (UsAmb tms) = foldr (\ tm s -> s ++ " " ++ showTerm tm ShowAppR) "amb" tms
 --showTermh (UsAmpIn tms) = "<" ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ ">"
-showTermh (UsElimAmp tm o) = showTerm tm ShowAppR ++ "." ++ show (o + 1)
+showTermh (UsElimAmp tm (o, o')) = showTerm tm ShowAppR ++ "." ++ show (o + 1) ++ "." ++ show o'
 showTermh (UsProd am tms) =
   let (l, r) = if am then ("<", ">") else ("(", ")") in
     l ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ r

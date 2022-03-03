@@ -35,7 +35,7 @@ data UsTm = -- User Term
   | UsLet Var Type UsTm UsTm
   | UsAmb [UsTm]
   | UsProd AddMult [UsTm]
-  | UsElimAmp UsTm Int
+  | UsElimAmp UsTm (Int, Int)
   | UsElimProd UsTm [Var] UsTm
   | UsTmBool Bool
   | UsIf UsTm UsTm UsTm
@@ -55,7 +55,7 @@ data Term =
   | TmSamp Dist Type
   | TmAmb [Term] Type
   | TmProd AddMult [Arg]
-  | TmElimAmp Term [Type] Int
+  | TmElimAmp Term (Int, Int) Type
   | TmElimProd Term [Param] Term Type
   | TmEqs [Term]
   deriving (Eq, Ord)

@@ -168,7 +168,7 @@ parseTmsDelim tok tms = parsePeek >>= \ t ->
 
 parseNum :: ParseM Int
 parseNum = parsePeek >>= \ t -> case t of
-  TkNum o -> parseEat >> return (o - 1)
+  TkNum o -> parseEat >> return o
   _ -> parseErr "Expected a number here"
 
 
@@ -183,7 +183,7 @@ TERM3 :=
 parseTerm3 :: ParseM UsTm
 parseTerm3 = parseTerm4 >>= \ tm -> parsePeek >>= \ t -> case t of
   -- TkComma -> pure UsProdIn <*> parseTmsDelim TkComma [tm]
-  TkDot -> parseEat >> parseNum >>= return . UsElimAmp tm
+  TkDot -> pure (curry (UsElimAmp tm)) <* parseEat <*> (pred <$> parseNum) <* parseDrop TkDot <*> parseNum
   _ -> return tm
 
 {-

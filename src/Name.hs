@@ -13,6 +13,7 @@ eqFactorName tp n = "[" ++ show n ++ "]" ++ "==" ++ show tp
 -- Naming convention for factor v=(v1,v2)
 pairFactorName tp1 tp2 = "v=(" ++ show (TpArr tp1 tp2) ++ ")"
 
+ampFactorName :: [Type] -> Int -> String
 --ampFactorName i tps = "v=" ++ show (TpAmp tps) ++ "." ++ show i
 ampFactorName tps i = "v=<" ++ delimitWith ", " [show tp | tp <- tps] ++ ">." ++ show i
 

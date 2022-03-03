@@ -118,7 +118,7 @@ checkTermh g (UsSamp d tp) =
   checkType g tp >>
   return (TmSamp d tp)
 
-checkTermh g (UsLet x ltm tm) =
+checkTermh g (UsLet x tp ltm tm) =
   checkTerm g ltm >>= \ (ltm', ltp) ->
   checkTerm (ctxtDeclTerm g x ltp) tm >>= \ (tm', tp) ->
   checkAffLin g x ltp tm >>
@@ -137,13 +137,17 @@ checkTermh g (UsAmb tms) =
 checkTermh g (UsProd am tms) =
   mapM (checkTerm g) tms >>= return . TmProd am
 
-checkTermh g (UsElimAmp tm o) =
+checkTermh g (UsElimAmp tm (o, o')) =
   checkTerm g tm >>= \ (tm, tp) ->
   case tp of
     TpProd am tps ->
       ifErr (am == amMult) "Expected a &-product, not a *-product" >>
-      ifErr (not (0 <= o && o < length tps)) ("expected a number between 0 and " ++ show (length tps)) >>
-      return (TmElimAmp tm tps o)
+      ifErr (not (o' == length tps))
+        ("Expected a &-product of arity " ++ show o' ++
+          ", but got arity " ++ show (length tps)) >>
+      ifErr (not (0 <= o && o < length tps))
+        ("expected a number between 0 and " ++ show (length tps)) >>
+      return (TmElimAmp tm (o, o') (tps !! o))
     _ -> err "expected ampersand type"
 
 checkTermh g (UsElimProd tm xs tm') =

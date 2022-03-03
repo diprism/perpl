@@ -208,12 +208,13 @@ term2fgg g (TmProd am as)
         (Edge' (vtps ++ [vptp]) (prodFactorName (snds as)) :
           [Edge' (tmxs ++ [vtp]) (show atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
         (concat xss ++ [vptp])
-term2fgg g (TmElimAmp tm tps o) =
+term2fgg g (TmElimAmp tm o tp) =
   term2fgg g tm +>= \ tmxs ->
-  let tp = tps !! o
+  let tps = case typeof tm of { TpProd am tps -> tps; _ -> error "expected an &-product, when compiling" }
+      --tp = tps !! o
       [vtp, vamp] = newNames [tp, TpProd amAdd tps] in
-    mkRule (TmElimAmp tm tps o) (vtp : vamp : tmxs)
-      ([Edge' (tmxs ++ [vamp]) (show tm), Edge' [vamp, vtp] (ampFactorName tps o)])
+    mkRule (TmElimAmp tm o (tps !! fst o)) (vtp : vamp : tmxs)
+      ([Edge' (tmxs ++ [vamp]) (show tm), Edge' [vamp, vtp] (ampFactorName tps (fst o))])
       (tmxs ++ [vtp]) +>
     addAmpFactors g tps
 term2fgg g (TmElimProd ptm ps tm tp) =
