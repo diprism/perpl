@@ -213,7 +213,7 @@ defoldTerm rtp = h where
   h :: Term -> DefoldM Term
   h (TmVarL x tp) = pure (TmVarL x tp)
   h (TmVarG gv x as tp)
-    | gv == CtorVar && tp == TpVar rtp =
+    | isCtorVar gv && tp == TpVar rtp =
         mapArgsM h as >>= \ as' ->
         State.get >>= \ fs ->
         let fvs = Map.toList (freeVars as')
@@ -274,9 +274,9 @@ derefunTerm dr g rtp = fst . h where
   h' :: Term -> Term
   h' (TmVarL x tp) = let tp' = sub tp in TmVarL x tp'
   h' (TmVarG gv x as tp)
-    | dr == Refun && gv == CtorVar && tp == TpVar rtp =
+    | dr == Refun && isCtorVar gv && tp == TpVar rtp =
       TmVarG DefVar unfoldN [(TmVarG gv x (h_as as) tp, tp)] (TpVar unfoldTypeN)
-    | dr == Defun && gv == DefVar && x == applyN =
+    | dr == Defun && isDefVar gv && x == applyN =
       let [(etm, etp)] = as in h' etm
     | otherwise =
       maybe2 (ctxtLookupTerm g x) (TmVarG gv x (h_as as) tp) $ \ (_, tp') ->

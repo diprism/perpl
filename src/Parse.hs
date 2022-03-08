@@ -175,7 +175,7 @@ parseNum = parsePeek >>= \ t -> case t of
 {-
 
 TERM3 :=
-  | TERM4 . NUM
+  | TERM4 . NUM . NUM
   | TERM4
 
  -}

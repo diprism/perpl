@@ -120,14 +120,13 @@ freeVarsF = foldr (\ a -> Map.union (freeVars a)) Map.empty
     
 instance Substitutable Type where
   substM (TpArr tp1 tp2) = pure TpArr <*> substM tp1 <*> substM tp2
-  substM (TpVar y) =
-    substVar y TpVar (const (TpVar y)) id (TpVar y)
+  substM (TpVar y) = substVar y TpVar (const (TpVar y)) id (TpVar y)
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
   substM NoTp = pure NoTp
 
   freeVars (TpArr tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
-  freeVars (TpVar y) = Map.empty -- Map.singleton y ()
-  freeVars (TpProd am tps) = Map.unions [freeVars tp | tp <- tps]
+  freeVars (TpVar y) = Map.singleton y NoTp
+  freeVars (TpProd am tps) = Map.unions (freeVars <$> tps)
   freeVars NoTp = Map.empty
 
 instance Substitutable Term where
@@ -279,14 +278,7 @@ instance Substitutable UsProgs where
     bind y y okay >>
     pure (UsProgData y) <*> substM cs <*> substM ps
 
-  freeVars (UsProgExec tm) =
-    freeVars tm
-  freeVars (UsProgFun x tp tm ps) =
-    Map.unions [freeVars tm, freeVars tp, freeVars ps]
-  freeVars (UsProgExtern x tp ps) =
-    Map.union (freeVars tp) (freeVars ps)
-  freeVars (UsProgData y cs ps) =
-    Map.union (freeVars cs) (freeVars ps)
+  freeVars ps = error "freeVars on a UsProgs"
 
 instance Substitutable Ctor where
   substM (Ctor x tps) = pure (Ctor x) <*> substM tps
@@ -304,13 +296,14 @@ instance Substitutable Prog where
     bind y y okay >>
     pure (ProgData y) <*> substM cs
 
-  freeVars (ProgFun x ps tm tp) =
+  freeVars p = error "freeVars on a Prog"
+  {-freeVars (ProgFun x ps tm tp) =
     let (pxs, ptps) = unzip ps in
       foldr Map.delete (Map.unions [freeVars tm, freeVars tp, freeVars ptps]) pxs
   freeVars (ProgExtern x xp ps tp) =
     freeVars (ps ++ [tp])
   freeVars (ProgData y cs) =
-    freeVars cs
+    freeVars cs-}
 
 instance Substitutable Progs where
   substM (Progs ps tm) =

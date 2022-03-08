@@ -7,7 +7,10 @@ data UsProgs =
   | UsProgData String [Ctor] UsProgs
   deriving (Eq, Ord)
 
-data Prog = ProgFun Var [(Var, Type)] Term Type | ProgExtern Var String [Type] Type | ProgData Var [Ctor]
+data Prog =
+    ProgFun Var [(Var, Type)] Term Type
+  | ProgExtern Var String [Type] Type
+  | ProgData Var [Ctor]
   deriving (Eq, Ord)
 data Progs = Progs [Prog] Term
   deriving (Eq, Ord)

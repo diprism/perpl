@@ -50,6 +50,14 @@ Just a |?| m_else = Just a
 okay :: Monad m => m ()
 okay = return ()
 
+isDefVar :: GlobalVar -> Bool
+isDefVar DefVar = True
+isDefVar CtorVar = False
+
+isCtorVar :: GlobalVar -> Bool
+isCtorVar CtorVar = True
+isCtorVar DefVar = False
+
 -- Gets the type of an elaborated term in O(1) time
 getType :: Term -> Type
 getType (TmVarL x tp) = tp

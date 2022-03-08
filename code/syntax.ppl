@@ -48,7 +48,7 @@ define products : Bool * State -> Bool & State -> Bool =
     -- or: let q' = amp.2 in ...
     -- You CANNOT do
     -- let <b', q'> = amp in ...
-    -- Nor can you use both amp.1 and amp.2
+    -- Nor can you use both amp.1.2 and amp.2.2
     
     -- To make a *-product:
     let prod' = (False, q1) in
