@@ -258,7 +258,7 @@ infer' (UsAmb tms) =
 infer' (UsElimAmp tm (o, o')) =
   infer tm >>: \ tm' tp ->
   mapM (const freshTp) [1..o'] >>= \ itps ->
-  constrain (Unify (TpProd amAdd itps) tp) >>
+  constrain (Unify (TpProd Additive itps) tp) >>
   return (TmElimAmp tm' (o, o') (itps !! o))
 
 infer' (UsProd am tms) =
@@ -328,7 +328,7 @@ isRobust :: Env -> Type -> Bool
 isRobust g = h [] where
   h visited (TpVar y) = (y `elem` visited) || maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (Map.lookup y (typeEnv g))
   h visited (TpArr _ _) = True
-  h visited (TpProd am tps) = am == amAdd || any (h visited) tps
+  h visited (TpProd am tps) = am == Additive || any (h visited) tps
   h visited NoTp = False
 
 solvedWell :: Env -> Subst -> [(Constraint, Loc)] -> Either (TypeError, Loc) ()
@@ -340,7 +340,7 @@ solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
     | not (isRobust e tp) = Left (RobustType tp, l)
     | otherwise = okay
 --  h (Inject (TpProd am tps) o tp) l
---    | am == amMult = Left (error "TODO: new error? Or reuse?", l)
+--    | am == Multiplicative = Left (error "TODO: new error? Or reuse?", l)
 --    | o >= length tps = Left (error "TODO: (another) new error? Or reuse?", l)
 --    | tps !! o /= tp = Left (ConflictingTypes (tps !! 0) tp, l)
 --    | otherwise = okay
