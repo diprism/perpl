@@ -70,7 +70,7 @@ liftAmb (TmSamp d tp) = TmSamp d tp
 liftAmb (TmAmb tms tp) =
   TmAmb (concatMap (splitAmbs . liftAmb) tms) tp
 liftAmb (TmProd am as)
-  | am == amMult =
+  | am == Multiplicative =
     let as' = [[(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
       joinAmbs (map (TmProd am) (kronall as')) (TpProd am (snds as))
   | otherwise = TmProd am (mapArgs liftAmb as)
@@ -107,7 +107,7 @@ liftFail' (TmAmb tms tp) =
   let tms' = concatMap (maybe [] (\ tm -> [tm]) . liftFail') tms in
     if null tms' then Nothing else pure (joinAmbs tms' tp)
 liftFail' (TmProd am as)
-  | am == amMult =
+  | am == Multiplicative =
     pure (TmProd am) <*> mapArgsM liftFail' as
   | otherwise =
     let as' = map (mapArgM liftFail') as in
@@ -216,7 +216,7 @@ optimizeTerm g (TmAmb tms tp) = TmAmb (map (optimizeTerm g) tms) tp
 optimizeTerm g (TmProd am as) = TmProd am (mapArgs (optimizeTerm g) as)
 optimizeTerm g (TmElimAmp tm o tp) =
   case optimizeTerm g tm of
-    (TmProd False as) -> fst (as !! fst o)
+    (TmProd Additive as) -> fst (as !! fst o)
     tm' -> TmElimAmp tm' o tp
 optimizeTerm g (TmElimProd tm ps tm' tp) =
   TmElimProd (optimizeTerm g tm) ps (optimizeTerm (ctxtDeclArgs g ps) tm') tp

@@ -224,8 +224,8 @@ TERM5 :=
 parseTerm5 :: ParseM UsTm
 parseTerm5 = parsePeek >>= \ t -> case t of
   TkVar v -> parseEat *> pure (UsVar v)
-  TkParenL -> parseEat *> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd amMult tms)) <* parseDrop TkParenR -- TODO: product
-  TkLangle -> parseEat *> pure (UsProd amAdd) <*> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm]) <* parseDrop TkRangle
+  TkParenL -> parseEat *> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd Multiplicative tms)) <* parseDrop TkParenR -- TODO: product
+  TkLangle -> parseEat *> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm]) <* parseDrop TkRangle
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
 parseTpsDelim tok tps = parsePeek >>= \ t ->
@@ -272,8 +272,8 @@ TYPE2 :=
 -- Product, Ampersand
 parseType2 :: ParseM Type
 parseType2 = parseType3 >>= \ tp -> parsePeek >>= \ t -> case t of
-  TkStar -> pure (TpProd amMult) <*> parseTpsDelim TkStar [tp]
-  TkAmp  -> pure (TpProd amAdd) <*> parseTpsDelim TkAmp [tp]
+  TkStar -> pure (TpProd Multiplicative) <*> parseTpsDelim TkStar [tp]
+  TkAmp  -> pure (TpProd Additive) <*> parseTpsDelim TkAmp [tp]
   _ -> pure tp
 
 {-

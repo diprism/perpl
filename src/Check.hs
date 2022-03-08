@@ -141,7 +141,7 @@ checkTermh g (UsElimAmp tm (o, o')) =
   checkTerm g tm >>= \ (tm, tp) ->
   case tp of
     TpProd am tps ->
-      ifErr (am == amMult) "Expected a &-product, not a *-product" >>
+      ifErr (am == Multiplicative) "Expected a &-product, not a *-product" >>
       ifErr (not (o' == length tps))
         ("Expected a &-product of arity " ++ show o' ++
           ", but got arity " ++ show (length tps)) >>
@@ -154,7 +154,7 @@ checkTermh g (UsElimProd tm xs tm') =
   checkTerm g tm >>= \ (tm, tp) ->
   case tp of
     TpProd am tps ->
-      ifErr (am == amAdd) "Expected a *-product, not a &-product" >>
+      ifErr (am == Additive) "Expected a *-product, not a &-product" >>
       ifErr (length tps /= length xs) ("expected " ++ show (length xs) ++ " names, but got " ++ show (length tps)) >>
       let ps = zip xs tps in
         checkTerm (ctxtDeclArgs g ps) tm' >>= \ (tm', tp') ->

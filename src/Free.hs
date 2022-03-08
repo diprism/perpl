@@ -39,7 +39,7 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccs (UsLet x tp tm tm') = Map.unionWith max (countOccs tm) (Map.delete x $ countOccs tm')
     countOccs (UsAmb tms) = Map.unionsWith max (map countOccs tms)
     countOccs (UsElimAmp tm o) = countOccs tm
-    countOccs (UsProd am tms) = Map.unionsWith (if am == amAdd then max else (+)) (map countOccs tms)
+    countOccs (UsProd am tms) = Map.unionsWith (if am == Additive then max else (+)) (map countOccs tms)
     countOccs (UsElimProd tm xs tm') = Map.unionWith (+) (countOccs tm) (foldr Map.delete (countOccs tm') xs)
     countOccs (UsEqs tms) = Map.unionsWith (+) (map countOccs tms)
     
@@ -71,7 +71,7 @@ isLin x tm = h tm == LinYes where
     if x == x' then h tm else h_as LinErr [tm, tm']
   h (UsAmb tms) = h_as LinYes tms
   h (UsElimAmp tm o) = h tm
-  h (UsProd am tms) = h_as (if am == amAdd then LinYes else LinErr) tms
+  h (UsProd am tms) = h_as (if am == Additive then LinYes else LinErr) tms
   h (UsElimProd tm xs tm') = if x `elem` xs then h tm else h_as LinErr [tm, tm']
   h (UsEqs tms) = h_as LinErr tms
 
@@ -97,7 +97,7 @@ isLin' x = (LinYes ==) . h where
     (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
   h (TmSamp d tp) = LinNo
   h (TmAmb tms tp) = h_as LinYes tms
-  h (TmProd am as) = h_as (if am == amAdd then LinYes else LinErr) (fsts as)
+  h (TmProd am as) = h_as (if am == Additive then LinYes else LinErr) (fsts as)
   h (TmElimAmp tm tps o) = h tm
   h (TmElimProd tm ps tm' tp) =
     if x `elem` fsts ps then h tm else h_as LinErr [tm, tm']
@@ -120,5 +120,5 @@ useOnlyOnce :: Ctxt -> Type -> Bool
 useOnlyOnce g = h [] where
   h visited (TpVar y) = (y `elem` visited) || maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (ctxtLookupType g y)
   h visited (TpArr _ _) = True
-  h visited (TpProd am tps) = am == amAdd || any (h visited) tps
+  h visited (TpProd am tps) = am == Additive || any (h visited) tps
   h visited NoTp = False

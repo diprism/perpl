@@ -109,7 +109,7 @@ collectFoldsFile = collectFile . collectFolds
 
 -- Makes the _UnfoldY_ datatype, given results from collectUnfolds
 makeUnfoldDatatype :: Var -> [(FreeVars, Type)] -> Prog
-makeUnfoldDatatype y us = ProgData (unfoldTypeName y) [Ctor (unfoldCtorName y) [TpProd amAdd [joinArrows (Map.elems fvs) tp | (fvs, tp) <- us]]]
+makeUnfoldDatatype y us = ProgData (unfoldTypeName y) [Ctor (unfoldCtorName y) [TpProd Additive [joinArrows (Map.elems fvs) tp | (fvs, tp) <- us]]]
 
 -- Makes the _FoldY_ datatype, given results from collectFolds
 makeFoldDatatype :: Var -> [(Var, FreeVars)] -> Prog
@@ -131,7 +131,7 @@ makeDisentangle g y us css =
                  (joinLams ps (TmCase (TmVarL x ytp) y cs' tp),
                    joinArrows (tpUnit : snds ps) tp)
              | (fvs, tp, cs, i) <- alls]
-      fun = ProgFun (unfoldName y) [] (TmLam x ytp (TmVarG CtorVar (unfoldCtorName y) [(TmProd amAdd cscs, TpProd amAdd (snds cscs))] utp) utp) (TpArr ytp utp)
+      fun = ProgFun (unfoldName y) [] (TmLam x ytp (TmVarG CtorVar (unfoldCtorName y) [(TmProd Additive cscs, TpProd Additive (snds cscs))] utp) utp) (TpArr ytp utp)
   in
     (dat, fun)
 
@@ -181,7 +181,7 @@ disentangleTerm rtp cases = h where
           get_as = \ (cfvs, ctp2) -> paramsToArgs (Map.toList cfvs)
           get_arr = \ (cfvs, ctp2) -> joinArrows (snds (get_ps (cfvs, ctp2))) ctp2
           xtps = map get_arr cases
-          xtp = TpProd amAdd xtps
+          xtp = TpProd Additive xtps
           cs'' = [Case (unfoldCtorName rtp) [(x', xtp)] (let cfvstp2 = cases !! i in joinApps (TmElimAmp (TmVarL x' xtp) (i, length cases) (xtps !! i)) (get_as cfvstp2))]
           rtm = TmCase tm (unfoldTypeName rtp) cs'' tp
       in
@@ -317,7 +317,7 @@ derefunTerm dr g rtp = fst . h where
     let (tm', TpProd _ tps') = h tm in
       TmElimAmp tm' o (tps' !! fst o)
   h' (TmElimProd tm ps tm' tp) =
-    let (tm2, TpProd amMult tps) = h tm
+    let (tm2, TpProd Multiplicative tps) = h tm
         (tm2', tp) = h tm'
         xs = [x | (x, _) <- ps]
         ps' = zip xs tps

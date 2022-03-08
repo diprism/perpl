@@ -50,7 +50,7 @@ discard' :: Term -> Type -> AffLinM Term
 discard' x (TpArr tp1 tp2) =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
 discard' x (TpProd am tps)
-  | am == amAdd = discard' (TmElimAmp x (length tps - 1, length tps) tpUnit) (last tps)
+  | am == Additive = discard' (TmElimAmp x (length tps - 1, length tps) tpUnit) (last tps)
   | otherwise = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in discards (Map.fromList ps) tmUnit >>= \ tm -> return (TmElimProd x ps tm tpUnit)
 discard' x (TpVar y) =
   ask >>= \ g ->
@@ -88,12 +88,12 @@ discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm
 -- (n+1)th element, which is Unit, and discard that
 affLinTp :: Type -> AffLinM Type
 affLinTp (TpVar y) = return (TpVar y)
-affLinTp (TpProd am tps) = pure (TpProd am) <*> mapM affLinTp (tps ++ (if am == amAdd then [tpUnit] else []))
+affLinTp (TpProd am tps) = pure (TpProd am) <*> mapM affLinTp (tps ++ (if am == Additive then [tpUnit] else []))
 affLinTp (TpArr tp1 tp2) =
   let (tps, end) = splitArrows (TpArr tp1 tp2) in
     mapM affLinTp tps >>= \ tps' ->
     affLinTp end >>= \ end' ->
-    return (TpProd amAdd [joinArrows tps' end', tpUnit])
+    return (TpProd Additive [joinArrows tps' end', tpUnit])
 affLinTp NoTp = error "Trying to affLin a NoTp"
 
 -- Make a case linear, returning the local vars that occur free in it
@@ -112,7 +112,7 @@ ambFun tm fvs =
     case tp of
       TpArr _ _ ->
         discards fvs tmUnit >>= \ ntm ->
-        return (TmProd amAdd [(tm, tp), (ntm, tpUnit)])
+        return (TmProd Additive [(tm, tp), (ntm, tpUnit)])
       _ -> return tm
 
 -- Extract the function from a linearized term, if possible
@@ -120,7 +120,7 @@ ambFun tm fvs =
 ambElim :: Term -> Term
 ambElim tm =
   case getType tm of
-    TpProd False [tp, unittp] ->
+    TpProd Additive [tp, unittp] ->
       TmElimAmp tm (0, 2) tp
     _ -> tm
 
@@ -191,7 +191,7 @@ affLin (TmAmb tms tp) =
   --  (if null tms' then affLinTp tp else return (getType (head tms'))) >>= \ tp' ->
   return (TmAmb tms' tp')
 affLin (TmProd am as)
-  | am == amAdd =
+  | am == Additive =
     -- L(<tm1, tm2, ..., tmn>) => <L*(tm1), L*(tm2), ..., L*(tmn), L*(unit)>,
     -- where L*(tm) = let _ = Z((FV(tm1) ∪ FV(tm2) ∪ ... ∪ FV(tmn)) - FV(tm)) in L(tm)
     pure (TmProd am) <*> affLinBranches (mapArgM affLin) (mapArgM . discards) (as ++ [(tmUnit, tpUnit)])

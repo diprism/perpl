@@ -75,7 +75,7 @@ showTermParens _                 _        = False
 showTypeParens :: Type -> ShowHist -> Bool
 showTypeParens (TpArr _ _) ShowArrL = True
 showTypeParens (TpArr _ _) ShowTypeArg = True
-showTypeParens (TpProd am _ ) ShowTypeArg = am == amMult
+showTypeParens (TpProd am _ ) ShowTypeArg = am == Multiplicative
 showTypeParens _ _ = False
 
 showTpAnn :: Type -> String
@@ -96,7 +96,7 @@ showTermh (UsAmb tms) = foldr (\ tm s -> s ++ " " ++ showTerm tm ShowAppR) "amb"
 --showTermh (UsAmpIn tms) = "<" ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ ">"
 showTermh (UsElimAmp tm (o, o')) = showTerm tm ShowAppR ++ "." ++ show (o + 1) ++ "." ++ show o'
 showTermh (UsProd am tms) =
-  let (l, r) = if am then ("<", ">") else ("(", ")") in
+  let (l, r) = if am == Additive then ("<", ">") else ("(", ")") in
     l ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ r
 showTermh (UsElimProd tm xs tm') = "let (" ++ delimitWith ", " xs ++ ") = " ++ showTerm tm ShowCase ++ " in " ++ showTerm tm' ShowCase
 showTermh (UsEqs tms) = delimitWith " == " [showTerm tm ShowAppL | tm <- tms]
@@ -106,7 +106,7 @@ showTypeh :: Type -> String
 showTypeh (TpVar y) = y
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
 --showTypeh (TpAmp tps) = delimitWith " & " [showType tp ShowTypeArg | tp <- tps]
-showTypeh (TpProd am tps) = delimitWith (if am == amAdd then " & " else " * ") [showType tp ShowTypeArg | tp <- tps]
+showTypeh (TpProd am tps) = delimitWith (if am == Additive then " & " else " * ") [showType tp ShowTypeArg | tp <- tps]
 showTypeh NoTp = ""
 
 -- Show a term, given its parent for parentheses

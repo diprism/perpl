@@ -63,9 +63,8 @@ data Term =
   | TmEqs [Term]
   deriving (Eq, Ord)
 
-type AddMult = Bool -- False = Additive, True = Multiplicative
-amAdd = False
-amMult = True
+data AddMult = Additive | Multiplicative
+  deriving (Eq, Ord)
 
 data Type =
     TpArr Type Type

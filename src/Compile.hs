@@ -115,7 +115,7 @@ addAmpFactors g tps =
 addProdFactors :: Ctxt -> [Type] -> RuleM
 addProdFactors g tps =
   let tpvs = [domainValues g tp | tp <- tps] in
-    type2fgg g (TpProd amMult tps) +>
+    type2fgg g (TpProd Multiplicative tps) +>
     addFactor (prodFactorName tps) (getProdWeightsV tpvs) +>
     foldr (\ (as', w) r -> r +> addFactor (prodFactorName' as') w) returnRule (getProdWeights tpvs)
 
@@ -186,7 +186,7 @@ term2fgg g (TmLet x xtm xtp tm tp) =
       [Edge' (xtmxs ++ [vxtp]) (show xtm), Edge' (tmxs ++ [vtp]) (show tm)]
       (xtmxs ++ delete vxtp tmxs ++ [vtp])
 term2fgg g (TmProd am as)
-  | am == amAdd =
+  | am == Additive =
     let tps = [tp | (_, tp) <- as] in
       foldr
         (\ (i, (atm, tp)) r -> r +>
@@ -212,7 +212,7 @@ term2fgg g (TmElimAmp tm o tp) =
   term2fgg g tm +>= \ tmxs ->
   let tps = case typeof tm of { TpProd am tps -> tps; _ -> error "expected an &-product, when compiling" }
       --tp = tps !! o
-      [vtp, vamp] = newNames [tp, TpProd amAdd tps] in
+      [vtp, vamp] = newNames [tp, TpProd Additive tps] in
     mkRule (TmElimAmp tm o (tps !! fst o)) (vtp : vamp : tmxs)
       ([Edge' (tmxs ++ [vamp]) (show tm), Edge' [vamp, vtp] (ampFactorName tps (fst o))])
       (tmxs ++ [vtp]) +>
@@ -222,7 +222,7 @@ term2fgg g (TmElimProd ptm ps tm tp) =
   bindExts True ps $
   term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
   let tps = [tp | (_, tp) <- ps]
-      ptp = TpProd amMult tps
+      ptp = TpProd Multiplicative tps
       unused_ps = Map.toList (Map.difference (Map.fromList ps) (Map.fromList tmxs))
       vtp : vptp : unused_nps = newNames (tp : ptp : snds unused_ps)
   in
@@ -311,7 +311,7 @@ domainValues g = tpVals where
              | (Ctor x as) <- cs]
   tpVals (TpArr tp1 tp2) = uncurry arrVals (splitArrows (TpArr tp1 tp2))
   tpVals (TpProd am tps)
-    | am == amAdd =
+    | am == Additive =
       let tpvs = map tpVals tps in
         concatMap (\ (i, vs) -> ["<" ++ delimitWith ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
     | otherwise =
