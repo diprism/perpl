@@ -339,18 +339,11 @@ solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
   h (Robust tp) l
     | not (isRobust e tp) = Left (RobustType tp, l)
     | otherwise = okay
---  h (Inject (TpProd am tps) o tp) l
---    | am == Multiplicative = Left (error "TODO: new error? Or reuse?", l)
---    | o >= length tps = Left (error "TODO: (another) new error? Or reuse?", l)
---    | tps !! o /= tp = Left (ConflictingTypes (tps !! 0) tp, l)
---    | otherwise = okay
---  h (Inject ptp o tp) l = Left (error "TODO: new error", l)
 
---isSolved :: Var -> Loc -> Subst -> Either (TypeError, Loc) ()
---isSolved x l s = maybe () () (Map.lookup 
+instantiate :: Substitutable a => [(Var, Type)] -> a -> a
+instantiate = subst . Map.fromList . map (\ (x, tp) -> (x, SubTp tp))
 
 allSolved :: SolveVars -> Subst -> Type -> Either (TypeError, Loc) [Var]
---allSolved vs s = foldr (\ (x, l) e -> Left (NoInference, l)) okay (Map.toList (Map.difference vs s))
 allSolved vs s rtp =
   let unsolved = Map.difference vs s
       fvs = freeVars rtp
