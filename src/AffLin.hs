@@ -198,17 +198,25 @@ affLin (TmProd am as)
   | otherwise =
     -- L(tm1, tm2, ..., tmn) => (L(tm1), L(tm2), ..., L(tmn))
     pure (TmProd am) <*> mapArgsM affLin as
-affLin (TmElimAmp tm (o, o') tp) =
-  -- L(tm.o.o') => L(tm).o.(o'+1) (add `Unit` to end of &-product)
-  pure TmElimAmp <*> affLin tm <*> pure (o, o' + 1) <*> affLinTp tp
-affLin (TmElimProd tm ps tm' tp) =
+--affLin (TmElimAmp tm (o, o') tp) =
+--  -- L(tm.o.o') => L(tm).o.(o'+1) (add `Unit` to end of &-product)
+--  pure TmElimAmp <*> affLin tm <*> pure (o, o' + 1) <*> affLinTp tp
+affLin (TmElimProd Additive tm ps tm' tp) =
+  -- L(let <x1, x2, ..., xn> = tm in tm') =>
+  --    let <x1, x2, ..., xn> = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')
+  affLin tm >>= \ tm ->
+  affLinParams ps tm' >>= \ (ps, tm', fvs) ->
+  -- Discard all ps that are not used in tm'
+  discards (Map.intersection (Map.fromList ps) fvs) tm' >>= \ tm' ->
+  return (TmElimProd Additive tm (ps ++ [("_", tpUnit)]) tm' (getType tm'))
+affLin (TmElimProd Multiplicative tm ps tm' tp) =
   -- L(let (x1, x2, ..., xn) = tm in tm') =>
   --    let (x1, x2, ..., xn) = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')
   affLin tm >>= \ tm ->
   affLinParams ps tm' >>= \ (ps, tm', fvs) ->
   -- Discard all ps that are not used in tm'
   discards (Map.intersection (Map.fromList ps) fvs) tm' >>= \ tm' ->
-  return (TmElimProd tm ps tm' (getType tm'))
+  return (TmElimProd Multiplicative tm ps tm' (getType tm'))
 affLin (TmEqs tms) =
   pure TmEqs <*> mapM affLin tms
 

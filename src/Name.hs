@@ -29,7 +29,7 @@ internalFactorName tm = "v=" ++ show tm
 
 -- Naming convention for constructor factor
 ctorFactorName :: Var -> [(Term, Type)] -> Type -> String
-ctorFactorName x as tp = internalFactorName (TmVarG CtorVar x as tp)
+ctorFactorName x as tp = internalFactorName (TmVarG CtorVar x [] as tp)
 
 -- FGG factor name for the default ctor rule
 ctorFactorNameDefault :: Var -> [Type] -> Type -> String
@@ -65,22 +65,22 @@ tmJustName i = "_just" ++ show i ++ "_"
 tpMaybeName i = "_Maybe" ++ show i ++ "_"
 
 -- Constructors and case-ofs for affLin-generated datatypes
-tmNothing :: Int -> Term
-tmNothing i = TmVarG CtorVar (tmNothingName i) [] (tpMaybe i)
+--tmNothing :: Int -> Term
+--tmNothing i = TmVarG CtorVar (tmNothingName i) [] (tpMaybe i)
 
-tmJust :: Int -> Term -> Type -> Term
-tmJust i tm tp = TmVarG CtorVar (tmJustName i) [(tm, tp)] (tpMaybe i)
+--tmJust :: Int -> Term -> Type -> Term
+--tmJust i tm tp = TmVarG CtorVar (tmJustName i) [(tm, tp)] (tpMaybe i)
 
-tpMaybe i = TpVar (tpMaybeName i)
+--tpMaybe i = TpVar (tpMaybeName i)
 
-tmUnit = TmVarG CtorVar tmUnitName [] tpUnit
+tmUnit = TmVarG CtorVar tmUnitName [] [] tpUnit
 tpUnit = TpVar tpUnitName
 
-tmElimMaybe :: Int -> Term -> Type -> Term -> (Var, Term) -> Type -> Term
-tmElimMaybe i tm tp ntm (jx, jtm) tp' =
-  TmCase tm (tpMaybeName i)
-    [Case (tmNothingName i) [] ntm,
-     Case (tmJustName i) [(jx, tp)] jtm] tp'
+--tmElimMaybe :: Int -> Term -> Type -> Term -> (Var, Term) -> Type -> Term
+--tmElimMaybe i tm tp ntm (jx, jtm) tp' =
+--  TmCase tm (tpMaybeName i)
+--    [Case (tmNothingName i) [] ntm,
+--     Case (tmJustName i) [(jx, tp)] jtm] tp'
 
 tmElimUnit :: Term -> Term -> Type -> Term
 tmElimUnit utm tm tp = TmCase utm tpUnitName [Case tmUnitName [] tm] tp

@@ -181,7 +181,7 @@ term2fgg g (TmLet x xtm xtp tm tp) =
   bindExt True x xtp $
   term2fgg (ctxtDeclTerm g x xtp) tm +>= \ tmxs ->
   let vxtp = (x, xtp)
-      [vtp] = newNames [tp] in
+      [vtp] = newNames [tp] in -- TODO: if unused?
     mkRule (TmLet x xtm xtp tm tp) (vxtp : vtp : xtmxs ++ tmxs)
       [Edge' (xtmxs ++ [vxtp]) (show xtm), Edge' (tmxs ++ [vtp]) (show tm)]
       (xtmxs ++ delete vxtp tmxs ++ [vtp])
@@ -208,7 +208,23 @@ term2fgg g (TmProd am as)
         (Edge' (vtps ++ [vptp]) (prodFactorName (snds as)) :
           [Edge' (tmxs ++ [vtp]) (show atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
         (concat xss ++ [vptp])
-term2fgg g (TmElimAmp tm o tp) =
+term2fgg g (TmElimProd Additive ptm ps tm tp) =
+  term2fgg g ptm +>= \ ptmxs ->
+  let o = injIndex [x | (x, _) <- ps]
+      (x, xtp) = ps !! o in
+    bindExt True x xtp $
+    term2fgg (ctxtDeclTerm g x xtp) tm +>= \ tmxs ->
+    let tps = [tp | (_, tp) <- ps]
+        ptp = TpProd Additive tps
+        -- unused_ps = if  -- TODO: if unused?
+        [vtp, vptp] = newNames [tp, ptp]
+    in
+      addAmpFactors g tps +>
+      mkRule (TmElimProd Additive ptm ps tm tp)
+        (error "TODO: nodes")
+        (error "TODO: edges")
+        (error "TODO: externals")
+{-term2fgg g (TmElimProd Additive tm o tp) =
   term2fgg g tm +>= \ tmxs ->
   let tps = case typeof tm of { TpProd am tps -> tps; _ -> error "expected an &-product, when compiling" }
       --tp = tps !! o
@@ -216,8 +232,8 @@ term2fgg g (TmElimAmp tm o tp) =
     mkRule (TmElimAmp tm o (tps !! fst o)) (vtp : vamp : tmxs)
       ([Edge' (tmxs ++ [vamp]) (show tm), Edge' [vamp, vtp] (ampFactorName tps (fst o))])
       (tmxs ++ [vtp]) +>
-    addAmpFactors g tps
-term2fgg g (TmElimProd ptm ps tm tp) =
+    addAmpFactors g tps-}
+term2fgg g (TmElimProd Multiplicative ptm ps tm tp) =
   term2fgg g ptm +>= \ ptmxs ->
   bindExts True ps $
   term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
@@ -227,7 +243,7 @@ term2fgg g (TmElimProd ptm ps tm tp) =
       vtp : vptp : unused_nps = newNames (tp : ptp : snds unused_ps)
   in
     addProdFactors g tps +>
-    mkRule (TmElimProd ptm ps tm tp)
+    mkRule (TmElimProd Multiplicative ptm ps tm tp)
       (vtp : vptp : ps ++ unused_ps ++ unused_nps ++ tmxs ++ ptmxs)
          (Edge' (ptmxs ++ [vptp]) (show ptm) :
             Edge' (ps ++ [vptp]) (prodFactorName tps) :

@@ -13,6 +13,9 @@ import Free
 import Util
 import Name
 
+data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
+  deriving Eq
+
 -- Convention: expected type, then actual type
 -- TODO: Enforce this convention
 data TypeError =
@@ -35,25 +38,12 @@ instance Show TypeError where
   show NoInference = "Could not infer a type"
   show NoCases = "Can't have case-of with no cases"
 
---data Scheme = Forall [Var] Type
-type Scheme = Type
---type TypeEnv = Map.Map Var Scheme
-data Env = Env { typeEnv :: (Map.Map Var [Ctor]), termEnv :: (Map.Map Var Type) }
-
---extend :: TypeEnv -> (Var, Scheme) -> TypeEnv
---extend g (x, s) = Map.insert x s g
+data Env = Env { typeEnv :: (Map.Map Var [Ctor]),
+                 localEnv :: Map.Map Var Type,
+                 globalEnv :: Map.Map Var (GlobalVar, Scheme) }
 
 compose :: Subst -> Subst -> Subst
 s1 `compose` s2 = Map.map (subst s1) s2 `Map.union` s1
-
-{-
-instance Substitutable Scheme where
-  substM (Forall xs tp) =
-    mapM freshen xs >>= \ xs' ->
-    pure (Forall xs') <*> binds xs xs' (substM tp)
-
-  freeVars (Forall xs tp) = foldr Map.delete (freeVars tp) xs
--}
 
 data Constraint = Unify Type Type | Robust Type
 
@@ -88,6 +78,18 @@ data Loc = Loc { curDef :: String, curExpr :: String }
 
 data CheckR = CheckR { checkEnv :: Env, checkLoc :: Loc }
 
+modifyEnv :: (Env -> Env) -> CheckR -> CheckR
+modifyEnv f cr = cr { checkEnv = f (checkEnv cr) }
+
+typeEnvInsert :: Var -> [Ctor] -> CheckR -> CheckR
+typeEnvInsert y cs = modifyEnv $ \ e -> e { typeEnv = Map.insert y cs (typeEnv e) }
+
+localEnvInsert :: Var -> Type -> CheckR -> CheckR
+localEnvInsert x tp = modifyEnv $ \ e -> e { localEnv = Map.insert x tp (localEnv e) }
+
+globalEnvInsert :: Var -> GlobalVar -> Scheme -> CheckR -> CheckR
+globalEnvInsert x gv stp = modifyEnv $ \ e -> e { globalEnv = Map.insert x (gv, stp) (globalEnv e) }
+
 type CheckM a = RWST CheckR [(Constraint, Loc)] SolveVars (Except (TypeError, Loc)) a
 
 err :: TypeError -> CheckM a
@@ -113,32 +115,39 @@ localCurExpr :: Show a => a -> CheckM b -> CheckM b
 localCurExpr a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curExpr = show a } })
 
 inEnv :: Var -> Type -> CheckM a -> CheckM a
-inEnv x tp =
-  local $ \ cr ->
-  let env = checkEnv cr
-      tme = termEnv env
-      tme' = Map.insert x tp tme in
-    cr { checkEnv = env { termEnv = tme' } }
+inEnv x tp = local $ localEnvInsert x tp
+
+defTerm :: Var -> GlobalVar -> Scheme -> CheckM a -> CheckM a
+defTerm x g tp = local $ globalEnvInsert x g tp
+
+defType :: Var -> [Ctor] -> CheckM a -> CheckM a
+defType y cs = local $ typeEnvInsert y cs
+
+defData :: Var -> [Ctor] -> CheckM a -> CheckM a
+defData y cs m =
+  foldr
+    (\ (Ctor x tps) -> defTerm x CtorVar (Forall [] (joinArrows tps (TpVar y))))
+    (defType y cs m) cs
 
 inEnvs :: [(Var, Type)] -> CheckM a -> CheckM a
 inEnvs = flip $ foldr $ uncurry inEnv
 
 lookupType :: Var -> CheckM [Ctor]
 lookupType x =
-  ask >>= \ d ->
-  maybe (err (ScopeError x)) return (Map.lookup x (typeEnv (checkEnv d)))
+  askEnv >>= \ g ->
+  maybe (err (ScopeError x)) return (Map.lookup x (typeEnv g))
 
-lookupTerm :: Var -> CheckM Type
+lookupTerm :: Var -> CheckM (Either Type (GlobalVar, Scheme))
 lookupTerm x =
-  ask >>= \ d ->
-  maybe (err (ScopeError x)) return (Map.lookup x (termEnv (checkEnv d)))
+  askEnv >>= \ g ->
+  maybe (err (ScopeError x)) return ((Left <$> Map.lookup x (localEnv g)) |?| (Right <$> Map.lookup x (globalEnv g)))
 
 lookupCtorType :: [CaseUs] -> CheckM (Var, [Ctor])
 lookupCtorType [] = err NoCases
 lookupCtorType (CaseUs x _ _ : _) =
-  lookupTerm x >>= \ tp ->
-  case tp of
-    TpVar y -> (,) y <$> lookupType y
+  lookupTerm x >>= \ etp ->
+  case etp of
+    Right (CtorVar, Forall [] (TpVar y)) -> (,) y <$> lookupType y
     _ -> err (ScopeError x) -- TODO: not a ctor?
 
 boundVars :: CheckM (Map.Map Var ())
@@ -147,8 +156,9 @@ boundVars =
   get >>= \ s ->
   let env = checkEnv d
       tpe = typeEnv env
-      tme = termEnv env in
-  return (Map.unions [const () <$> tpe, const () <$> tme, const () <$> s])
+      lce = localEnv env
+      gbe = globalEnv env in
+  return (Map.unions [const () <$> tpe, const () <$> lce, const () <$> gbe, const () <$> s])
 
 fresh :: Var -> CheckM Var
 fresh x = newVar x <$> boundVars
@@ -195,9 +205,14 @@ infer tm = localCurExpr tm (infer' tm)
 infer' :: UsTm -> CheckM Term
 
 infer' (UsVar x) =
-  lookupTerm x >>= \ tp ->
-  -- TODO: local or global?
-  return (TmVarL x tp)
+  guardM (x /= "_") (error "TODO: expected non-underscore variable") >>
+  lookupTerm x >>= \ etp ->
+  case etp of
+    Left tp -> return (TmVarL x tp)
+    Right (gv, Forall tis tp) ->
+      mapM (const freshTp) tis >>= \ tis' ->
+      let tp' = subst (Map.fromList (zip tis (SubTp <$> tis'))) tp in
+      return (TmVarG gv x [] [] tp') -- TODO: term args, tp' (arrows?)
 
 infer' (UsLam x xtp tm) =
   annTp xtp >>= \ xtp' ->
@@ -234,7 +249,7 @@ infer' (UsIf tm1 tm2 tm3) =
   return (TmCase tm1' "Bool" [Case "False" [] tm3', Case "True" [] tm2'] tp2)
 
 infer' (UsTmBool b) =
-  return (TmVarG CtorVar (if b then "True" else "False") [] (TpVar "Bool"))
+  return (TmVarG CtorVar (if b then "True" else "False") [] [] (TpVar "Bool"))
 
 infer' (UsSamp d tp) =
   annTp tp >>= \ tp' ->
@@ -255,22 +270,25 @@ infer' (UsAmb tms) =
   mapM (constrain . Unify itp . typeof) tms' >>
   return (TmAmb tms' itp)
 
-infer' (UsElimAmp tm (o, o')) =
+{-infer' (UsElimAmp tm (o, o')) =
   infer tm >>: \ tm' tp ->
   mapM (const freshTp) [1..o'] >>= \ itps ->
   constrain (Unify (TpProd Additive itps) tp) >>
   return (TmElimAmp tm' (o, o') (itps !! o))
+-}
 
 infer' (UsProd am tms) =
   mapM infer tms >>= \ tms' ->
   return (TmProd am [(tm, typeof tm) | tm <- tms'])
 
-infer' (UsElimProd ptm xs tm) =
+infer' (UsElimProd am ptm xs tm) =
   infer ptm >>: \ ptm' ptp ->
+  guardM (am == Multiplicative || 1 == length (filter (/= "_") xs))
+    (error "TODO: expected 1 non-underscore variable in an &-product elimination") >>
   mapM (\ x -> (,) x <$> freshTp) xs >>= \ ps ->
   mapM (\ (x, tp) -> constrainIf (not $ isAff x tm) (Robust tp)) ps >>
   inEnvs ps (infer tm) >>: \ tm' tp ->
-  return (TmElimProd ptm' ps tm' tp)
+  return (TmElimProd am ptm' ps tm' tp)
 
 infer' (UsEqs tms) =
   mapM infer tms >>= \ tms' ->
@@ -359,3 +377,4 @@ solve g vs cs rtp =
     solvedWell g s cs >>
     allSolved vs s rtp >>
     return s
+

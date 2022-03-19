@@ -94,7 +94,7 @@ parseVars = parsePeek >>= \ t -> case t of
 parseVarsCommas :: ParseM [Var]
 parseVarsCommas = parsePeeks 2 >>= \ ts -> case ts of
   [TkVar v, TkComma] -> parseEat *> parseEat *> pure ((:) v) <*> parseVarsCommas
-  [TkVar v, TkParenR] -> parseEat *> parseEat *> pure [v]
+  [TkVar v] -> parseEat *> pure [v]
   _ -> parseErr "Expecting a right parenthesis"
 
 -- Parse a branch of a case expression.
@@ -131,7 +131,9 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- \ x : type. term
   [TkLam, _] -> parseEat *> pure UsLam <*> parseVar <*> parseTpAnn <* parseDrop TkDot <*> parseTerm1
 -- let (x, y, ...) = term in term
-  [TkLet, TkParenL] -> parseEat *> parseEat *> pure (flip UsElimProd) <*> parseVarsCommas <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
+  [TkLet, TkParenL] -> parseEat *> parseEat *> pure (flip (UsElimProd Multiplicative)) <*> parseVarsCommas <* parseDrop TkParenR <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
+-- let <..., _, x, _, ...> = term in term
+  [TkLet, TkLangle] -> parseEat *> parseEat *> pure (flip (UsElimProd Additive)) <*> parseVarsCommas <* parseDrop TkRangle <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- let x = term in term
   [TkLet, _] -> parseEat *> pure UsLet <*> parseVar <*> parseTpAnn <* parseDrop TkEq
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
@@ -181,10 +183,12 @@ TERM3 :=
  -}
 
 parseTerm3 :: ParseM UsTm
-parseTerm3 = parseTerm4 >>= \ tm -> parsePeek >>= \ t -> case t of
+parseTerm3 = parseTerm4
+{-parseTerm3 = parseTerm4 >>= \ tm -> parsePeek >>= \ t -> case t of
   -- TkComma -> pure UsProdIn <*> parseTmsDelim TkComma [tm]
   TkDot -> pure (curry (UsElimAmp tm)) <* parseEat <*> (pred <$> parseNum) <* parseDrop TkDot <*> parseNum
   _ -> return tm
+-}
 
 {-
 

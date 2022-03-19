@@ -137,7 +137,7 @@ checkTermh g (UsAmb tms) =
 checkTermh g (UsProd am tms) =
   mapM (checkTerm g) tms >>= return . TmProd am
 
-checkTermh g (UsElimAmp tm (o, o')) =
+{-checkTermh g (UsElimAmp tm (o, o')) =
   checkTerm g tm >>= \ (tm, tp) ->
   case tp of
     TpProd am tps ->
@@ -149,12 +149,13 @@ checkTermh g (UsElimAmp tm (o, o')) =
         ("expected a number between 0 and " ++ show (length tps)) >>
       return (TmElimAmp tm (o, o') (tps !! o))
     _ -> err "expected ampersand type"
+-}
 
-checkTermh g (UsElimProd tm xs tm') =
+checkTermh g (UsElimProd am tm xs tm') =
   checkTerm g tm >>= \ (tm, tp) ->
   case tp of
-    TpProd am tps ->
-      ifErr (am == Additive) "Expected a *-product, not a &-product" >>
+    TpProd am' tps ->
+      ifErr (am == am') "Mismatched products: * vs &" >>
       ifErr (length tps /= length xs) ("expected " ++ show (length xs) ++ " names, but got " ++ show (length tps)) >>
       let ps = zip xs tps in
         checkTerm (ctxtDeclArgs g ps) tm' >>= \ (tm', tp') ->

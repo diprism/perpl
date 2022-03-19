@@ -61,6 +61,7 @@ runSubst :: Subst -> SubstM a -> a
 runSubst s r = let (a', r', ()) = runRWS r () s in a'
 
 freshen :: Var -> SubstM Var
+freshen "_" = return "_" -- TODO: Deal with conflicting FGG rules for "_"
 freshen x =
   get >>= \ s ->
   let x' = newVar x s in
@@ -133,8 +134,8 @@ instance Substitutable Term where
   substM (TmVarL x tp) =
     let tmx x' = pure (TmVarL x') <*> substM tp in
       substVar x tmx pure (const (tmx x)) (tmx x) >>= id
-  substM (TmVarG g x as tp) =
-    pure (TmVarG g x) <*> substM as <*> substM tp
+  substM (TmVarG g x tis as tp) =
+    pure (TmVarG g x) <*> substM tis <*> substM as <*> substM tp
   substM (TmLam x xtp tm tp) =
     freshen x >>= \ x' ->
     pure (TmLam x') <*> substM xtp <*> bind x x' (substM tm) <*> substM tp
@@ -151,15 +152,15 @@ instance Substitutable Term where
     pure TmAmb <*> substM tms <*> pure tp
   substM (TmProd am as) =
     pure (TmProd am) <*> substM as
-  substM (TmElimAmp tm i tp) =
-    pure TmElimAmp <*> substM tm <*> pure i <*> substM tp
-  substM (TmElimProd ptm ps tm tp) =
-    pure TmElimProd <*> substM ptm <**> substParams ps (substM tm) <*> substM tp
+--  substM (TmElimAmp tm i tp) =
+--    pure TmElimAmp <*> substM tm <*> pure i <*> substM tp
+  substM (TmElimProd am ptm ps tm tp) =
+    pure (TmElimProd am) <*> substM ptm <**> substParams ps (substM tm) <*> substM tp
   substM (TmEqs tms) =
     pure TmEqs <*> substM tms
   
   freeVars (TmVarL x tp) = Map.singleton x tp
-  freeVars (TmVarG g x as tp) = freeVars as
+  freeVars (TmVarG g x tis as tp) = freeVars as
   freeVars (TmLam x xtp tm tp) = Map.delete x (freeVars tm)
   freeVars (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars tm1) (freeVars tm2)
   freeVars (TmLet x xtm xtp tm tp) = Map.union (freeVars xtm) (Map.delete x (freeVars tm))
@@ -167,8 +168,8 @@ instance Substitutable Term where
   freeVars (TmSamp d tp) = Map.empty
   freeVars (TmAmb tms tp) = freeVars tms
   freeVars (TmProd am as) = freeVars as
-  freeVars (TmElimAmp tm i tp) = freeVars tm
-  freeVars (TmElimProd ptm ps tm tp) = Map.union (freeVars ptm) (foldr (Map.delete . fst) (freeVars tm) ps)
+--  freeVars (TmElimAmp tm i tp) = freeVars tm
+  freeVars (TmElimProd am ptm ps tm tp) = Map.union (freeVars ptm) (foldr (Map.delete . fst) (freeVars tm) ps)
   freeVars (TmEqs tms) = freeVars tms
 
 instance Substitutable Case where
@@ -222,13 +223,13 @@ instance Substitutable UsTm where
     pure (UsLet x') <*> substM xtp <*> substM xtm <*> bind x x' (substM tm)
   substM (UsAmb tms) =
     pure UsAmb <*> substM tms
-  substM (UsElimAmp tm o) =
-    pure UsElimAmp <*> substM tm <*> pure o
+--  substM (UsElimAmp tm o) =
+--    pure UsElimAmp <*> substM tm <*> pure o
   substM (UsProd am tms) =
     pure (UsProd am) <*> substM tms
-  substM (UsElimProd tm xs tm') =
+  substM (UsElimProd am tm xs tm') =
     mapM freshen xs >>= \ xs' ->
-    pure UsElimProd <*> substM tm <*> pure xs' <*> binds xs xs' (substM tm')
+    pure (UsElimProd am) <*> substM tm <*> pure xs' <*> binds xs xs' (substM tm')
   substM (UsEqs tms) =
     pure UsEqs <*> substM tms
 
@@ -250,11 +251,11 @@ instance Substitutable UsTm where
     Map.union (freeVars xtm) (Map.delete x (freeVars tm))
   freeVars (UsAmb tms) =
     freeVars tms
-  freeVars (UsElimAmp tm o) =
-    freeVars tm
+--  freeVars (UsElimAmp tm o) =
+--    freeVars tm
   freeVars (UsProd am tms) =
     freeVars tms
-  freeVars (UsElimProd tm xs tm') =
+  freeVars (UsElimProd am tm xs tm') =
     Map.union (freeVars tm) (foldr Map.delete (freeVars tm') xs)
   freeVars (UsEqs tms) =
     freeVars tms
@@ -332,3 +333,10 @@ instance Substitutable CtxtDef where
   
   freeVars (DefTerm sc tp) = freeVars tp
   freeVars (DefData cs) = freeVars cs
+
+instance Substitutable Scheme where
+  substM (Forall xs tp) =
+    mapM freshen xs >>= \ xs' ->
+    pure (Forall xs') <*> binds xs xs' (substM tp)
+
+  freeVars (Forall xs tp) = foldr Map.delete (freeVars tp) xs

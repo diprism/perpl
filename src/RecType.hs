@@ -69,8 +69,8 @@ collectUnfolds rtp (TmCase tm y cs tp) =
 collectUnfolds rtp (TmSamp d tp) = []
 collectUnfolds rtp (TmAmb tms tp) = concatMap (collectUnfolds rtp) tms
 collectUnfolds rtp (TmProd am as) = concatMap (\ (atm, atp) -> collectUnfolds rtp atm) as
-collectUnfolds rtp (TmElimAmp tm o tps) = collectUnfolds rtp tm
-collectUnfolds rtp (TmElimProd tm ps tm' tp) = collectUnfolds rtp tm ++ collectUnfolds rtp tm'
+--collectUnfolds rtp (TmElimAmp tm o tps) = collectUnfolds rtp tm
+collectUnfolds rtp (TmElimProd am tm ps tm' tp) = collectUnfolds rtp tm ++ collectUnfolds rtp tm'
 collectUnfolds rtp (TmEqs tms) = concatMap (collectUnfolds rtp) tms
 
 -- Collects all the usages of constructors for type rtp,
@@ -88,8 +88,8 @@ collectFolds rtp (TmCase tm y cs tp) = collectFolds rtp tm ++ concatMap (\ (Case
 collectFolds rtp (TmSamp d tp) = []
 collectFolds rtp (TmAmb tms tp) = concatMap (collectFolds rtp) tms
 collectFolds rtp (TmProd am as) = concatMap (\ (atm, atp) -> collectFolds rtp atm) as
-collectFolds rtp (TmElimAmp tm o tp) = collectFolds rtp tm
-collectFolds rtp (TmElimProd tm ps tm' tp) = collectFolds rtp tm ++ collectFolds rtp tm'
+--collectFolds rtp (TmElimAmp tm o tp) = collectFolds rtp tm
+collectFolds rtp (TmElimProd am tm ps tm' tp) = collectFolds rtp tm ++ collectFolds rtp tm'
 collectFolds rtp (TmEqs tms) = concatMap (collectFolds rtp) tms
 
 -- Runs collect[Un]folds on a Prog
@@ -177,12 +177,13 @@ disentangleTerm rtp cases = h where
       State.get >>= \ unfolds ->
       let i = length unfolds
           x' = targetName -- TODO: pick fresh var?
+          x'' = targetName ++ "'" -- TODO: pick a fresher var?
           get_ps = \ (cfvs, ctp2) -> Map.toList cfvs
           get_as = \ (cfvs, ctp2) -> paramsToArgs (Map.toList cfvs)
           get_arr = \ (cfvs, ctp2) -> joinArrows (snds (get_ps (cfvs, ctp2))) ctp2
           xtps = map get_arr cases
           xtp = TpProd Additive xtps
-          cs'' = [Case (unfoldCtorName rtp) [(x', xtp)] (let cfvstp2 = cases !! i in joinApps (TmElimAmp (TmVarL x' xtp) (i, length cases) (xtps !! i)) (get_as cfvstp2))]
+          cs'' = [Case (unfoldCtorName rtp) [(x', xtp)] (let cfvstp2 = cases !! i in joinApps (TmElimProd Additive (TmVarL x' xtp) [(if j == i then x'' else "_", jtp) | (j, jtp) <- enumerate xtps] (TmVarL x'' (xtps !! i)) (xtps !! i)) (get_as cfvstp2))]
           rtm = TmCase tm (unfoldTypeName rtp) cs'' tp
       in
         State.put (unfolds ++ [cs']) >>
@@ -195,10 +196,10 @@ disentangleTerm rtp cases = h where
     pure TmAmb <*> mapM h tms <*> pure tp
   h (TmProd am as) =
     pure (TmProd am) <*> mapArgsM h as
-  h (TmElimAmp tm tps o) =
-    pure TmElimAmp <*> h tm <*> pure tps <*> pure o
-  h (TmElimProd tm ps tm' tp) =
-    pure TmElimProd <*> h tm <*> pure ps <*> h tm' <*> pure tp
+--  h (TmElimAmp tm tps o) =
+--    pure TmElimAmp <*> h tm <*> pure tps <*> pure o
+  h (TmElimProd am tm ps tm' tp) =
+    pure (TmElimProd am) <*> h tm <*> pure ps <*> h tm' <*> pure tp
   h (TmEqs tms) =
     pure TmEqs <*> mapM h tms
 
@@ -233,10 +234,10 @@ defoldTerm rtp = h where
   h (TmAmb tms tp) = pure TmAmb <*> mapM h tms <*> pure tp
   h (TmProd am as) =
     pure (TmProd am) <*> mapArgsM h as
-  h (TmElimAmp tm tps o) =
-    pure TmElimAmp <*> h tm <*> pure tps <*> pure o
-  h (TmElimProd tm ps tm' tp) =
-    pure TmElimProd <*> h tm <*> pure ps <*> h tm' <*> pure tp
+--  h (TmElimAmp tm tps o) =
+--    pure TmElimAmp <*> h tm <*> pure tps <*> pure o
+  h (TmElimProd am tm ps tm' tp) =
+    pure (TmElimProd am) <*> h tm <*> pure ps <*> h tm' <*> pure tp
   h (TmEqs tms) =
     pure TmEqs <*> mapM h tms
 
@@ -313,16 +314,16 @@ derefunTerm dr g rtp = fst . h where
       TmAmb (fsts tms') tp'
   h' (TmProd am as) =
     TmProd am [h tm | (tm, _) <- as]
-  h' (TmElimAmp tm o tp) =
-    let (tm', TpProd _ tps') = h tm in
-      TmElimAmp tm' o (tps' !! fst o)
-  h' (TmElimProd tm ps tm' tp) =
-    let (tm2, TpProd Multiplicative tps) = h tm
+--  h' (TmElimAmp tm o tp) =
+--    let (tm', TpProd _ tps') = h tm in
+--      TmElimAmp tm' o (tps' !! fst o)
+  h' (TmElimProd am tm ps tm' tp) =
+    let (tm2, TpProd am tps) = h tm
         (tm2', tp) = h tm'
         xs = [x | (x, _) <- ps]
         ps' = zip xs tps
     in
-      TmElimProd tm2 ps' tm2' tp
+      TmElimProd am tm2 ps' tm2' tp
   h' (TmEqs tms) =
     TmEqs [h' tm | tm <- tms]
 

@@ -38,9 +38,9 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccs (UsSamp d tp) = Map.empty
     countOccs (UsLet x tp tm tm') = Map.unionWith max (countOccs tm) (Map.delete x $ countOccs tm')
     countOccs (UsAmb tms) = Map.unionsWith max (map countOccs tms)
-    countOccs (UsElimAmp tm o) = countOccs tm
+--    countOccs (UsElimAmp tm o) = countOccs tm
     countOccs (UsProd am tms) = Map.unionsWith (if am == Additive then max else (+)) (map countOccs tms)
-    countOccs (UsElimProd tm xs tm') = Map.unionWith (+) (countOccs tm) (foldr Map.delete (countOccs tm') xs)
+    countOccs (UsElimProd am tm xs tm') = Map.unionWith (+) (countOccs tm) (foldr Map.delete (countOccs tm') xs)
     countOccs (UsEqs tms) = Map.unionsWith (+) (map countOccs tms)
     
     countOccsCase :: CaseUs -> Map.Map Var Int
@@ -70,9 +70,9 @@ isLin x tm = h tm == LinYes where
   h (UsLet x' tp tm tm') =
     if x == x' then h tm else h_as LinErr [tm, tm']
   h (UsAmb tms) = h_as LinYes tms
-  h (UsElimAmp tm o) = h tm
+--  h (UsElimAmp tm o) = h tm
   h (UsProd am tms) = h_as (if am == Additive then LinYes else LinErr) tms
-  h (UsElimProd tm xs tm') = if x `elem` xs then h tm else h_as LinErr [tm, tm']
+  h (UsElimProd am tm xs tm') = if x `elem` xs then h tm else h_as LinErr [tm, tm']
   h (UsEqs tms) = h_as LinErr tms
 
 -- Returns if x appears exactly once in a term
@@ -85,7 +85,7 @@ isLin' x = (LinYes ==) . h where
 
   h :: Term -> Lin
   h (TmVarL x' tp) = if x == x' then LinYes else LinNo
-  h (TmVarG gv x' as tp) = h_as LinErr (fsts as)
+  h (TmVarG gv x' tis as tp) = h_as LinErr (fsts as)
   h (TmLam x' tp tm tp') = if x == x' then LinNo else h tm
   h (TmApp tm1 tm2 tp2 tp) = h_as LinErr [tm1, tm2]
   h (TmLet x' xtm xtp tm tp) = if x == x' then h xtm else h_as LinErr [xtm, tm]
@@ -98,8 +98,8 @@ isLin' x = (LinYes ==) . h where
   h (TmSamp d tp) = LinNo
   h (TmAmb tms tp) = h_as LinYes tms
   h (TmProd am as) = h_as (if am == Additive then LinYes else LinErr) (fsts as)
-  h (TmElimAmp tm tps o) = h tm
-  h (TmElimProd tm ps tm' tp) =
+--  h (TmElimAmp tm tps o) = h tm
+  h (TmElimProd am tm ps tm' tp) =
     if x `elem` fsts ps then h tm else h_as LinErr [tm, tm']
   h (TmEqs tms) = h_as LinErr tms
 

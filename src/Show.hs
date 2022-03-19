@@ -6,7 +6,7 @@ import Util
 
 toUsTm :: Term -> UsTm
 toUsTm (TmVarL x _) = UsVar x
-toUsTm (TmVarG gv x as tp) =
+toUsTm (TmVarG gv x tis as tp) =
   foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar x) as
 toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
@@ -17,8 +17,7 @@ toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
 toUsTm (TmAmb tms tp) = UsAmb [toUsTm tm | tm <- tms]
 toUsTm (TmProd am as) = UsProd am [toUsTm tm | (tm, _) <- as]
-toUsTm (TmElimAmp ptm o tp) = UsElimAmp (toUsTm ptm) o
-toUsTm (TmElimProd tm ps tm' tp) = UsElimProd (toUsTm tm) [x | (x, _) <- ps] (toUsTm tm')
+toUsTm (TmElimProd am tm ps tm' tp) = UsElimProd am (toUsTm tm) [x | (x, _) <- ps] (toUsTm tm')
 toUsTm (TmEqs tms) = UsEqs [toUsTm tm | tm <- tms]
 
 toCaseUs :: Case -> CaseUs
@@ -68,7 +67,7 @@ showTermParens (UsLet _ _ _ _  ) ShowCase = True
 showTermParens (UsAmb _        ) ShowAppL = True
 showTermParens (UsAmb _        ) ShowAppR = True
 --showTermParens (UsProdIn _     ) _        = False -- todo
-showTermParens (UsElimProd _ _ _) _       = False -- todo
+showTermParens (UsElimProd _ _ _ _) _     = False -- todo
 showTermParens _                 _        = False
 
 -- Should we add parens to this type, given its parent type?
@@ -82,6 +81,10 @@ showTpAnn :: Type -> String
 showTpAnn NoTp = ""
 showTpAnn tp = " : " ++ show tp
 
+amParens :: AddMult -> (String, String)
+amParens Additive = ("<", ">")
+amParens Multiplicative = ("(", ")")
+
 -- Term show helper (ignoring parentheses)
 showTermh :: UsTm -> String
 showTermh (UsVar x) = x
@@ -94,11 +97,13 @@ showTermh (UsSamp d tp) = "sample " ++ show d ++ showTpAnn tp
 showTermh (UsLet x tp tm tm') = "let " ++ x ++ showTpAnn tp ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
 showTermh (UsAmb tms) = foldr (\ tm s -> s ++ " " ++ showTerm tm ShowAppR) "amb" tms
 --showTermh (UsAmpIn tms) = "<" ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ ">"
-showTermh (UsElimAmp tm (o, o')) = showTerm tm ShowAppR ++ "." ++ show (o + 1) ++ "." ++ show o'
+--showTermh (UsElimAmp tm (o, o')) = showTerm tm ShowAppR ++ "." ++ show (o + 1) ++ "." ++ show o'
 showTermh (UsProd am tms) =
-  let (l, r) = if am == Additive then ("<", ">") else ("(", ")") in
+  let (l, r) = amParens am in
     l ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ r
-showTermh (UsElimProd tm xs tm') = "let (" ++ delimitWith ", " xs ++ ") = " ++ showTerm tm ShowCase ++ " in " ++ showTerm tm' ShowCase
+showTermh (UsElimProd am tm xs tm') =
+  let (l, r) = amParens am in
+    "let " ++ l ++ delimitWith ", " xs ++ r ++ " = " ++ showTerm tm ShowCase ++ " in " ++ showTerm tm' ShowCase
 showTermh (UsEqs tms) = delimitWith " == " [showTerm tm ShowAppL | tm <- tms]
 
 -- Type show helper (ignoring parentheses)

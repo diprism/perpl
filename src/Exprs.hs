@@ -12,7 +12,17 @@ data Prog =
   | ProgExtern Var String [Type] Type
   | ProgData Var [Ctor]
   deriving (Eq, Ord)
+
 data Progs = Progs [Prog] Term
+  deriving (Eq, Ord)
+
+data SProg =
+    SProgFun Var Scheme Term
+  | SProgExtern Var [Type] Type
+  | SProgData Var [Ctor]
+  deriving (Eq, Ord)
+
+data SProgs = SProgs [SProg] Term
   deriving (Eq, Ord)
 
 data Ctor = Ctor Var [Type]
@@ -22,6 +32,9 @@ type Var = String
 
 type Param = (Var, Type)
 type Arg = (Term, Type)
+
+data Scheme = Forall [Var] Type
+  deriving (Eq, Ord)
 
 data Dist =
     DistFail
@@ -38,8 +51,7 @@ data UsTm = -- User Term
   | UsLet Var Type UsTm UsTm
   | UsAmb [UsTm]
   | UsProd AddMult [UsTm]
-  | UsElimAmp UsTm (Int, Int)
-  | UsElimProd UsTm [Var] UsTm
+  | UsElimProd AddMult UsTm [Var] UsTm
   | UsTmBool Bool
   | UsIf UsTm UsTm UsTm
   | UsEqs [UsTm]
@@ -50,7 +62,7 @@ data GlobalVar = CtorVar | DefVar
 
 data Term =
     TmVarL Var Type -- Local var
-  | TmVarG GlobalVar Var [Arg] Type -- Global var
+  | TmVarG GlobalVar Var [Type] [Arg] Type -- Global var
   | TmLam Var Type Term Type
   | TmApp Term Term Type {- -> -} Type
   | TmLet Var Term Type Term Type
@@ -58,8 +70,7 @@ data Term =
   | TmSamp Dist Type
   | TmAmb [Term] Type
   | TmProd AddMult [Arg]
-  | TmElimAmp Term (Int, Int) Type
-  | TmElimProd Term [Param] Term Type
+  | TmElimProd AddMult Term [Param] Term Type
   | TmEqs [Term]
   deriving (Eq, Ord)
 

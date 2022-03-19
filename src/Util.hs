@@ -61,7 +61,7 @@ isCtorVar DefVar = False
 -- Gets the type of an elaborated term in O(1) time
 getType :: Term -> Type
 getType (TmVarL x tp) = tp
-getType (TmVarG gv x as tp) = tp
+getType (TmVarG gv x tis as tp) = tp
 getType (TmLam x tp tm tp') = TpArr tp tp'
 getType (TmApp tm1 tm2 tp2 tp) = tp
 getType (TmLet x xtm xtp tm tp) = tp
@@ -69,11 +69,17 @@ getType (TmCase ctm y cs tp) = tp
 getType (TmSamp d tp) = tp
 getType (TmAmb tms tp) = tp
 getType (TmProd am as) = TpProd am (snds as)
-getType (TmElimAmp tm o tp) = tp
-getType (TmElimProd tm ps tm' tp) = tp
+getType (TmElimProd am tm ps tm' tp) = tp
 getType (TmEqs tms) = TpVar "Bool"
 
 typeof = getType
+
+-- "let <_, _, x, _> in ..."  =>  index of x = 2
+injIndex :: [Var] -> Int
+injIndex = h . zip [0..] where
+  h [] = -1
+  h ((i, "_") : xs) = h xs
+  h ((i, x) : xs) = i
 
 -- Sorts cases according to the order they are appear in the datatype definition
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
@@ -166,15 +172,15 @@ paramsToArgs :: [Param] -> [Arg]
 paramsToArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
 
 -- Turns a constructor into one with all its args applied
-addArgs :: GlobalVar -> Var -> [Arg] -> [Param] -> Type -> Term
-addArgs gv x tas vas y =
-  TmVarG gv x (tas ++ [(TmVarL a atp, atp) | (a, atp) <- vas]) y
+addArgs :: GlobalVar -> Var -> [Type] -> [Arg] -> [Param] -> Type -> Term
+addArgs gv x tis tas vas y =
+  TmVarG gv x tis (tas ++ [(TmVarL a atp, atp) | (a, atp) <- vas]) y
 
 -- Eta-expands a constructor with the necessary extra args
-etaExpand :: GlobalVar -> Var -> [Arg] -> [Param] -> Type -> Term
-etaExpand gv x tas vas y =
+etaExpand :: GlobalVar -> Var -> [Type] -> [Arg] -> [Param] -> Type -> Term
+etaExpand gv x tis tas vas y =
   foldr (\ (a, atp) tm -> TmLam a atp tm (getType tm))
-    (addArgs gv x tas vas y) vas
+    (addArgs gv x tis tas vas y) vas
 
 toArg :: Term -> Arg
 toArg tm = (tm, getType tm)
