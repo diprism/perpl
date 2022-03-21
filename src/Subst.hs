@@ -69,6 +69,10 @@ freshen x =
   put (Map.insert x (SubVar x) (Map.insert x' (SubVar x') s)) >>
   return x'
 
+freshens :: [Var] -> SubstM [Var]
+freshens [] = return []
+freshens (x : xs) = freshen x >>= \ x' -> pure ((:) x') <*> bind x x' (freshens xs)
+
 bind :: Var -> Var -> SubstM a -> SubstM a
 bind x x' m =
   get >>= \ s ->
@@ -228,7 +232,7 @@ instance Substitutable UsTm where
   substM (UsProd am tms) =
     pure (UsProd am) <*> substM tms
   substM (UsElimProd am tm xs tm') =
-    mapM freshen xs >>= \ xs' ->
+    freshens xs >>= \ xs' ->
     pure (UsElimProd am) <*> substM tm <*> pure xs' <*> binds xs xs' (substM tm')
   substM (UsEqs tms) =
     pure UsEqs <*> substM tms
@@ -262,7 +266,7 @@ instance Substitutable UsTm where
   
 instance Substitutable CaseUs where
   substM (CaseUs x ps tm) =
-    mapM freshen ps >>= \ ps' ->
+    freshens ps >>= \ ps' ->
     pure (CaseUs x ps') <*> binds ps ps' (substM tm)
   freeVars (CaseUs x ps tm) = foldr Map.delete (freeVars tm) ps
 
@@ -323,9 +327,13 @@ substType xi xf (TpProd am tps) =
   TpProd am [substType xi xf tp | tp <- tps]
 substType xi xf NoTp = NoTp
 
+freshVar' :: Subst -> Var -> Var
+freshVar' s x =
+  let (x', r', ()) = runRWS (freshen x) () s in x'
+
 freshVar :: Ctxt -> Var -> Var
-freshVar g x =
-  let (x', r', ()) = runRWS (freshen x) () (Map.mapWithKey (const . SubVar) g) in x'
+freshVar = freshVar' . Map.mapWithKey (const . SubVar)
+
 
 instance Substitutable CtxtDef where
   substM (DefTerm sc tp) = pure (DefTerm sc) <*> substM tp
@@ -336,7 +344,7 @@ instance Substitutable CtxtDef where
 
 instance Substitutable Scheme where
   substM (Forall xs tp) =
-    mapM freshen xs >>= \ xs' ->
+    freshens xs >>= \ xs' ->
     pure (Forall xs') <*> binds xs xs' (substM tp)
 
   freeVars (Forall xs tp) = foldr Map.delete (freeVars tp) xs

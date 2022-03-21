@@ -5,7 +5,9 @@ import System.IO
 import Exprs
 import Parse
 import Lex
-import Check
+--import Check
+import TypeInf
+import Instantiate
 import Compile
 import RecType
 import AffLin

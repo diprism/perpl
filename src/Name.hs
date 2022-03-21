@@ -90,3 +90,6 @@ maybeCtors i tp = [Ctor (tmNothingName i) [], Ctor (tmJustName i) [tp]]
 
 progBool :: UsProgs -> UsProgs
 progBool = UsProgData "Bool" [Ctor "False" [], Ctor "True" []]
+
+instName :: Var -> Int -> Var
+instName x i = x ++ "_inst" ++ show i

@@ -71,7 +71,7 @@ mkRuleReps reps lhs ns es xs =
 ctorRules :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
 ctorRules g (Ctor x as) y cs =
   let as' = [(etaName x i, a) | (i, a) <- enumerate as]
-      tm = TmVarG CtorVar x [(TmVarL a atp, atp) | (a, atp) <- as'] y
+      tm = TmVarG CtorVar x [] [(TmVarL a atp, atp) | (a, atp) <- as'] y
       fac = ctorFactorNameDefault x as y in
     addFactor fac (getCtorWeightsFlat (domainValues g) (Ctor x as) cs) +>
     foldr (\ tp r -> type2fgg g tp +> r) returnRule as +>
@@ -128,12 +128,12 @@ term2fgg :: Ctxt -> Term -> RuleM
 term2fgg g (TmVarL x tp) =
   type2fgg g tp +>
   addExt x tp
-term2fgg g (TmVarG gv x [] tp) =
+term2fgg g (TmVarG gv x _ [] tp) =
   returnRule -- If this is a ctor/def with no args, we already add its rule when it gets defined
-term2fgg g (TmVarG gv x as y) =
+term2fgg g (TmVarG gv x _ as y) =
   [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
   let (vy : ps) = newNames (y : snds as) in
-    mkRule (TmVarG gv x as y) (vy : ps ++ concat xss)
+    mkRule (TmVarG gv x [] as y) (vy : ps ++ concat xss)
       (Edge' (ps ++ [vy]) (if gv == CtorVar then ctorFactorNameDefault x (snds as) y else x) :
         [Edge' (xs ++ [vtp]) (show atm) | (xs, (atm, atp), vtp) <- zip3 xss as ps])
       (concat xss ++ [vy])
@@ -283,7 +283,7 @@ prog2fgg g (ProgFun x ps tm tp) =
       (unused_x, unused_tp) = unzip unused_ps
       vtp : unused_n = newNames (tp : unused_tp)
   in
-    mkRule (TmVarG DefVar x [] tp) (vtp : tmxs ++ ps ++ unused_n ++ unused_ps)
+    mkRule (TmVarG DefVar x [] [] tp) (vtp : tmxs ++ ps ++ unused_n ++ unused_ps)
       (Edge' (tmxs ++ [vtp]) (show tm) : discardEdges' unused_ps unused_n)
       (ps ++ [vtp])
 prog2fgg g (ProgExtern x xp ps tp) =

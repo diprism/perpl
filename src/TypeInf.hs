@@ -212,7 +212,7 @@ infer' (UsVar x) =
     Right (gv, Forall tis tp) ->
       mapM (const freshTp) tis >>= \ tis' ->
       let tp' = subst (Map.fromList (zip tis (SubTp <$> tis'))) tp in
-      return (TmVarG gv x [] [] tp') -- TODO: term args, tp' (arrows?)
+      return (TmVarG gv x [] [] tp')
 
 infer' (UsLam x xtp tm) =
   annTp xtp >>= \ xtp' ->
@@ -220,7 +220,6 @@ infer' (UsLam x xtp tm) =
   constrainIf (not $ isAff x tm) (Robust xtp') >>
   return (TmLam x xtp' tm' (typeof tm'))
 
--- TODO: if head is global var, add args
 infer' (UsApp tm1 tm2) =
   infer tm1 >>: \ tm1' tp1 ->
   infer tm2 >>: \ tm2' tp2 ->
@@ -231,12 +230,16 @@ infer' (UsApp tm1 tm2) =
 infer' (UsCase tm cs) =
   lookupCtorType cs >>= \ (y, ctors) ->
   guardM (length ctors == length cs) (error "TODO: wrong number of cases") >>
-  -- TODO: make sure no duplicate cases (case x of True -> ... | True -> ...)
-  let cs' = sortCases ctors cs in
+  let cs' = sortCases ctors cs
+      cs_map = Map.fromList [(x, ()) | (CaseUs x _ _) <- cs]
+      ctors_map = Map.fromList [(y, ()) | (Ctor y _) <- ctors]
+      missingCases = Map.difference ctors_map cs_map in
+  guardM (null missingCases)
+         (error "Missing cases: " ++ delimitWith ", " (Map.keys missingCases)) >>
   infer tm >>: \ tm' ytp ->
   constrain (Unify (TpVar y) ytp) >>
   freshTp >>= \ itp ->
-  mapM inferCase cs' >>= \ cs'' ->
+  mapM (uncurry inferCase) (zip cs' ctors) >>= \ cs'' ->
   mapM (\ (Case x ps tm) -> constrain (Unify itp (typeof tm))) cs'' >>
   return (TmCase tm' y cs'' itp)
 
@@ -270,13 +273,6 @@ infer' (UsAmb tms) =
   mapM (constrain . Unify itp . typeof) tms' >>
   return (TmAmb tms' itp)
 
-{-infer' (UsElimAmp tm (o, o')) =
-  infer tm >>: \ tm' tp ->
-  mapM (const freshTp) [1..o'] >>= \ itps ->
-  constrain (Unify (TpProd Additive itps) tp) >>
-  return (TmElimAmp tm' (o, o') (itps !! o))
--}
-
 infer' (UsProd am tms) =
   mapM infer tms >>= \ tms' ->
   return (TmProd am [(tm, typeof tm) | tm <- tms'])
@@ -297,9 +293,24 @@ infer' (UsEqs tms) =
   constrain (Robust itp) >>
   return (TmEqs tms')
 
-inferCase :: CaseUs -> CheckM Case
-inferCase (CaseUs x xs tm) = error "TODO"
+inferCase :: CaseUs -> Ctor -> CheckM Case
+inferCase (CaseUs x xs tm) (Ctor x' ps) =
+  guardM (x == x') (error ("TODO: no " ++ x' ++ " case")) >>
+  guardM (length ps == length xs) (error "Wrong number of vars") >>
+  let xps = zip xs (snds ps) in
+  mapM (\ (x, tp) -> constrainIf (not $ isAff x tm) (Robust tp)) xps >>
+  inEnvs xps (infer tm) >>= \ tm' ->
+  return (Case x xps tm')
 
+inferProgs :: UsProgs -> CheckM SProgs
+inferProgs (UsProgExec tm) =
+  pure (SProgs []) <$> infer tm
+inferProgs (UsProgFun x tp tm ps) =
+  error "TODO"
+inferProgs (UsProgExtern x tp ps) =
+  inferProgs ps >>= \ (SProgs ps end) -> return (SProgs (SProgExtern x [] tp : ps) end)
+inferProgs (UsProgData y cs ps) =
+  error "TODO"
 
 bindTp :: Var -> Type -> Either TypeError Subst
 bindTp x tp
@@ -322,13 +333,6 @@ unify (TpProd am1 tps1) (TpProd am2 tps2)
 unify NoTp tp = error "unify should not receive a NoTp"
 unify tp NoTp = error "unify should not receive a NoTp"
 unify tp1 tp2 = Left (UnificationError tp1 tp2)
-
--- TODO: Need a unify for injections, e.g. if you have
--- \ x. foo <x.1, x.2, x.3>
--- where foo : (A & B & C) -> D    for some A, B, C, D
--- Will need to consider when to apply these constraints--
--- should they be interspersed with regular unifications?
--- Or after? Probably after, I think...
 
 unifyAll' :: [(Type, Type)] -> Either TypeError Subst
 unifyAll' tps = mapLeft fst $ unifyAll [(tp1, tp2, Loc { curDef = "", curExpr = ""}) | (tp1, tp2) <- tps]
@@ -373,8 +377,9 @@ allSolved vs s rtp =
 
 solve :: Env -> SolveVars -> [(Constraint, Loc)] -> Type -> Either (TypeError, Loc) Subst
 solve g vs cs rtp =
-    unifyAll (getUnifications cs) >>= \ s ->
-    solvedWell g s cs >>
-    allSolved vs s rtp >>
-    return s
+  unifyAll (getUnifications cs) >>= \ s ->
+  solvedWell g s cs >>
+  allSolved vs s rtp >>
+  return s
 
+--solve' :: 
