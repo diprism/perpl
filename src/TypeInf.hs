@@ -302,15 +302,30 @@ inferCase (CaseUs x xs tm) (Ctor x' ps) =
   inEnvs xps (infer tm) >>= \ tm' ->
   return (Case x xps tm')
 
+declareProgs :: UsProgs -> CheckM a -> CheckM a
+declareProgs (UsProgExec tm) m = m
+declareProgs (UsProgFun x NoTp tm ps) m =
+  freshTp >>= \ itp ->
+  defTerm x DefVar (Forall [] itp) (declareProgs ps m)
+declareProgs (UsProgFun x tp tm ps) m =
+  defTerm x DefVar (Forall [] tp) (declareProgs ps m)
+declareProgs (UsProgExtern x tp ps) m =
+  defTerm x DefVar (Forall [] tp) (declareProgs ps m)
+declareProgs (UsProgData y cs ps) m =
+  defData y cs (declareProgs ps m)
+
 inferProgs :: UsProgs -> CheckM SProgs
 inferProgs (UsProgExec tm) =
   pure (SProgs []) <$> infer tm
 inferProgs (UsProgFun x tp tm ps) =
   error "TODO"
 inferProgs (UsProgExtern x tp ps) =
-  inferProgs ps >>= \ (SProgs ps end) -> return (SProgs (SProgExtern x [] tp : ps) end)
+  inferProgs ps >>= \ (SProgs ps end) ->
+  return (SProgs (SProgExtern x [] tp : ps) end)
 inferProgs (UsProgData y cs ps) =
   error "TODO"
+
+
 
 bindTp :: Var -> Type -> Either TypeError Subst
 bindTp x tp
