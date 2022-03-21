@@ -2,6 +2,7 @@ module Instantiate where
 import Exprs
 import Util
 import Subst
+import Name
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -20,7 +21,7 @@ type DefMap = Map.Map Var GlobalCalls
   
 collectCalls :: Term -> GlobalCalls
 collectCalls (TmVarL x tp) = []
-collectCalls (TmVarG g x tis as tp) = [(x, tis)]
+collectCalls (TmVarG g x tis as tp) = [(x, tis)] <> mconcat (collectCalls <$> fsts as)
 collectCalls (TmLam x xtp tm tp) = collectCalls tm
 collectCalls (TmApp tm1 tm2 tp2 tp) = collectCalls tm1 <> collectCalls tm2
 collectCalls (TmLet x xtm xtp tm tp) = collectCalls xtm <> collectCalls tm
@@ -33,7 +34,9 @@ collectCalls (TmEqs tms) = mconcat (fmap collectCalls tms)
 
 renameCalls :: Map.Map Var (Map.Map [Type] Int) -> Term -> Term
 renameCalls xis (TmVarL x tp) = TmVarL x tp
-renameCalls xis (TmVarG g x tis as tp) = error "TODO"
+renameCalls xis (TmVarG g x tis as tp) =
+  let xi = (xis Map.! x) Map.! tis in
+    TmVarG g (instName x xi) [] [(renameCalls xis tm, tp)| (tm, tp) <- as] tp
 renameCalls xis (TmLam x xtp tm tp) = TmLam x xtp (renameCalls xis tm) tp
 renameCalls xis (TmApp tm1 tm2 tp2 tp) = TmApp (renameCalls xis tm1) (renameCalls xis tm2) tp2 tp
 renameCalls xis (TmLet x xtm xtp tm tp) = TmLet x (renameCalls xis xtm) xtp (renameCalls xis tm) tp
@@ -71,11 +74,8 @@ addInsts dm tpms xis x tis =
     processNext x dm tpms
       (xis <> SemiMap (Map.singleton x (Set.singleton tis))) x tis
 
--- If in start term, give "" for cur
 -- TODO: Make sure no infinite loops, i.e. foo x = foo (x, unit) (or would this get caught during type-checking?)
 processNext :: Var -> DefMap -> TypeParams -> Insts -> Var -> [Type] -> Insts
-processNext "" dm tpms xis x tis =
-  addInsts dm tpms xis x tis
 processNext cur dm tpms xis x tis =
   let curpms = tpms Map.! cur
       curtis = semiMap xis Map.! cur
@@ -91,12 +91,59 @@ makeInstantiations xis (SProgFun x (Forall ys tp) tm) =
 makeInstantiations xis (SProgExtern x tps rtp) = [ProgExtern x "" tps rtp] -- TODO: string ""?
 makeInstantiations xis (SProgData y cs) = [ProgData y cs]
 
-instantiate :: SProgs -> Progs
-instantiate (SProgs sps stm) =
+instantiate' :: SProgs -> Progs -- TODO: better name?
+instantiate' (SProgs sps stm) =
   let dm = makeDefMap sps
       tpms = makeTypeParams sps
       xis = makeEmptyInsts sps
       xis' = foldr (\ (x, tis) xis -> addInsts dm tpms xis x tis) xis (collectCalls stm)
       xis'' = fmap (\ tiss -> Map.fromList (zip (Set.toList tiss) [0..])) (semiMap xis')
   in
-    Progs (concat (makeInstantiations xis'' <$> sps)) (renameCalls xis'' stm)
+    nicifyProgs (Progs (concat (makeInstantiations xis'' <$> sps)) (renameCalls xis'' stm))
+
+nicify :: Term -> Term
+nicify (TmVarL x tp) = TmVarL x tp
+nicify (TmVarG g x _ _ tp) = TmVarG g x [] [] tp
+nicify (TmLam x xtp tm tp) = TmLam x xtp (nicify tm) tp
+nicify tm@(TmApp _ _ _ _) =
+  case splitApps tm of
+    (TmVarG g x _ _ tp , as) ->
+      let tps, etp = splitArrows tp
+          remtps = drop (length as) tps
+          tmfvs = Map.mapWithKey (const . SubVar) (freeVars tm)
+          lxs = runSubst tmfvs (freshens ["x" | _ <- [0..length remtps]])
+          ls = zip lxs remtps
+          as' = as ++ [TmVarL x tp | (x, tp) <- lxs]
+      in
+        joinLams ls (TmVarG g x [] as' etp)
+    (etm, as) ->
+      joinApps etm [(nicify tm, tp) | (tm, tp) <- as]
+nicify (TmLet x xtm xtp tm tp) = TmLet x (nicify xtm) xtp (nicify tm) tp
+nicify (TmCase tm y cs tp) = TmCase (nicify tm) y (fmap (\ (Case x ps tm') -> Case x ps (nicify tm')) cs) tp
+nicify (TmSamp d tp) = TmSamp d tp
+nicify (TmAmb tms tp) = TmAmb (nicify <$> tms) tp
+nicify (TmProd am as) = TmProd am [(nicify tm, tp) | (tm, tp) <- as]
+nicify (TmElimProd am ptm ps tm tp) = TmElimProd am (nicify ptm) ps (nicify tm) tp
+nicify (TmEqs tms) = TmEqs (nicify <$> tms)
+
+nicifyProg :: Prog -> Prog
+nicifyProg (ProgFun x [] tm tp) =
+  let tm' = nicify tm
+      tps, etp = splitArrows tp
+      ls, etm = splitLams tm'
+      pms = zip tps ls
+      ls' = drop (length pms) ls
+      tps' = drop (length pms) tps -- TODO: Does it cause any problems if there is an eta-contracted arrow remaining? Same for ls'?
+      tm'' = joinLams ls' tm'
+      tp' = joinArrows tps' etp
+  in
+    ProgFun x pms tm'' tp'
+nicifyProg (ProgExtern x xp [] tp) =
+  let tps, etp = splitArrows tp in
+    ProgExtern x xp tps etp
+nicifyProg (ProgData y cs) = ProgData y cs
+nicifyProg _ = error "This shouldn't happen"
+
+
+nicifyProgs :: Progs -> Progs
+nicifyProgs (Progs ps tm) = Progs (map nicifyProg ps) (nicify tm)
