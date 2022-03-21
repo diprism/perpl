@@ -91,8 +91,8 @@ makeInstantiations xis (SProgFun x (Forall ys tp) tm) =
 makeInstantiations xis (SProgExtern x tps rtp) = [ProgExtern x "" tps rtp] -- TODO: string ""?
 makeInstantiations xis (SProgData y cs) = [ProgData y cs]
 
-instantiate' :: SProgs -> Progs -- TODO: better name?
-instantiate' (SProgs sps stm) =
+instantiateFile :: SProgs -> Progs
+instantiateFile (SProgs sps stm) =
   let dm = makeDefMap sps
       tpms = makeTypeParams sps
       xis = makeEmptyInsts sps
@@ -108,12 +108,12 @@ nicify (TmLam x xtp tm tp) = TmLam x xtp (nicify tm) tp
 nicify tm@(TmApp _ _ _ _) =
   case splitApps tm of
     (TmVarG g x _ _ tp , as) ->
-      let tps, etp = splitArrows tp
+      let (tps, etp) = splitArrows tp
           remtps = drop (length as) tps
           tmfvs = Map.mapWithKey (const . SubVar) (freeVars tm)
           lxs = runSubst tmfvs (freshens ["x" | _ <- [0..length remtps]])
           ls = zip lxs remtps
-          as' = as ++ [TmVarL x tp | (x, tp) <- lxs]
+          as' = as ++ [(TmVarL x tp, tp) | (x, tp) <- ls]
       in
         joinLams ls (TmVarG g x [] as' etp)
     (etm, as) ->
@@ -129,17 +129,13 @@ nicify (TmEqs tms) = TmEqs (nicify <$> tms)
 nicifyProg :: Prog -> Prog
 nicifyProg (ProgFun x [] tm tp) =
   let tm' = nicify tm
-      tps, etp = splitArrows tp
-      ls, etm = splitLams tm'
-      pms = zip tps ls
-      ls' = drop (length pms) ls
-      tps' = drop (length pms) tps -- TODO: Does it cause any problems if there is an eta-contracted arrow remaining? Same for ls'?
-      tm'' = joinLams ls' tm'
-      tp' = joinArrows tps' etp
+      (tps, etp) = splitArrows tp
+      (ls, etm) = splitLams tm'
+      tp' = joinArrows (drop (length ls) tps) etp
   in
-    ProgFun x pms tm'' tp'
+    ProgFun x ls etm tp'
 nicifyProg (ProgExtern x xp [] tp) =
-  let tps, etp = splitArrows tp in
+  let (tps, etp) = splitArrows tp in
     ProgExtern x xp tps etp
 nicifyProg (ProgData y cs) = ProgData y cs
 nicifyProg _ = error "This shouldn't happen"

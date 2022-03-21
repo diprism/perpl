@@ -50,8 +50,9 @@ discard' :: Term -> Type -> AffLinM Term
 discard' x (TpArr tp1 tp2) =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
 discard' x (TpProd am tps)
-  | am == Additive = discard' (TmElimAmp x (length tps - 1, length tps) tpUnit) (last tps)
-  | otherwise = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in discards (Map.fromList ps) tmUnit >>= \ tm -> return (TmElimProd x ps tm tpUnit)
+--  | am == Additive = discard' (TmElimAmp x (length tps - 1, length tps) tpUnit) (last tps)
+  | am == Additive = discard' (TmElimProd Additive x [(if i == length tps - 1 then "x" else "_", tp)| (i, tp) <- enumerate tps] (TmVarL "x" (tps !! (length tps - 1))) tpUnit) (last tps)
+  | otherwise = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in discards (Map.fromList ps) tmUnit >>= \ tm -> return (TmElimProd Multiplicative x ps tm tpUnit)
 discard' x (TpVar y) =
   ask >>= \ g ->
   maybe2 (ctxtLookupType g y)
@@ -121,7 +122,7 @@ ambElim :: Term -> Term
 ambElim tm =
   case getType tm of
     TpProd Additive [tp, unittp] ->
-      TmElimAmp tm (0, 2) tp
+      TmElimProd Additive tm [("x", tp), ("_", unittp)] (TmVarL "x" tp) tp
     _ -> tm
 
 affLinParams :: [Param] -> Term -> AffLinM ([Param], Term, FreeVars)
@@ -145,11 +146,12 @@ affLin (TmVarL x tp) =
   affLinTp tp >>= \ ltp ->
   tell (Map.singleton x ltp) >>
   return (TmVarL x ltp)
-affLin (TmVarG gv x as y) =
+affLin (TmVarG gv x tis as y) =
   -- L(x) => x
   mapArgsM affLin as >>= \ as' ->
   affLinTp y >>= \ y' ->
-  return (TmVarG gv x as' y')
+  mapM affLinTp tis >>= \ tis' ->
+  return (TmVarG gv x tis' as' y')
 affLin (TmLam x tp tm tp') =
   -- L(\ x : tp. tm) => <\ x : tp. L(tm), Z(FV(\ x : tp. tm))>
   affLinLams (TmLam x tp tm tp') >>= \ (lps, body, fvs) ->

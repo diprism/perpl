@@ -87,7 +87,8 @@ processContents (CmdArgs ifn ofn c dr l o) s = return s
   -- Pick a unique name for each bound var
   >>= alphaRenameProgs ctxtDefUsProgs
   -- Type check the file (:: UsProgs -> Progs)
-  >>= checkFile
+  >>= inferFile
+  >>= Right . instantiateFile
   -- Apply various optimizations
   >>= doIf o optimizeFile
   -- Eliminate recursive types (de/refunctionalization)

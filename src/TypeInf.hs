@@ -1,17 +1,15 @@
 -- Adapted from http://dev.stephendiehl.com/fun/006_hindley_milner.html
 
 module TypeInf where
-import Data.Char
 import qualified Data.Map as Map
 import Control.Monad.RWS.Lazy
 import Control.Monad.Except
-import Data.Functor.Identity
 import Exprs
 import Subst
---import Ctxt
 import Free
 import Util
 import Name
+import Show()
 
 data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
   deriving Eq
@@ -38,7 +36,7 @@ instance Show TypeError where
   show NoInference = "Could not infer a type"
   show NoCases = "Can't have case-of with no cases"
 
-data Env = Env { typeEnv :: (Map.Map Var [Ctor]),
+data Env = Env { typeEnv :: Map.Map Var [Ctor],
                  localEnv :: Map.Map Var Type,
                  globalEnv :: Map.Map Var (GlobalVar, Scheme) }
 
@@ -75,6 +73,9 @@ instance Substitutable Constraint where
 type SolveVars = Map.Map Var Loc
 
 data Loc = Loc { curDef :: String, curExpr :: String }
+
+instance Show Loc where
+  show l = "in the definition " ++ curDef l ++ ", in the expression " ++ curExpr l
 
 data CheckR = CheckR { checkEnv :: Env, checkLoc :: Loc }
 
@@ -212,7 +213,7 @@ infer' (UsVar x) =
     Right (gv, Forall tis tp) ->
       mapM (const freshTp) tis >>= \ tis' ->
       let tp' = subst (Map.fromList (zip tis (SubTp <$> tis'))) tp in
-      return (TmVarG gv x [] [] tp')
+      return (TmVarG gv x tis' [] tp')
 
 infer' (UsLam x xtp tm) =
   annTp xtp >>= \ xtp' ->
@@ -235,7 +236,7 @@ infer' (UsCase tm cs) =
       ctors_map = Map.fromList [(y, ()) | (Ctor y _) <- ctors]
       missingCases = Map.difference ctors_map cs_map in
   guardM (null missingCases)
-         (error "Missing cases: " ++ delimitWith ", " (Map.keys missingCases)) >>
+         (error ("Missing cases: " ++ delimitWith ", " (Map.keys missingCases))) >>
   infer tm >>: \ tm' ytp ->
   constrain (Unify (TpVar y) ytp) >>
   freshTp >>= \ itp ->
@@ -297,7 +298,7 @@ inferCase :: CaseUs -> Ctor -> CheckM Case
 inferCase (CaseUs x xs tm) (Ctor x' ps) =
   guardM (x == x') (error ("TODO: no " ++ x' ++ " case")) >>
   guardM (length ps == length xs) (error "Wrong number of vars") >>
-  let xps = zip xs (snds ps) in
+  let xps = zip xs ps in
   mapM (\ (x, tp) -> constrainIf (not $ isAff x tm) (Robust tp)) xps >>
   inEnvs xps (infer tm) >>= \ tm' ->
   return (Case x xps tm')
@@ -305,8 +306,8 @@ inferCase (CaseUs x xs tm) (Ctor x' ps) =
 declareProgs :: UsProgs -> CheckM a -> CheckM a
 declareProgs (UsProgExec tm) m = m
 declareProgs (UsProgFun x NoTp tm ps) m =
-  freshTp >>= \ itp ->
-  defTerm x DefVar (Forall [] itp) (declareProgs ps m)
+  freshTpVar >>= \ itp ->
+  defTerm x DefVar (Forall [itp] (TpVar itp)) (declareProgs ps m)
 declareProgs (UsProgFun x tp tm ps) m =
   defTerm x DefVar (Forall [] tp) (declareProgs ps m)
 declareProgs (UsProgExtern x tp ps) m =
@@ -314,16 +315,41 @@ declareProgs (UsProgExtern x tp ps) m =
 declareProgs (UsProgData y cs ps) m =
   defData y cs (declareProgs ps m)
 
+-- Returns all type inst vars in an expression
+unboundVars :: Substitutable a => a -> CheckM [Var]
+unboundVars a = pure (Map.keys . Map.intersection (freeVars a)) <*> get
+
 inferProgs :: UsProgs -> CheckM SProgs
 inferProgs (UsProgExec tm) =
-  pure (SProgs []) <$> infer tm
+  pure (SProgs []) <*> infer tm
+inferProgs (UsProgFun x NoTp tm ps) =
+  solveM (infer tm >>: curry return) >>= \ (tm', tp') ->
+  inferProgs ps >>= \ (SProgs ps end) ->
+  unboundVars tp' >>= \ vs ->
+  let p = SProgFun x (Forall vs tp') tm' in
+  return (SProgs (p : ps) end)
 inferProgs (UsProgFun x tp tm ps) =
-  error "TODO"
+  solveM (infer tm >>: \ tm' tp' ->
+          constrain (Unify tp tp') >>
+          return (tm', tp')) >>= \ (tm', tp') ->
+  inferProgs ps >>= \ (SProgs ps end) ->
+  unboundVars tp' >>= \ vs ->
+  let p = SProgFun x (Forall vs tp') tm' in
+  return (SProgs (p : ps) end)
 inferProgs (UsProgExtern x tp ps) =
   inferProgs ps >>= \ (SProgs ps end) ->
   return (SProgs (SProgExtern x [] tp : ps) end)
 inferProgs (UsProgData y cs ps) =
-  error "TODO"
+  mapM (\ (Ctor x tps) -> mapM checkType tps) cs >>
+  inferProgs ps >>= \ (SProgs ps end) ->
+  return (SProgs (SProgData y cs : ps) end)
+
+-- TODO: replace gv tis of just one thing with the actual type inst vars as determined later
+inferFile :: UsProgs -> Either String SProgs
+inferFile ps =
+  either (\ (e, loc) -> Left (show e ++ ", " ++ show loc)) (\ (a, s, w) -> Right a)
+    (runExcept (runRWST (declareProgs (progBool ps) (inferProgs ps)) (CheckR (Env mempty mempty mempty) (Loc "" "")) mempty))
+-- RWST CheckR [(Constraint, Loc)] SolveVars (Except (TypeError, Loc)) a
 
 
 
@@ -386,15 +412,21 @@ allSolved vs s rtp =
       fvs = freeVars rtp
       internalUnsolved = Map.difference unsolved fvs
   in
-    if null internalUnsolved
+    if not (null internalUnsolved)
     then Left (NoInference, (snd $ head $ Map.toList internalUnsolved))
     else Right (Map.keys fvs)
 
-solve :: Env -> SolveVars -> [(Constraint, Loc)] -> Type -> Either (TypeError, Loc) Subst
-solve g vs cs rtp =
+solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) Subst
+solve g vs rtp cs =
   unifyAll (getUnifications cs) >>= \ s ->
   solvedWell g s cs >>
   allSolved vs s rtp >>
   return s
+
+solveM :: Substitutable a => CheckM (a, Type) -> CheckM (a, Type)
+solveM m =
+  listen m >>= \ ((a, tp), cs) ->
+  pure solve <*> askEnv <*> get <*> pure tp <*> pure cs >>=
+  either throwError (\ s -> return (subst s a, subst s tp))
 
 --solve' :: 
