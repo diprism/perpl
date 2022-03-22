@@ -333,20 +333,18 @@ inferProgs (UsProgExec tm) =
   solveM (infer tm >>: curry return) >>= \ (tm', tp) ->
   return (SProgs [] tm')
 inferProgs (UsProgFun x NoTp tm ps) =
-  localCurDef x (solveM (infer tm >>: curry return)) >>= \ (tm', tp') ->
+  localCurDef x (solveM (infer tm >>: curry return)) >>= \ (tm', stp) ->
   inferProgs ps >>= \ (SProgs ps end) ->
-  unboundVars tp' >>= \ vs ->
-  let p = SProgFun x (Forall vs tp') tm' in
+  let p = SProgFun x stp tm' in
   return (SProgs (p : ps) end)
 inferProgs (UsProgFun x tp tm ps) =
   localCurDef x
     (checkType tp >>
      solveM (infer tm >>: \ tm' tp' ->
              constrain (Unify tp tp') >>
-             return (tm', tp'))) >>= \ (tm', tp') ->
+             return (tm', tp'))) >>= \ (tm', stp) ->
   inferProgs ps >>= \ (SProgs ps end) ->
-  unboundVars tp' >>= \ vs ->
-  let p = SProgFun x (Forall vs tp') tm' in
+  let p = SProgFun x stp tm' in
   return (SProgs (p : ps) end)
 inferProgs (UsProgExtern x tp ps) =
   inferProgs ps >>= \ (SProgs ps end) ->
@@ -427,22 +425,32 @@ allSolved vs s rtp =
   in
     if Map.size internalUnsolved > 0
     then Left (NoInference, (snd $ head $ Map.toList internalUnsolved)) -- error ("rtp: " ++ show rtp ++ "\nvs: " ++ show vs ++ "\nunsolved: " ++ show unsolved ++ "\nfvs: " ++ show fvs ++ "\ninternalUnsolved: " ++ show internalUnsolved) -- 
-    else Right (Map.keys fvs)
+    else Right (Map.keys (Map.intersection unsolved fvs))
 
-solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) Subst
+solveInternal :: SolveVars -> Subst -> Type -> (Subst, [Var])
+solveInternal vs s rtp =
+  let unsolved = Map.difference vs s
+      fvs = freeVars rtp
+      internalUnsolved = Map.difference unsolved fvs
+      s' = foldr (\ ix -> Map.insert ix (SubTp tpUnit)) s (Map.keys internalUnsolved)
+  in
+    (s', Map.keys (Map.intersection unsolved fvs))
+
+solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var])
 solve g vs rtp cs =
 --  if not (null cs) then error (show cs) else (
   unifyAll (getUnifications cs) >>= \ s ->
-  solvedWell g s cs >>
-  allSolved vs s rtp >>
-  return s
+--  allSolved vs s rtp >>
+  let (s', xs) = solveInternal vs s rtp in
+  solvedWell g s' cs >>
+  return (s', xs)
 --  )
 
-solveM :: Substitutable a => CheckM (a, Type) -> CheckM (a, Type)
+solveM :: Substitutable a => CheckM (a, Type) -> CheckM (a, Scheme)
 solveM m =
   get >>= \ vs ->
   listen m >>= \ ((a, tp), cs) ->
   pure solve <*> askEnv <*> (fmap (\ vs' -> Map.difference vs' vs) get) <*> pure tp <*> pure cs >>=
-  either throwError (\ s -> return (subst s a, subst s tp))
+  either throwError (\ (s, xs) -> return (subst s a, Forall xs (subst s tp)))
 
 --solve' :: 
