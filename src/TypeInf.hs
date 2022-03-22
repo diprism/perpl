@@ -43,7 +43,7 @@ data Env = Env { typeEnv :: Map.Map Var [Ctor],
 compose :: Subst -> Subst -> Subst
 s1 `compose` s2 = Map.map (subst s1) s2 `Map.union` s1
 
-data Constraint = Unify Type Type | Robust Type
+data Constraint = Unify Type Type | Robust Type deriving Show
 
 getUnifications :: [(Constraint, Loc)] -> [(Type, Type, Loc)]
 getUnifications [] = []
@@ -75,7 +75,7 @@ type SolveVars = Map.Map Var Loc
 data Loc = Loc { curDef :: String, curExpr :: String }
 
 instance Show Loc where
-  show l = "in the definition " ++ curDef l ++ ", in the expression " ++ curExpr l
+  show l = delimitWith ", " ((if null (curDef l) then [] else ["in the definition " ++ curDef l]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
 
 data CheckR = CheckR { checkEnv :: Env, checkLoc :: Loc }
 
@@ -167,7 +167,7 @@ fresh x = newVar x <$> boundVars
 freshTpVar :: CheckM Var
 freshTpVar =
   askLoc >>= \ l ->
-  fresh "?" >>= \ x ->
+  fresh "?0" >>= \ x ->
   modify (Map.insert x l) >>
   return x
 
@@ -306,7 +306,7 @@ inferCase (CaseUs x xs tm) (Ctor x' ps) =
 declareProgs :: UsProgs -> CheckM a -> CheckM a
 declareProgs (UsProgExec tm) m = m
 declareProgs (UsProgFun x NoTp tm ps) m =
-  freshTpVar >>= \ itp ->
+  localCurDef x freshTpVar >>= \ itp ->
   defTerm x DefVar (Forall [itp] (TpVar itp)) (declareProgs ps m)
 declareProgs (UsProgFun x tp tm ps) m =
   defTerm x DefVar (Forall [] tp) (declareProgs ps m)
@@ -321,17 +321,20 @@ unboundVars a = pure (Map.keys . Map.intersection (freeVars a)) <*> get
 
 inferProgs :: UsProgs -> CheckM SProgs
 inferProgs (UsProgExec tm) =
-  pure (SProgs []) <*> infer tm
+  solveM (infer tm >>: curry return) >>= \ (tm', tp) ->
+  return (SProgs [] tm')
 inferProgs (UsProgFun x NoTp tm ps) =
-  solveM (infer tm >>: curry return) >>= \ (tm', tp') ->
+  localCurDef x (solveM (infer tm >>: curry return)) >>= \ (tm', tp') ->
   inferProgs ps >>= \ (SProgs ps end) ->
   unboundVars tp' >>= \ vs ->
   let p = SProgFun x (Forall vs tp') tm' in
   return (SProgs (p : ps) end)
 inferProgs (UsProgFun x tp tm ps) =
-  solveM (infer tm >>: \ tm' tp' ->
-          constrain (Unify tp tp') >>
-          return (tm', tp')) >>= \ (tm', tp') ->
+  localCurDef x
+    (checkType tp >>
+     solveM (infer tm >>: \ tm' tp' ->
+             constrain (Unify tp tp') >>
+             return (tm', tp'))) >>= \ (tm', tp') ->
   inferProgs ps >>= \ (SProgs ps end) ->
   unboundVars tp' >>= \ vs ->
   let p = SProgFun x (Forall vs tp') tm' in
@@ -411,22 +414,26 @@ allSolved vs s rtp =
   let unsolved = Map.difference vs s
       fvs = freeVars rtp
       internalUnsolved = Map.difference unsolved fvs
+      -- TODO: Instead just "solve" all remaining irrelevant type inst vars as Unit?
   in
     if not (null internalUnsolved)
-    then Left (NoInference, (snd $ head $ Map.toList internalUnsolved))
+    then error (show rtp ++ "\n" ++ show vs ++ "\n" ++ show unsolved ++ "\n" ++ show fvs ++ "\n" ++ show internalUnsolved) -- Left (NoInference, (snd $ head $ Map.toList internalUnsolved))
     else Right (Map.keys fvs)
 
 solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) Subst
 solve g vs rtp cs =
+  if not (null cs) then error (show cs) else (
   unifyAll (getUnifications cs) >>= \ s ->
   solvedWell g s cs >>
   allSolved vs s rtp >>
   return s
+  )
 
 solveM :: Substitutable a => CheckM (a, Type) -> CheckM (a, Type)
 solveM m =
+  get >>= \ vs ->
   listen m >>= \ ((a, tp), cs) ->
-  pure solve <*> askEnv <*> get <*> pure tp <*> pure cs >>=
+  pure solve <*> askEnv <*> (fmap (\ vs' -> Map.difference vs' vs) get) <*> pure tp <*> pure cs >>=
   either throwError (\ s -> return (subst s a, subst s tp))
 
 --solve' :: 

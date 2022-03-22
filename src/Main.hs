@@ -88,7 +88,8 @@ processContents (CmdArgs ifn ofn c dr l o) s = return s
   >>= alphaRenameProgs ctxtDefUsProgs
   -- Type check the file (:: UsProgs -> Progs)
   >>= inferFile
-  >>= Right . instantiateFile
+  >>= return . show
+{-  >>= Right . instantiateFile
   -- Apply various optimizations
   >>= doIf o optimizeFile
   -- Eliminate recursive types (de/refunctionalization)
@@ -101,6 +102,7 @@ processContents (CmdArgs ifn ofn c dr l o) s = return s
   >>= alphaRenameProgs ctxtDefProgs
   -- Compile to FGG
   >>= if c then compileFile else showFile
+-}
 
 -- Parse a file, check and elaborate it, then compile to FGG and output it
 main :: IO ()

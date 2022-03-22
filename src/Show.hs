@@ -157,3 +157,9 @@ instance Show UsProgs where
   show (UsProgData y cs ps) = "data " ++ y ++ " = " ++ showCasesCtors cs ++ ";\n\n" ++ show ps
 instance Show Progs where
   show = show . toUsProgs
+instance Show SProgs where
+  show (SProgs ps end) = delimitWith "\n\n" ([show p | p <- ps] ++ [show end])
+instance Show SProg where
+  show (SProgFun x (Forall tvs tp) tm) = "define " ++ x ++ " : Forall " ++ delimitWith ", " tvs ++ ". " ++ show tp ++ " = " ++ show tm
+  show (SProgExtern x tps tp) = "extern " ++ x ++ " : " ++ show (joinArrows tps tp)
+  show (SProgData y cs) = "data " ++ y ++ " = " ++ delimitWith " | " [show c | c <- cs]
