@@ -23,7 +23,7 @@ data TypeError =
   | AffineError Var Term -- used more than affinely
   | ScopeError Var
   | RobustType Type
-  | NoInference
+--  | NoInference
   | NoCases
   | ExpNonUnderscoreVar
   | ExpOneNonUnderscoreVar
@@ -33,12 +33,12 @@ data TypeError =
 
 instance Show TypeError where
   show (InfiniteType x tp) = "Failed to construct infinite type: " ++ x ++ " := " ++ show tp
-  show (ConflictingTypes tp1 tp2) = error "Conflicting types: " ++ show tp1 ++ " and " ++ show tp2
+  show (ConflictingTypes tp1 tp2) = "Conflicting types: " ++ show tp1 ++ " and " ++ show tp2
   show (AffineError x tm) = "'" ++ x ++ "' is not affine in " ++ show tm
   show (ScopeError x) = "'" ++ x ++ "' is not in scope"
   show (UnificationError tp1 tp2) = "Failed to unify " ++ show tp1 ++ " and " ++ show tp2
   show (RobustType tp) = "Expected " ++ show tp ++ " to be a robust type (or if binding a var, it is used non-affinely)"
-  show NoInference = "Could not infer a type"
+--  show NoInference = "Could not infer a type"
   show NoCases = "Can't have case-of with no cases"
   show ExpNonUnderscoreVar = "Expected non-underscore variable here"
   show ExpOneNonUnderscoreVar = "Expected exactly one non-underscore variable"
@@ -60,25 +60,12 @@ getUnifications [] = []
 getUnifications ((Unify tp1 tp2, l) : cs) = (tp1, tp2, l) : getUnifications cs
 getUnifications (_ : cs) = getUnifications cs
 
-{-
-data Constraints = Constraints { unifyCs :: [(Type, Type, Loc)], robustCs :: [(Type, Loc)], injectCs :: [(Type, Int, Type, Loc)] }
-splitConstraints :: [(Constraint, Loc)] -> Constraints
-splitConstraints =
-  foldr (uncurry h) (Constraints { unifyCs = [], robustCs = [], injectCs = [] })
-  where
-    h (Unify tp1 tp2) l cs = cs { unifyCs = (tp1, tp2, l) : unifyCs cs }
-    h (Robust tp) l cs = cs { robustCs = (tp, l) : robustCs cs }
-    h (Inject tp1 o tp2) l cs = cs { injectCs = (tp1, o, tp2, l) : injectCs cs }
--}
-
 instance Substitutable Constraint where
   substM (Unify tp1 tp2) = pure Unify <*> substM tp1 <*> substM tp2
   substM (Robust tp) = pure Robust <*> substM tp
---  substM (Inject ptp o tp) = pure Inject <*> substM ptp <*> pure o <*> substM tp
 
   freeVars (Unify tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
   freeVars (Robust tp) = freeVars tp
---  freeVars (Inject ptp o tp) = Map.union (freeVars ptp) (freeVars tp)
 
 type SolveVars = Map.Map Var Loc
 
@@ -359,8 +346,6 @@ inferFile :: UsProgs -> Either String SProgs
 inferFile ps =
   either (\ (e, loc) -> Left (show e ++ ", " ++ show loc)) (\ (a, s, w) -> Right a)
     (runExcept (runRWST (declareProgs (progBool ps) (inferProgs ps)) (CheckR (Env mempty mempty mempty) (Loc "" "")) mempty))
--- RWST CheckR [(Constraint, Loc)] SolveVars (Except (TypeError, Loc)) a
-
 
 
 bindTp :: Var -> Type -> Either TypeError Subst
@@ -413,38 +398,22 @@ solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
     | not (isRobust e tp) = Left (RobustType tp, l)
     | otherwise = okay
 
---instantiate :: Substitutable a => [(Var, Type)] -> a -> a
---instantiate = subst . Map.fromList . map (\ (x, tp) -> (x, SubTp tp))
-
-allSolved :: SolveVars -> Subst -> Type -> Either (TypeError, Loc) [Var]
-allSolved vs s rtp =
-  let unsolved = Map.difference vs s
-      fvs = freeVars rtp
-      internalUnsolved = Map.difference unsolved fvs
-      -- TODO: Instead just "solve" all remaining irrelevant type inst vars as Unit?
-  in
-    if Map.size internalUnsolved > 0
-    then Left (NoInference, (snd $ head $ Map.toList internalUnsolved)) -- error ("rtp: " ++ show rtp ++ "\nvs: " ++ show vs ++ "\nunsolved: " ++ show unsolved ++ "\nfvs: " ++ show fvs ++ "\ninternalUnsolved: " ++ show internalUnsolved) -- 
-    else Right (Map.keys (Map.intersection unsolved fvs))
-
 solveInternal :: SolveVars -> Subst -> Type -> (Subst, [Var])
 solveInternal vs s rtp =
   let unsolved = Map.difference vs s
       fvs = freeVars rtp
       internalUnsolved = Map.difference unsolved fvs
-      s' = foldr (\ ix -> Map.insert ix (SubTp tpUnit)) s (Map.keys internalUnsolved)
+      s' = foldr (\ ix -> Map.insert ix (SubTp tpUnit)) Map.empty (Map.keys internalUnsolved)
+      s'' = s' `compose` s
   in
-    (s', Map.keys (Map.intersection unsolved fvs))
+    (s'', Map.keys (Map.intersection unsolved fvs))
 
 solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var])
 solve g vs rtp cs =
---  if not (null cs) then error (show cs) else (
   unifyAll (getUnifications cs) >>= \ s ->
---  allSolved vs s rtp >>
   let (s', xs) = solveInternal vs s rtp in
   solvedWell g s' cs >>
   return (s', xs)
---  )
 
 solveM :: Substitutable a => CheckM (a, Type) -> CheckM (a, Scheme)
 solveM m =
@@ -452,5 +421,3 @@ solveM m =
   listen m >>= \ ((a, tp), cs) ->
   pure solve <*> askEnv <*> (fmap (\ vs' -> Map.difference vs' vs) get) <*> pure tp <*> pure cs >>=
   either throwError (\ (s, xs) -> return (subst s a, Forall xs (subst s tp)))
-
---solve' :: 
