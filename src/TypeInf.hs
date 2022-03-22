@@ -401,10 +401,10 @@ unifyAll =
 
 isRobust :: Env -> Type -> Bool
 isRobust g = h [] where
-  h visited (TpVar y) = (y `elem` visited) || maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (Map.lookup y (typeEnv g))
-  h visited (TpArr _ _) = True
+  h visited (TpVar y) = (y `elem` visited) || maybe True (all $ \ (Ctor _ tps) -> all (h (y : visited)) tps) (Map.lookup y (typeEnv g))
+  h visited (TpArr _ _) = False
   h visited (TpProd am tps) = am == Additive || any (h visited) tps
-  h visited NoTp = False
+  h visited NoTp = True
 
 solvedWell :: Env -> Subst -> [(Constraint, Loc)] -> Either (TypeError, Loc) ()
 solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
@@ -426,17 +426,17 @@ allSolved vs s rtp =
       -- TODO: Instead just "solve" all remaining irrelevant type inst vars as Unit?
   in
     if not (null internalUnsolved)
-    then error (show rtp ++ "\n" ++ show vs ++ "\n" ++ show unsolved ++ "\n" ++ show fvs ++ "\n" ++ show internalUnsolved) -- Left (NoInference, (snd $ head $ Map.toList internalUnsolved))
+    then error ("rtp: " ++ show rtp ++ "\nvs: " ++ show vs ++ "\nunsolved: " ++ show unsolved ++ "\nfvs: " ++ show fvs ++ "\ninternalUnsolved: " ++ show internalUnsolved) -- Left (NoInference, (snd $ head $ Map.toList internalUnsolved))
     else Right (Map.keys fvs)
 
 solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) Subst
 solve g vs rtp cs =
-  if not (null cs) then error (show cs) else (
+--  if not (null cs) then error (show cs) else (
   unifyAll (getUnifications cs) >>= \ s ->
   solvedWell g s cs >>
   allSolved vs s rtp >>
   return s
-  )
+--  )
 
 solveM :: Substitutable a => CheckM (a, Type) -> CheckM (a, Type)
 solveM m =
