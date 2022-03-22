@@ -25,6 +25,11 @@ data TypeError =
   | RobustType Type
   | NoInference
   | NoCases
+  | ExpNonUnderscoreVar
+  | ExpOneNonUnderscoreVar
+  | MissingCases [Var]
+  | WrongNumCases Int Int
+  | WrongNumArgs Int Int
 
 instance Show TypeError where
   show (InfiniteType x tp) = "Failed to construct infinite type: " ++ x ++ " := " ++ show tp
@@ -35,6 +40,11 @@ instance Show TypeError where
   show (RobustType tp) = "Expected " ++ show tp ++ " to be a robust type (or if binding a var, it is used non-affinely)"
   show NoInference = "Could not infer a type"
   show NoCases = "Can't have case-of with no cases"
+  show ExpNonUnderscoreVar = "Expected non-underscore variable here"
+  show ExpOneNonUnderscoreVar = "Expected exactly one non-underscore variable"
+  show (MissingCases xs) = "Missing cases: " ++ delimitWith ", " xs
+  show (WrongNumCases exp act) = "Expected " ++ show exp ++ " cases, but got " ++ show act
+  show (WrongNumArgs exp act) = "Expected " ++ show exp ++ " args, but got " ++ show act
 
 data Env = Env { typeEnv :: Map.Map Var [Ctor],
                  localEnv :: Map.Map Var Type,
@@ -206,7 +216,7 @@ infer tm = localCurExpr tm (infer' tm)
 infer' :: UsTm -> CheckM Term
 
 infer' (UsVar x) =
-  guardM (x /= "_") (error "TODO: expected non-underscore variable") >>
+  guardM (x /= "_") ExpNonUnderscoreVar >>
   lookupTerm x >>= \ etp ->
   case etp of
     Left tp -> return (TmVarL x tp)
@@ -230,13 +240,12 @@ infer' (UsApp tm1 tm2) =
 
 infer' (UsCase tm cs) =
   lookupCtorType cs >>= \ (y, ctors) ->
-  guardM (length ctors == length cs) (error "TODO: wrong number of cases") >>
   let cs' = sortCases ctors cs
       cs_map = Map.fromList [(x, ()) | (CaseUs x _ _) <- cs]
       ctors_map = Map.fromList [(y, ()) | (Ctor y _) <- ctors]
       missingCases = Map.difference ctors_map cs_map in
-  guardM (null missingCases)
-         (error ("Missing cases: " ++ delimitWith ", " (Map.keys missingCases))) >>
+  guardM (null missingCases) (MissingCases (Map.keys missingCases)) >>
+  guardM (length ctors == length cs) (WrongNumCases (length ctors) (length cs)) >>
   infer tm >>: \ tm' ytp ->
   constrain (Unify (TpVar y) ytp) >>
   freshTp >>= \ itp ->
@@ -280,8 +289,7 @@ infer' (UsProd am tms) =
 
 infer' (UsElimProd am ptm xs tm) =
   infer ptm >>: \ ptm' ptp ->
-  guardM (am == Multiplicative || 1 == length (filter (/= "_") xs))
-    (error "TODO: expected 1 non-underscore variable in an &-product elimination") >>
+  guardM (am == Multiplicative || 1 == length (filter (/= "_") xs)) ExpOneNonUnderscoreVar >>
   mapM (\ x -> (,) x <$> freshTp) xs >>= \ ps ->
   mapM (\ (x, tp) -> constrainIf (not $ isAff x tm) (Robust tp)) ps >>
   inEnvs ps (infer tm) >>: \ tm' tp ->
@@ -296,8 +304,9 @@ infer' (UsEqs tms) =
 
 inferCase :: CaseUs -> Ctor -> CheckM Case
 inferCase (CaseUs x xs tm) (Ctor x' ps) =
-  guardM (x == x') (error ("TODO: no " ++ x' ++ " case")) >>
-  guardM (length ps == length xs) (error "Wrong number of vars") >>
+  localCurExpr (CaseUs x xs tm) $
+  guardM (x == x') (MissingCases [x']) >> -- probably not necessary
+  guardM (length ps == length xs) (WrongNumArgs (length ps) (length xs)) >>
   let xps = zip xs ps in
   mapM (\ (x, tp) -> constrainIf (not $ isAff x tm) (Robust tp)) xps >>
   inEnvs xps (infer tm) >>= \ tm' ->
