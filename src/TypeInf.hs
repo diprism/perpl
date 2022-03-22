@@ -415,8 +415,8 @@ solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
     | not (isRobust e tp) = Left (RobustType tp, l)
     | otherwise = okay
 
-instantiate :: Substitutable a => [(Var, Type)] -> a -> a
-instantiate = subst . Map.fromList . map (\ (x, tp) -> (x, SubTp tp))
+--instantiate :: Substitutable a => [(Var, Type)] -> a -> a
+--instantiate = subst . Map.fromList . map (\ (x, tp) -> (x, SubTp tp))
 
 allSolved :: SolveVars -> Subst -> Type -> Either (TypeError, Loc) [Var]
 allSolved vs s rtp =
@@ -425,8 +425,8 @@ allSolved vs s rtp =
       internalUnsolved = Map.difference unsolved fvs
       -- TODO: Instead just "solve" all remaining irrelevant type inst vars as Unit?
   in
-    if not (null internalUnsolved)
-    then error ("rtp: " ++ show rtp ++ "\nvs: " ++ show vs ++ "\nunsolved: " ++ show unsolved ++ "\nfvs: " ++ show fvs ++ "\ninternalUnsolved: " ++ show internalUnsolved) -- Left (NoInference, (snd $ head $ Map.toList internalUnsolved))
+    if Map.size internalUnsolved > 0
+    then Left (NoInference, (snd $ head $ Map.toList internalUnsolved)) -- error ("rtp: " ++ show rtp ++ "\nvs: " ++ show vs ++ "\nunsolved: " ++ show unsolved ++ "\nfvs: " ++ show fvs ++ "\ninternalUnsolved: " ++ show internalUnsolved) -- 
     else Right (Map.keys fvs)
 
 solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) Subst
