@@ -392,7 +392,7 @@ insertProgs rtp dat fun (Progs ds end) = Progs (insertProgs' rtp dat fun ds) end
 
 data RecDeps = RecDeps { defunDeps :: [Var], refunDeps :: [Var] }
   deriving Show
-type RecEdges = Map.Map Var RecDeps
+type RecEdges = Map Var RecDeps
 
 recDeps :: Ctxt -> [Var] -> Type -> [Var]
 recDeps g recs (TpVar y)

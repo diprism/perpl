@@ -2,6 +2,7 @@
 
 module TypeInf where
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Control.Monad.RWS.Lazy
 import Control.Monad.Except
 import Exprs
@@ -46,9 +47,9 @@ instance Show TypeError where
   show (WrongNumCases exp act) = "Expected " ++ show exp ++ " cases, but got " ++ show act
   show (WrongNumArgs exp act) = "Expected " ++ show exp ++ " args, but got " ++ show act
 
-data Env = Env { typeEnv :: Map.Map Var [Ctor],
-                 localEnv :: Map.Map Var Type,
-                 globalEnv :: Map.Map Var (GlobalVar, Scheme) }
+data Env = Env { typeEnv :: Map Var [Ctor],
+                 localEnv :: Map Var Type,
+                 globalEnv :: Map Var (GlobalVar, Scheme) }
 
 compose :: Subst -> Subst -> Subst
 s1 `compose` s2 = Map.map (subst s1) s2 `Map.union` s1
@@ -67,7 +68,7 @@ instance Substitutable Constraint where
   freeVars (Unify tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
   freeVars (Robust tp) = freeVars tp
 
-type SolveVars = Map.Map Var Loc
+type SolveVars = Map Var Loc
 
 data Loc = Loc { curDef :: String, curExpr :: String }
 
@@ -148,7 +149,7 @@ lookupCtorType (CaseUs x _ _ : _) =
     Right (CtorVar, Forall [] (TpVar y)) -> (,) y <$> lookupType y
     _ -> err (ScopeError x) -- TODO: not a ctor?
 
-boundVars :: CheckM (Map.Map Var ())
+boundVars :: CheckM (Map Var ())
 boundVars =
   ask >>= \ d ->
   get >>= \ s ->
@@ -299,54 +300,9 @@ inferCase (CaseUs x xs tm) (Ctor x' ps) =
   inEnvs xps (infer tm) >>= \ tm' ->
   return (Case x xps tm')
 
-declareProgs :: UsProgs -> CheckM a -> CheckM a
-declareProgs (UsProgExec tm) m = m
-declareProgs (UsProgFun x NoTp tm ps) m =
-  localCurDef x freshTpVar >>= \ itp ->
-  defTerm x DefVar (Forall [itp] (TpVar itp)) (declareProgs ps m)
-declareProgs (UsProgFun x tp tm ps) m =
-  defTerm x DefVar (Forall [] tp) (declareProgs ps m)
-declareProgs (UsProgExtern x tp ps) m =
-  defTerm x DefVar (Forall [] tp) (declareProgs ps m)
-declareProgs (UsProgData y cs ps) m =
-  defData y cs (declareProgs ps m)
-
 -- Returns all type inst vars in an expression
-unboundVars :: Substitutable a => a -> CheckM [Var]
-unboundVars a = pure (Map.keys . Map.intersection (freeVars a)) <*> get
-
-inferProgs :: UsProgs -> CheckM SProgs
-inferProgs (UsProgExec tm) =
-  solveM (infer tm >>: curry return) >>= \ (tm', tp) ->
-  return (SProgs [] tm')
-inferProgs (UsProgFun x NoTp tm ps) =
-  localCurDef x (solveM (infer tm >>: curry return)) >>= \ (tm', stp) ->
-  inferProgs ps >>= \ (SProgs ps end) ->
-  let p = SProgFun x stp tm' in
-  return (SProgs (p : ps) end)
-inferProgs (UsProgFun x tp tm ps) =
-  localCurDef x
-    (checkType tp >>
-     solveM (infer tm >>: \ tm' tp' ->
-             constrain (Unify tp tp') >>
-             return (tm', tp'))) >>= \ (tm', stp) ->
-  inferProgs ps >>= \ (SProgs ps end) ->
-  let p = SProgFun x stp tm' in
-  return (SProgs (p : ps) end)
-inferProgs (UsProgExtern x tp ps) =
-  inferProgs ps >>= \ (SProgs ps end) ->
-  return (SProgs (SProgExtern x [] tp : ps) end)
-inferProgs (UsProgData y cs ps) =
-  mapM (\ (Ctor x tps) -> mapM checkType tps) cs >>
-  inferProgs ps >>= \ (SProgs ps end) ->
-  return (SProgs (SProgData y cs : ps) end)
-
--- TODO: replace gv tis of just one thing with the actual type inst vars as determined later
-inferFile :: UsProgs -> Either String SProgs
-inferFile ps =
-  either (\ (e, loc) -> Left (show e ++ ", " ++ show loc)) (\ (a, s, w) -> Right a)
-    (runExcept (runRWST (declareProgs (progBool ps) (inferProgs ps)) (CheckR (Env mempty mempty mempty) (Loc "" "")) mempty))
-
+--unboundVars :: Substitutable a => a -> CheckM [Var]
+--unboundVars a = pure (Map.keys . Map.intersection (freeVars a)) <*> get
 
 bindTp :: Var -> Type -> Either TypeError Subst
 bindTp x tp
@@ -421,3 +377,60 @@ solveM m =
   listen m >>= \ ((a, tp), cs) ->
   pure solve <*> askEnv <*> (fmap (\ vs' -> Map.difference vs' vs) get) <*> pure tp <*> pure cs >>=
   either throwError (\ (s, xs) -> return (subst s a, Forall xs (subst s tp)))
+
+
+getDeps :: UsProgs -> Map Var (Set Var)
+getDeps (UsProgs ps end) = foldr h mempty ps where
+  h :: UsProg -> Map Var (Set Var) -> Map Var (Set Var)
+  h (UsProgFun x mtp tm) deps = Map.insert x (Set.fromList (Map.keys (freeVars tm))) deps
+  h (UsProgExtern x tp) deps = Map.insert x mempty deps
+  h (UsProgData y cs) deps = foldr (\ (Ctor x tps) -> Map.insert x mempty) deps cs
+
+inferFile :: UsProgs -> Either String SProgs
+inferFile ps = Left "TODO: implement"
+
+{-
+declareProgs :: UsProgs -> CheckM a -> CheckM a
+declareProgs (UsProgExec tm) m = m
+declareProgs (UsProgFun x NoTp tm ps) m =
+  localCurDef x freshTpVar >>= \ itp ->
+  defTerm x DefVar (Forall [itp] (TpVar itp)) (declareProgs ps m)
+declareProgs (UsProgFun x tp tm ps) m =
+  defTerm x DefVar (Forall [] tp) (declareProgs ps m)
+declareProgs (UsProgExtern x tp ps) m =
+  defTerm x DefVar (Forall [] tp) (declareProgs ps m)
+declareProgs (UsProgData y cs ps) m =
+  defData y cs (declareProgs ps m)
+
+inferProgs :: UsProgs -> CheckM SProgs
+inferProgs (UsProgExec tm) =
+  solveM (infer tm >>: curry return) >>= \ (tm', tp) ->
+  return (SProgs [] tm')
+inferProgs (UsProgFun x NoTp tm ps) =
+  localCurDef x (solveM (infer tm >>: curry return)) >>= \ (tm', stp) ->
+  inferProgs ps >>= \ (SProgs ps end) ->
+  let p = SProgFun x stp tm' in
+  return (SProgs (p : ps) end)
+inferProgs (UsProgFun x tp tm ps) =
+  localCurDef x
+    (checkType tp >>
+     solveM (infer tm >>: \ tm' tp' ->
+             constrain (Unify tp tp') >>
+             return (tm', tp'))) >>= \ (tm', stp) ->
+  inferProgs ps >>= \ (SProgs ps end) ->
+  let p = SProgFun x stp tm' in
+  return (SProgs (p : ps) end)
+inferProgs (UsProgExtern x tp ps) =
+  inferProgs ps >>= \ (SProgs ps end) ->
+  return (SProgs (SProgExtern x [] tp : ps) end)
+inferProgs (UsProgData y cs ps) =
+  mapM (\ (Ctor x tps) -> mapM checkType tps) cs >>
+  inferProgs ps >>= \ (SProgs ps end) ->
+  return (SProgs (SProgData y cs : ps) end)
+
+-- TODO: replace gv tis of just one thing with the actual type inst vars as determined later
+inferFile :: UsProgs -> Either String SProgs
+inferFile ps =
+  either (\ (e, loc) -> Left (show e ++ ", " ++ show loc)) (\ (a, s, w) -> Right a)
+    (runExcept (runRWST (declareProgs (progBool ps) (inferProgs ps)) (CheckR (Env mempty mempty mempty) (Loc "" "")) mempty))
+-}

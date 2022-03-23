@@ -1,10 +1,12 @@
 module Exprs where
 
-data UsProgs =
-    UsProgExec UsTm
-  | UsProgFun String Type UsTm UsProgs
-  | UsProgExtern String Type UsProgs
-  | UsProgData String [Ctor] UsProgs
+data UsProgs = UsProgs [UsProg] UsTm
+  deriving (Eq, Ord)
+
+data UsProg =
+    UsProgFun String Type UsTm
+  | UsProgExtern String Type
+  | UsProgData String [Ctor]
   deriving (Eq, Ord)
 
 data Prog =

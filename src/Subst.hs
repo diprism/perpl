@@ -39,23 +39,23 @@ splitVar x =
       | otherwise = (c : cs, "", "")
 
 -- Given a map and a var, try new var names until it is no longer in the map
-newVar :: Var -> Map.Map Var a -> Var
+newVar :: Var -> Map Var a -> Var
 newVar x xs = if Map.member x xs then h xs (splitVar x) else x
   where
     h xs x = let x' = show x in if Map.member x' xs then h xs (succSplitVar x) else x'
 
-newVars :: [Var] -> Map.Map Var a -> [Var]
+newVars :: [Var] -> Map Var a -> [Var]
 newVars xs m =
   foldr (\ x gxs g -> let x' = newVar x g in gxs (Map.insert x' () g)) (const []) xs (() <$ m)
 
 ----------------------------------------
 
 data SubT = SubVar Var | SubTm Term | SubTp Type
-type Subst = Map.Map Var SubT
+type Subst = Map Var SubT
 
 type SubstM a = RWS () () Subst a
 
-type FreeVars = Map.Map Var Type
+type FreeVars = Map Var Type
 
 runSubst :: Subst -> SubstM a -> a
 runSubst s r = let (a', r', ()) = runRWS r () s in a'
@@ -270,19 +270,21 @@ instance Substitutable CaseUs where
     pure (CaseUs x ps') <*> binds ps ps' (substM tm)
   freeVars (CaseUs x ps tm) = foldr Map.delete (freeVars tm) ps
 
-instance Substitutable UsProgs where
-  substM (UsProgExec tm) =
-    pure UsProgExec <*> substM tm
-  substM (UsProgFun x tp tm ps) =
+instance Substitutable UsProg where
+  substM (UsProgFun x tp tm) =
     bind x x okay >>
-    pure (UsProgFun x) <*> substM tp <*> substM tm <*> substM ps
-  substM (UsProgExtern x tp ps) =
+    pure (UsProgFun x) <*> substM tp <*> substM tm
+  substM (UsProgExtern x tp) =
     bind x x okay >>
-    pure (UsProgExtern x) <*> substM tp <*> substM ps
-  substM (UsProgData y cs ps) =
+    pure (UsProgExtern x) <*> substM tp
+  substM (UsProgData y cs) =
     bind y y okay >>
-    pure (UsProgData y) <*> substM cs <*> substM ps
+    pure (UsProgData y) <*> substM cs
 
+  freeVars ps = error "freeVars on a UsProg"
+
+instance Substitutable UsProgs where
+  substM (UsProgs ps end) = pure UsProgs <*> substM ps <*> substM end
   freeVars ps = error "freeVars on a UsProgs"
 
 instance Substitutable Ctor where

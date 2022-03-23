@@ -10,7 +10,7 @@ data CtxtDef =
     DefTerm Scope Type
   | DefData [Ctor]
 
-type Ctxt = Map.Map Var CtxtDef
+type Ctxt = Map Var CtxtDef
 
 -- Default context
 emptyCtxt :: Ctxt
@@ -66,12 +66,11 @@ ctxtDefProgs :: Progs -> Ctxt
 ctxtDefProgs (Progs ps end) = foldl ctxtDefProg emptyCtxt ps
 
 -- Adds all definitions from a raw file to context
-ctxtDefUsProgs' :: Ctxt -> UsProgs -> Ctxt
-ctxtDefUsProgs' g (UsProgFun x tp tm ps) = ctxtDefUsProgs' (ctxtDefTerm g x tp) ps
-ctxtDefUsProgs' g (UsProgExtern x tp ps) = ctxtDefUsProgs' (ctxtDefTerm g x tp) ps
-ctxtDefUsProgs' g (UsProgData y cs ps) = ctxtDefUsProgs' (ctxtDeclType g y cs) ps
-ctxtDefUsProgs' g (UsProgExec tm) = g
+ctxtDefUsProg :: Ctxt -> UsProg -> Ctxt
+ctxtDefUsProg g (UsProgFun x tp tm) = ctxtDefTerm g x tp
+ctxtDefUsProg g (UsProgExtern x tp) = ctxtDefTerm g x tp
+ctxtDefUsProg g (UsProgData y cs) = ctxtDeclType g y cs
 
 -- Populates a context with the definitions from a raw file
 ctxtDefUsProgs :: UsProgs -> Ctxt
-ctxtDefUsProgs = ctxtDefUsProgs' emptyCtxt
+ctxtDefUsProgs (UsProgs ps end) = foldl ctxtDefUsProg emptyCtxt ps

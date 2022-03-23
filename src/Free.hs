@@ -28,7 +28,7 @@ isFree x tm = Map.member x (freeVars tm)
 isAff :: Var -> UsTm -> Bool
 isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
   where
-    countOccs :: UsTm -> Map.Map Var Int
+    countOccs :: UsTm -> Map Var Int
     countOccs (UsVar x) = Map.singleton x 1
     countOccs (UsLam x tp tm) = Map.delete x $ countOccs tm
     countOccs (UsApp tm tm') = Map.unionWith (+) (countOccs tm) (countOccs tm')
@@ -43,7 +43,7 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccs (UsElimProd am tm xs tm') = Map.unionWith (+) (countOccs tm) (foldr Map.delete (countOccs tm') xs)
     countOccs (UsEqs tms) = Map.unionsWith (+) (map countOccs tms)
     
-    countOccsCase :: CaseUs -> Map.Map Var Int
+    countOccsCase :: CaseUs -> Map Var Int
     countOccsCase (CaseUs c xs tm) = foldr Map.delete (countOccs tm) xs
 
 -- Returns if x appears exactly once in a user-term

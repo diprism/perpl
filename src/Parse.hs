@@ -319,19 +319,24 @@ parseTypes :: ParseM [Type]
 parseTypes = parseElse [] (parseType3 >>= \ tp -> fmap ((:) tp) parseTypes)
 
 -- Program
-parseProg :: ParseM UsProgs
+parseProg :: ParseM (Maybe UsProg)
 parseProg = parsePeek >>= \ t -> case t of
 -- define x : type = term; ...
-  TkFun -> parseEat *> pure UsProgFun <*> parseVar <*> parseTpAnn
-             <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkSemicolon <*> parseProg
+  TkFun -> parseEat *> pure Just <*> (pure UsProgFun <*> parseVar <*> parseTpAnn
+             <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkSemicolon)
 -- extern x : type; ...
-  TkExtern -> parseEat *> pure UsProgExtern <*> parseVar <*> parseTpAnn
-                <* parseDrop TkSemicolon <*> parseProg
+  TkExtern -> parseEat *> pure Just <*> (pure UsProgExtern <*> parseVar <*> parseTpAnn
+                <* parseDrop TkSemicolon)
 -- data Y = ctors; ...
-  TkData -> parseEat *> pure UsProgData <*> parseVar <* parseDrop TkEq
-              <*> parseCtors <* parseDrop TkSemicolon <*> parseProg
--- term
-  _ -> pure UsProgExec <*> parseTerm1 <* parseDropSoft TkSemicolon
+  TkData -> parseEat *> pure Just <*> (pure UsProgData <*> parseVar <* parseDrop TkEq
+              <*> parseCtors <* parseDrop TkSemicolon)
+  _ -> pure Nothing
+
+parseProgsUntil :: ParseM [UsProg]
+parseProgsUntil = parseProg >>= maybe (pure []) (\ p -> pure ((:) p) <*> parseProgsUntil)
+
+parseProgs :: ParseM UsProgs
+parseProgs = pure UsProgs <*> parseProgsUntil <*> parseTerm1  <* parseDrop TkSemicolon
 
 parseFormatErr :: [(Pos, Token)] -> Either (Pos, String) a -> Either String a
 parseFormatErr ts (Left (p, emsg))
@@ -351,4 +356,4 @@ parseOut m ts =
 
 -- Parse a whole program.
 parseFile :: [(Pos, Token)] -> Either String UsProgs
-parseFile = parseOut (parseAddEOF >> parseProg)
+parseFile = parseOut (parseAddEOF >> parseProgs)

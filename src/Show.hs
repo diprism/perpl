@@ -23,15 +23,14 @@ toUsTm (TmEqs tms) = UsEqs [toUsTm tm | tm <- tms]
 toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (fsts as) (toUsTm tm)
 
-toUsProgs' :: [Prog] -> UsTm -> UsProgs
-toUsProgs' (ProgFun x ps tm tp : ds) end = UsProgFun x (joinArrows (snds ps) tp) (toUsTm (joinLams ps tm)) (toUsProgs' ds end)
-toUsProgs' (ProgExtern x xp ps tp : ds) end = UsProgExtern x (joinArrows ps tp) (toUsProgs' ds end)
-toUsProgs' (ProgData y cs : ds) end = UsProgData y cs (toUsProgs' ds end)
-toUsProgs' [] end = UsProgExec end
+toUsProg :: Prog -> UsProg
+toUsProg (ProgFun x ps tm tp) = UsProgFun x (joinArrows (snds ps) tp) (toUsTm (joinLams ps tm))
+toUsProg (ProgExtern x xp ps tp) = UsProgExtern x (joinArrows ps tp)
+toUsProg (ProgData y cs) = UsProgData y cs
 
 toUsProgs :: Progs -> UsProgs
-toUsProgs (Progs (ProgData "Bool" [fctor, tctor] : ps) tm) = toUsProgs' ps (toUsTm tm)
-toUsProgs (Progs ps tm) = toUsProgs' ps (toUsTm tm)
+toUsProgs (Progs (ProgData "Bool" [fctor, tctor] : ps) tm) = UsProgs (map toUsProg ps) (toUsTm tm)
+toUsProgs (Progs ps tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 
 
 {- Show Instances -}
@@ -150,11 +149,12 @@ instance Show Term where
 instance Show Type where
   show = flip showType ShowNone
 
+instance Show UsProg where
+  show (UsProgFun x tp tm) = "define " ++ x ++ showTpAnn tp ++ " = " ++ show tm ++ ";"
+  show (UsProgExtern x tp) = "extern " ++ x ++ showTpAnn tp ++ ";"
+  show (UsProgData y cs) = "data " ++ y ++ " = " ++ showCasesCtors cs ++ ";"
 instance Show UsProgs where
-  show (UsProgExec tm) = show tm
-  show (UsProgFun x tp tm ps) = "define " ++ x ++ showTpAnn tp ++ " = " ++ show tm ++ ";\n\n" ++ show ps
-  show (UsProgExtern x tp ps) = "extern " ++ x ++ showTpAnn tp ++ ";\n\n" ++ show ps
-  show (UsProgData y cs ps) = "data " ++ y ++ " = " ++ showCasesCtors cs ++ ";\n\n" ++ show ps
+  show (UsProgs ps end) = delimitWith "\n\n" ([show p | p <- ps] ++ [show end])
 instance Show Progs where
   show = show . toUsProgs
 instance Show SProgs where

@@ -56,9 +56,9 @@ data HGF' = HGF' { hgf_nodes' :: [(Var, Type)], hgf_edges' :: [Edge'], hgf_exts'
 data Rule = Rule String HGF
   deriving Eq
 data FGG_JSON = FGG_JSON {
-  domains :: Map.Map String FType,
-  factors :: Map.Map String (Domain, Maybe Weights),
-  nonterminals :: Map.Map String Domain,
+  domains :: Map String FType,
+  factors :: Map String (Domain, Maybe Weights),
+  nonterminals :: Map String Domain,
   start :: String,
   rules :: [(Int, Rule)]
 }

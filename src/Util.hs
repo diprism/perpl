@@ -1,7 +1,11 @@
 module Util where
 import Data.List
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Exprs
+
+type Map k v = Map.Map k v
+type Set v = Set.Set v
 
 fsts :: Functor f => f (a, b) -> f a
 fsts = fmap fst

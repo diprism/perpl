@@ -6,18 +6,18 @@ import Name
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-newtype SemiMap a b = SemiMap (Map.Map a b)
+newtype SemiMap a b = SemiMap (Map a b)
 instance (Ord a, Semigroup b) => Semigroup (SemiMap a b) where
   SemiMap lm1 <> SemiMap lm2 = SemiMap (Map.unionWith (<>) lm1 lm2)
 instance (Ord a, Semigroup b) => Monoid (SemiMap a b) where
   mempty = SemiMap mempty
-semiMap :: SemiMap a b -> Map.Map a b
+semiMap :: SemiMap a b -> Map a b
 semiMap (SemiMap m) = m
 
 type Insts = SemiMap Var (Set.Set [Type])
 type GlobalCalls = [(Var, [Type])]
-type TypeParams = Map.Map Var [Var]
-type DefMap = Map.Map Var GlobalCalls
+type TypeParams = Map Var [Var]
+type DefMap = Map Var GlobalCalls
   
 collectCalls :: Term -> GlobalCalls
 collectCalls (TmVarL x tp) = []
@@ -32,7 +32,7 @@ collectCalls (TmProd am as) = mconcat (fmap (collectCalls . fst) as)
 collectCalls (TmElimProd am ptm ps tm tp) = collectCalls ptm <> collectCalls tm
 collectCalls (TmEqs tms) = mconcat (fmap collectCalls tms)
 
-renameCalls :: Map.Map Var (Map.Map [Type] Int) -> Term -> Term
+renameCalls :: Map Var (Map [Type] Int) -> Term -> Term
 renameCalls xis (TmVarL x tp) = TmVarL x tp
 renameCalls xis (TmVarG g x tis as tp) =
   let xi = (xis Map.! x) Map.! tis in
@@ -83,7 +83,7 @@ processNext cur dm tpms xis x tis =
       tis'' = Set.toList tis' in
     foldr (\ tis xis -> addInsts dm tpms xis x tis) xis tis''
 
-makeInstantiations :: Map.Map Var (Map.Map [Type] Int) -> SProg -> [Prog]
+makeInstantiations :: Map Var (Map [Type] Int) -> SProg -> [Prog]
 makeInstantiations xis (SProgFun x (Forall ys tp) tm) =
   map (\ (tis, i) -> let s = Map.fromList (zip ys (SubTp <$> tis)) in
                        ProgFun x [] (renameCalls xis (subst s tm)) (subst s tp))
