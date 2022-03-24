@@ -399,7 +399,7 @@ getDeps :: UsProgs -> Map Var (Set Var)
 getDeps (UsProgs ps end) = clean (foldr h mempty ps) where
   -- Removes ctors and externs from each set in the map
   clean :: Map Var (Set Var) -> Map Var (Set Var)
-  clean m = let s = Set.fromList (Map.keys m) in fmap (Set.union s) m
+  clean m = let s = Set.fromList (Map.keys m) in fmap (Set.intersection s) m
   
   h :: UsProg -> Map Var (Set Var) -> Map Var (Set Var)
   h (UsProgFun x mtp tm) deps = Map.insert x (Set.fromList (Map.keys (freeVars tm))) deps
@@ -427,6 +427,7 @@ inferFuns fs m =
   mapM (\ (x, mtp, tm) -> annTp mtp) fs >>= \ itps ->
   let ftps = [(x, itp) | ((x, _, _), itp) <- zip fs itps]
       defs = \ m -> foldl (\ m (x, itp) -> inEnv x itp m) m ftps in
+--    error (show ftps)
     defs
     (solvesM ftps
       (mapM (\ ((x, _, tm), tp) ->
@@ -474,8 +475,9 @@ inferProgs ps =
          (foldl (flip inferFuns)
          -- Then check end term
             (solveM (infer end >>: curry return) >>= \ (end', Forall tpms tp) ->
-             guardM (null tpms) (error "TODO: end term should not have type polymorphism") >>
+             -- guardM (null tpms) (error "TODO: end term should not have type polymorphism") >>
              return (SProgs [] end')) sccs') es) ds
+
 
 inferFile :: UsProgs -> Either String SProgs
 inferFile ps =

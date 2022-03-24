@@ -149,6 +149,9 @@ instance Show Term where
 instance Show Type where
   show = flip showType ShowNone
 
+instance Show Scheme where
+  show (Forall tpms tp) = "Forall " ++ delimitWith ", " (map show tpms) ++ ". " ++ show tp
+
 instance Show UsProg where
   show (UsProgFun x tp tm) = "define " ++ x ++ showTpAnn tp ++ " = " ++ show tm ++ ";"
   show (UsProgExtern x tp) = "extern " ++ x ++ showTpAnn tp ++ ";"
