@@ -312,10 +312,30 @@ instance Substitutable Prog where
   freeVars (ProgData y cs) =
     freeVars cs-}
 
+instance Substitutable SProg where
+  substM (SProgFun x (Forall tpms tp) tm) =
+    bind x x okay >>
+    freshens tpms >>= \ tpms' ->
+    binds tpms tpms' (pure (SProgFun x) <*> (pure (Forall tpms') <*> substM tp) <*> substM tm)
+  substM (SProgExtern x tps tp) =
+    bind x x okay >>
+    pure (SProgExtern x) <*> substM tps <*> substM tp
+  substM (SProgData y cs) =
+    bind y y okay >>
+    pure (SProgData y) <*> substM cs
+
+  freeVars p = error "freeVars on a Prog"
+
 instance Substitutable Progs where
   substM (Progs ps tm) =
     pure Progs <*> substM ps <*> substM tm
   freeVars (Progs ps tm) =
+    Map.union (freeVars ps) (freeVars tm)
+
+instance Substitutable SProgs where
+  substM (SProgs ps tm) =
+    pure SProgs <*> substM ps <*> substM tm
+  freeVars (SProgs ps tm) =
     Map.union (freeVars ps) (freeVars tm)
 
 -- For ad-hoc type var substitution,
