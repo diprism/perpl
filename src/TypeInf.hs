@@ -11,6 +11,7 @@ import Free
 import Util
 import Name
 import Show()
+import Tarjan
 
 data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
   deriving Eq
@@ -107,8 +108,8 @@ askEnv = checkEnv <$> ask
 askLoc :: CheckM Loc
 askLoc = checkLoc <$> ask
 
-localCurDef :: Show a => a -> CheckM b -> CheckM b
-localCurDef a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curDef = show a } })
+localCurDef :: Var -> CheckM b -> CheckM b
+localCurDef a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curDef = a } })
 
 localCurExpr :: Show a => a -> CheckM b -> CheckM b
 localCurExpr a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curExpr = show a } })
@@ -371,23 +372,116 @@ solve g vs rtp cs =
   solvedWell g s' cs >>
   return (s', xs)
 
-solveM :: Substitutable a => CheckM (a, Type) -> CheckM (a, Scheme)
+--solveM :: Substitutable a => CheckM (a, Type) -> CheckM (a, Scheme)
+solveM :: CheckM (Term, Type) -> CheckM (Term, Scheme)
 solveM m =
   get >>= \ vs ->
   listen m >>= \ ((a, tp), cs) ->
   pure solve <*> askEnv <*> (fmap (\ vs' -> Map.difference vs' vs) get) <*> pure tp <*> pure cs >>=
   either throwError (\ (s, xs) -> return (subst s a, Forall xs (subst s tp)))
 
+solvesM :: [(Var, Type)] -> CheckM [(Var, Term, Type)] -> CheckM [(Var, Term, Scheme)]
+solvesM itps ms =
+  get >>= \ vs ->
+  listen ms >>= \ (atps, cs) ->
+  let (fs, as, tps) = unzip3 atps in
+  pure solve <*> askEnv <*> (fmap (\ vs' -> Map.difference vs' vs) get) <*> pure (TpProd Multiplicative tps) <*> pure cs >>=
+  either throwError (\ (s, xs) ->
+                        let stps = map (\ tp ->
+                                          let tp' = subst s tp
+                                              xs' = Map.keys (Map.intersection (Map.fromList (map (\ x -> (x, ())) xs)) (freeVars tp')) in
+                                            Forall xs' tp') tps
+                            s' = foldr (\ (fx, Forall xs' tp') -> Map.insert fx (SubTm (TmVarG DefVar fx (map TpVar xs') [] tp'))) s (zip fs stps) in
+                          return (zip3 fs (subst s as) stps))
+
 
 getDeps :: UsProgs -> Map Var (Set Var)
-getDeps (UsProgs ps end) = foldr h mempty ps where
+getDeps (UsProgs ps end) = clean (foldr h mempty ps) where
+  -- Removes ctors and externs from each set in the map
+  clean :: Map Var (Set Var) -> Map Var (Set Var)
+  clean m = let s = Set.fromList (Map.keys m) in fmap (Set.union s) m
+  
   h :: UsProg -> Map Var (Set Var) -> Map Var (Set Var)
   h (UsProgFun x mtp tm) deps = Map.insert x (Set.fromList (Map.keys (freeVars tm))) deps
-  h (UsProgExtern x tp) deps = Map.insert x mempty deps
-  h (UsProgData y cs) deps = foldr (\ (Ctor x tps) -> Map.insert x mempty) deps cs
+  h (UsProgExtern x tp) deps = deps -- Map.insert x mempty deps
+  h (UsProgData y cs) deps = deps -- foldr (\ (Ctor x tps) -> Map.insert x mempty) deps cs
+
+splitProgsH :: UsProg -> ([(Var, Type, UsTm)], [(Var, Type)], [(Var, [Ctor])])
+splitProgsH (UsProgFun x mtp tm) = ([(x, mtp, tm)], [], [])
+splitProgsH (UsProgExtern x tp) = ([], [(x, tp)], [])
+splitProgsH (UsProgData y cs) = ([], [], [(y, cs)])
+
+splitProgs :: UsProgs -> ([(Var, Type, UsTm)], [(Var, Type)], [(Var, [Ctor])], UsTm)
+splitProgs (UsProgs ps end) =
+  let (fs, es, ds) = foldr (\ p (fs, es, ds) ->
+                               let (fs', es', ds') = splitProgsH p in
+                                 (fs' ++ fs, es' ++ es, ds' ++ ds))
+                           ([], [], []) ps in
+    (fs, es, ds, end)
+
+mapMl :: Monad m => (a -> m b) -> [a] -> m [b]
+mapMl f = fmap reverse . mapM f . reverse
+
+inferFuns :: [(Var, Type, UsTm)] -> CheckM SProgs -> CheckM SProgs
+inferFuns fs m =
+  mapM (\ (x, mtp, tm) -> annTp mtp) fs >>= \ itps ->
+  let ftps = [(x, itp) | ((x, _, _), itp) <- zip fs itps]
+      defs = \ m -> foldl (\ m (x, itp) -> inEnv x itp m) m ftps in
+    defs
+    (solvesM ftps
+      (mapM (\ ((x, _, tm), tp) ->
+               localCurDef x $
+               infer tm >>: \ tm' tp' ->
+               constrain (Unify tp tp') >>
+               return (x, tm', tp')) (zip fs itps))) >>= \ xtmstps ->
+    foldr (\ (x, tm, stp) -> defTerm x DefVar stp) m xtmstps >>= \ (SProgs ps end) ->
+    let ps' = map (\ (x, tm, stp) -> SProgFun x stp tm) xtmstps in
+    return (SProgs (ps' ++ ps) end)
+
+inferData :: (Var, [Ctor]) -> CheckM SProgs -> CheckM SProgs
+inferData (y, cs) m =
+  -- We will check each of the ctor type args later,
+  -- after every datatype has been added to the environment
+  defData y cs m >>= \ (SProgs ps end) ->
+  return (SProgs (SProgData y cs : ps) end)
+
+inferExtern :: (Var, Type) -> CheckM SProgs -> CheckM SProgs
+inferExtern (x, tp) m =
+  localCurDef x (checkType tp) >>
+  defTerm x DefVar (Forall [] tp) m >>= \ (SProgs ps end) ->
+  return (SProgs (SProgExtern x [] tp : ps) end)
+
+inferProgs :: UsProgs -> CheckM SProgs
+inferProgs ps =
+  let m = getDeps ps
+      (fs, es, ds, end) = splitProgs ps
+      mfs = Map.fromList [(x, (tp, tm)) | (x, tp, tm) <- fs]
+      -- sccs is a list of strongly connected functions.
+      -- you can check it in order, by checking together
+      -- all the functions in each strongly connected set
+      sccs = tarjan m
+      sccs' = [[let (tp, tm) = mfs Map.! x in (x, tp, tm) | x <- scc] | scc <- sccs]
+  in
+    -- TODO: maybe sort progs back into original order?
+    
+    -- Add datatype defs to environment
+    foldl (flip inferData)
+      -- Check the type args in each datatype
+      (mapM (\ (y, cs) -> mapM (\ (Ctor x tps) -> mapM checkType tps) cs) ds >>
+      -- Then check externs
+       foldl (flip inferExtern)
+       -- Then check functions
+         (foldl (flip inferFuns)
+         -- Then check end term
+            (solveM (infer end >>: curry return) >>= \ (end', Forall tpms tp) ->
+             guardM (null tpms) (error "TODO: end term should not have type polymorphism") >>
+             return (SProgs [] end')) sccs') es) ds
 
 inferFile :: UsProgs -> Either String SProgs
-inferFile ps = Left "TODO: implement"
+inferFile ps =
+  either (\ (e, loc) -> Left (show e ++ ", " ++ show loc)) (\ (a, s, w) -> Right a)
+    (runExcept (runRWST (inferProgs (progBool ps))
+                        (CheckR (Env mempty mempty mempty) (Loc "" "")) mempty))
 
 {-
 declareProgs :: UsProgs -> CheckM a -> CheckM a
