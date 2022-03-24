@@ -399,7 +399,7 @@ solvesM itps ms =
                                               xs' = Map.keys (Map.intersection (Map.fromList (map (\ x -> (x, ())) xs)) (freeVars tp')) in
                                             Forall xs' tp') tps
                             s' = foldr (\ (fx, Forall xs' tp') -> Map.insert fx (SubTm (TmVarG DefVar fx (map TpVar xs') [] tp'))) s (zip fs stps) in
-                          return (zip3 fs (subst s as) stps))
+                          return (zip3 fs (subst s' as) stps))
 
 
 getDeps :: UsProgs -> Map Var (Set Var)
