@@ -34,6 +34,7 @@ collectCalls (TmEqs tms) = mconcat (fmap collectCalls tms)
 
 renameCalls :: Map Var (Map [Type] Int) -> Term -> Term
 renameCalls xis (TmVarL x tp) = TmVarL x tp
+renameCalls xis (TmVarG g x [] as tp) = TmVarG g x [] [(renameCalls xis tm, tp)| (tm, tp) <- as] tp
 renameCalls xis (TmVarG g x tis as tp) =
   let xisx = xis Map.! x
       xi = (xis Map.! x) Map.! tis in
@@ -89,6 +90,7 @@ processNext cur dm tpms xis x tis =
     foldr (\ (x, tis) xis -> foldr (\ ctis xis -> addInsts dm tpms xis x (subst (mksub ctis) tis)) xis curtis) xis (dm Map.! x)
 
 makeInstantiations :: Map Var (Map [Type] Int) -> SProg -> [Prog]
+makeInstantiations xis (SProgFun x (Forall [] tp) tm) = [ProgFun x [] (renameCalls xis tm) tp]
 makeInstantiations xis (SProgFun x (Forall ys tp) tm) =
   map (\ (tis, i) -> let s = Map.fromList (zip ys (SubTp <$> tis)) in
                        ProgFun (instName x i) [] (renameCalls xis (subst s tm)) (subst s tp))
