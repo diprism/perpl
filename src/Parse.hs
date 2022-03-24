@@ -94,8 +94,8 @@ parseVars = parsePeek >>= \ t -> case t of
 parseVarsCommas :: ParseM [Var]
 parseVarsCommas = parsePeeks 2 >>= \ ts -> case ts of
   [TkVar v, TkComma] -> parseEat *> parseEat *> pure ((:) v) <*> parseVarsCommas
-  [TkVar v] -> parseEat *> pure [v]
-  _ -> parseErr "Expecting a right parenthesis"
+  [TkVar v, _] -> parseEat *> pure [v]
+  _ -> parseErr "expecting a variable name here"
 
 -- Parse a branch of a case expression.
 parseCase :: ParseM CaseUs
