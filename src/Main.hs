@@ -87,8 +87,10 @@ processContents (CmdArgs ifn ofn c dr l o) s = return s
   >>= alphaRenameProgs ctxtDefUsProgs
   -- Type check the file (:: UsProgs -> Progs)
   >>= inferFile
+--  >>= return . show
+  >>= Right . instantiateFile
   >>= return . show
-{-  >>= Right . instantiateFile
+{-
   -- Apply various optimizations
   >>= doIf o optimizeFile
   -- Eliminate recursive types (de/refunctionalization)

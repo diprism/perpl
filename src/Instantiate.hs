@@ -6,6 +6,9 @@ import Name
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+myLookup :: (Show k, Show v, Ord k) => Map k v -> k -> v
+myLookup m k = maybe (error ("myLookup " ++ show k ++ " " ++ show m)) id (m Map.!? k)
+
 newtype SemiMap a b = SemiMap (Map a b)
 instance (Ord a, Semigroup b) => Semigroup (SemiMap a b) where
   SemiMap lm1 <> SemiMap lm2 = SemiMap (Map.unionWith (<>) lm1 lm2)
@@ -35,7 +38,7 @@ collectCalls (TmEqs tms) = mconcat (fmap collectCalls tms)
 renameCalls :: Map Var (Map [Type] Int) -> Term -> Term
 renameCalls xis (TmVarL x tp) = TmVarL x tp
 renameCalls xis (TmVarG g x tis as tp) =
-  let xi = (xis Map.! x) Map.! tis in
+  let xi = (xis `myLookup` x) `myLookup` tis in
     TmVarG g (instName x xi) [] [(renameCalls xis tm, tp)| (tm, tp) <- as] tp
 renameCalls xis (TmLam x xtp tm tp) = TmLam x xtp (renameCalls xis tm) tp
 renameCalls xis (TmApp tm1 tm2 tp2 tp) = TmApp (renameCalls xis tm1) (renameCalls xis tm2) tp2 tp
@@ -50,25 +53,28 @@ renameCalls xis (TmEqs tms) = TmEqs (renameCalls xis <$> tms)
 makeEmptyInsts :: [SProg] -> Insts
 makeEmptyInsts = mconcat . map h where
   h (SProgFun x (Forall ys tp) tm) = SemiMap (Map.singleton x mempty)
-  h (SProgExtern x tps rtp) = mempty
-  h (SProgData y cs) = mempty
+  h (SProgExtern x tps rtp) = SemiMap (Map.singleton x mempty)
+  h (SProgData y cs) = SemiMap (Map.fromList (map (\ (Ctor x tps) -> (x, mempty)) cs))
 
 makeDefMap :: [SProg] -> DefMap
 makeDefMap = semiMap . mconcat . map h where
+--  clean :: DefMap -> DefMap
+--  clean dm = fmap (\ gcs -> Map.toList (Map.intersection (Map.fromList gcs) dm)) dm
+  
   h (SProgFun x (Forall ys tp) tm) = SemiMap (Map.singleton x (collectCalls tm))
-  h (SProgExtern x tps rtp) = mempty
-  h (SProgData y cs) = mempty
+  h (SProgExtern x tps rtp) = SemiMap (Map.singleton x [])
+  h (SProgData y cs) = SemiMap (Map.fromList (map (\ (Ctor x tps) -> (x, [])) cs))
 
 makeTypeParams :: [SProg] -> TypeParams
 makeTypeParams = mconcat . map h where
   h (SProgFun x (Forall ys tp) tm) = Map.singleton x ys
-  h (SProgExtern x tps rtp) = mempty
-  h (SProgData y cs) = mempty
+  h (SProgExtern x tps rtp) = Map.singleton x []
+  h (SProgData y cs) = Map.fromList (map (\ (Ctor x tps) -> (x, [])) cs)
 
 -- If not visited, insert into Insts and recurse
 addInsts :: DefMap -> TypeParams -> Insts -> Var -> [Type] -> Insts
 addInsts dm tpms xis x tis =
-  if tis `Set.member` (semiMap xis Map.! x) then
+  if tis `Set.member` (semiMap xis `myLookup` x) then
     xis
   else
     processNext x dm tpms
@@ -77,8 +83,8 @@ addInsts dm tpms xis x tis =
 -- TODO: Make sure no infinite loops, i.e. foo x = foo (x, unit) (or would this get caught during type-checking?)
 processNext :: Var -> DefMap -> TypeParams -> Insts -> Var -> [Type] -> Insts
 processNext cur dm tpms xis x tis =
-  let curpms = tpms Map.! cur
-      curtis = semiMap xis Map.! cur
+  let curpms = tpms `myLookup` cur
+      curtis = semiMap xis `myLookup` cur
       tis' = Set.map (\ ctis -> subst (Map.fromList (zip curpms (SubTp <$> ctis))) tis) curtis
       tis'' = Set.toList tis' in
     foldr (\ tis xis -> addInsts dm tpms xis x tis) xis tis''
@@ -86,8 +92,8 @@ processNext cur dm tpms xis x tis =
 makeInstantiations :: Map Var (Map [Type] Int) -> SProg -> [Prog]
 makeInstantiations xis (SProgFun x (Forall ys tp) tm) =
   map (\ (tis, i) -> let s = Map.fromList (zip ys (SubTp <$> tis)) in
-                       ProgFun x [] (renameCalls xis (subst s tm)) (subst s tp))
-      (Map.toList (xis Map.! x))
+                       ProgFun (instName x i) [] (renameCalls xis (subst s tm)) (subst s tp))
+      (Map.toList (xis `myLookup` x))
 makeInstantiations xis (SProgExtern x tps rtp) = [ProgExtern x "" tps rtp] -- TODO: string ""?
 makeInstantiations xis (SProgData y cs) = [ProgData y cs]
 
