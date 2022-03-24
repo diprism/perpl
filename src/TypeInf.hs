@@ -224,8 +224,10 @@ infer' (UsApp tm1 tm2) =
   infer tm1 >>: \ tm1' tp1 ->
   infer tm2 >>: \ tm2' tp2 ->
   freshTp >>= \ itp ->
+  --freshTp >>= \ itp1l ->
+  --freshTp >>= \ itp1r ->
   constrain (Unify tp1 (TpArr tp2 itp)) >>
-  return (TmApp tm1' tm2' (typeof tm2') itp)
+  return (TmApp tm1' tm2' tp2 itp)
 
 infer' (UsCase tm cs) =
   lookupCtorType cs >>= \ (y, ctors) ->
@@ -246,7 +248,7 @@ infer' (UsIf tm1 tm2 tm3) =
   infer tm1 >>: \ tm1' tp1 ->
   infer tm2 >>: \ tm2' tp2 ->
   infer tm3 >>: \ tm3' tp3 ->
-  constrain (Unify tp1 (TpVar "Bool")) >>
+  constrain (Unify (TpVar "Bool") tp1) >>
   constrain (Unify tp2 tp3) >>
   return (TmCase tm1' "Bool" [Case "False" [] tm3', Case "True" [] tm2'] tp2)
 
@@ -281,6 +283,7 @@ infer' (UsElimProd am ptm xs tm) =
   guardM (am == Multiplicative || 1 == length (filter (/= "_") xs)) ExpOneNonUnderscoreVar >>
   mapM (\ x -> (,) x <$> freshTp) xs >>= \ ps ->
   mapM (\ (x, tp) -> constrainIf (not $ isAff x tm) (Robust tp)) ps >>
+  constrain (Unify ptp (TpProd am (snds ps))) >>
   inEnvs ps (infer tm) >>: \ tm' tp ->
   return (TmElimProd am ptm' ps tm' tp)
 
@@ -312,8 +315,10 @@ bindTp x tp
   | otherwise = Right (Map.singleton x (SubTp tp))
 
 unify :: Type -> Type -> Either TypeError Subst
-unify (TpVar y) tp = bindTp y tp
-unify tp (TpVar y) = bindTp y tp
+unify (TpVar y@('?' : _)) tp = bindTp y tp -- Only substitute type inst vars
+unify tp (TpVar y@('?' : _)) = bindTp y tp -- Same ^
+--unify (TpVar y) tp = bindTp y tp
+--unify tp (TpVar y) = bindTp y tp
 unify (TpArr l1 r1) (TpArr l2 r2) =
   unify l1 l2 >>= \ sl ->
   unify (subst sl r1) (subst sl r2) >>= \ sr ->
@@ -325,7 +330,9 @@ unify (TpProd am1 tps1) (TpProd am2 tps2)
       unifyAll' (zip tps1 tps2)
 unify NoTp tp = error "unify should not receive a NoTp"
 unify tp NoTp = error "unify should not receive a NoTp"
-unify tp1 tp2 = Left (UnificationError tp1 tp2)
+unify tp1 tp2
+  | tp1 == tp2 = Right Map.empty
+  | otherwise  = Left (UnificationError tp1 tp2)
 
 unifyAll' :: [(Type, Type)] -> Either TypeError Subst
 unifyAll' tps = mapLeft fst $ unifyAll [(tp1, tp2, Loc { curDef = "", curExpr = ""}) | (tp1, tp2) <- tps]
@@ -358,7 +365,7 @@ solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
 solveInternal :: SolveVars -> Subst -> Type -> (Subst, [Var])
 solveInternal vs s rtp =
   let unsolved = Map.difference vs s
-      fvs = freeVars rtp
+      fvs = freeVars (subst s rtp)
       internalUnsolved = Map.difference unsolved fvs
       s' = foldr (\ ix -> Map.insert ix (SubTp tpUnit)) Map.empty (Map.keys internalUnsolved)
       s'' = s' `compose` s
@@ -466,18 +473,17 @@ inferProgs ps =
     -- TODO: maybe sort progs back into original order?
     
     -- Add datatype defs to environment
-    foldl (flip inferData)
+    foldr inferData
       -- Check the type args in each datatype
       (mapM (\ (y, cs) -> mapM (\ (Ctor x tps) -> mapM checkType tps) cs) ds >>
       -- Then check externs
-       foldl (flip inferExtern)
+       foldr inferExtern
        -- Then check functions
-         (foldl (flip inferFuns)
+         (foldr inferFuns
          -- Then check end term
             (solveM (infer end >>: curry return) >>= \ (end', Forall tpms tp) ->
              -- guardM (null tpms) (error "TODO: end term should not have type polymorphism") >>
              return (SProgs [] end')) sccs') es) ds
-
 
 inferFile :: UsProgs -> Either String SProgs
 inferFile ps =
