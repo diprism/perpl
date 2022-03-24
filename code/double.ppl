@@ -1,0 +1,12 @@
+-- Requires tag polymorphism.
+
+data Nat = Zero | Succ Nat;
+
+define double : Nat -> Nat = \n : Nat.
+  case n of
+  | Zero => Zero
+  | Succ m => Succ (Succ m);
+
+double (double (Succ Zero))
+
+  
