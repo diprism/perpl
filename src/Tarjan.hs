@@ -45,7 +45,7 @@ modSccs f t = t { sccs = f (sccs t) }
 -- topologically-sorted array of strongly connected components
 tarjan :: (Eq a, Ord a) => Map.Map a (Set.Set a) -> [[a]]
 tarjan deps =
-  sccs $
+  reverse $ sccs $
   foldr (\ v t -> if Map.member v (indices t) then t else strongconnect v t)
     defaultTarjan (Map.keys deps)
   where
