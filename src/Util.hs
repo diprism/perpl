@@ -94,7 +94,7 @@ sortCases ctors cases = snds $ sortBy (\ (a, _) (b, _) -> compare a b) (label ca
     | x == x' = i
     | otherwise = getIdx (succ i) x cs
 
-  label = map $ \ (CaseUs x as tm) -> (getIdx 0 x ctors, CaseUs x as tm)
+  label = map $ \ c@(CaseUs x as tm) -> (getIdx 0 x ctors, c)
 
 
 -- Splits tp1 -> tp2 -> ... -> tpn into ([tp1, tp2, ...], tpn)
