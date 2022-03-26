@@ -19,6 +19,7 @@ data CmdArgs = CmdArgs {
   optInfile :: String,
   optOutfile :: String,
   optCompile :: Bool,
+  optMono :: Bool,
   optElimRecs :: Bool,
   optDerefun :: [(Var, DeRe)],
   optLin :: Bool,
@@ -29,6 +30,7 @@ optionsDefault = CmdArgs {
   optInfile = "/dev/stdin",
   optOutfile = "/dev/stdout",
   optCompile = True,
+  optMono = True,
   optElimRecs = True,
   optDerefun = [],
   optLin = True,
@@ -47,6 +49,7 @@ help =
         "  -o OUTFILE\tOutput to OUTFILE\n" ++
         "  -O0 -O1\tOptimization level (0 = off, 1 = on, for now)\n" ++
         "  -c\t\tCompile only to PPL code (not to FGG)\n" ++
+        "  -m\t\tDon't monomorphize\n" ++
         "  -e\t\t Don't eliminate recursive datatypes\n" ++
         "  -l\t\tDon't linearize the file (implies -c)\n" ++
         "  -d DTYPES\tDefunctionalize recursive datatypes DTYPES\n" ++
@@ -57,6 +60,7 @@ processArgs' o ("-o" : fn : as) = processArgs' (o {optOutfile = fn}) as
 processArgs' o ("-O0" : as) = processArgs' (o {optOptimize = False}) as
 processArgs' o ("-O1" : as) = processArgs' (o {optOptimize = True}) as
 processArgs' o ("-c" : as) = processArgs' (o {optCompile = False}) as
+processArgs' o ("-m" : as) = processArgs' (o {optMono = False}) as
 processArgs' o ("-e" : as) = processArgs' (o {optElimRecs = False}) as
 processArgs' o ("-l" : as) = processArgs' (o {optLin = False}) as
 processArgs' o ("-d" : a : as) =
@@ -83,7 +87,12 @@ alphaRenameProgs gf a = return (alphaRename (gf a) a)
 --ctxtDefProgs
 
 --process :: Show a => CmdArgs -> String -> a
-processContents (CmdArgs ifn ofn c e dr l o) s = return s
+processContents (CmdArgs ifn ofn c m e dr l o) s =
+  let e' = e && m
+      l' = l && e'
+      c' = c && l'
+  in
+  return s
   -- String to list of tokens
   >>= lexFile
   -- List of tokens to UsProgs
@@ -93,24 +102,24 @@ processContents (CmdArgs ifn ofn c e dr l o) s = return s
   -- Type check the file (:: UsProgs -> Progs)
   >>= inferFile
 --  >>= return . show
-  >>= Right . instantiateFile
+  >>= if not m then return . show else (\ x -> (Right . instantiateFile) x
   >>= Right . nicifyFile
 --  >>= alphaRenameProgs (const emptyCtxt)
 --  >>= return . show
   -- Apply various optimizations
   >>= doIf o optimizeFile
   -- Eliminate recursive types (de/refunctionalization)
-  >>= doIf e (elimRecTypes dr)
+  >>= doIf e' (elimRecTypes dr)
 --  >>= return . show
   -- Convert terms from affine to linear
-  >>= doIf l affLinFile
+  >>= doIf l' affLinFile
   -- Apply various optimizations (again) (disabled for now; joinApps problem after aff2lin introduces maybe types)
   >>= doIf o optimizeFile
   -- Pick a unique name for each bound var (again)
   >>= alphaRenameProgs ctxtDefProgs
   -- Compile to FGG
-  >>= if c then compileFile else showFile
-
+  >>= if c' then compileFile else showFile
+  )
 
 -- Parse a file, check and elaborate it, then compile to FGG and output it
 main :: IO ()
