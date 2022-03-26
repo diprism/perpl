@@ -225,7 +225,7 @@ affLin (TmEqs tms) =
 -- Make an affine Prog linear
 affLinProg :: Prog -> AffLinM Prog
 affLinProg (ProgData y cs) =
-  pure (ProgData y) <*> mapCtorsM affLinTp  cs
+  pure (ProgData y) <*> mapCtorsM affLinTp cs
 affLinProg (ProgFun x as tm tp) =
   mapParamsM affLinTp as >>= \ as' ->
   pure (ProgFun x as') <*> alBinds as' (affLin tm) <*> affLinTp tp
@@ -253,7 +253,7 @@ affLinProgs (Progs ps end) =
   local (const g) (pure Progs <*> mapM affLinProg ps <*> affLin end)
 
 runAffLin :: Progs -> Progs
-runAffLin ps = case runRWS (affLinProgs ps) (ctxtDefProgs ps) () of
+runAffLin ps = case runRWS (affLinProgs ps) emptyCtxt () of
   (Progs ps' end, mtps, _) -> Progs {-(ps' ++ [ProgData (tpMaybeName i) (maybeCtors i tp) | (i, tp) <- enumerate mtps])-} ps' end
 
 {-nonRobusts :: Progs -> Set Var
