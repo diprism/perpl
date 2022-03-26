@@ -18,6 +18,7 @@ data CmdArgs = CmdArgs {
   optInfile :: String,
   optOutfile :: String,
   optCompile :: Bool,
+  optElimRecs :: Bool,
   optDerefun :: [(Var, DeRe)],
   optLin :: Bool,
   optOptimize :: Bool
@@ -27,6 +28,7 @@ optionsDefault = CmdArgs {
   optInfile = "/dev/stdin",
   optOutfile = "/dev/stdout",
   optCompile = True,
+  optElimRecs = True,
   optDerefun = [],
   optLin = True,
   optOptimize = True
@@ -44,6 +46,7 @@ help =
         "  -o OUTFILE\tOutput to OUTFILE\n" ++
         "  -O0 -O1\tOptimization level (0 = off, 1 = on, for now)\n" ++
         "  -c\t\tCompile only to PPL code (not to FGG)\n" ++
+        "  -e\t\t Don't eliminate recursive datatypes\n" ++
         "  -l\t\tDon't linearize the file (implies -c)\n" ++
         "  -d DTYPES\tDefunctionalize recursive datatypes DTYPES\n" ++
         "  -r DTYPES\tRefunctionalize recursive datatypes DTYPES")
@@ -53,6 +56,7 @@ processArgs' o ("-o" : fn : as) = processArgs' (o {optOutfile = fn}) as
 processArgs' o ("-O0" : as) = processArgs' (o {optOptimize = False}) as
 processArgs' o ("-O1" : as) = processArgs' (o {optOptimize = True}) as
 processArgs' o ("-c" : as) = processArgs' (o {optCompile = False}) as
+processArgs' o ("-e" : as) = processArgs' (o {optElimRecs = False}) as
 processArgs' o ("-l" : as) = processArgs' (o {optLin = False}) as
 processArgs' o ("-d" : a : as) =
   processArgs' (o {optDerefun = map (flip (,) Defun) (words a) ++ optDerefun o}) as
@@ -78,7 +82,7 @@ alphaRenameProgs gf a = return (alphaRename (gf a) a)
 --ctxtDefProgs
 
 --process :: Show a => CmdArgs -> String -> a
-processContents (CmdArgs ifn ofn c dr l o) s = return s
+processContents (CmdArgs ifn ofn c e dr l o) s = return s
   -- String to list of tokens
   >>= lexFile
   -- List of tokens to UsProgs
@@ -94,7 +98,7 @@ processContents (CmdArgs ifn ofn c dr l o) s = return s
   -- Apply various optimizations
   >>= doIf o optimizeFile
   -- Eliminate recursive types (de/refunctionalization)
-  >>= elimRecTypes dr
+  >>= doIf e (elimRecTypes dr)
 --  >>= return . show
   -- Convert terms from affine to linear
   >>= doIf l affLinFile
