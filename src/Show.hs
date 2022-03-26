@@ -7,7 +7,7 @@ import Util
 toUsTm :: Term -> UsTm
 toUsTm (TmVarL x _) = UsVar x
 toUsTm (TmVarG gv x tis as tp) =
-  foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar {- x -} (foldr (\ tp x -> x ++ " [" ++ show tp ++ "]") x tis)) as
+  foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar {- x -} (foldr (\ tp x -> "{" ++ x ++ "}" ++ " [" ++ show tp ++ "]") x tis)) as
 toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x xtp (toUsTm xtm) (toUsTm tm)
@@ -25,7 +25,7 @@ toCaseUs (Case x as tm) = CaseUs x (fsts as) (toUsTm tm)
 
 toUsProg :: Prog -> UsProg
 toUsProg (ProgFun x ps tm tp) = UsProgFun x (joinArrows (snds ps) tp) (toUsTm (joinLams ps tm))
-toUsProg (ProgExtern x xp ps tp) = UsProgExtern x (joinArrows ps tp)
+toUsProg (ProgExtern x ps tp) = UsProgExtern x (joinArrows ps tp)
 toUsProg (ProgData y cs) = UsProgData y cs
 
 toUsProgs :: Progs -> UsProgs
@@ -77,7 +77,7 @@ showTypeParens (TpProd am _ ) ShowTypeArg = am == Multiplicative
 showTypeParens _ _ = False
 
 showTpAnn :: Type -> String
-showTpAnn NoTp = ""
+showTpAnn NoTp = "NoTp"
 showTpAnn tp = " : " ++ show tp
 
 amParens :: AddMult -> (String, String)

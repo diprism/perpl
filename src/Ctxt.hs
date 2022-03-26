@@ -2,13 +2,15 @@ module Ctxt where
 import qualified Data.Map as Map
 import Exprs
 import Util
+import Show()
 
 data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
-  deriving Eq
+  deriving (Eq, Show)
 
 data CtxtDef =
     DefTerm Scope Type
   | DefData [Ctor]
+  deriving Show
 
 type Ctxt = Map Var CtxtDef
 
@@ -58,7 +60,7 @@ ctxtBinds = flip Map.member
 -- Adds all definitions from a file to context
 ctxtDefProg :: Ctxt -> Prog -> Ctxt
 ctxtDefProg g (ProgFun x ps tm tp) = ctxtDefTerm g x (joinArrows (map snd ps) tp)
-ctxtDefProg g (ProgExtern x xp ps tp) = ctxtDefTerm g x (joinArrows ps tp)
+ctxtDefProg g (ProgExtern x ps tp) = ctxtDefTerm g x (joinArrows ps tp)
 ctxtDefProg g (ProgData y cs) = ctxtDeclType g y cs
 
 -- Populates a context with the definitions from a file

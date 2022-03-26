@@ -95,7 +95,7 @@ makeInstantiations xis (SProgFun x (Forall ys tp) tm) =
   map (\ (tis, i) -> let s = Map.fromList (zip ys (SubTp <$> tis)) in
                        ProgFun (instName x i) [] (renameCalls xis (subst s tm)) (subst s tp))
       (Map.toList (xis Map.! x))
-makeInstantiations xis (SProgExtern x tps rtp) = [ProgExtern x "" tps rtp] -- TODO: string ""?
+makeInstantiations xis (SProgExtern x tps rtp) = [ProgExtern x tps rtp] -- TODO: string ""?
 makeInstantiations xis (SProgData y cs) = [ProgData y cs]
 
 instantiateFile :: SProgs -> Progs
@@ -107,23 +107,28 @@ instantiateFile (SProgs sps stm) =
       xis'' = fmap (\ tiss -> Map.fromList (zip (Set.toList tiss) [0..])) (semiMap xis')
   in
 --    error ("dm: " ++ show dm ++ "\ntpms: " ++ show tpms ++ "\nxis'': " ++ show xis' ++ "\n")
-    nicifyProgs (Progs (concat (makeInstantiations xis'' <$> sps)) (renameCalls xis'' stm))
+    nicifyProgs
+    (Progs (concat (makeInstantiations xis'' <$> sps)) (renameCalls xis'' stm))
 
 nicify :: Term -> Term
 nicify (TmVarL x tp) = TmVarL x tp
-nicify (TmVarG g x _ _ tp) = TmVarG g x [] [] tp
+nicify (TmVarG g x [] [] tp) = TmVarG g x [] [] tp
+nicify (TmVarG g x tis as tp) = error (show (TmVarG g x tis as tp))
 nicify (TmLam x xtp tm tp) = TmLam x xtp (nicify tm) tp
 nicify tm@(TmApp _ _ _ _) =
   case splitApps tm of
-    (TmVarG g x _ _ tp , as) ->
-      let (tps, etp) = splitArrows tp
-          remtps = drop (length as) tps
+    (TmVarG g x [] [] tp , as) ->
+      let as' = [(nicify tm, tp) | (tm, tp) <- as]
+          (tps, etp) = splitArrows tp
+          remtps = drop (length as') tps
           tmfvs = Map.mapWithKey (const . SubVar) (freeVars tm)
           lxs = runSubst tmfvs (freshens ["x" | _ <- [0..length remtps]])
           ls = zip lxs remtps
-          as' = as ++ [(TmVarL x tp, tp) | (x, tp) <- ls]
+          as'' = as' ++ [(TmVarL x tp, tp) | (x, tp) <- ls]
       in
-        joinLams ls (TmVarG g x [] as' etp)
+        joinLams ls (TmVarG g x [] as'' etp)
+    (TmVarG g x tis as' tp, as) ->
+      error (show (TmVarG g x tis as' tp))
     (etm, as) ->
       joinApps etm [(nicify tm, tp) | (tm, tp) <- as]
 nicify (TmLet x xtm xtp tm tp) = TmLet x (nicify xtm) xtp (nicify tm) tp
@@ -137,14 +142,16 @@ nicify (TmEqs tms) = TmEqs (nicify <$> tms)
 nicifyProg :: Prog -> Prog
 nicifyProg (ProgFun x [] tm tp) =
   let tm' = nicify tm
-      (tps, etp) = splitArrows tp
+      (as, etp) = splitArrows tp
       (ls, etm) = splitLams tm'
-      tp' = joinArrows (drop (length ls) tps) etp
+      etas = [ (etaName x i, atp) | (i, atp) <- drop (length ls) (enumerate as) ]
+      etm_eta = joinApps etm (paramsToArgs etas)
+      ls_eta = ls ++ etas
   in
-    ProgFun x ls etm tp'
-nicifyProg (ProgExtern x xp [] tp) =
+    ProgFun x ls_eta etm_eta etp
+nicifyProg (ProgExtern x [] tp) =
   let (tps, etp) = splitArrows tp in
-    ProgExtern x xp tps etp
+    ProgExtern x tps etp
 nicifyProg (ProgData y cs) = ProgData y cs
 nicifyProg _ = error "This shouldn't happen"
 

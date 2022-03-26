@@ -212,6 +212,7 @@ term2fgg g (TmElimProd Additive ptm ps tm tp) =
   term2fgg g ptm +>= \ ptmxs ->
   let o = injIndex [x | (x, _) <- ps]
       (x, xtp) = ps !! o in
+--    error (show (o, ps))
     bindExt True x xtp $
     term2fgg (ctxtDeclTerm g x xtp) tm +>= \ tmxs ->
     let tps = [tp | (_, tp) <- ps]
@@ -219,11 +220,16 @@ term2fgg g (TmElimProd Additive ptm ps tm tp) =
         -- unused_ps = if  -- TODO: if unused?
         [vtp, vptp] = newNames [tp, ptp]
     in
+      if NoTp `elem` tps then error (show (TmElimProd Additive ptm ps tm tp)) else
       addAmpFactors g tps +>
       mkRule (TmElimProd Additive ptm ps tm tp)
-        (error "TODO: nodes")
-        (error "TODO: edges")
-        (error "TODO: externals")
+        (vtp : vptp : (x, xtp) : tmxs ++ ptmxs)
+        [Edge' (ptmxs ++ [vptp]) (show ptm),
+         Edge' (tmxs ++ [vtp]) (show tm),
+         Edge' [(x, xtp), vptp] (ampFactorName tps o)]
+        (ptmxs ++ delete (x, xtp) tmxs ++ [vtp])
+
+
 {-term2fgg g (TmElimProd Additive tm o tp) =
   term2fgg g tm +>= \ tmxs ->
   let tps = case typeof tm of { TpProd am tps -> tps; _ -> error "expected an &-product, when compiling" }
@@ -286,7 +292,7 @@ prog2fgg g (ProgFun x ps tm tp) =
     mkRule (TmVarG DefVar x [] [] tp) (vtp : tmxs ++ ps ++ unused_n ++ unused_ps)
       (Edge' (tmxs ++ [vtp]) (show tm) : discardEdges' unused_ps unused_n)
       (ps ++ [vtp])
-prog2fgg g (ProgExtern x xp ps tp) =
+prog2fgg g (ProgExtern x ps tp) =
   let tp' = (joinArrows ps tp) in
     type2fgg g tp' +>
     -- addNonterm x tp' +>
@@ -332,7 +338,7 @@ domainValues g = tpVals where
         concatMap (\ (i, vs) -> ["<" ++ delimitWith ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
     | otherwise =
       [prodValName' tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
-  tpVals NoTp = error "Enumerating values of a NoTp"
+  tpVals NoTp = error ("Enumerating values of a NoTp: " ++ show (Map.keys g))
 
 domainSize :: Ctxt -> Type -> Int
 domainSize g = length . domainValues g

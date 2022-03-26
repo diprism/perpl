@@ -116,8 +116,9 @@ typeIsRecursive g = h [] where
   h visited NoTp = False
 
 -- Returns if a type has an arrow, ampersand, or recursive datatype anywhere in it
-useOnlyOnce :: Ctxt -> Type -> Bool
-useOnlyOnce g = h [] where
+robust :: Ctxt -> Type -> Bool
+robust g = not . h [] where
+  h :: [Var] -> Type -> Bool
   h visited (TpVar y) = (y `elem` visited) || maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (ctxtLookupType g y)
   h visited (TpArr _ _) = True
   h visited (TpProd am tps) = am == Additive || any (h visited) tps

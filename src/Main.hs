@@ -89,12 +89,13 @@ processContents (CmdArgs ifn ofn c dr l o) s = return s
   >>= inferFile
 --  >>= return . show
   >>= Right . instantiateFile
-  >>= return . show
-{-
+--  >>= alphaRenameProgs (const emptyCtxt)
+--  >>= return . show
   -- Apply various optimizations
   >>= doIf o optimizeFile
   -- Eliminate recursive types (de/refunctionalization)
   >>= elimRecTypes dr
+--  >>= return . show
   -- Convert terms from affine to linear
   >>= doIf l affLinFile
   -- Apply various optimizations (again) (disabled for now; joinApps problem after aff2lin introduces maybe types)
@@ -103,7 +104,7 @@ processContents (CmdArgs ifn ofn c dr l o) s = return s
   >>= alphaRenameProgs ctxtDefProgs
   -- Compile to FGG
   >>= if c then compileFile else showFile
--}
+
 
 -- Parse a file, check and elaborate it, then compile to FGG and output it
 main :: IO ()

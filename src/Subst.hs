@@ -191,7 +191,7 @@ instance Substitutable a => Substitutable (Maybe a) where
 
 instance (Substitutable a, Substitutable b) => Substitutable (a, b) where
   substM (a, b) = pure (,) <*> substM a <*> substM b
-  freeVars (a, b) = Map.union (freeVars a) (freeVars b)
+  freeVars (a, b) = freeVars a -- Map.union (freeVars a) (freeVars b)
 
 instance Substitutable SubT where
   substM (SubTm tm) = pure SubTm <*> substM tm
@@ -295,10 +295,9 @@ instance Substitutable Prog where
   substM (ProgFun x ps tm tp) =
     bind x x okay >>
     pure (ProgFun x) <**> substParams ps (substM tm) <*> substM tp
-  substM (ProgExtern x xp ps tp) =
+  substM (ProgExtern x ps tp) =
     bind x x okay >>
-    bind xp xp okay >>
-    pure (ProgExtern x xp) <*> substM ps <*> substM tp
+    pure (ProgExtern x) <*> substM ps <*> substM tp
   substM (ProgData y cs) =
     bind y y okay >>
     pure (ProgData y) <*> substM cs

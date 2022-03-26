@@ -8,6 +8,7 @@ import Free
 import Subst
 import Ctxt
 import Name
+import Show()
 
 --------------------------------------------------
 
@@ -42,7 +43,7 @@ getRecTypes' :: Ctxt -> [Prog] -> [Var]
 getRecTypes' g (ProgData y cs : ds) =
   if isRecDatatype g y then y : getRecTypes' g ds else getRecTypes' g ds
 getRecTypes' g (ProgFun x ps tm tp : ds) = getRecTypes' g ds
-getRecTypes' g (ProgExtern x xp ps tp : ds) = getRecTypes' g ds
+getRecTypes' g (ProgExtern x ps tp : ds) = getRecTypes' g ds
 getRecTypes' g [] = []
 
 -- Returns the recursive datatypes in a file
@@ -112,8 +113,8 @@ makeUnfoldDatatype :: Var -> [(FreeVars, Type)] -> Prog
 makeUnfoldDatatype y us = ProgData (unfoldTypeName y) [Ctor (unfoldCtorName y) [TpProd Additive [joinArrows (Map.elems fvs) tp | (fvs, tp) <- us]]]
 
 -- Makes the _FoldY_ datatype, given results from collectFolds
-makeFoldDatatype :: Var -> [(Var, FreeVars)] -> Prog
-makeFoldDatatype y fs = ProgData (foldTypeName y) [Ctor (foldCtorName y i) (snds (Map.toList fvs)) | (i, (x, fvs)) <- enumerate fs]
+--makeFoldDatatype :: Var -> [(Var, FreeVars)] -> Prog
+--makeFoldDatatype y fs = ProgData (foldTypeName y) [Ctor (foldCtorName y i) (snds (Map.toList fvs)) | (i, (x, fvs)) <- enumerate fs]
 
 -- Makes the "unapply" function and Unfold datatype
 makeDisentangle :: Ctxt -> Var -> [(FreeVars, Type)] -> [[Case]] -> (Prog, Prog)
@@ -131,7 +132,7 @@ makeDisentangle g y us css =
                  (joinLams ps (TmCase (TmVarL x ytp) y cs' tp),
                    joinArrows (tpUnit : snds ps) tp)
              | (fvs, tp, cs, i) <- alls]
-      fun = ProgFun (unfoldName y) [] (TmLam x ytp (TmVarG CtorVar (unfoldCtorName y) [] [(TmProd Additive cscs, TpProd Additive (snds cscs))] utp) utp) (TpArr ytp utp)
+      fun = ProgFun (unfoldName y) [(x, ytp)] (TmVarG CtorVar (unfoldCtorName y) [] [(TmProd Additive cscs, TpProd Additive (snds cscs))] utp) (TpArr ytp utp)
   in
     (dat, fun)
 
@@ -148,8 +149,9 @@ makeDefold g y tms =
       ctors = [Ctor x (snds ps) | Case x ps tm <- cases]
       tm = TmCase (TmVarL x ftp) tname cases (TpVar y)
   in
+--    error (tname ++ " | " ++ show ctors ++ " | " ++ show cases)
     (ProgData tname ctors,
-     ProgFun fname [] (joinLams ps tm) (joinArrows (snds ps) (TpVar y)))
+     ProgFun fname ps tm (TpVar y))
 
 --------------------------------------------------
 
@@ -329,7 +331,7 @@ derefunTerm dr g rtp = fst . h where
 
 derefunProgTypes :: DeRe -> Var -> Prog -> Prog
 derefunProgTypes dr rtp (ProgFun x ps tm tp) = ProgFun x (map (fmap (derefunSubst dr rtp)) ps) tm (derefunSubst dr rtp tp)
-derefunProgTypes dr rtp (ProgExtern x xp ps tp) = ProgExtern x xp ps tp
+derefunProgTypes dr rtp (ProgExtern x ps tp) = ProgExtern x ps tp
 derefunProgTypes dr rtp (ProgData y cs) = ProgData y [Ctor x [derefunSubst dr rtp tp | tp <- tps] | Ctor x tps <- cs]
 
 derefunProgsTypes :: DeRe -> Var -> Progs -> Progs
@@ -338,7 +340,7 @@ derefunProgsTypes dr rtp (Progs ps end) =
 
 derefunProg' :: DeRe -> Ctxt -> Var -> Prog -> Prog
 derefunProg' dr g rtp (ProgFun x ps tm tp) = ProgFun x ps (derefunTerm dr g rtp tm) tp
-derefunProg' dr g rtp (ProgExtern x xp ps tp) = ProgExtern x xp ps tp
+derefunProg' dr g rtp (ProgExtern x ps tp) = ProgExtern x ps tp
 derefunProg' dr g rtp (ProgData y cs) = ProgData y cs
 
 derefun :: DeRe -> Var -> [Prog] -> Progs -> Either String Progs

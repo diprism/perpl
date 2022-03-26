@@ -11,7 +11,7 @@ data UsProg =
 
 data Prog =
     ProgFun Var [(Var, Type)] Term Type
-  | ProgExtern Var String [Type] Type
+  | ProgExtern Var [Type] Type
   | ProgData Var [Ctor]
   deriving (Eq, Ord)
 

@@ -72,10 +72,10 @@ discard' x NoTp = error "Trying to discard a NoTp"
 discard :: Var -> Type -> Term -> AffLinM Term
 discard x tp tm =
   ask >>= \ g ->
-  if useOnlyOnce g tp
-    then (discard' (TmVarL x tp) tp >>= \ dtm ->
+  if robust g tp
+    then return tm
+    else (discard' (TmVarL x tp) tp >>= \ dtm ->
           return (TmLet "_" dtm tpUnit tm (getType tm)))
-    else return tm
 
 -- Discard a set of variables
 discards :: FreeVars -> Term -> AffLinM Term
@@ -224,42 +224,24 @@ affLin (TmEqs tms) =
 
 -- Make an affine Prog linear
 affLinProg :: Prog -> AffLinM Prog
-affLinProg (ProgFun x _ tm tp) =
-  let (as, endtp) = splitArrows tp
-      (ls, endtm) = splitLams tm
-      etas = [ (etaName x i, atp) | (i, atp) <- drop (length ls) (enumerate as) ]
-      endtm_eta = joinApps endtm (paramsToArgs etas)
-      ls_eta = ls ++ etas
-  in
-    mapM affLinTp as >>= \ as' ->
-    mapParamsM affLinTp ls_eta >>= \ ls_eta' ->
-    alBinds ls_eta' (affLin endtm_eta) >>= \ endtm' ->
-    return (ProgFun x ls_eta' endtm' (getType endtm'))
-affLinProg (ProgExtern x xp _ tp) =
-  let (as, end) = splitArrows tp in
-    mapM affLinTp as >>= \ as' ->
-    return (ProgExtern x xp as' end)
 affLinProg (ProgData y cs) =
-  pure (ProgData y) <*> mapCtorsM affLinTp cs
+  pure (ProgData y) <*> mapCtorsM affLinTp  cs
+affLinProg (ProgFun x as tm tp) =
+  mapParamsM affLinTp as >>= \ as' ->
+  pure (ProgFun x as') <*> alBinds as' (affLin tm) <*> affLinTp tp
+affLinProg (ProgExtern x ps tp) =
+  pure (ProgExtern x) <*> mapM affLinTp ps <*> affLinTp tp
 
--- Helper
+-- Helper that does affLinTp on all the types so that we can add all the definitions to ctxt
 affLinDefine :: Prog -> AffLinM Prog
 affLinDefine (ProgData y cs) =
-  pure (ProgData y) <*> mapCtorsM affLinTp  cs
-affLinDefine (ProgFun x [] tm tp) =
-  let (as, endtp) = splitArrows tp in
-    mapM affLinTp as >>= \ as' ->
-    return (ProgFun x [] tm (joinArrows as' endtp))
-affLinDefine (ProgFun _ (_ : _) _ _) =
-  error "Function shouldn't have params before affine-to-linear transformation"
-affLinDefine (ProgExtern _ _ (_ : _) _) =
-  error "Extern shouldn't have params before affine-to-linear transformation"
-affLinDefine (ProgExtern x xp [] tp) =
-  let (as, endtp) = splitArrows tp in
-    mapM affLinTp as >>= \ as' ->
-    return (ProgExtern x xp [] (joinArrows as' tp))
+  pure (ProgData y) <*> mapCtorsM affLinTp cs
+affLinDefine (ProgFun x as tm tp) =
+  pure (ProgFun x) <*> mapParamsM affLinTp as <*> pure tm <*> affLinTp tp
+affLinDefine (ProgExtern x ps tp) =
+  pure (ProgExtern x) <*> mapM affLinTp ps <*> affLinTp tp
 
--- Adds all the definitions in a file to context, after replacing arrows with Maybes
+-- Adds all the definitions in a file to context, after replacing arrows with <type, Unit>
 affLinDefines :: Progs -> AffLinM Ctxt
 affLinDefines (Progs ps end) =
   mapM affLinDefine ps >>= \ ps' ->
@@ -273,6 +255,13 @@ affLinProgs (Progs ps end) =
 runAffLin :: Progs -> Progs
 runAffLin ps = case runRWS (affLinProgs ps) (ctxtDefProgs ps) () of
   (Progs ps' end, mtps, _) -> Progs {-(ps' ++ [ProgData (tpMaybeName i) (maybeCtors i tp) | (i, tp) <- enumerate mtps])-} ps' end
+
+{-nonRobusts :: Progs -> Set Var
+nonRobusts ps@(Progs ps' _) = foldr (\ p nrs -> h p <> nrs) mempty ps' where
+  g = ctxtDefProgs ps
+  h (ProgData y cs) = if robust g (TpVar y) then mempty else Set.singleton y
+  h _ = mempty
+-}
 
 -- Make an affine file linear
 affLinFile :: Progs -> Either String Progs
