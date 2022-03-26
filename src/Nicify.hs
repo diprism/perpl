@@ -14,7 +14,11 @@ import Subst
 
 nicify :: Term -> Term
 nicify (TmVarL x tp) = TmVarL x tp
-nicify (TmVarG g x [] [] tp) = TmVarG g x [] [] tp
+nicify (TmVarG g x [] [] tp) =
+  let (tps, etp) = splitArrows tp
+      lxs = runSubst (Map.singleton x (SubVar x)) (freshens ["x" ++ show i | i <- [0..length tps - 1]])
+      ls = zip lxs tps in
+  joinLams ls (TmVarG g x [] (paramsToArgs ls) etp)
 nicify (TmVarG g x tis as tp) = error (show (TmVarG g x tis as tp))
 nicify (TmLam x xtp tm tp) = TmLam x xtp (nicify tm) tp
 nicify tm@(TmApp _ _ _ _) =
@@ -24,7 +28,7 @@ nicify tm@(TmApp _ _ _ _) =
           (tps, etp) = splitArrows tp
           remtps = drop (length as') tps
           tmfvs = Map.mapWithKey (const . SubVar) (freeVars tm)
-          lxs = runSubst tmfvs (freshens ["x" ++ show i | i <- [0..length remtps]])
+          lxs = runSubst tmfvs (freshens ["x" ++ show i | i <- [0..length remtps - 1]])
           ls = zip lxs remtps
           as'' = as' ++ [(TmVarL x tp, tp) | (x, tp) <- ls]
       in
