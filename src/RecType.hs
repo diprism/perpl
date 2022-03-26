@@ -4,7 +4,7 @@ import qualified Control.Monad.State.Lazy as State
 import Data.List
 import Exprs
 import Util
-import Free
+--import Free
 import Subst
 import Ctxt
 import Name
@@ -132,7 +132,7 @@ makeDisentangle g y us css =
                  (joinLams ps (TmCase (TmVarL x ytp) y cs' tp),
                    joinArrows (tpUnit : snds ps) tp)
              | (fvs, tp, cs, i) <- alls]
-      fun = ProgFun (unfoldName y) [(x, ytp)] (TmVarG CtorVar (unfoldCtorName y) [] [(TmProd Additive cscs, TpProd Additive (snds cscs))] utp) (TpArr ytp utp)
+      fun = ProgFun (unfoldName y) [(x, ytp)] (TmVarG CtorVar (unfoldCtorName y) [] [(TmProd Additive cscs, TpProd Additive (snds cscs))] utp) utp -- (TpArr ytp utp)
   in
     (dat, fun)
 
@@ -348,10 +348,11 @@ derefun dr rtp new_ps (Progs ps end) =
   let g = ctxtDefProgs (Progs (ps ++ new_ps) end)
       rps = (map (derefunProg' dr g rtp) ps)
       rtm = (derefunTerm dr g rtp end)
-      dr' = if dr == Defun then "defunctionalize" else "refunctionalize"
-      emsg = "Failed to " ++ dr' ++ " " ++ rtp
+      --dr' = if dr == Defun then "defunctionalize" else "refunctionalize"
+      --emsg = "Failed to " ++ dr' ++ " " ++ rtp
   in
-    maybe (return (Progs rps rtm)) (\ datahist -> Left (emsg ++ ":\n" ++ delimitWith "\n" [show (UsProgData y cs) | (y, cs) <- datahist])) (typeIsRecursive' (ctxtDefProgs (Progs (rps ++ new_ps) rtm)) (TpVar rtp)) -- then Left emsg else return (Progs rps rtm)
+    return (Progs rps rtm)
+--    maybe (return (Progs rps rtm)) (\ datahist -> Left (emsg ++ ":\n" ++ delimitWith "\n" [show (UsProgData y cs) | (y, cs) <- datahist])) (typeIsRecursive' (ctxtDefProgs (Progs (rps ++ new_ps) rtm)) (TpVar rtp)) -- then Left emsg else return (Progs rps rtm)
 
 derefunThis :: DeRe -> Var -> Progs -> (Progs, Prog, Prog)
 derefunThis Defun rtp ps =
