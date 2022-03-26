@@ -226,7 +226,7 @@ term2fgg g (TmElimProd Additive ptm ps tm tp) =
         (vtp : vptp : (x, xtp) : tmxs ++ ptmxs)
         [Edge' (ptmxs ++ [vptp]) (show ptm),
          Edge' (tmxs ++ [vtp]) (show tm),
-         Edge' [(x, xtp), vptp] (ampFactorName tps o)]
+         Edge' [vptp, (x, xtp)] (ampFactorName tps o)]
         (ptmxs ++ delete (x, xtp) tmxs ++ [vtp])
 
 
