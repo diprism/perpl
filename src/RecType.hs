@@ -80,7 +80,7 @@ collectUnfolds rtp (TmEqs tms) = concatMap (collectUnfolds rtp) tms
 collectFolds :: Var -> Term -> [(Var, FreeVars)]
 collectFolds rtp (TmVarL x tp) = []
 collectFolds rtp (TmVarG gv x _ as tp) =
-  let this = if TpVar rtp == tp && gv == CtorVar then [(x, freeVars as)] else [] in
+  let this = if TpVar rtp == tp && gv == CtorVar then [(x, freeVars (fsts as))] else [] in
     concatMap (\ (atm, atp) -> collectFolds rtp atm) as ++ this
 collectFolds rtp (TmLam x tp tm tp') = collectFolds rtp tm
 collectFolds rtp (TmApp tm1 tm2 tp2 tp) = collectFolds rtp tm1 ++ collectFolds rtp tm2
@@ -219,7 +219,7 @@ defoldTerm rtp = h where
     | isCtorVar gv && tp == TpVar rtp =
         mapArgsM h as >>= \ as' ->
         State.get >>= \ fs ->
-        let fvs = Map.toList (freeVars as')
+        let fvs = Map.toList (freeVars (fsts as'))
             cname = foldCtorName rtp (length fs)
             tname = foldTypeName rtp
             aname = applyName rtp
@@ -351,7 +351,7 @@ derefun dr rtp new_ps (Progs ps end) =
       dr' = if dr == Defun then "defunctionalize" else "refunctionalize"
       emsg = "Failed to " ++ dr' ++ " " ++ rtp
   in
-    if typeIsRecursive (ctxtDefProgs (Progs (rps ++ new_ps) rtm)) (TpVar rtp) then Left emsg else return (Progs rps rtm)
+    maybe (return (Progs rps rtm)) (\ datahist -> Left (emsg ++ ":\n" ++ delimitWith "\n" [show (UsProgData y cs) | (y, cs) <- datahist])) (typeIsRecursive' (ctxtDefProgs (Progs (rps ++ new_ps) rtm)) (TpVar rtp)) -- then Left emsg else return (Progs rps rtm)
 
 derefunThis :: DeRe -> Var -> Progs -> (Progs, Prog, Prog)
 derefunThis Defun rtp ps =

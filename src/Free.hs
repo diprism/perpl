@@ -103,6 +103,17 @@ isLin' x = (LinYes ==) . h where
     if x `elem` fsts ps then h tm else h_as LinErr [tm, tm']
   h (TmEqs tms) = h_as LinErr tms
 
+typeIsRecursive' :: Ctxt -> Type -> Maybe [(Var, [Ctor])]
+typeIsRecursive' g = h [] [] where
+  anyM f = foldr ((|?|) . f) Nothing
+  h visited datahist (TpVar y) =
+    (if y `elem` visited then Just datahist else Nothing)
+      |?| (ctxtLookupType g y >>= \ cs ->
+              anyM (\ (Ctor _ tps) -> anyM (h (y : visited) ((y, cs) : datahist)) tps) cs)
+  h visited datahist (TpArr tp1 tp2) = h visited datahist tp1 |?| h visited datahist tp2
+  h visited datahist (TpProd am tps) = anyM (h visited datahist) tps
+  h visited datahist NoTp = Nothing
+
 -- Returns if a type has an infinite domain (i.e. it contains (mutually) recursive datatypes anywhere in it)
 typeIsRecursive :: Ctxt -> Type -> Bool
 typeIsRecursive g = h [] where

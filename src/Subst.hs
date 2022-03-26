@@ -63,10 +63,8 @@ runSubst s r = let (a', r', ()) = runRWS r () s in a'
 freshen :: Var -> SubstM Var
 freshen "_" = return "_" -- TODO: Deal with conflicting FGG rules for "_"
 freshen x =
-  get >>= \ s ->
-  let x' = newVar x s in
-  -- add x->x and x'->x' to state
-  put (Map.insert x (SubVar x) (Map.insert x' (SubVar x') s)) >>
+  fmap (newVar x) get >>= \ x' ->
+  modify (Map.insert x' (SubVar x')) >>
   return x'
 
 freshens :: [Var] -> SubstM [Var]
@@ -142,7 +140,7 @@ instance Substitutable Term where
     let tmx x' = pure (TmVarL x') <*> substM tp in
       substVar x tmx pure (const (tmx x)) (tmx x) >>= id
   substM (TmVarG g x tis as tp) =
-    pure (TmVarG g x) <*> substM tis <*> substM as <*> substM tp
+    pure (TmVarG g x) <*> substM tis <*> mapArgsM substM as <*> substM tp
   substM (TmLam x xtp tm tp) =
     freshen x >>= \ x' ->
     pure (TmLam x') <*> substM xtp <*> bind x x' (substM tm) <*> substM tp
@@ -158,7 +156,7 @@ instance Substitutable Term where
   substM (TmAmb tms tp) =
     pure TmAmb <*> substM tms <*> pure tp
   substM (TmProd am as) =
-    pure (TmProd am) <*> substM as
+    pure (TmProd am) <*> mapArgsM substM as
 --  substM (TmElimAmp tm i tp) =
 --    pure TmElimAmp <*> substM tm <*> pure i <*> substM tp
   substM (TmElimProd am ptm ps tm tp) =
@@ -174,7 +172,7 @@ instance Substitutable Term where
   freeVars (TmCase tm y cs tp) = Map.union (freeVars tm) (freeVars cs)
   freeVars (TmSamp d tp) = Map.empty
   freeVars (TmAmb tms tp) = freeVars tms
-  freeVars (TmProd am as) = freeVars as
+  freeVars (TmProd am as) = freeVars (fsts as)
 --  freeVars (TmElimAmp tm i tp) = freeVars tm
   freeVars (TmElimProd am ptm ps tm tp) = Map.union (freeVars ptm) (foldr (Map.delete . fst) (freeVars tm) ps)
   freeVars (TmEqs tms) = freeVars tms
@@ -192,9 +190,9 @@ instance Substitutable a => Substitutable (Maybe a) where
   substM = substF
   freeVars = freeVarsF
 
-instance (Substitutable a, Substitutable b) => Substitutable (a, b) where
-  substM (a, b) = pure (,) <*> substM a <*> substM b
-  freeVars (a, b) = error "freeVars called on a product" -- freeVars a -- Map.union (freeVars a) (freeVars b)
+--instance (Substitutable a, Substitutable b) => Substitutable (a, b) where
+--  substM (a, b) = pure (,) <*> substM a <*> substM b
+--  freeVars (a, b) = error "freeVars called on a product" -- freeVars a -- Map.union (freeVars a) (freeVars b)
 
 instance Substitutable SubT where
   substM (SubTm tm) = pure SubTm <*> substM tm
