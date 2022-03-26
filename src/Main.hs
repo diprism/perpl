@@ -13,6 +13,7 @@ import AffLin
 import Optimize
 import Subst
 import Ctxt
+import Nicify
 
 data CmdArgs = CmdArgs {
   optInfile :: String,
@@ -93,6 +94,7 @@ processContents (CmdArgs ifn ofn c e dr l o) s = return s
   >>= inferFile
 --  >>= return . show
   >>= Right . instantiateFile
+  >>= Right . nicifyFile
 --  >>= alphaRenameProgs (const emptyCtxt)
 --  >>= return . show
   -- Apply various optimizations

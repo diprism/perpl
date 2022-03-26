@@ -36,7 +36,7 @@ ctorFactorNameDefault :: Var -> [Type] -> Type -> String
 ctorFactorNameDefault x as = ctorFactorName x [(TmVarL (etaName x i) a, a) | (i, a) <- (enumerate as)]
 
 -- Establishes naming convention for eta-expanding a constructor/global def.
-etaName x i = "?" ++ x ++ show i
+etaName x i = "_" ++ x ++ show i
 
 -- Returns the names of the args for a constructor
 nameParams :: Var -> [Type] -> [Param]
@@ -60,9 +60,9 @@ unfoldCtorArgNames y n = [unfoldCtorArgName y i | i <- [0..n-1]]
 affLinName x = '_' : x
 tpUnitName = "_Unit_"
 tmUnitName = "_unit_"
-tmNothingName i = "_nothing" ++ show i ++ "_"
-tmJustName i = "_just" ++ show i ++ "_"
-tpMaybeName i = "_Maybe" ++ show i ++ "_"
+--tmNothingName i = "_nothing" ++ show i ++ "_"
+--tmJustName i = "_just" ++ show i ++ "_"
+--tpMaybeName i = "_Maybe" ++ show i ++ "_"
 
 -- Constructors and case-ofs for affLin-generated datatypes
 --tmNothing :: Int -> Term
@@ -86,10 +86,17 @@ tmElimUnit :: Term -> Term -> Type -> Term
 tmElimUnit utm tm tp = TmCase utm tpUnitName [Case tmUnitName [] tm] tp
 
 unitCtors = [Ctor tmUnitName []]
-maybeCtors i tp = [Ctor (tmNothingName i) [], Ctor (tmJustName i) [tp]]
+--maybeCtors i tp = [Ctor (tmNothingName i) [], Ctor (tmJustName i) [tp]]
 
-progBool :: UsProgs -> UsProgs
-progBool (UsProgs ps end) = UsProgs (UsProgData "Bool" [Ctor "False" [], Ctor "True" []] : ps) end
+builtins :: [UsProg]
+builtins = [
+  UsProgData "Bool" [Ctor "False" [], Ctor "True" []],
+  UsProgData tpUnitName unitCtors
+  ]
+
+progBuiltins :: UsProgs -> UsProgs
+progBuiltins (UsProgs ps end) =
+  UsProgs (builtins ++ ps) end
 
 instName :: Var -> Int -> Var
 instName x i = x ++ "_inst" ++ show i

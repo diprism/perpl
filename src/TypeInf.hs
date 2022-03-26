@@ -488,7 +488,7 @@ inferProgs ps =
 inferFile :: UsProgs -> Either String SProgs
 inferFile ps =
   either (\ (e, loc) -> Left (show e ++ ", " ++ show loc)) (\ (a, s, w) -> Right a)
-    (runExcept (runRWST (inferProgs (progBool ps))
+    (runExcept (runRWST (inferProgs (progBuiltins ps))
                         (CheckR (Env mempty mempty mempty) (Loc "" "")) mempty))
 
 {-

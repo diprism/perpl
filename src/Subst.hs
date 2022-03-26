@@ -73,13 +73,16 @@ freshens :: [Var] -> SubstM [Var]
 freshens [] = return []
 freshens (x : xs) = freshen x >>= \ x' -> pure ((:) x') <*> bind x x' (freshens xs)
 
+
 bind :: Var -> Var -> SubstM a -> SubstM a
 bind x x' m =
-  get >>= \ s ->
-  put (Map.insert x (SubVar x') (Map.insert x' (SubVar x') s)) >>
+  substVT x >>= \ oldx ->
+  substVT x' >>= \ oldx' ->
+  modify (Map.insert x (SubVar x')) >>
+  modify (Map.insert x' (SubVar x')) >>
   m >>= \ a ->
-  get >>= \ s' ->
-  put (Map.insert x (SubVar x) (Map.insert x' (SubVar x') s')) >>
+  modify (Map.insert x oldx) >>
+  modify (Map.insert x' oldx') >>
   return a
 
 binds :: [Var] -> [Var] -> SubstM a -> SubstM a
@@ -164,7 +167,7 @@ instance Substitutable Term where
     pure TmEqs <*> substM tms
   
   freeVars (TmVarL x tp) = Map.singleton x tp
-  freeVars (TmVarG g x tis as tp) = freeVars as
+  freeVars (TmVarG g x tis as tp) = freeVars (fsts as)
   freeVars (TmLam x xtp tm tp) = Map.delete x (freeVars tm)
   freeVars (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars tm1) (freeVars tm2)
   freeVars (TmLet x xtm xtp tm tp) = Map.union (freeVars xtm) (Map.delete x (freeVars tm))
@@ -191,7 +194,7 @@ instance Substitutable a => Substitutable (Maybe a) where
 
 instance (Substitutable a, Substitutable b) => Substitutable (a, b) where
   substM (a, b) = pure (,) <*> substM a <*> substM b
-  freeVars (a, b) = freeVars a -- Map.union (freeVars a) (freeVars b)
+  freeVars (a, b) = error "freeVars called on a product" -- freeVars a -- Map.union (freeVars a) (freeVars b)
 
 instance Substitutable SubT where
   substM (SubTm tm) = pure SubTm <*> substM tm
