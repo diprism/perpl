@@ -147,10 +147,14 @@ lookupTerm x =
 lookupCtorType :: [CaseUs] -> CheckM (Var, [Ctor])
 lookupCtorType [] = err NoCases
 lookupCtorType (CaseUs x _ _ : _) =
-  lookupTerm x >>= \ etp ->
-  case etp of
-    Right (CtorVar, Forall [] (TpVar y)) -> (,) y <$> lookupType y
-    _ -> err (CtorError x) -- TODO: not a ctor?
+  lookupTerm x >>= \ tp ->
+  case tp of
+    Right (CtorVar, Forall [] ctp) -> case splitArrows ctp of
+      (_, TpVar y) -> (,) y <$> lookupType y
+      (_, etp) -> error "This shouldn't happen"
+    Right (CtorVar, Forall (_ : _) ctp) -> error "Polymorphic datatypes not implemented yet"
+    Right (DefVar, _) -> err (CtorError x)
+    Left loctp -> err (CtorError x)
 
 boundVars :: CheckM (Map Var ())
 boundVars =
@@ -434,10 +438,8 @@ mapMl f = fmap reverse . mapM f . reverse
 inferFuns :: [(Var, Type, UsTm)] -> CheckM SProgs -> CheckM SProgs
 inferFuns fs m =
   mapM (\ (x, mtp, tm) -> annTp mtp) fs >>= \ itps ->
-  let ftps = [(x, itp) | ((x, _, _), itp) <- zip fs itps]
-      defs = \ m -> foldl (\ m (x, itp) -> inEnv x itp m) m ftps in
---    error (show ftps)
-    defs
+  let ftps = [(x, itp) | ((x, _, _), itp) <- zip fs itps] in
+    inEnvs ftps
     (solvesM ftps
       (mapM (\ ((x, _, tm), tp) ->
                localCurDef x $
