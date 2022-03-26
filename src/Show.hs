@@ -29,7 +29,7 @@ toUsProg (ProgExtern x ps tp) = UsProgExtern x (joinArrows ps tp)
 toUsProg (ProgData y cs) = UsProgData y cs
 
 toUsProgs :: Progs -> UsProgs
-toUsProgs (Progs (ProgData "Bool" [fctor, tctor] : ps) tm) = UsProgs (map toUsProg ps) (toUsTm tm)
+toUsProgs (Progs (ProgData "_Unit_" [unit] : ProgData "Bool" [fctor, tctor] : ps) tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 toUsProgs (Progs ps tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 
 
@@ -73,11 +73,11 @@ showTermParens _                 _        = False
 showTypeParens :: Type -> ShowHist -> Bool
 showTypeParens (TpArr _ _) ShowArrL = True
 showTypeParens (TpArr _ _) ShowTypeArg = True
-showTypeParens (TpProd am _ ) ShowTypeArg = am == Multiplicative
+showTypeParens (TpProd am _ ) ShowTypeArg = True
 showTypeParens _ _ = False
 
 showTpAnn :: Type -> String
-showTpAnn NoTp = "NoTp"
+showTpAnn NoTp = ""
 showTpAnn tp = " : " ++ show tp
 
 amParens :: AddMult -> (String, String)
