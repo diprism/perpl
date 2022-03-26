@@ -24,6 +24,7 @@ data TypeError =
   | ConflictingTypes Type Type
   | AffineError Var Term -- used more than affinely
   | ScopeError Var
+  | CtorError Var
   | RobustType Type
 --  | NoInference
   | NoCases
@@ -38,6 +39,7 @@ instance Show TypeError where
   show (ConflictingTypes tp1 tp2) = "Conflicting types: " ++ show tp1 ++ " and " ++ show tp2
   show (AffineError x tm) = "'" ++ x ++ "' is not affine in " ++ show tm
   show (ScopeError x) = "'" ++ x ++ "' is not in scope"
+  show (CtorError x) = "'" ++ x ++ "' is not a constructor"
   show (UnificationError tp1 tp2) = "Failed to unify " ++ show tp1 ++ " and " ++ show tp2
   show (RobustType tp) = "Expected " ++ show tp ++ " to be a robust type (or if binding a var, it is used non-affinely)"
 --  show NoInference = "Could not infer a type"
@@ -148,7 +150,7 @@ lookupCtorType (CaseUs x _ _ : _) =
   lookupTerm x >>= \ etp ->
   case etp of
     Right (CtorVar, Forall [] (TpVar y)) -> (,) y <$> lookupType y
-    _ -> err (ScopeError x) -- TODO: not a ctor?
+    _ -> err (CtorError x) -- TODO: not a ctor?
 
 boundVars :: CheckM (Map Var ())
 boundVars =
