@@ -90,11 +90,14 @@ processNext cur dm tpms xis x tis =
     foldr (\ (x, tis) xis -> foldr (\ ctis xis -> addInsts dm tpms xis x (subst (mksub ctis) tis)) xis curtis) xis (dm Map.! x)
 
 makeInstantiations :: Map Var (Map [Type] Int) -> SProg -> [Prog]
-makeInstantiations xis (SProgFun x (Forall [] tp) tm) = [ProgFun x [] (renameCalls xis tm) tp]
+makeInstantiations xis (SProgFun x (Forall [] tp) tm) =
+  if null (Map.toList (xis Map.! x)) then [] else [ProgFun x [] (renameCalls xis tm) tp]
 makeInstantiations xis (SProgFun x (Forall ys tp) tm) =
-  map (\ (tis, i) -> let s = Map.fromList (zip ys (SubTp <$> tis)) in
-                       ProgFun (instName x i) [] (renameCalls xis (subst s tm)) (subst s tp))
-      (Map.toList (xis Map.! x))
+  let tiss = Map.toList (xis Map.! x) in
+    map (\ (tis, i) -> let s = Map.fromList (zip ys (SubTp <$> tis)) in
+--                         error (show tis ++ ", " ++ show i ++ ", " ++ show (Map.keys s))
+                         ProgFun (instName x i) [] (renameCalls xis (subst s tm)) (subst s tp))
+      tiss
 makeInstantiations xis (SProgExtern x tps rtp) = [ProgExtern x tps rtp] -- TODO: string ""?
 makeInstantiations xis (SProgData y cs) = [ProgData y cs]
 

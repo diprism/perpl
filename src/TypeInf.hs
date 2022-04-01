@@ -382,26 +382,31 @@ solve g vs rtp cs =
   return (s', xs)
 
 --solveM :: Substitutable a => CheckM (a, Type) -> CheckM (a, Scheme)
-solveM :: CheckM (Term, Type) -> CheckM (Term, Scheme)
+solveM :: CheckM (Term, Type) -> CheckM (Term, Type)
 solveM m =
   get >>= \ vs ->
   listen m >>= \ ((a, tp), cs) ->
-  pure solve <*> askEnv <*> (fmap (\ vs' -> Map.difference vs' vs) get) <*> pure tp <*> pure cs >>=
-  either throwError (\ (s, xs) -> return (subst s a, Forall xs (subst s tp)))
+  pure solve <*> askEnv <*> (fmap (\ vs' -> Map.difference vs' vs) get)
+    <*> pure {-tp-} NoTp <*> pure cs >>=
+--  either throwError (\ (s, xs) -> return (subst s a, Forall xs (subst s tp)))
+  either throwError (\ (s, []) -> return (subst s a, subst s tp))
 
 solvesM :: [(Var, Type)] -> CheckM [(Var, Term, Type)] -> CheckM [(Var, Term, Scheme)]
 solvesM itps ms =
   get >>= \ vs ->
   listen ms >>= \ (atps, cs) ->
   let (fs, as, tps) = unzip3 atps in
-  pure solve <*> askEnv <*> (fmap (\ vs' -> Map.difference vs' vs) get) <*> pure (TpProd Multiplicative tps) <*> pure cs >>=
-  either throwError (\ (s, xs) ->
-                        let stps = map (\ tp ->
-                                          let tp' = subst s tp
-                                              xs' = Map.keys (Map.intersection (Map.fromList (map (\ x -> (x, ())) xs)) (freeVars tp')) in
-                                            Forall xs' tp') tps
-                            s' = foldr (\ (fx, Forall xs' tp') -> Map.insert fx (SubTm (TmVarG DefVar fx (map TpVar xs') [] tp'))) s (zip fs stps) in
-                          return (zip3 fs (subst s' as) stps))
+  pure solve <*> askEnv <*> (fmap (\ vs' -> Map.difference vs' vs) get)
+    <*> pure (TpProd Multiplicative tps) <*> pure cs >>=
+  either
+    throwError
+    (\ (s, xs) ->
+        let stps = map (\ tp ->
+                          let tp' = subst s tp
+                              xs' = Map.keys (Map.intersection (Map.fromList (map (\ x -> (x, ())) xs)) (freeVars tp')) in
+                            Forall xs' tp') tps
+            s' = foldr (\ (fx, Forall xs' tp') -> Map.insert fx (SubTm (TmVarG DefVar fx (map TpVar xs') [] tp'))) s (zip fs stps) in
+          return (zip3 fs (subst s' as) stps))
 
 
 getDeps :: UsProgs -> Map Var (Set Var)
@@ -481,7 +486,7 @@ inferProgs ps =
        -- Then check functions
          (foldr inferFuns
          -- Then check end term
-            (solveM (infer end >>: curry return) >>= \ (end', Forall tpms tp) ->
+            (solveM (infer end >>: curry return) >>= \ (end', {-Forall tpms-} tp) ->
              -- guardM (null tpms) (error "TODO: end term should not have type polymorphism") >>
              return (SProgs [] end')) sccs') es) ds
 
