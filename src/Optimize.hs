@@ -153,7 +153,7 @@ safe2sub g x xtm tm =
   where
     fvsOkay :: FreeVars -> Bool
     -- TODO: don't need to check typeIsRecursive g tp, once we can copy terms with recursive datatypes
-    fvsOkay fvs = all (\ (_, tp) -> robust g tp) (Map.toList fvs)
+    fvsOkay fvs = all (\ (_, tp) -> robust (ctxtLookupType g) tp) (Map.toList fvs)
     
     -- Returns if there are no global def vars or ambs/fails/uniforms
     noDefsSamps :: Term -> Bool

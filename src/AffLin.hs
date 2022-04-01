@@ -73,7 +73,7 @@ discard' x NoTp = error "Trying to discard a NoTp"
 discard :: Var -> Type -> Term -> AffLinM Term
 discard x tp tm =
   ask >>= \ g ->
-  if robust g tp
+  if robust (ctxtLookupType g) tp
     then return tm
     else (discard' (TmVarL x tp) tp >>= \ dtm ->
           return (TmLet "_" dtm tpUnit tm (getType tm)))

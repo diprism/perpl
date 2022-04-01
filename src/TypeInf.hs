@@ -352,21 +352,17 @@ unifyAll =
         return (s' `compose` s))
     (Right Map.empty)
 
-isRobust :: Env -> Type -> Bool
-isRobust g = h [] where
-  h visited (TpVar y) = (y `elem` visited) || maybe True (all $ \ (Ctor _ tps) -> all (h (y : visited)) tps) (Map.lookup y (typeEnv g))
-  h visited (TpArr _ _) = False
-  h visited (TpProd am tps) = am == Additive || any (h visited) tps
-  h visited NoTp = True
-
 solvedWell :: Env -> Subst -> [(Constraint, Loc)] -> Either (TypeError, Loc) ()
 solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
+  robust' = robust $ \ y -> Map.lookup y (typeEnv e)
+
   h (Unify tp1 tp2) l
     | tp1 /= tp2 = Left (ConflictingTypes tp1 tp2, l)
     | otherwise = okay
   h (Robust tp) l
-    | not (isRobust e tp) = Left (RobustType tp, l)
+    | not (robust' tp) = Left (RobustType tp, l)
     | otherwise = okay
+  
 
 solveInternal :: SolveVars -> Subst -> Type -> (Subst, [Var])
 solveInternal vs s rtp =

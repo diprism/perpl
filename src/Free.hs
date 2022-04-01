@@ -1,6 +1,5 @@
 module Free where
 import Exprs
-import Ctxt
 import Util
 import Subst
 import qualified Data.Map as Map
@@ -103,34 +102,33 @@ isLin' x = (LinYes ==) . h where
     if x `elem` fsts ps then h tm else h_as LinErr [tm, tm']
   h (TmEqs tms) = h_as LinErr tms
 
-typeIsRecursive' :: Ctxt -> Type -> Maybe [(Var, [Ctor])]
+typeIsRecursive' :: (Var -> Maybe [Ctor]) -> Type -> Maybe [(Var, [Ctor])]
 typeIsRecursive' g = h [] [] where
   anyM f = foldr ((|?|) . f) Nothing
   h visited datahist (TpVar y) =
     (if y `elem` visited then Just datahist else Nothing)
-      |?| (ctxtLookupType g y >>= \ cs ->
-              anyM (\ (Ctor _ tps) -> anyM (h (y : visited) ((y, cs) : datahist)) tps) cs)
+      |?| (g y >>= \ cs -> anyM (\ (Ctor _ tps) -> anyM (h (y : visited) ((y, cs) : datahist)) tps) cs)
   h visited datahist (TpArr tp1 tp2) = h visited datahist tp1 |?| h visited datahist tp2
   h visited datahist (TpProd am tps) = anyM (h visited datahist) tps
   h visited datahist NoTp = Nothing
 
 -- Returns if a type has an infinite domain (i.e. it contains (mutually) recursive datatypes anywhere in it)
-typeIsRecursive :: Ctxt -> Type -> Bool
-typeIsRecursive g = h [] where
+typeIsRecursive :: (Var -> Maybe [Ctor]) -> Type -> Bool
+typeIsRecursive g = maybe False (const True) . typeIsRecursive' g
+
+  {-h [] where
   h visited (TpVar y) =
     y `elem` visited ||
-      maybe False
-        (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps)
-        (ctxtLookupType g y)
+      maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (g y)
   h visited (TpArr tp1 tp2) = h visited tp1 || h visited tp2
   h visited (TpProd am tps) = any (h visited) tps
-  h visited NoTp = False
+  h visited NoTp = False-}
 
 -- Returns if a type has an arrow, ampersand, or recursive datatype anywhere in it
-robust :: Ctxt -> Type -> Bool
+robust :: (Var -> Maybe [Ctor]) -> Type -> Bool
 robust g = not . h [] where
   h :: [Var] -> Type -> Bool
-  h visited (TpVar y) = (y `elem` visited) || maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (ctxtLookupType g y)
+  h visited (TpVar y) = (y `elem` visited) || maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (g y)
   h visited (TpArr _ _) = True
   h visited (TpProd am tps) = am == Additive || any (h visited) tps
   h visited NoTp = False
