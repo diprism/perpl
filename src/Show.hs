@@ -94,9 +94,7 @@ showTermh (UsIf tm1 tm2 tm3) = "if " ++ showTerm tm1 ShowCase ++ " then " ++ sho
 showTermh (UsTmBool b) = if b then "True" else "False"
 showTermh (UsSamp d tp) = "sample " ++ show d ++ showTpAnn tp
 showTermh (UsLet x tp tm tm') = "let " ++ x ++ showTpAnn tp ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
-showTermh (UsAmb tms) = foldr (\ tm s -> s ++ " " ++ showTerm tm ShowAppR) "amb" tms
---showTermh (UsAmpIn tms) = "<" ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ ">"
---showTermh (UsElimAmp tm (o, o')) = showTerm tm ShowAppR ++ "." ++ show (o + 1) ++ "." ++ show o'
+showTermh (UsAmb tms) = foldl (\ s tm -> s ++ " " ++ showTerm tm ShowAppR) "amb" tms
 showTermh (UsProd am tms) =
   let (l, r) = amParens am in
     l ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ r
