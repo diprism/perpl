@@ -154,7 +154,7 @@ instance Substitutable Term where
   substM (TmSamp d tp) =
     pure (TmSamp d) <*> substM tp
   substM (TmAmb tms tp) =
-    pure TmAmb <*> substM tms <*> pure tp
+    pure TmAmb <*> substM tms <*> substM tp
   substM (TmProd am as) =
     pure (TmProd am) <*> mapArgsM substM as
 --  substM (TmElimAmp tm i tp) =
