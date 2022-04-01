@@ -145,7 +145,7 @@ instance Substitutable Term where
     freshen x >>= \ x' ->
     pure (TmLam x') <*> substM xtp <*> bind x x' (substM tm) <*> substM tp
   substM (TmApp tm1 tm2 tp2 tp) =
-    pure TmApp <*> substM tm1 <*> substM tm2 <*> pure tp2 <*> pure tp
+    pure TmApp <*> substM tm1 <*> substM tm2 <*> substM tp2 <*> substM tp
   substM (TmLet x xtm xtp tm tp) =
     freshen x >>= \ x' ->
     pure (TmLet x') <*> substM xtm <*> substM xtp <*> bind x x' (substM tm) <*> substM tp
