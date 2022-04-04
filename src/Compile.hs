@@ -107,10 +107,26 @@ ambRule g all_fvs tms tp tm reps =
       (Edge' (tmxs ++ [vtp]) (show tm) : discardEdges' unused_tms unused_ns)
       (all_xs ++ [vtp])
 
+
+ampRule :: Ctxt -> FreeVars -> [Arg] -> Int -> Term -> Type -> RuleM
+ampRule g all_fvs as i tm tp =
+  term2fgg g tm +>= \ tmxs ->
+  let tps = snds as
+      all_xs = Map.toList all_fvs
+      unused_tms = Map.toList (Map.difference all_fvs (Map.fromList tmxs))
+      vamp : vtp : unused_ns = newNames (TpProd Additive tps : tp : snds unused_tms)
+  in
+    mkRule (TmProd Additive as) (vamp : vtp : tmxs ++ all_xs ++ unused_tms ++ unused_ns)
+      (Edge' (tmxs ++ [vtp]) (show tm) :
+       Edge' [vamp, vtp] (ampFactorName tps i) :
+       discardEdges' unused_tms unused_ns)
+      (all_xs ++ [vamp])
+
 addAmpFactors :: Ctxt -> [Type] -> RuleM
 addAmpFactors g tps =
   let ws = getAmpWeights (domainValues g) tps in
     foldr (\ (i, w) r -> r +> addFactor (ampFactorName tps i) w) returnRule (enumerate ws)
+
 
 addProdFactors :: Ctxt -> [Type] -> RuleM
 addProdFactors g tps =
@@ -183,20 +199,26 @@ term2fgg g (TmLet x xtm xtp tm tp) =
   let vxtp = (x, xtp)
       [vtp] = newNames [tp] in -- TODO: if unused?
     mkRule (TmLet x xtm xtp tm tp) (vxtp : vtp : xtmxs ++ tmxs)
-      [Edge' (xtmxs ++ [vxtp]) (show xtm), Edge' (tmxs ++ [vtp]) (show tm)]
+      [Edge' (xtmxs ++ [vxtp]) (show xtm),
+       Edge' (tmxs ++ [vtp]) (show tm)]
       (xtmxs ++ delete vxtp tmxs ++ [vtp])
 term2fgg g (TmProd am as)
   | am == Additive =
-    let tps = [tp | (_, tp) <- as] in
-      foldr
+    let (tms, tps) = unzip as
+        fvs = freeVars tms in
+      addAmpFactors g tps +>
+      bindCases (Map.toList fvs) [ampRule g fvs as i atm tp | (i, (atm, tp)) <- enumerate as]
+{-      foldr
         (\ (i, (atm, tp)) r -> r +>
           term2fgg g atm +>= \ tmxs ->
           let [vamp, vtp] = newNames [TpProd am tps, tp] in
             mkRule (TmProd am as) (vamp : vtp : tmxs)
-              ([Edge' (tmxs ++ [vtp]) (show atm), Edge' [vamp, vtp] (ampFactorName tps i)])
-              (tmxs ++ [vamp])
+              ([Edge' (tmxs ++ [vtp]) (show atm),
+                Edge' [vamp, vtp] (ampFactorName tps i)])
+              (delete vtp tmxs ++ [vamp])
         )
         (addAmpFactors g tps) (enumerate as)
+-}
   | otherwise =
     [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
     let tps = snds as
@@ -220,7 +242,6 @@ term2fgg g (TmElimProd Additive ptm ps tm tp) =
         -- unused_ps = if  -- TODO: if unused?
         [vtp, vptp] = newNames [tp, ptp]
     in
-      if NoTp `elem` tps then error (show (TmElimProd Additive ptm ps tm tp)) else
       addAmpFactors g tps +>
       mkRule (TmElimProd Additive ptm ps tm tp)
         (vtp : vptp : (x, xtp) : tmxs ++ ptmxs)

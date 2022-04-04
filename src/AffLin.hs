@@ -46,15 +46,19 @@ alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
 -- Maps something to Unit
 -- For example, take x : Bool, which becomes
 -- case x of false -> unit | true -> unit
-discard' :: Term -> Type -> AffLinM Term
+discard' :: Term -> Type -> Term -> AffLinM Term
 --discard' (TmVarL "_" tp') tp = error ("discard' \"_\" " ++ show tp)
-discard' x (TpArr tp1 tp2) =
+discard' x (TpArr tp1 tp2) rtm =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
-discard' x (TpProd am tps)
---  | am == Additive = discard' (TmElimAmp x (length tps - 1, length tps) tpUnit) (last tps)
-  | am == Additive = return {-discard'-} (TmElimProd Additive x [(if i == length tps - 1 then "x" else "_", tp)| (i, tp) <- enumerate tps] (TmVarL "x" (last tps)) tpUnit) {-(last tps)-}
-  | otherwise = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in discards (Map.fromList ps) tmUnit >>= \ tm -> return (TmElimProd Multiplicative x ps tm tpUnit)
-discard' x (TpVar y) =
+discard' x (TpProd am tps) rtm
+  | am == Additive =
+    return (TmElimProd Additive x
+             [(if i == length tps - 1 then "_x" else "_", tp)| (i, tp) <- enumerate tps]
+             rtm (typeof rtm))
+  | otherwise = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in
+      discards (Map.fromList ps) rtm >>= \ rtm' ->
+      return (TmElimProd Multiplicative x ps rtm' (typeof rtm'))
+discard' x (TpVar y) rtm =
   ask >>= \ g ->
   maybe2 (ctxtLookupType g y)
     (error ("In Free.hs/discard, unknown type var " ++ y))
@@ -62,8 +66,8 @@ discard' x (TpVar y) =
                let as' = nameParams x' as in
                  alBinds as' (return tmUnit) >>= \ tm ->
                  return (Case x' as' tm))) >>= \ cs' ->
-  return (TmCase x y cs' tpUnit)
-discard' x NoTp = error "Trying to discard a NoTp"
+  return (TmLet "_" (TmCase x y cs' tpUnit) tpUnit rtm (typeof rtm))
+discard' x NoTp rtm = error "Trying to discard a NoTp"
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard
 -- it to maintain correct probabilities, but without changing the value or type
@@ -75,8 +79,8 @@ discard x tp tm =
   ask >>= \ g ->
   if robust (ctxtLookupType g) tp
     then return tm
-    else (discard' (TmVarL x tp) tp >>= \ dtm ->
-          return (TmLet "_" dtm tpUnit tm (getType tm)))
+    else (discard' (TmVarL x tp) tp tm){- >>= \ dtm ->
+          return (TmLet "_" dtm tpUnit tm (getType tm)))-}
 
 -- Discard a set of variables
 discards :: FreeVars -> Term -> AffLinM Term
