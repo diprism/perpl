@@ -1,4 +1,4 @@
-module Instantiate where
+module Monomorphize where
 import Exprs
 import Util
 import Subst
@@ -101,8 +101,8 @@ makeInstantiations xis (SProgFun x (Forall ys tp) tm) =
 makeInstantiations xis (SProgExtern x tps rtp) = [ProgExtern x tps rtp] -- TODO: string ""?
 makeInstantiations xis (SProgData y cs) = [ProgData y cs]
 
-instantiateFile :: SProgs -> Progs
-instantiateFile (SProgs sps stm) =
+monomorphizeFile :: SProgs -> Progs
+monomorphizeFile (SProgs sps stm) =
   let dm = makeDefMap sps
       tpms = makeTypeParams sps
       xis = makeEmptyInsts sps

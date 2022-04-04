@@ -6,7 +6,7 @@ import Exprs
 import Parse
 import Lex
 import TypeInf
-import Instantiate
+import Monomorphize
 import Compile
 import RecType
 import AffLin
@@ -102,7 +102,7 @@ processContents (CmdArgs ifn ofn c m e dr l o) s =
   -- Type check the file (:: UsProgs -> Progs)
   >>= inferFile
 --  >>= return . show
-  >>= if not m then return . show else (\ x -> (Right . instantiateFile) x
+  >>= if not m then return . show else (\ x -> (Right . monomorphizeFile) x
   >>= Right . nicifyFile
 --  >>= alphaRenameProgs (const emptyCtxt)
 --  >>= return . show
