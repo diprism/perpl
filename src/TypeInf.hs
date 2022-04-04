@@ -11,7 +11,7 @@ import Free
 import Util
 import Name
 import Show()
-import Tarjan
+import SCC
 
 data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
   deriving Eq
@@ -472,7 +472,7 @@ inferProgs ps =
       -- sccs is a list of strongly connected functions.
       -- you can check it in order, by checking together
       -- all the functions in each strongly connected set
-      sccs = tarjan m
+      sccs = scc m
       sccs' = [[let (tp, tm) = mfs Map.! x in (x, tp, tm) | x <- scc] | scc <- sccs]
   in
     -- TODO: maybe sort progs back into original order?

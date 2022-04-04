@@ -2,12 +2,12 @@
 -- Adapted from the pseudocode from
 -- https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm
 
-module Tarjan where
+module SCC where
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 -- Keeps track of relevant information
-data Tarjan a = Tarjan {
+data TarjanData a = TarjanData {
   indices :: Map.Map a Int,
   lowlinks :: Map.Map a Int,
   onStack :: Set.Set a,
@@ -15,8 +15,8 @@ data Tarjan a = Tarjan {
   sccs :: [[a]]
 }
 
-defaultTarjan :: Ord a => Tarjan a
-defaultTarjan = Tarjan {
+defaultData :: Ord a => TarjanData a
+defaultData = TarjanData {
   indices = mempty,
   lowlinks = mempty,
   onStack = mempty,
@@ -25,33 +25,33 @@ defaultTarjan = Tarjan {
 }
 
 -- Setter methods
-modIndices :: Ord a => (Map.Map a Int -> Map.Map a Int) -> Tarjan a -> Tarjan a
+modIndices :: Ord a => (Map.Map a Int -> Map.Map a Int) -> TarjanData a -> TarjanData a
 modIndices f t = t { indices = f (indices t) }
 
-modLowlinks :: Ord a => (Map.Map a Int -> Map.Map a Int) -> Tarjan a -> Tarjan a
+modLowlinks :: Ord a => (Map.Map a Int -> Map.Map a Int) -> TarjanData a -> TarjanData a
 modLowlinks f t = t { lowlinks = f (lowlinks t) }
 
-modOnStack :: Ord a => (Set.Set a -> Set.Set a) -> Tarjan a -> Tarjan a
+modOnStack :: Ord a => (Set.Set a -> Set.Set a) -> TarjanData a -> TarjanData a
 modOnStack f t = t { onStack = f (onStack t) }
 
-modStack :: Ord a => ([a] -> [a]) -> Tarjan a -> Tarjan a
+modStack :: Ord a => ([a] -> [a]) -> TarjanData a -> TarjanData a
 modStack f t = t { sStack = f (sStack t) }
 
-modSccs :: Ord a => ([[a]] -> [[a]]) -> Tarjan a -> Tarjan a
+modSccs :: Ord a => ([[a]] -> [[a]]) -> TarjanData a -> TarjanData a
 modSccs f t = t { sccs = f (sccs t) }
 
 
 -- Tarjan's algorithm implementation: goes from a graph to a
 -- topologically-sorted array of strongly connected components
-tarjan :: (Eq a, Ord a) => Map.Map a (Set.Set a) -> [[a]]
-tarjan deps =
+scc :: (Eq a, Ord a) => Map.Map a (Set.Set a) -> [[a]]
+scc deps =
   reverse $ sccs $
   foldr (\ v t -> if Map.member v (indices t) then t else strongconnect v t)
-    defaultTarjan (Map.keys deps)
+    defaultData (Map.keys deps)
   where
 
     -- Adds a strongly connected component set with root v
-    -- mkScc :: a -> Tarjan a -> Tarjan a
+    -- mkScc :: a -> TarjanData a -> TarjanData a
     mkScc v t =
       let h [] = []
           h (w : ws) = if w == v then [w] else (w : h ws)
@@ -60,7 +60,7 @@ tarjan deps =
         modStack (drop (length scc)) $
         modOnStack (\ os -> Set.difference os (Set.fromList scc)) t
     
-    -- strongconnect :: a -> Tarjan a -> Tarjan a
+    -- strongconnect :: a -> TarjanData a -> TarjanData a
     strongconnect v t =
       let t' = modIndices (\ m -> Map.insert v (Map.size m) m) $
                modLowlinks (Map.insert v (Map.size (indices t))) $
@@ -88,7 +88,7 @@ main =
                 ("d", ["e"]),
                 ("e", ["c"])]
       graph = Map.fromList (fmap (\ (k, v) -> (k, Set.fromList v)) graph')
-      sccs = tarjan graph
+      sccs = scc graph
   in
     putStrLn (show sccs)
 -}
