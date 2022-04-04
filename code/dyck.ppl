@@ -5,10 +5,10 @@ data Word = Nil | Cons Paren Word; -- D
 data Nat = Zero | Succ Nat; -- R
 
 define recognize : Word -> Bool =
-  \ ps : Word. run ps Zero;
+  \ ps. run ps Zero;
 
 define run : Word -> Nat -> Bool =
-  \ ps : Word. \ c : Nat. case ps of
+  \ ps. \ c. case ps of
     | Nil -> (case c of Zero -> True | Succ c -> False)
     | Cons p ps -> (case p of
       | L -> run ps (Succ c)

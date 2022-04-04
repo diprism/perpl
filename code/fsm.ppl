@@ -9,12 +9,12 @@ extern in_accept' : State -> Bool;
 extern q0 : State;
 extern q0' : State;
 
-define gen : State -> String = \ q : State. if in_accept q
+define gen : State -> String = \ q. if in_accept q
   then Nil
   else (let (w, x) = transition q in Cons w (gen x));
 
 define rec : State -> String -> Bool =
-  \ q' : State. \ ws : String. case ws of
+  \ q'. \ ws. case ws of
     | Nil -> in_accept' q'
     | Cons w ws -> rec (transition' (w, q')) ws;
 
