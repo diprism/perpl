@@ -16,39 +16,39 @@ data State = q0 | q1 | q2;
 
 -- Unfortunately we need to state types at def and also in lambdas
 define not : Bool -> Bool =
-  \ b : Bool. if b then False else True;
+  \ b. if b then False else True;
 
-define and : Bool -> Bool -> Bool =
-  \ a : Bool. \ b : Bool. if a then b else False;
+define and = -- optional `: type` annotations
+  \ a. \ b. if a then b else False;
 
 define iff : Bool -> Bool -> Bool =
-  \ a : Bool. \ b : Bool. if a then b else not b;
+  \ a. \ b. if a then b else not b;
 
 
-define string_eq : String -> String -> Bool = \ w1 : String. \ w2 : String.
+define string_eq = \ w1. \ w2 : String. -- optional `: type` annotations on lambdas
   case w1 of
     | Nil -> (case w2 of Nil -> True | Cons a w' -> False)
     | Cons b1 w1' -> (case w2 of Nil -> True | Cons b2 w2' -> and (iff b1 b2) (string_eq w1' w2'));
 
-  -- Note the closing semicolon ----------------------------------------^
+  -- Note the closing semicolon ^
 
 -- You can declare external distributions like this:
 extern transition : State -> Bool * State;
 extern accept : State -> Bool;
 
 define gen : State -> String =
-  \ q : State. if accept q then Nil else (let (a, r) = transition q in Cons a (gen r));
+  \ q. if accept q then Nil else (let (a, r) = transition q in Cons a (gen r));
 
-define products : Bool * State -> Bool & State -> Bool =
+define products =
   \ prod : Bool * State. \ amp : Bool & State.
     -- With *-types, you can access both parts like this:
     let (b, q) = prod in
     -- But with &-types, you can only access ONE part:
-    let b' = amp.1 in
-    -- or: let q' = amp.2 in ...
+    let <b', _> = amp in
+    -- or: let <_, q'> = amp in ...
     -- You CANNOT do
     -- let <b', q'> = amp in ...
-    -- Nor can you use both amp.1 and amp.2
+    -- Nor can you use use amp twice
     
     -- To make a *-product:
     let prod' = (False, q1) in
@@ -58,11 +58,28 @@ define products : Bool * State -> Bool & State -> Bool =
 
 
 define samples : (Bool -> Bool -> Bool -> Bool -> Bool) -> Bool =
-  \ f : Bool -> Bool -> Bool -> Bool -> Bool. f
-    (sample fail : Bool)     -- p(False) = 0,   p(True) = 0   (all members get p = 0)
-    (sample amb : Bool)      -- p(False) = 1,   p(True) = 1   (all members get p = 1)
-    (sample uniform : Bool) -- p(False) = 0.5, p(True) = 0.5 (split p between all members)
+  \ f. f
+    (sample fail)             -- p(False) = 0,   p(True) = 0   (all members get p = 0)
+    (sample amb)              -- p(False) = 1,   p(True) = 1   (all members get p = 1)
+    (sample uniform)          -- p(False) = 0.5, p(True) = 0.5 (split p between all members)
     (amb False True False);   -- p(False) = 2,   p(True) = 1   (all branches get p = 1)
 
+-- You can also define polymorphic functions:
+define compose =
+  \ f. \ g. \ x. f (g x);
+
+--define use_compose1 =
+--  compose not accept;
+--define use_compose2 =
+--  compose (string_eq Nil) gen;
+define use_compose3 =
+  compose compose; --compos compose (compose (compose compose (compose compose) compose));
+
+--define id = \ x. x;
+
+--define testId = id False;
+
 -- You must then end the program with something to run, like
-string_eq (gen q0) (gen q0)
+--let foo = use_compose1 in let bar = use_compose2 in use_compose3;
+use_compose3;
+--string_eq (gen q0) (gen q0)

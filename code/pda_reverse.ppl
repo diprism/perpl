@@ -12,13 +12,13 @@ data Action = Pop | Push Symbol Symbol;
 
 extern transition: Condition -> Action;
 
-define pda : String -> Stack = \str: String.
+define pda : String -> Stack = \str.
   case str of
     NilString -> Cons Bot NilStack -- initial stack
   | Snoc str last ->
       (let stk = pda str in
         case stk of
-          NilStack -> sample fail : Stack
+          NilStack -> let _ = sample fail in NilStack
         | Cons top stk ->
             (case transition (Config last top) of
               Pop -> stk

@@ -1,0 +1,21 @@
+
+define compose = \ f. \ g. \ x. f (g x);
+
+define const = \ a. \ b. a;
+
+data Nat = Z | S Nat;
+
+define not = \ b. case b of True -> False | False -> True;
+
+define even = \ n. case n of Z -> True | S n' -> not (even n');
+
+data List = Nil | Cons Nat List;
+
+define scott_elim = \ cons. \ nil. \ l. case l of Nil -> nil | Cons h t -> cons h t;
+
+define length = \ l. scott_elim (const (compose S length)) Z l;
+
+define t = \ a. \ b. u a b b;
+define u = \ x. \ y. \ z. if y then t x y else Cons Z Nil;
+
+t (const length) True;

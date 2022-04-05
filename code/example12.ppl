@@ -7,9 +7,9 @@
 
 extern sample_p: Bool;
 
-define not: Bool->Bool = \b: Bool. if b then False else True;
+define not: Bool->Bool = \b. if b then False else True;
 
-define odd: Bool->Bool = \q: Bool.
+define odd: Bool->Bool = \q.
   if sample_p then odd (odd q) else not q;
     
 odd False

@@ -2,15 +2,17 @@ module Ctxt where
 import qualified Data.Map as Map
 import Exprs
 import Util
+import Show()
 
 data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
-  deriving Eq
+  deriving (Eq, Show)
 
 data CtxtDef =
     DefTerm Scope Type
   | DefData [Ctor]
+  deriving Show
 
-type Ctxt = Map.Map Var CtxtDef
+type Ctxt = Map Var CtxtDef
 
 -- Default context
 emptyCtxt :: Ctxt
@@ -58,7 +60,7 @@ ctxtBinds = flip Map.member
 -- Adds all definitions from a file to context
 ctxtDefProg :: Ctxt -> Prog -> Ctxt
 ctxtDefProg g (ProgFun x ps tm tp) = ctxtDefTerm g x (joinArrows (map snd ps) tp)
-ctxtDefProg g (ProgExtern x xp ps tp) = ctxtDefTerm g x (joinArrows ps tp)
+ctxtDefProg g (ProgExtern x ps tp) = ctxtDefTerm g x (joinArrows ps tp)
 ctxtDefProg g (ProgData y cs) = ctxtDeclType g y cs
 
 -- Populates a context with the definitions from a file
@@ -66,12 +68,11 @@ ctxtDefProgs :: Progs -> Ctxt
 ctxtDefProgs (Progs ps end) = foldl ctxtDefProg emptyCtxt ps
 
 -- Adds all definitions from a raw file to context
-ctxtDefUsProgs' :: Ctxt -> UsProgs -> Ctxt
-ctxtDefUsProgs' g (UsProgFun x tp tm ps) = ctxtDefUsProgs' (ctxtDefTerm g x tp) ps
-ctxtDefUsProgs' g (UsProgExtern x tp ps) = ctxtDefUsProgs' (ctxtDefTerm g x tp) ps
-ctxtDefUsProgs' g (UsProgData y cs ps) = ctxtDefUsProgs' (ctxtDeclType g y cs) ps
-ctxtDefUsProgs' g (UsProgExec tm) = g
+ctxtDefUsProg :: Ctxt -> UsProg -> Ctxt
+ctxtDefUsProg g (UsProgFun x tp tm) = ctxtDefTerm g x tp
+ctxtDefUsProg g (UsProgExtern x tp) = ctxtDefTerm g x tp
+ctxtDefUsProg g (UsProgData y cs) = ctxtDeclType g y cs
 
 -- Populates a context with the definitions from a raw file
 ctxtDefUsProgs :: UsProgs -> Ctxt
-ctxtDefUsProgs = ctxtDefUsProgs' emptyCtxt
+ctxtDefUsProgs (UsProgs ps end) = foldl ctxtDefUsProg emptyCtxt ps

@@ -4,37 +4,11 @@ import Data.List
 import Util
 import Exprs
 import Tensor
+import JSON
 import Show()
 
 -- Should the compiler make sure there aren't conflicting nonterminal domains?
 checkDomsEq = True
-
-{- ====== JSON Functions ====== -}
-
-data JSON =
-    JSnull
-  | JSbool Bool
-  | JSint Int
-  | JSdouble Double
-  | JSstring String
-  | JSarray [JSON]
-  | JSobject [(String, JSON)]
-
-instance Show JSON where
-  show JSnull = "null"
-  show (JSbool b) = if b then "true" else "false"
-  show (JSint i) = show i
-  show (JSdouble d) = show d
-  show (JSstring s) = show s
-  show (JSarray js) = '[' : delimitWith "," [show a | a <- js] ++ "]"
-  show (JSobject kvs) = '{' : delimitWith "," [show k ++ ":" ++ show v | (k, v) <- kvs] ++ "}"
-
-pprint_json :: JSON -> String
-pprint_json j = pp j 0 where
-  indent i = "\n" ++ (delimitWith "" (replicate i " "))
-  pp (JSarray js) i = "[" ++ delimitWith "," [indent (i+2) ++ pp j (i+2) | j <- js] ++ indent i ++ "]"
-  pp (JSobject kvs) i = "{" ++ delimitWith "," [indent (i+2) ++ show k ++ ": " ++ pp v (i+2) | (k, v) <- kvs] ++ indent i ++ "}"
-  pp j i = show j
 
 {- ====== FGG Functions ====== -}
 
@@ -56,9 +30,9 @@ data HGF' = HGF' { hgf_nodes' :: [(Var, Type)], hgf_edges' :: [Edge'], hgf_exts'
 data Rule = Rule String HGF
   deriving Eq
 data FGG_JSON = FGG_JSON {
-  domains :: Map.Map String FType,
-  factors :: Map.Map String (Domain, Maybe Weights),
-  nonterminals :: Map.Map String Domain,
+  domains :: Map String FType,
+  factors :: Map String (Domain, Maybe Weights),
+  nonterminals :: Map String Domain,
   start :: String,
   rules :: [(Int, Rule)]
 }

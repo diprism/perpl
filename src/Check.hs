@@ -118,7 +118,7 @@ checkTermh g (UsSamp d tp) =
   checkType g tp >>
   return (TmSamp d tp)
 
-checkTermh g (UsLet x ltm tm) =
+checkTermh g (UsLet x tp ltm tm) =
   checkTerm g ltm >>= \ (ltm', ltp) ->
   checkTerm (ctxtDeclTerm g x ltp) tm >>= \ (tm', tp) ->
   checkAffLin g x ltp tm >>
@@ -134,28 +134,32 @@ checkTermh g (UsAmb tms) =
               okay tps >>
         return (TmAmb tms tp)
 
-checkTermh g (UsAmpIn tms) =
-  mapM (checkTerm g) tms >>= return . TmAmpIn
+checkTermh g (UsProd am tms) =
+  mapM (checkTerm g) tms >>= return . TmProd am
 
-checkTermh g (UsAmpOut tm o) =
+{-checkTermh g (UsElimAmp tm (o, o')) =
   checkTerm g tm >>= \ (tm, tp) ->
   case tp of
-    TpAmp tps ->
-      ifErr (not (0 <= o && o < length tps)) ("expected a number between 0 and " ++ show (length tps)) >>
-      return (TmAmpOut tm tps o)
+    TpProd am tps ->
+      ifErr (am == Multiplicative) "Expected a &-product, not a *-product" >>
+      ifErr (not (o' == length tps))
+        ("Expected a &-product of arity " ++ show o' ++
+          ", but got arity " ++ show (length tps)) >>
+      ifErr (not (0 <= o && o < length tps))
+        ("expected a number between 0 and " ++ show (length tps)) >>
+      return (TmElimAmp tm (o, o') (tps !! o))
     _ -> err "expected ampersand type"
+-}
 
-checkTermh g (UsProdIn tms) =
-  mapM (checkTerm g) tms >>= return . TmProdIn
-
-checkTermh g (UsProdOut tm xs tm') =
+checkTermh g (UsElimProd am tm xs tm') =
   checkTerm g tm >>= \ (tm, tp) ->
   case tp of
-    TpProd tps ->
+    TpProd am' tps ->
+      ifErr (am == am') "Mismatched products: * vs &" >>
       ifErr (length tps /= length xs) ("expected " ++ show (length xs) ++ " names, but got " ++ show (length tps)) >>
       let ps = zip xs tps in
         checkTerm (ctxtDeclArgs g ps) tm' >>= \ (tm', tp') ->
-        return (TmProdOut tm ps tm' tp')
+        return (TmElimProd tm ps tm' tp')
     _ -> err "expected product type"
 
 checkTermh g (UsEqs tms) =
@@ -178,11 +182,11 @@ checkType g (TpArr tp1 tp2) =
   checkType g tp1 >>
   checkType g tp2
 
-checkType g (TpAmp tps) =
+checkType g (TpProd am tps) =
   mapM (checkType g) tps >> okay
 
-checkType g (TpProd tps) =
-  mapM (checkType g) tps >> okay
+checkType g NoTp =
+  err "Checking a NoTp"
 
 -- Check and elaborate a case under a context
 checkCase :: Ctxt -> Ctor -> CaseUs -> Either ErrMsg (Case, Type)

@@ -8,7 +8,7 @@ data Stack = ZNil | ZCons ZSymbol Stack;
 data Action = Pop State | Push State ZSymbol;
 
 define transition' : State -> WSymbol -> ZSymbol -> Action =
-  \ q : State. \ w : WSymbol. \ z : ZSymbol. case q of
+  \ q. \ w. \ z. case q of
     | q0s -> (case w of
       | WSym0 -> Push q0s ZSym0
       | WSym1 -> Pop (case z of ZSym0 -> q1s | ZDollar -> sink))
@@ -18,13 +18,13 @@ define transition' : State -> WSymbol -> ZSymbol -> Action =
     | sink -> Pop sink;
 
 define in_accept' : State -> ZSymbol -> Bool =
-  \ q : State. \ z : ZSymbol. case q of
+  \ q. \ z. case q of
     | q0s -> False
     | q1s -> (case z of ZSym0 -> False | ZDollar -> True)
     | sink -> False;
 
 define rec_pda : State -> String -> Stack -> Bool =
-  \ q' : State. \ ws : String. \ zs : Stack. case zs of
+  \ q'. \ ws. \ zs. case zs of
     | ZNil -> False
     | ZCons z zs -> (case ws of
       | WNil -> in_accept' q' z
@@ -34,8 +34,8 @@ define rec_pda : State -> String -> Stack -> Bool =
       )
     );
 
-define q0 : State  = q0s;
-define w0 : String = WCons WSym0 (WCons WSym0 (WCons WSym1 (WCons WSym1 WNil)));
-define z0 : Stack  = ZCons ZDollar ZNil;
+define q0 = q0s;
+define w0 = WCons WSym0 (WCons WSym0 (WCons WSym1 (WCons WSym1 WNil)));
+define z0 = ZCons ZDollar ZNil;
 
 rec_pda q0 w0 z0;

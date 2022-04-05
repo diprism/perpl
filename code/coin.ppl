@@ -2,7 +2,7 @@
 
 extern unfair : Bool;
 
-define fair: Bool =
+define fair =
   let c1 = unfair in
     let c2 = unfair in
       if c1 then (if c2 then fair else c1) else (if c2 then c1 else fair);

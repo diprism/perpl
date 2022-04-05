@@ -6,10 +6,11 @@ import FGG
 import Util
 import RuleM
 import Ctxt
-import Free
+--import Free
 import Name
 import Show
 import Tensor
+import Subst
 
 -- If the start term is just a factor (has no rule), then we need to
 -- add a rule [%start%]-(v) -> [tm]-(v)
@@ -70,7 +71,7 @@ mkRuleReps reps lhs ns es xs =
 ctorRules :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
 ctorRules g (Ctor x as) y cs =
   let as' = [(etaName x i, a) | (i, a) <- enumerate as]
-      tm = TmVarG CtorVar x [(TmVarL a atp, atp) | (a, atp) <- as'] y
+      tm = TmVarG CtorVar x [] [(TmVarL a atp, atp) | (a, atp) <- as'] y
       fac = ctorFactorNameDefault x as y in
     addFactor fac (getCtorWeightsFlat (domainValues g) (Ctor x as) cs) +>
     foldr (\ tp r -> type2fgg g tp +> r) returnRule as +>
@@ -106,15 +107,31 @@ ambRule g all_fvs tms tp tm reps =
       (Edge' (tmxs ++ [vtp]) (show tm) : discardEdges' unused_tms unused_ns)
       (all_xs ++ [vtp])
 
+
+ampRule :: Ctxt -> FreeVars -> [Arg] -> Int -> Term -> Type -> RuleM
+ampRule g all_fvs as i tm tp =
+  term2fgg g tm +>= \ tmxs ->
+  let tps = snds as
+      all_xs = Map.toList all_fvs
+      unused_tms = Map.toList (Map.difference all_fvs (Map.fromList tmxs))
+      vamp : vtp : unused_ns = newNames (TpProd Additive tps : tp : snds unused_tms)
+  in
+    mkRule (TmProd Additive as) (vamp : vtp : tmxs ++ all_xs ++ unused_tms ++ unused_ns)
+      (Edge' (tmxs ++ [vtp]) (show tm) :
+       Edge' [vamp, vtp] (ampFactorName tps i) :
+       discardEdges' unused_tms unused_ns)
+      (all_xs ++ [vamp])
+
 addAmpFactors :: Ctxt -> [Type] -> RuleM
 addAmpFactors g tps =
   let ws = getAmpWeights (domainValues g) tps in
     foldr (\ (i, w) r -> r +> addFactor (ampFactorName tps i) w) returnRule (enumerate ws)
 
+
 addProdFactors :: Ctxt -> [Type] -> RuleM
 addProdFactors g tps =
   let tpvs = [domainValues g tp | tp <- tps] in
-    type2fgg g (TpProd tps) +>
+    type2fgg g (TpProd Multiplicative tps) +>
     addFactor (prodFactorName tps) (getProdWeightsV tpvs) +>
     foldr (\ (as', w) r -> r +> addFactor (prodFactorName' as') w) returnRule (getProdWeights tpvs)
 
@@ -127,12 +144,12 @@ term2fgg :: Ctxt -> Term -> RuleM
 term2fgg g (TmVarL x tp) =
   type2fgg g tp +>
   addExt x tp
-term2fgg g (TmVarG gv x [] tp) =
+term2fgg g (TmVarG gv x _ [] tp) =
   returnRule -- If this is a ctor/def with no args, we already add its rule when it gets defined
-term2fgg g (TmVarG gv x as y) =
+term2fgg g (TmVarG gv x _ as y) =
   [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
   let (vy : ps) = newNames (y : snds as) in
-    mkRule (TmVarG gv x as y) (vy : ps ++ concat xss)
+    mkRule (TmVarG gv x [] as y) (vy : ps ++ concat xss)
       (Edge' (ps ++ [vy]) (if gv == CtorVar then ctorFactorNameDefault x (snds as) y else x) :
         [Edge' (xs ++ [vtp]) (show atm) | (xs, (atm, atp), vtp) <- zip3 xss as ps])
       (concat xss ++ [vy])
@@ -159,8 +176,8 @@ term2fgg g (TmApp tm1 tm2 tp2 tp) =
       (xs1 ++ xs2 ++ [vtp])    
 term2fgg g (TmCase tm y cs tp) =
   term2fgg g tm +>= \ xs ->
-  let fvs = freeVarsCases' cs in
-    bindCases (Map.toList (Map.union (freeVars' tm) fvs)) (map (caseRule g fvs xs tm y cs tp) cs)
+  let fvs = freeVars cs in
+    bindCases (Map.toList (Map.union (freeVars tm) fvs)) (map (caseRule g fvs xs tm y cs tp) cs)
 term2fgg g (TmSamp d tp) =
   let dvs = domainValues g tp in
   case d of
@@ -173,58 +190,87 @@ term2fgg g (TmSamp d tp) =
     DistAmb  -> -- TODO: is this fine, or do we need to add a rule with one node and one edge (that has the factor below)?
       addFactor (show $ TmSamp d tp) (vector [1.0 | _ <- [0..length dvs - 1]])
 term2fgg g (TmAmb tms tp) =
-  let fvs = Map.unions (map freeVars' tms) in
+  let fvs = Map.unions (map freeVars tms) in
     bindCases (Map.toList fvs) (map (uncurry $ ambRule g fvs tms tp) (collectDups tms))
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm +>= \ xtmxs ->
   bindExt True x xtp $
   term2fgg (ctxtDeclTerm g x xtp) tm +>= \ tmxs ->
   let vxtp = (x, xtp)
-      [vtp] = newNames [tp] in
+      [vtp] = newNames [tp] in -- TODO: if unused?
     mkRule (TmLet x xtm xtp tm tp) (vxtp : vtp : xtmxs ++ tmxs)
-      [Edge' (xtmxs ++ [vxtp]) (show xtm), Edge' (tmxs ++ [vtp]) (show tm)]
+      [Edge' (xtmxs ++ [vxtp]) (show xtm),
+       Edge' (tmxs ++ [vtp]) (show tm)]
       (xtmxs ++ delete vxtp tmxs ++ [vtp])
-term2fgg g (TmAmpIn as) =
-  let tps = [tp | (_, tp) <- as] in
-    foldr
-      (\ (i, (atm, tp)) r -> r +>
-        term2fgg g atm +>= \ tmxs ->
-        let [vamp, vtp] = newNames [TpAmp tps, tp] in
-          mkRule (TmAmpIn as) (vamp : vtp : tmxs)
-            ([Edge' (tmxs ++ [vtp]) (show atm), Edge' [vamp, vtp] (ampFactorName tps i)])
-            (tmxs ++ [vamp])
-      )
-      (addAmpFactors g tps) (enumerate as)
-term2fgg g (TmAmpOut tm tps o) =
+term2fgg g (TmProd am as)
+  | am == Additive =
+    let (tms, tps) = unzip as
+        fvs = freeVars tms in
+      addAmpFactors g tps +>
+      bindCases (Map.toList fvs) [ampRule g fvs as i atm tp | (i, (atm, tp)) <- enumerate as]
+{-      foldr
+        (\ (i, (atm, tp)) r -> r +>
+          term2fgg g atm +>= \ tmxs ->
+          let [vamp, vtp] = newNames [TpProd am tps, tp] in
+            mkRule (TmProd am as) (vamp : vtp : tmxs)
+              ([Edge' (tmxs ++ [vtp]) (show atm),
+                Edge' [vamp, vtp] (ampFactorName tps i)])
+              (delete vtp tmxs ++ [vamp])
+        )
+        (addAmpFactors g tps) (enumerate as)
+-}
+  | otherwise =
+    [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
+    let tps = snds as
+        ptp = TpProd am tps
+        (vptp : vtps) = newNames (ptp : tps)
+    in
+      addProdFactors g tps +>
+      mkRule (TmProd am as) (vptp : vtps ++ concat xss)
+        (Edge' (vtps ++ [vptp]) (prodFactorName (snds as)) :
+          [Edge' (tmxs ++ [vtp]) (show atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
+        (concat xss ++ [vptp])
+term2fgg g (TmElimProd Additive ptm ps tm tp) =
+  term2fgg g ptm +>= \ ptmxs ->
+  let o = injIndex [x | (x, _) <- ps]
+      (x, xtp) = ps !! o in
+--    error (show (o, ps))
+    bindExt True x xtp $
+    term2fgg (ctxtDeclTerm g x xtp) tm +>= \ tmxs ->
+    let tps = [tp | (_, tp) <- ps]
+        ptp = TpProd Additive tps
+        -- unused_ps = if  -- TODO: if unused?
+        [vtp, vptp] = newNames [tp, ptp]
+    in
+      addAmpFactors g tps +>
+      mkRule (TmElimProd Additive ptm ps tm tp)
+        (vtp : vptp : (x, xtp) : tmxs ++ ptmxs)
+        [Edge' (ptmxs ++ [vptp]) (show ptm),
+         Edge' (tmxs ++ [vtp]) (show tm),
+         Edge' [vptp, (x, xtp)] (ampFactorName tps o)]
+        (ptmxs ++ delete (x, xtp) tmxs ++ [vtp])
+
+
+{-term2fgg g (TmElimProd Additive tm o tp) =
   term2fgg g tm +>= \ tmxs ->
-  let tp = tps !! o
-      [vtp, vamp] = newNames [tp, TpAmp tps] in
-    mkRule (TmAmpOut tm tps o) (vtp : vamp : tmxs)
-      ([Edge' (tmxs ++ [vamp]) (show tm), Edge' [vamp, vtp] (ampFactorName tps o)])
+  let tps = case typeof tm of { TpProd am tps -> tps; _ -> error "expected an &-product, when compiling" }
+      --tp = tps !! o
+      [vtp, vamp] = newNames [tp, TpProd Additive tps] in
+    mkRule (TmElimAmp tm o (tps !! fst o)) (vtp : vamp : tmxs)
+      ([Edge' (tmxs ++ [vamp]) (show tm), Edge' [vamp, vtp] (ampFactorName tps (fst o))])
       (tmxs ++ [vtp]) +>
-    addAmpFactors g tps
-term2fgg g (TmProdIn as) =
-  [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
-  let tps = snds as
-      ptp = TpProd tps
-      (vptp : vtps) = newNames (ptp : tps)
-  in
-    addProdFactors g tps +>
-    mkRule (TmProdIn as) (vptp : vtps ++ concat xss)
-      (Edge' (vtps ++ [vptp]) (prodFactorName (snds as)) :
-        [Edge' (tmxs ++ [vtp]) (show atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
-      (concat xss ++ [vptp])
-term2fgg g (TmProdOut ptm ps tm tp) =
+    addAmpFactors g tps-}
+term2fgg g (TmElimProd Multiplicative ptm ps tm tp) =
   term2fgg g ptm +>= \ ptmxs ->
   bindExts True ps $
   term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
   let tps = [tp | (_, tp) <- ps]
-      ptp = TpProd tps
+      ptp = TpProd Multiplicative tps
       unused_ps = Map.toList (Map.difference (Map.fromList ps) (Map.fromList tmxs))
       vtp : vptp : unused_nps = newNames (tp : ptp : snds unused_ps)
   in
     addProdFactors g tps +>
-    mkRule (TmProdOut ptm ps tm tp)
+    mkRule (TmElimProd Multiplicative ptm ps tm tp)
       (vtp : vptp : ps ++ unused_ps ++ unused_nps ++ tmxs ++ ptmxs)
          (Edge' (ptmxs ++ [vptp]) (show ptm) :
             Edge' (ps ++ [vptp]) (prodFactorName tps) :
@@ -251,8 +297,8 @@ type2fgg g tp =
 type2fgg' :: Ctxt -> Type -> RuleM
 type2fgg' g (TpVar y) = returnRule
 type2fgg' g (TpArr tp1 tp2) = type2fgg g tp1 +> type2fgg g tp2
-type2fgg' g (TpAmp tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
-type2fgg' g (TpProd tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
+type2fgg' g (TpProd am tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
+type2fgg' g NoTp = error "Compiling NoTp to FGG rule"
 
 
 -- Adds the rules for a Prog
@@ -264,10 +310,10 @@ prog2fgg g (ProgFun x ps tm tp) =
       (unused_x, unused_tp) = unzip unused_ps
       vtp : unused_n = newNames (tp : unused_tp)
   in
-    mkRule (TmVarG DefVar x [] tp) (vtp : tmxs ++ ps ++ unused_n ++ unused_ps)
+    mkRule (TmVarG DefVar x [] [] tp) (vtp : tmxs ++ ps ++ unused_n ++ unused_ps)
       (Edge' (tmxs ++ [vtp]) (show tm) : discardEdges' unused_ps unused_n)
       (ps ++ [vtp])
-prog2fgg g (ProgExtern x xp ps tp) =
+prog2fgg g (ProgExtern x ps tp) =
   let tp' = (joinArrows ps tp) in
     type2fgg g tp' +>
     -- addNonterm x tp' +>
@@ -307,11 +353,13 @@ domainValues g = tpVals where
       concat [foldl (kronwith $ \ d da -> d ++ " " ++ parens da) [x] (map tpVals as)
              | (Ctor x as) <- cs]
   tpVals (TpArr tp1 tp2) = uncurry arrVals (splitArrows (TpArr tp1 tp2))
-  tpVals (TpAmp tps) =
-    let tpvs = map tpVals tps in
-      concatMap (\ (i, vs) -> ["<" ++ delimitWith ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
-  tpVals (TpProd tps) =
-    [prodValName' tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
+  tpVals (TpProd am tps)
+    | am == Additive =
+      let tpvs = map tpVals tps in
+        concatMap (\ (i, vs) -> ["<" ++ delimitWith ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
+    | otherwise =
+      [prodValName' tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
+  tpVals NoTp = error ("Enumerating values of a NoTp: " ++ show (Map.keys g))
 
 domainSize :: Ctxt -> Type -> Int
 domainSize g = length . domainValues g

@@ -13,12 +13,12 @@ extern q0 : State;
 extern q0' : State;
 extern z0 : ZSymbol;
 
-define gen_fa : State -> String = \ q : State. if in_accept q
+define gen_fa : State -> String = \ q. if in_accept q
   then WNil
   else (let (w, r) = transition q in WCons w (gen_fa r));
 
 define rec_pda : State -> String -> Stack -> Bool =
-  \ q' : State. \ ws : String. \ zs : Stack. case ws of
+  \ q'. \ ws. \ zs. case ws of
     | WNil -> in_accept' q'
     | WCons w ws -> (case zs of
       | ZNil -> False

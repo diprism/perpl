@@ -1,13 +1,17 @@
 module Util where
 import Data.List
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Exprs
 
-fsts :: [(a, b)] -> [a]
-fsts = fst . unzip
+type Map k v = Map.Map k v
+type Set v = Set.Set v
 
-snds :: [(a, b)] -> [b]
-snds = snd . unzip
+fsts :: Functor f => f (a, b) -> f a
+fsts = fmap fst
+
+snds :: Functor f => f (a, b) -> f b
+snds = fmap snd
 
 mapLeft :: (a -> b) -> Either a c -> Either b c
 mapLeft f (Left a) = Left (f a)
@@ -38,6 +42,10 @@ enumerate = zip [0..]
 maybe2 :: Maybe a -> b -> (a -> b) -> b
 maybe2 m n j = maybe n j m
 
+infixl 4 <**>
+(<**>) :: Applicative f => f (a -> b -> c) -> f (a, b) -> f c
+(<**>) = (<*>) . fmap uncurry
+
 infixr 2 |?|
 (|?|) :: Maybe a -> Maybe a -> Maybe a
 Nothing |?| m_else = m_else
@@ -46,21 +54,36 @@ Just a |?| m_else = Just a
 okay :: Monad m => m ()
 okay = return ()
 
+isDefVar :: GlobalVar -> Bool
+isDefVar DefVar = True
+isDefVar CtorVar = False
+
+isCtorVar :: GlobalVar -> Bool
+isCtorVar CtorVar = True
+isCtorVar DefVar = False
+
 -- Gets the type of an elaborated term in O(1) time
 getType :: Term -> Type
 getType (TmVarL x tp) = tp
-getType (TmVarG gv x as tp) = tp
+getType (TmVarG gv x tis as tp) = tp
 getType (TmLam x tp tm tp') = TpArr tp tp'
 getType (TmApp tm1 tm2 tp2 tp) = tp
 getType (TmLet x xtm xtp tm tp) = tp
 getType (TmCase ctm y cs tp) = tp
 getType (TmSamp d tp) = tp
 getType (TmAmb tms tp) = tp
-getType (TmAmpIn as) = TpAmp (snds as)
-getType (TmAmpOut tm tps o) = tps !! o
-getType (TmProdIn as) = TpProd (snds as)
-getType (TmProdOut tm ps tm' tp) = tp
+getType (TmProd am as) = TpProd am (snds as)
+getType (TmElimProd am tm ps tm' tp) = tp
 getType (TmEqs tms) = TpVar "Bool"
+
+typeof = getType
+
+-- "let <_, _, x, _> in ..."  =>  index of x = 2
+injIndex :: [Var] -> Int
+injIndex = h . zip [0..] where
+  h [] = -1
+  h ((i, "_") : xs) = h xs
+  h ((i, x) : xs) = i
 
 -- Sorts cases according to the order they are appear in the datatype definition
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
@@ -71,7 +94,7 @@ sortCases ctors cases = snds $ sortBy (\ (a, _) (b, _) -> compare a b) (label ca
     | x == x' = i
     | otherwise = getIdx (succ i) x cs
 
-  label = map $ \ (CaseUs x as tm) -> (getIdx 0 x ctors, CaseUs x as tm)
+  label = map $ \ c@(CaseUs x as tm) -> (getIdx 0 x ctors, c)
 
 
 -- Splits tp1 -> tp2 -> ... -> tpn into ([tp1, tp2, ...], tpn)
@@ -153,15 +176,15 @@ paramsToArgs :: [Param] -> [Arg]
 paramsToArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
 
 -- Turns a constructor into one with all its args applied
-addArgs :: GlobalVar -> Var -> [Arg] -> [Param] -> Type -> Term
-addArgs gv x tas vas y =
-  TmVarG gv x (tas ++ [(TmVarL a atp, atp) | (a, atp) <- vas]) y
+addArgs :: GlobalVar -> Var -> [Type] -> [Arg] -> [Param] -> Type -> Term
+addArgs gv x tis tas vas y =
+  TmVarG gv x tis (tas ++ [(TmVarL a atp, atp) | (a, atp) <- vas]) y
 
 -- Eta-expands a constructor with the necessary extra args
-etaExpand :: GlobalVar -> Var -> [Arg] -> [Param] -> Type -> Term
-etaExpand gv x tas vas y =
+etaExpand :: GlobalVar -> Var -> [Type] -> [Arg] -> [Param] -> Type -> Term
+etaExpand gv x tis tas vas y =
   foldr (\ (a, atp) tm -> TmLam a atp tm (getType tm))
-    (addArgs gv x tas vas y) vas
+    (addArgs gv x tis tas vas y) vas
 
 toArg :: Term -> Arg
 toArg tm = (tm, getType tm)
@@ -205,8 +228,8 @@ mapCtorsM f = mapM $ \ (Ctor x tps) -> pure (Ctor x) <*> mapM f tps
 mapProgM :: Monad m => (Term -> m Term) -> Prog -> m Prog
 mapProgM f (ProgFun x ps tm tp) =
   pure (ProgFun x ps) <*> f tm <*> pure tp
-mapProgM mtm (ProgExtern x xp ps tp) =
-  pure (ProgExtern x xp ps tp)
+mapProgM mtm (ProgExtern x ps tp) =
+  pure (ProgExtern x ps tp)
 mapProgM mtm (ProgData y cs) =
   pure (ProgData y cs)
 

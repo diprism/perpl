@@ -6,6 +6,7 @@ import Ctxt
 import Util
 import Name
 import Free
+import Subst
 
 {- ====== Affine to Linear Functions ====== -}
 -- These functions convert affine terms to
@@ -45,12 +46,19 @@ alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
 -- Maps something to Unit
 -- For example, take x : Bool, which becomes
 -- case x of false -> unit | true -> unit
-discard' :: Term -> Type -> AffLinM Term
-discard' x (TpArr tp1 tp2) =
+discard' :: Term -> Type -> Term -> AffLinM Term
+--discard' (TmVarL "_" tp') tp = error ("discard' \"_\" " ++ show tp)
+discard' x (TpArr tp1 tp2) rtm =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
-discard' x (TpAmp tps) = discard' (TmAmpOut x tps (length tps - 1)) (last tps)
-discard' x (TpProd tps) = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in discards (Map.fromList ps) tmUnit >>= \ tm -> return (TmProdOut x ps tm tpUnit)
-discard' x (TpVar y) =
+discard' x (TpProd am tps) rtm
+  | am == Additive =
+    return (TmElimProd Additive x
+             [(if i == length tps - 1 then "_x" else "_", tp)| (i, tp) <- enumerate tps]
+             rtm (typeof rtm))
+  | otherwise = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in
+      discards (Map.fromList ps) rtm >>= \ rtm' ->
+      return (TmElimProd Multiplicative x ps rtm' (typeof rtm'))
+discard' x (TpVar y) rtm =
   ask >>= \ g ->
   maybe2 (ctxtLookupType g y)
     (error ("In Free.hs/discard, unknown type var " ++ y))
@@ -58,7 +66,8 @@ discard' x (TpVar y) =
                let as' = nameParams x' as in
                  alBinds as' (return tmUnit) >>= \ tm ->
                  return (Case x' as' tm))) >>= \ cs' ->
-  return (TmCase x y cs' tpUnit)
+  return (TmLet "_" (TmCase x y cs' tpUnit) tpUnit rtm (typeof rtm))
+discard' x NoTp rtm = error "Trying to discard a NoTp"
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard
 -- it to maintain correct probabilities, but without changing the value or type
@@ -68,10 +77,10 @@ discard' x (TpVar y) =
 discard :: Var -> Type -> Term -> AffLinM Term
 discard x tp tm =
   ask >>= \ g ->
-  if useOnlyOnce g tp
-    then (discard' (TmVarL x tp) tp >>= \ dtm ->
-          return (TmLet "_" dtm tpUnit tm (getType tm)))
-    else return tm
+  if robust (ctxtLookupType g) tp
+    then return tm
+    else (discard' (TmVarL x tp) tp tm){- >>= \ dtm ->
+          return (TmLet "_" dtm tpUnit tm (getType tm)))-}
 
 -- Discard a set of variables
 discards :: FreeVars -> Term -> AffLinM Term
@@ -85,13 +94,13 @@ discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm
 -- (n+1)th element, which is Unit, and discard that
 affLinTp :: Type -> AffLinM Type
 affLinTp (TpVar y) = return (TpVar y)
-affLinTp (TpAmp tps) = pure TpAmp <*> mapM affLinTp (tps ++ [tpUnit])
-affLinTp (TpProd tps) = pure TpProd <*> mapM affLinTp tps
+affLinTp (TpProd am tps) = pure (TpProd am) <*> mapM affLinTp (tps ++ (if am == Additive then [tpUnit] else []))
 affLinTp (TpArr tp1 tp2) =
   let (tps, end) = splitArrows (TpArr tp1 tp2) in
     mapM affLinTp tps >>= \ tps' ->
     affLinTp end >>= \ end' ->
-    return (TpAmp [joinArrows tps' end', tpUnit])
+    return (TpProd Additive [joinArrows tps' end', tpUnit])
+affLinTp NoTp = error "Trying to affLin a NoTp"
 
 -- Make a case linear, returning the local vars that occur free in it
 affLinCase :: Case -> AffLinM Case
@@ -109,7 +118,7 @@ ambFun tm fvs =
     case tp of
       TpArr _ _ ->
         discards fvs tmUnit >>= \ ntm ->
-        return (TmAmpIn [(tm, tp), (ntm, tpUnit)])
+        return (TmProd Additive [(tm, tp), (ntm, tpUnit)])
       _ -> return tm
 
 -- Extract the function from a linearized term, if possible
@@ -117,8 +126,8 @@ ambFun tm fvs =
 ambElim :: Term -> Term
 ambElim tm =
   case getType tm of
-    TpAmp [tp, unittp] ->
-      TmAmpOut tm [tp, unittp] 0
+    TpProd Additive [tp, unittp] ->
+      TmElimProd Additive tm [("x", tp), ("_", unittp)] (TmVarL "x" tp) tp
     _ -> tm
 
 affLinParams :: [Param] -> Term -> AffLinM ([Param], Term, FreeVars)
@@ -142,11 +151,12 @@ affLin (TmVarL x tp) =
   affLinTp tp >>= \ ltp ->
   tell (Map.singleton x ltp) >>
   return (TmVarL x ltp)
-affLin (TmVarG gv x as y) =
+affLin (TmVarG gv x tis as y) =
   -- L(x) => x
   mapArgsM affLin as >>= \ as' ->
   affLinTp y >>= \ y' ->
-  return (TmVarG gv x as' y')
+  mapM affLinTp tis >>= \ tis' ->
+  return (TmVarG gv x tis' as' y')
 affLin (TmLam x tp tm tp') =
   -- L(\ x : tp. tm) => <\ x : tp. L(tm), Z(FV(\ x : tp. tm))>
   affLinLams (TmLam x tp tm tp') >>= \ (lps, body, fvs) ->
@@ -187,65 +197,56 @@ affLin (TmAmb tms tp) =
   affLinTp tp >>= \ tp' ->
   --  (if null tms' then affLinTp tp else return (getType (head tms'))) >>= \ tp' ->
   return (TmAmb tms' tp')
-affLin (TmAmpIn as) =
-  -- L(<tm1, tm2, ..., tmn>) => <L*(tm1), L*(tm2), ..., L*(tmn), L*(unit)>,
-  -- where L*(tm) = let _ = Z((FV(tm1) ∪ FV(tm2) ∪ ... ∪ FV(tmn)) - FV(tm)) in L(tm)
-  pure TmAmpIn <*> affLinBranches (mapArgM affLin) (mapArgM . discards) (as ++ [(tmUnit, tpUnit)])
-affLin (TmAmpOut tm tps o) =
-  -- L(tm.o) => L(tm).on
-  pure TmAmpOut <*> affLin tm <*> mapM affLinTp (tps ++ [tpUnit]) <*> pure o
-affLin (TmProdIn as) =
-  -- L(tm1, tm2, ..., tmn) => (L(tm1), L(tm2), ..., L(tmn))
-  pure TmProdIn <*> mapArgsM affLin as
-affLin (TmProdOut tm ps tm' tp) =
+affLin (TmProd am as)
+  | am == Additive =
+    -- L(<tm1, tm2, ..., tmn>) => <L*(tm1), L*(tm2), ..., L*(tmn), L*(unit)>,
+    -- where L*(tm) = let _ = Z((FV(tm1) ∪ FV(tm2) ∪ ... ∪ FV(tmn)) - FV(tm)) in L(tm)
+    pure (TmProd am) <*> affLinBranches (mapArgM affLin) (mapArgM . discards) (as ++ [(tmUnit, tpUnit)])
+  | otherwise =
+    -- L(tm1, tm2, ..., tmn) => (L(tm1), L(tm2), ..., L(tmn))
+    pure (TmProd am) <*> mapArgsM affLin as
+--affLin (TmElimAmp tm (o, o') tp) =
+--  -- L(tm.o.o') => L(tm).o.(o'+1) (add `Unit` to end of &-product)
+--  pure TmElimAmp <*> affLin tm <*> pure (o, o' + 1) <*> affLinTp tp
+affLin (TmElimProd Additive tm ps tm' tp) =
+  -- L(let <x1, x2, ..., xn> = tm in tm') =>
+  --    let <x1, x2, ..., xn> = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')
+  affLin tm >>= \ tm ->
+  affLinParams ps tm' >>= \ (ps, tm', fvs) ->
+  -- Discard all ps that are not used in tm'
+  discards (Map.intersection (Map.fromList ps) fvs) tm' >>= \ tm' ->
+  return (TmElimProd Additive tm (ps ++ [("_", tpUnit)]) tm' (getType tm'))
+affLin (TmElimProd Multiplicative tm ps tm' tp) =
   -- L(let (x1, x2, ..., xn) = tm in tm') =>
   --    let (x1, x2, ..., xn) = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')
   affLin tm >>= \ tm ->
   affLinParams ps tm' >>= \ (ps, tm', fvs) ->
   -- Discard all ps that are not used in tm'
   discards (Map.intersection (Map.fromList ps) fvs) tm' >>= \ tm' ->
-  return (TmProdOut tm ps tm' (getType tm'))
+  return (TmElimProd Multiplicative tm ps tm' (getType tm'))
 affLin (TmEqs tms) =
   pure TmEqs <*> mapM affLin tms
 
 -- Make an affine Prog linear
 affLinProg :: Prog -> AffLinM Prog
-affLinProg (ProgFun x _ tm tp) =
-  let (as, endtp) = splitArrows tp
-      (ls, endtm) = splitLams tm
-      etas = [ (etaName x i, atp) | (i, atp) <- drop (length ls) (enumerate as) ]
-      endtm_eta = joinApps endtm (paramsToArgs etas)
-      ls_eta = ls ++ etas
-  in
-    mapM affLinTp as >>= \ as' ->
-    mapParamsM affLinTp ls_eta >>= \ ls_eta' ->
-    alBinds ls_eta' (affLin endtm_eta) >>= \ endtm' ->
-    return (ProgFun x ls_eta' endtm' (getType endtm'))
-affLinProg (ProgExtern x xp _ tp) =
-  let (as, end) = splitArrows tp in
-    mapM affLinTp as >>= \ as' ->
-    return (ProgExtern x xp as' end)
 affLinProg (ProgData y cs) =
   pure (ProgData y) <*> mapCtorsM affLinTp cs
+affLinProg (ProgFun x as tm tp) =
+  mapParamsM affLinTp as >>= \ as' ->
+  pure (ProgFun x as') <*> alBinds as' (affLin tm) <*> affLinTp tp
+affLinProg (ProgExtern x ps tp) =
+  pure (ProgExtern x) <*> mapM affLinTp ps <*> affLinTp tp
 
--- Helper
+-- Helper that does affLinTp on all the types so that we can add all the definitions to ctxt
 affLinDefine :: Prog -> AffLinM Prog
 affLinDefine (ProgData y cs) =
-  pure (ProgData y) <*> mapCtorsM affLinTp  cs
-affLinDefine (ProgFun x [] tm tp) =
-  let (as, endtp) = splitArrows tp in
-    mapM affLinTp as >>= \ as' ->
-    return (ProgFun x [] tm (joinArrows as' endtp))
-affLinDefine (ProgFun _ (_ : _) _ _) =
-  error "Function shouldn't have params before affine-to-linear transformation"
-affLinDefine (ProgExtern _ _ (_ : _) _) =
-  error "Extern shouldn't have params before affine-to-linear transformation"
-affLinDefine (ProgExtern x xp [] tp) =
-  let (as, endtp) = splitArrows tp in
-    mapM affLinTp as >>= \ as' ->
-    return (ProgExtern x xp [] (joinArrows as' tp))
+  pure (ProgData y) <*> mapCtorsM affLinTp cs
+affLinDefine (ProgFun x as tm tp) =
+  pure (ProgFun x) <*> mapParamsM affLinTp as <*> pure tm <*> affLinTp tp
+affLinDefine (ProgExtern x ps tp) =
+  pure (ProgExtern x) <*> mapM affLinTp ps <*> affLinTp tp
 
--- Adds all the definitions in a file to context, after replacing arrows with Maybes
+-- Adds all the definitions in a file to context, after replacing arrows with <type, Unit>
 affLinDefines :: Progs -> AffLinM Ctxt
 affLinDefines (Progs ps end) =
   mapM affLinDefine ps >>= \ ps' ->
@@ -257,8 +258,15 @@ affLinProgs (Progs ps end) =
   local (const g) (pure Progs <*> mapM affLinProg ps <*> affLin end)
 
 runAffLin :: Progs -> Progs
-runAffLin ps = case runRWS (affLinProgs ps) (ctxtDefProgs ps) () of
+runAffLin ps = case runRWS (affLinProgs ps) emptyCtxt () of
   (Progs ps' end, mtps, _) -> Progs {-(ps' ++ [ProgData (tpMaybeName i) (maybeCtors i tp) | (i, tp) <- enumerate mtps])-} ps' end
+
+{-nonRobusts :: Progs -> Set Var
+nonRobusts ps@(Progs ps' _) = foldr (\ p nrs -> h p <> nrs) mempty ps' where
+  g = ctxtDefProgs ps
+  h (ProgData y cs) = if robust g (TpVar y) then mempty else Set.singleton y
+  h _ = mempty
+-}
 
 -- Make an affine file linear
 affLinFile :: Progs -> Either String Progs

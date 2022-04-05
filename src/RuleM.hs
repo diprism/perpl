@@ -189,13 +189,13 @@ getEqWeights dom ntms =
 combineExts :: Ord a => [[(a, x)]] -> ([(a, x)], [[Int]])
 combineExts = h Map.empty 0 where
 
-  index :: Ord a => Map.Map a Int -> Int -> [(a, x)] -> (Map.Map a Int, [(a, x)])
+  index :: Ord a => Map a Int -> Int -> [(a, x)] -> (Map a Int, [(a, x)])
   index ixs i [] = (ixs, [])
   index ixs i (a : as) = case Map.lookup (fst a) ixs of
     Nothing -> fmap ((:) a) (index (Map.insert (fst a) i ixs) (succ i) as)
     Just ia -> index ixs i as
   
-  h :: Ord a => Map.Map a Int -> Int -> [[(a, x)]] -> ([(a, x)], [[Int]])
+  h :: Ord a => Map a Int -> Int -> [[(a, x)]] -> ([(a, x)], [[Int]])
   h ixs i [] = ([], [])
   h ixs i (as : rest) =
     let (ixs', as') = index ixs i as
