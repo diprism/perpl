@@ -1,5 +1,7 @@
 {- In a sequence of fair coin flips, return True if HTH occurs before
-   HHT; False otherwise. -}
+   HHT; False otherwise.
+
+   https://en.wikipedia.org/wiki/Penney%27s_game -}
 
 data Flip = H | T;
 define flip = sample uniform: Flip;

@@ -1,4 +1,6 @@
-{- Von Neumann's trick for simulating a fair coin with an unfair one. -}
+{- Von Neumann's trick for simulating a fair coin with an unfair one.
+
+   https://en.wikipedia.org/wiki/Fair_coin#Fair_results_from_a_biased_coin -}
 
 extern unfair : Bool;
 
