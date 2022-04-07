@@ -71,7 +71,9 @@ instance Substitutable Constraint where
   freeVars (Unify tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
   freeVars (Robust tp) = freeVars tp
 
-type SolveVars = Map Var Loc
+type IsTag = Bool
+type ClosedTags = Set Var
+type SolveVars = Map Var IsTag
 
 data Loc = Loc { curDef :: String, curExpr :: String }
 
@@ -166,15 +168,23 @@ boundVars =
       gbe = globalEnv env in
   return (Map.unions [const () <$> tpe, const () <$> lce, const () <$> gbe, const () <$> s])
 
+isTag :: Var -> CheckM Bool
+isTag x =
+  get >>= \ s ->
+  return (s Map.! x)
+
 fresh :: Var -> CheckM Var
 fresh x = newVar x <$> boundVars
 
-freshTpVar :: CheckM Var
-freshTpVar =
-  askLoc >>= \ l ->
+freshTpVar' :: IsTag -> CheckM Var
+freshTpVar' tg =
+--  askLoc >>= \ l ->
   fresh "?0" >>= \ x ->
-  modify (Map.insert x l) >>
+  modify (Map.insert x tg) >>
   return x
+
+freshTpVar = freshTpVar' False
+freshTag = freshTpVar' True
 
 freshTp :: CheckM Type
 freshTp = TpVar <$> freshTpVar
@@ -362,17 +372,17 @@ solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
   h (Robust tp) l
     | not (robust' tp) = Left (RobustType tp, l)
     | otherwise = okay
-  
+
 
 solveInternal :: SolveVars -> Subst -> Type -> (Subst, [Var])
 solveInternal vs s rtp =
   let unsolved = Map.difference vs s
       fvs = freeVars (subst s rtp)
-      internalUnsolved = Map.difference unsolved fvs
-      s' = foldr (\ ix -> Map.insert ix (SubTp tpUnit)) Map.empty (Map.keys internalUnsolved)
+      (tags, internalUnsolved) = Map.partition id (Map.difference unsolved fvs)
+      s' = foldr (\ (ix, tg) -> Map.insert ix (SubTp tpUnit)) Map.empty (Map.toList internalUnsolved)
       s'' = s' `compose` s
   in
-    (s'', Map.keys (Map.intersection unsolved fvs))
+    (s'', Map.keys (Map.union tags (Map.intersection unsolved fvs)))
 
 solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var])
 solve g vs rtp cs =
