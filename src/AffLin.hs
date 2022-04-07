@@ -58,7 +58,7 @@ discard' x (TpProd am tps) rtm
   | otherwise = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in
       discards (Map.fromList ps) rtm >>= \ rtm' ->
       return (TmElimProd Multiplicative x ps rtm' (typeof rtm'))
-discard' x (TpVar y) rtm =
+discard' x (TpVar y _) rtm =
   ask >>= \ g ->
   maybe2 (ctxtLookupType g y)
     (error ("In Free.hs/discard, unknown type var " ++ y))
@@ -66,7 +66,7 @@ discard' x (TpVar y) rtm =
                let as' = nameParams x' as in
                  alBinds as' (return tmUnit) >>= \ tm ->
                  return (Case x' as' tm))) >>= \ cs' ->
-  return (TmLet "_" (TmCase x y cs' tpUnit) tpUnit rtm (typeof rtm))
+  return (TmLet "_" (TmCase x (y, []) cs' tpUnit) tpUnit rtm (typeof rtm))
 discard' x NoTp rtm = error "Trying to discard a NoTp"
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard
@@ -93,7 +93,7 @@ discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm
 -- So that if we want to discard such a term, we can just select its
 -- (n+1)th element, which is Unit, and discard that
 affLinTp :: Type -> AffLinM Type
-affLinTp (TpVar y) = return (TpVar y)
+affLinTp (TpVar y _) = return (TpVar y [])
 affLinTp (TpProd am tps) = pure (TpProd am) <*> mapM affLinTp (tps ++ (if am == Additive then [tpUnit] else []))
 affLinTp (TpArr tp1 tp2) =
   let (tps, end) = splitArrows (TpArr tp1 tp2) in

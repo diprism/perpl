@@ -6,7 +6,7 @@ data UsProgs = UsProgs [UsProg] UsTm
 data UsProg =
     UsProgFun String Type UsTm
   | UsProgExtern String Type
-  | UsProgData String [Ctor]
+  | UsProgData String [Var] [Ctor]
   deriving (Eq, Ord)
 
 data Prog =
@@ -21,7 +21,7 @@ data Progs = Progs [Prog] Term
 data SProg =
     SProgFun Var Scheme Term
   | SProgExtern Var [Type] Type
-  | SProgData Var [Ctor]
+  | SProgData Var [Var] [Ctor]
   deriving (Eq, Ord)
 
 data SProgs = SProgs [SProg] Term
@@ -68,7 +68,7 @@ data Term =
   | TmLam Var Type Term Type
   | TmApp Term Term Type {- -> -} Type
   | TmLet Var Term Type Term Type
-  | TmCase Term Var [Case] Type
+  | TmCase Term (Var, [Type]) [Case] Type
   | TmSamp Dist Type
   | TmAmb [Term] Type
   | TmProd AddMult [Arg]
@@ -81,7 +81,7 @@ data AddMult = Additive | Multiplicative
 
 data Type =
     TpArr Type Type
-  | TpVar Var
+  | TpVar Var [Type]
   | TpProd AddMult [Type]
   | NoTp
   deriving (Eq, Ord)

@@ -74,7 +74,14 @@ tmUnitName = "_unit_"
 --tpMaybe i = TpVar (tpMaybeName i)
 
 tmUnit = TmVarG CtorVar tmUnitName [] [] tpUnit
-tpUnit = TpVar tpUnitName
+tpUnit = TpVar tpUnitName []
+
+tpBoolName = "Bool"
+tmTrueName = "True"
+tmFalseName = "False"
+tpBool = TpVar tpBoolName []
+tmTrue = TmVarG CtorVar tmTrueName [] [] tpBool
+tmFalse = TmVarG CtorVar tmFalseName [] [] tpBool
 
 --tmElimMaybe :: Int -> Term -> Type -> Term -> (Var, Term) -> Type -> Term
 --tmElimMaybe i tm tp ntm (jx, jtm) tp' =
@@ -83,15 +90,15 @@ tpUnit = TpVar tpUnitName
 --     Case (tmJustName i) [(jx, tp)] jtm] tp'
 
 tmElimUnit :: Term -> Term -> Type -> Term
-tmElimUnit utm tm tp = TmCase utm tpUnitName [Case tmUnitName [] tm] tp
+tmElimUnit utm tm tp = TmCase utm (tpUnitName, []) [Case tmUnitName [] tm] tp
 
 unitCtors = [Ctor tmUnitName []]
 --maybeCtors i tp = [Ctor (tmNothingName i) [], Ctor (tmJustName i) [tp]]
 
 builtins :: [UsProg]
 builtins = [
-  UsProgData "Bool" [Ctor "False" [], Ctor "True" []],
-  UsProgData tpUnitName unitCtors
+  UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []],
+  UsProgData tpUnitName [] unitCtors
   ]
 
 progBuiltins :: UsProgs -> UsProgs

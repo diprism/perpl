@@ -105,8 +105,9 @@ isLin' x = (LinYes ==) . h where
 typeIsRecursive' :: (Var -> Maybe [Ctor]) -> Type -> Maybe [(Var, [Ctor])]
 typeIsRecursive' g = h [] [] where
   anyM f = foldr ((|?|) . f) Nothing
-  h visited datahist (TpVar y) =
+  h visited datahist (TpVar y as) =
     (if y `elem` visited then Just datahist else Nothing)
+      |?| anyM (h visited datahist) as
       |?| (g y >>= \ cs -> anyM (\ (Ctor _ tps) -> anyM (h (y : visited) ((y, cs) : datahist)) tps) cs)
   h visited datahist (TpArr tp1 tp2) = h visited datahist tp1 |?| h visited datahist tp2
   h visited datahist (TpProd am tps) = anyM (h visited datahist) tps
@@ -128,7 +129,7 @@ typeIsRecursive g = maybe False (const True) . typeIsRecursive' g
 robust :: (Var -> Maybe [Ctor]) -> Type -> Bool
 robust g = not . h [] where
   h :: [Var] -> Type -> Bool
-  h visited (TpVar y) = (y `elem` visited) || maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (g y)
+  h visited (TpVar y as) = (y `elem` visited) || any (h (y : visited)) as || maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (g y)
   h visited (TpArr _ _) = True
   h visited (TpProd am tps) = am == Additive || any (h visited) tps
   h visited NoTp = False

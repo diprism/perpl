@@ -74,7 +74,7 @@ getType (TmSamp d tp) = tp
 getType (TmAmb tms tp) = tp
 getType (TmProd am as) = TpProd am (snds as)
 getType (TmElimProd am tm ps tm' tp) = tp
-getType (TmEqs tms) = TpVar "Bool"
+getType (TmEqs tms) = TpVar "Bool" []
 
 typeof = getType
 

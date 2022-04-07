@@ -126,12 +126,14 @@ freeVarsF = foldr (\ a -> Map.union (freeVars a)) Map.empty
     
 instance Substitutable Type where
   substM (TpArr tp1 tp2) = pure TpArr <*> substM tp1 <*> substM tp2
-  substM (TpVar y) = substVar y TpVar (const (TpVar y)) id (TpVar y)
+  substM (TpVar y as) =
+    substM as >>= \ as' ->
+    substVar y (\ y' -> TpVar y' as') (const (TpVar y as')) id (TpVar y as')
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
   substM NoTp = pure NoTp
 
   freeVars (TpArr tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
-  freeVars (TpVar y) = Map.singleton y NoTp
+  freeVars (TpVar y as) = Map.singleton y NoTp <> freeVars as
   freeVars (TpProd am tps) = Map.unions (freeVars <$> tps)
   freeVars NoTp = Map.empty
 
@@ -278,9 +280,10 @@ instance Substitutable UsProg where
   substM (UsProgExtern x tp) =
     bind x x okay >>
     pure (UsProgExtern x) <*> substM tp
-  substM (UsProgData y cs) =
+  substM (UsProgData y ps cs) =
     bind y y okay >>
-    pure (UsProgData y) <*> substM cs
+    freshens ps >>= \ ps' ->
+    pure (UsProgData y ps') <*> binds ps ps' (substM cs)
 
   freeVars ps = error "freeVars on a UsProg"
 
@@ -320,9 +323,10 @@ instance Substitutable SProg where
   substM (SProgExtern x tps tp) =
     bind x x okay >>
     pure (SProgExtern x) <*> substM tps <*> substM tp
-  substM (SProgData y cs) =
+  substM (SProgData y ps cs) =
     bind y y okay >>
-    pure (SProgData y) <*> substM cs
+    freshens ps >>= \ ps' ->
+    pure (SProgData y ps') <*> binds ps ps' (substM cs)
 
   freeVars p = error "freeVars on a Prog"
 
@@ -341,8 +345,8 @@ instance Substitutable SProgs where
 -- For ad-hoc type var substitution,
 -- rename all occurrences of xi to xf in a type
 substType :: Var -> Var -> Type -> Type
-substType xi xf (TpVar y) =
-  TpVar (if xi == y then xf else y)
+substType xi xf (TpVar y as) =
+  TpVar (if xi == y then xf else y) (map (substType xi xf) as)
 substType xi xf (TpArr tp1 tp2) =
   TpArr (substType xi xf tp1) (substType xi xf tp2)
 substType xi xf (TpProd am tps) =

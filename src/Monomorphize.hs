@@ -55,7 +55,7 @@ makeEmptyInsts :: [SProg] -> Insts
 makeEmptyInsts = mconcat . map h where
   h (SProgFun x (Forall ys tp) tm) = SemiMap (Map.singleton x mempty)
   h (SProgExtern x tps rtp) = SemiMap (Map.singleton x mempty)
-  h (SProgData y cs) = SemiMap (Map.fromList (map (\ (Ctor x tps) -> (x, mempty)) cs))
+  h (SProgData y ps cs) = SemiMap (Map.fromList (map (\ (Ctor x tps) -> (x, mempty)) cs))
 
 makeDefMap :: [SProg] -> DefMap
 makeDefMap = semiMap . mconcat . map h where
@@ -64,13 +64,13 @@ makeDefMap = semiMap . mconcat . map h where
   
   h (SProgFun x (Forall ys tp) tm) = SemiMap (Map.singleton x (collectCalls tm))
   h (SProgExtern x tps rtp) = SemiMap (Map.singleton x [])
-  h (SProgData y cs) = SemiMap (Map.fromList (map (\ (Ctor x tps) -> (x, [])) cs))
+  h (SProgData y ps cs) = SemiMap (Map.fromList (map (\ (Ctor x tps) -> (x, [])) cs))
 
 makeTypeParams :: [SProg] -> TypeParams
 makeTypeParams = mconcat . map h where
   h (SProgFun x (Forall ys tp) tm) = Map.singleton x ys
   h (SProgExtern x tps rtp) = Map.singleton x []
-  h (SProgData y cs) = Map.fromList (map (\ (Ctor x tps) -> (x, [])) cs)
+  h (SProgData y ps cs) = Map.fromList (map (\ (Ctor x tps) -> (x, ps)) cs)
 
 -- If not visited, insert into Insts and recurse
 addInsts :: DefMap -> TypeParams -> Insts -> Var -> [Type] -> Insts
@@ -99,7 +99,8 @@ makeInstantiations xis (SProgFun x (Forall ys tp) tm) =
                          ProgFun (instName x i) [] (renameCalls xis (subst s tm)) (subst s tp))
       tiss
 makeInstantiations xis (SProgExtern x tps rtp) = [ProgExtern x tps rtp] -- TODO: string ""?
-makeInstantiations xis (SProgData y cs) = [ProgData y cs]
+makeInstantiations xis (SProgData y [] cs) = [ProgData y cs]
+makeInstantiations xis (SProgData y ps cs) = error "TODO"
 
 monomorphizeFile :: SProgs -> Progs
 monomorphizeFile (SProgs sps stm) =
