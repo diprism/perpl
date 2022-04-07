@@ -1,0 +1,21 @@
+{- https://leetcode.com/problems/climbing-stairs/
+   You are climbing a staircase. It takes n steps to reach the top.        
+   Each time you can either climb 1 or 2 steps. In how many distinct ways can you climb to the top? -}
+
+data Nat = Zero | Succ Nat;
+data Unit = unit;
+
+define climb = \stairs.
+  case stairs of
+  | Zero -> unit
+  | Succ stairs -> (
+    case sample amb of
+    | False -> climb stairs -- take one step
+    | True -> (             -- take two steps
+      case stairs of
+      | Zero -> sample fail
+      | Succ stairs -> climb stairs));
+
+define foo = \stairs. True;
+
+climb (Succ (Succ (Succ (Succ (Succ (Succ (Succ Zero))))))) -- Should return the (n+1)'st Fibonacci number (21)
