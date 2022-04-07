@@ -1,5 +1,5 @@
 {- In a sequence of fair coin flips, return True if HTH occurs before
-   HTT; False otherwise. -}
+   HHT; False otherwise. -}
 
 data Flip = H | T;
 define flip = sample uniform: Flip;
@@ -7,7 +7,7 @@ define flip = sample uniform: Flip;
 define run = \f1: Flip. \f2: Flip.
   let f3 = flip in
     if (f1, f2, f3) == (H, T, H) then True
-    else if (f1, f2, f3) == (H, T, T) then False
+    else if (f1, f2, f3) == (H, H, T) then False
     else run f2 f3;
 
 run flip flip
