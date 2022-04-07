@@ -33,23 +33,35 @@ collectCalls (TmElimProd am ptm ps tm tp) = collectCalls ptm <> collectCalls tm
 collectCalls (TmEqs tms) = mconcat (fmap collectCalls tms)
 
 renameCalls :: Map Var (Map [Type] Int) -> Term -> Term
-renameCalls xis (TmVarL x tp) = TmVarL x tp
-renameCalls xis (TmVarG g x [] as tp) = TmVarG g x [] [(renameCalls xis tm, tp)| (tm, tp) <- as] tp
+renameCalls xis (TmVarL x tp) = TmVarL x (renameCallsTp xis tp)
+renameCalls xis (TmVarG g x [] as tp) = TmVarG g x [] [(renameCalls xis tm, renameCallsTp xis tp)| (tm, tp) <- as] (renameCallsTp xis tp)
 renameCalls xis (TmVarG g x tis as tp) =
   let xisx = xis Map.! x
       xi = (xis Map.! x) Map.! tis in
-    if Map.member tis xisx then
-      TmVarG g (instName x xi) [] [(renameCalls xis tm, tp)| (tm, tp) <- as] tp
-    else error ("renameCalls: " ++ x ++ " " ++ show tis ++ " " ++ show xis)
-renameCalls xis (TmLam x xtp tm tp) = TmLam x xtp (renameCalls xis tm) tp
-renameCalls xis (TmApp tm1 tm2 tp2 tp) = TmApp (renameCalls xis tm1) (renameCalls xis tm2) tp2 tp
-renameCalls xis (TmLet x xtm xtp tm tp) = TmLet x (renameCalls xis xtm) xtp (renameCalls xis tm) tp
-renameCalls xis (TmCase tm y cs tp) = TmCase (renameCalls xis tm) y (fmap (\ (Case x ps tm') -> Case x ps (renameCalls xis tm')) cs) tp
-renameCalls xis (TmSamp d tp) = TmSamp d tp
-renameCalls xis (TmAmb tms tp) = TmAmb (renameCalls xis <$> tms) tp
-renameCalls xis (TmProd am as) = TmProd am [(renameCalls xis tm, tp) | (tm, tp) <- as]
-renameCalls xis (TmElimProd am ptm ps tm tp) = TmElimProd am (renameCalls xis ptm) ps (renameCalls xis tm) tp
+    TmVarG g (instName x xi) []
+      [(renameCalls xis tm, renameCallsTp xis tp)| (tm, tp) <- as]
+      (renameCallsTp xis tp)
+renameCalls xis (TmLam x xtp tm tp) = TmLam x (renameCallsTp xis xtp) (renameCalls xis tm) (renameCallsTp xis tp)
+renameCalls xis (TmApp tm1 tm2 tp2 tp) = TmApp (renameCalls xis tm1) (renameCalls xis tm2) (renameCallsTp xis tp2) (renameCallsTp xis tp)
+renameCalls xis (TmLet x xtm xtp tm tp) = TmLet x (renameCalls xis xtm) (renameCallsTp xis xtp) (renameCalls xis tm) (renameCallsTp xis tp)
+renameCalls xis (TmCase tm (y, as) cs tp) =
+  let (y', as') = maybe (y, as) (\ m -> let yi = m Map.! as in (instName y yi, [])) (xis Map.!? y) in
+    TmCase (renameCalls xis tm) (y', as')
+      (fmap (\ (Case x ps tm') -> Case x [(x', renameCallsTp xis tp) | (x', tp) <- ps] (renameCalls xis tm')) cs) (renameCallsTp xis tp)
+renameCalls xis (TmSamp d tp) = TmSamp d (renameCallsTp xis tp)
+renameCalls xis (TmAmb tms tp) = TmAmb (renameCalls xis <$> tms) (renameCallsTp xis tp)
+renameCalls xis (TmProd am as) = TmProd am [(renameCalls xis tm, renameCallsTp xis tp) | (tm, tp) <- as]
+renameCalls xis (TmElimProd am ptm ps tm tp) = TmElimProd am (renameCalls xis ptm) [(x, renameCallsTp xis tp) | (x, tp) <- ps] (renameCalls xis tm) (renameCallsTp xis tp)
 renameCalls xis (TmEqs tms) = TmEqs (renameCalls xis <$> tms)
+
+renameCallsTp :: Map Var (Map [Type] Int) -> Type -> Type
+renameCallsTp xis (TpVar y as) =
+  maybe (TpVar y as)
+    (\ m -> let yi = m Map.! as in TpVar (instName y yi) [])
+    (xis Map.!? y)
+renameCallsTp xis (TpArr tp1 tp2) = TpArr (renameCallsTp xis tp1) (renameCallsTp xis tp2)
+renameCallsTp xis (TpProd am tps) = TpProd am (map (renameCallsTp xis) tps)
+renameCallsTp xis NoTp = NoTp
 
 makeEmptyInsts :: [SProg] -> Insts
 makeEmptyInsts = mconcat . map h where
@@ -81,7 +93,6 @@ addInsts dm tpms xis x tis =
     processNext x dm tpms
       (xis <> SemiMap (Map.singleton x (Set.singleton tis))) x tis
 
--- TODO: Make sure no infinite loops, i.e. foo x = foo (x, unit) (or would this get caught during type-checking?)
 processNext :: Var -> DefMap -> TypeParams -> Insts -> Var -> [Type] -> Insts
 processNext cur dm tpms xis x tis =
   let curpms = tpms Map.! cur
@@ -94,13 +105,18 @@ makeInstantiations xis (SProgFun x (Forall [] tp) tm) =
   if null (Map.toList (xis Map.! x)) then [] else [ProgFun x [] (renameCalls xis tm) tp]
 makeInstantiations xis (SProgFun x (Forall ys tp) tm) =
   let tiss = Map.toList (xis Map.! x) in
-    map (\ (tis, i) -> let s = Map.fromList (zip ys (SubTp <$> tis)) in
---                         error (show tis ++ ", " ++ show i ++ ", " ++ show (Map.keys s))
-                         ProgFun (instName x i) [] (renameCalls xis (subst s tm)) (subst s tp))
+    map (\ (tis, i) ->
+           let s = Map.fromList (zip ys (SubTp <$> tis)) in
+             ProgFun (instName x i) [] (renameCalls xis (subst s tm)) (subst s tp))
       tiss
-makeInstantiations xis (SProgExtern x tps rtp) = [ProgExtern x tps rtp] -- TODO: string ""?
+makeInstantiations xis (SProgExtern x tps rtp) = [ProgExtern x tps rtp]
 makeInstantiations xis (SProgData y [] cs) = [ProgData y cs]
-makeInstantiations xis (SProgData y ps cs) = error "TODO"
+makeInstantiations xis (SProgData y ps cs) =
+    let tiss = Map.toList (xis Map.! y) in
+    map (\ (tis, i) ->
+           let s = Map.fromList (zip ps (SubTp <$> tis)) in
+             ProgData (instName y i) [Ctor x (map (renameCallsTp xis) tps) | Ctor x tps <- subst s cs])
+      tiss
 
 monomorphizeFile :: SProgs -> Progs
 monomorphizeFile (SProgs sps stm) =
