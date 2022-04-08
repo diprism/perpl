@@ -21,11 +21,11 @@ Compilation has the following stages:
  1 | Lex                 | File contents -> list of tokens                 |
  2 | Parse               | List of tokens -> expressions                   |
  3 | Type check          | Check file for type errors                      |
- 4 | Optimize            | Apply various optimizations                     | -O0, -O1
+ 4 | Optimize            | Apply various optimizations                     | -O
  5 | De/refunctionalize  | De/refunctionalize all recursive datatypes      | -d, -r
  6 | Affine-to-linear    | Ensure every function gets called exactly once  | -l
- 7 | Optimize (again)    | Apply various optimizations, again              | -o
- 8 | Compile to FGG      | Create FGG rules for all subexpressions         | -c
+ 7 | Optimize (again)    | Apply various optimizations, again              | -O
+ 8 | Compile to FGG      | Create FGG rules for all subexpressions         | -o, -c
 
 Command-line invocation:
 
