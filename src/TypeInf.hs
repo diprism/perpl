@@ -174,7 +174,7 @@ boundVars =
 isTag :: Var -> CheckM Bool
 isTag x =
   get >>= \ s ->
-  return (s `mylu` x)
+  return (s Map.! x)
 
 fresh :: Var -> CheckM Var
 fresh x = newVar x <$> boundVars
@@ -499,7 +499,7 @@ inferProgs ps =
       -- you can check it in order, by checking together
       -- all the functions in each strongly connected set
       sccs = scc m
-      sccs' = [[let (tp, tm) = mfs `mylu` x in (x, tp, tm) | x <- scc] | scc <- sccs]
+      sccs' = [[let (tp, tm) = mfs Map.! x in (x, tp, tm) | x <- scc] | scc <- sccs]
   in
     -- TODO: maybe sort progs back into original order?
     -- Add datatype defs to environment
