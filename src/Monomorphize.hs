@@ -117,7 +117,7 @@ processNext cur dm tpms xis x tis =
 
 makeInstantiations :: HasCallStack => Map Var (Map [Type] Int) -> SProg -> [Prog]
 makeInstantiations xis (SProgFun x (Forall [] tp) tm) =
-  if null (Map.toList (xis Map.! x)) then [] else [ProgFun x [] (renameCalls xis tm) tp]
+  if null (Map.toList (xis Map.! x)) then [] else [ProgFun x [] (renameCalls xis tm) (renameCallsTp xis tp)]
 makeInstantiations xis (SProgFun x (Forall ys tp) tm) =
   let tiss = Map.toList (xis Map.! x) in
     map (\ (tis, i) ->
