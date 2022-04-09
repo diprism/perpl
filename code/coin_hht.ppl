@@ -1,0 +1,22 @@
+{- In a sequence of fair coin flips, the expected time until HHT occurs.
+
+   https://en.wikipedia.org/wiki/Penney%27s_game -}
+
+data Nat = Zero | Succ Nat;
+data Unit = unit;
+
+data Flip = H | T;
+define flip = sample uniform: Flip;
+
+define run = \f1: Flip. \f2: Flip.
+  let f3 = flip in
+    if (f1, f2, f3) == (H, H, T) then Zero
+    else Succ (run f2 f3);
+
+define weigh = \n.
+  case n of | Zero -> sample fail
+            | Succ n -> amb unit (weigh n);
+
+weigh (run flip flip)
+
+
