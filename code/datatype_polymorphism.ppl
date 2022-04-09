@@ -1,0 +1,40 @@
+data List a = Nil | Cons a (List a);
+
+define concat = \ xs. \ ys. case xs of
+  | Nil -> ys
+  | Cons x xs' -> Cons x (concat xs' ys);
+
+define head = \ xs. case xs of
+  | Nil -> sample fail
+  | Cons x xs' -> x;
+
+define tail = \ xs. case xs of
+  | Nil -> Nil
+  | Cons x xs' -> xs';
+
+define not = \ a. if a then False else True;
+define xor = \ a. \ b. if a then not b else b;
+
+define xors = \ xs. case xs of
+  | Nil -> False
+  | Cons x xs' -> xor x (xors xs');
+
+data Nat = Zero | Succ Nat;
+
+define length = \ xs. case xs of
+  | Nil -> Zero
+  | Cons x xs' -> Succ (length xs');
+
+define even = \ n. case n of
+  | Zero -> True
+  | Succ n' -> not (even n');
+
+define list1 = Cons True (Cons False (Cons True Nil));
+define list2 = Cons (False, False) (Cons (True, False) Nil);
+
+define fsts = \ xs. case xs of
+  | Nil -> Nil
+  | Cons xy xs' -> let (x, y) = xy in Cons x (fsts xs');
+
+xor (even (length list2)) (even (length list1));
+--even (length (concat list1 (fsts list2)));
