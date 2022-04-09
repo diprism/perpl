@@ -2,11 +2,15 @@
 
 data Nat = Zero | Succ Nat;
 
-define double : Nat -> Nat = \n : Nat.
+define double = \n: Nat.
   case n of
   | Zero -> Zero
-  | Succ m -> Succ (Succ m);
+  | Succ m -> double (Succ (Succ m));
 
-double (double (Succ Zero))
+define equal = \m: Nat. \n: Nat.
+  case m of
+      Zero -> (case n of Zero -> True | Succ _ -> False)
+    | Succ m -> (case n of Zero -> False | Succ n -> equal m n);
 
-  
+equal (double (double (Succ Zero)))
+      (Succ (Succ (Succ (Succ Zero))))
