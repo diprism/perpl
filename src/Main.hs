@@ -14,6 +14,7 @@ import Optimize
 import Subst
 import Ctxt
 import Argify
+import Name
 
 data CmdArgs = CmdArgs {
   optInfile :: String,
@@ -99,6 +100,8 @@ processContents (CmdArgs ifn ofn c m e dr l o) s =
   >>= parseFile
   -- Pick a unique name for each bound var
   >>= alphaRenameProgs ctxtDefUsProgs
+  -- Add Bool, True, False
+  >>= Right . progBuiltins
   -- Type check the file (:: UsProgs -> Progs)
   >>= inferFile
 --  >>= return . show

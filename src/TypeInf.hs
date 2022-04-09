@@ -174,7 +174,7 @@ boundVars =
 isTag :: Var -> CheckM Bool
 isTag x =
   get >>= \ s ->
-  return (s Map.! x)
+  return (s `mylu` x)
 
 fresh :: Var -> CheckM Var
 fresh x = newVar x <$> boundVars
@@ -251,19 +251,20 @@ infer' (UsApp tm1 tm2) =
 
 infer' (UsCase tm cs) =
   lookupCtorType cs >>= \ (y, ps, ctors) ->
-  mapM (const freshTp) ps >>= \ ps' -> -- TODO: introduce tag here?
-  let psub = Map.fromList (zip ps [SubTp p' | p' <- ps'])
+  mapM (const freshTp) ps >>= \ ips -> -- TODO: introduce tag here?
+  let psub = Map.fromList (zip ps [SubTp p' | p' <- ips])
       cs' = sortCases ctors (subst psub cs)
+      ctors' = subst psub ctors
       cs_map = Map.fromList [(x, ()) | (CaseUs x _ _) <- cs]
       ctors_map = Map.fromList [(y, ()) | (Ctor y _) <- ctors]
       missingCases = Map.difference ctors_map cs_map in
   guardM (null missingCases) (MissingCases (Map.keys missingCases)) >>
   guardM (length ctors == length cs) (WrongNumCases (length ctors) (length cs)) >>
   infer tm >>: \ tm' ytp ->
-  constrain (Unify (TpVar y ps') ytp) >>
+  constrain (Unify (TpVar y ips) ytp) >>
   freshTp >>= \ itp ->
-  mapM (const freshTp) ps >>= \ ips ->
-  mapM (uncurry inferCase) (zip cs' ctors) >>= \ cs'' ->
+--  mapM (const freshTp) ps >>= \ ips ->
+  mapM (uncurry inferCase) (zip cs' ctors') >>= \ cs'' ->
   mapM (\ (Case x ps tm) -> constrain (Unify itp (typeof tm))) cs'' >>
   return (TmCase tm' (y, ips) cs'' itp)
 
@@ -340,6 +341,12 @@ bindTp x tp
 unify :: Type -> Type -> Either TypeError Subst
 unify (TpVar y@('?' : _) []) tp = bindTp y tp -- Only substitute type inst vars
 unify tp (TpVar y@('?' : _) []) = bindTp y tp -- Same ^
+unify tp1@(TpVar y1 as1) tp2@(TpVar y2 as2)
+  | y1 == y2 && length as1 == length as2 =
+      unifyAll' (zip as1 as2)
+    --mapM (uncurry unify) (zip as1 as2) >>= \ ss ->
+    --  Right (foldr compose mempty ss)
+  | otherwise = Left (UnificationError tp1 tp2)
 --unify (TpVar y) tp = bindTp y tp
 --unify tp (TpVar y) = bindTp y tp
 unify (TpArr l1 r1) (TpArr l2 r2) =
@@ -386,10 +393,12 @@ solveInternal vs s rtp =
   let unsolved = Map.difference vs s
       fvs = freeVars (subst s rtp)
       (tags, internalUnsolved) = Map.partition id (Map.difference unsolved fvs)
-      s' = foldr (\ (ix, tg) -> Map.insert ix (SubTp tpUnit)) Map.empty (Map.toList internalUnsolved)
+      s' = fmap (\ tg -> SubTp tpUnit) internalUnsolved -- foldr (\ (ix, tg) -> Map.insert ix (SubTp tpUnit)) Map.empty (Map.toList internalUnsolved)
       s'' = s' `compose` s
   in
+--    if null internalUnsolved then
     (s'', Map.keys (Map.union tags (Map.intersection unsolved fvs)))
+--    else error ("internalUnsolved: " ++ show internalUnsolved ++ ", vs: " ++ show vs ++ ", s: " ++ show s ++ ", rtp: " ++ show (subst s rtp) ++ ", rtp2: " ++ show (subst s'' rtp))
 
 solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var])
 solve g vs rtp cs =
@@ -490,10 +499,9 @@ inferProgs ps =
       -- you can check it in order, by checking together
       -- all the functions in each strongly connected set
       sccs = scc m
-      sccs' = [[let (tp, tm) = mfs Map.! x in (x, tp, tm) | x <- scc] | scc <- sccs]
+      sccs' = [[let (tp, tm) = mfs `mylu` x in (x, tp, tm) | x <- scc] | scc <- sccs]
   in
     -- TODO: maybe sort progs back into original order?
-    
     -- Add datatype defs to environment
     foldr inferData
       -- Check the type args in each datatype
@@ -510,6 +518,6 @@ inferProgs ps =
 inferFile :: UsProgs -> Either String SProgs
 inferFile ps =
   either (\ (e, loc) -> Left (show e ++ ", " ++ show loc)) (\ (a, s, w) -> Right a)
-    (runExcept (runRWST (inferProgs (progBuiltins ps))
+    (runExcept (runRWST (inferProgs ps)
                         (CheckR (Env mempty mempty mempty) (Loc "" "")) mempty))
 

@@ -5,6 +5,7 @@ import Subst
 import Name
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import GHC.Stack.Types (HasCallStack)
 
 newtype SemiMap a b = SemiMap (Map a b) deriving Show
 instance (Ord a, Semigroup b) => Semigroup (SemiMap a b) where
@@ -20,24 +21,33 @@ type TypeParams = Map Var [Var]
 type DefMap = Map Var GlobalCalls
   
 collectCalls :: Term -> GlobalCalls
-collectCalls (TmVarL x tp) = []
-collectCalls (TmVarG g x tis as tp) = [(x, tis)] <> mconcat (collectCalls <$> fsts as)
-collectCalls (TmLam x xtp tm tp) = collectCalls tm
-collectCalls (TmApp tm1 tm2 tp2 tp) = collectCalls tm1 <> collectCalls tm2
-collectCalls (TmLet x xtm xtp tm tp) = collectCalls xtm <> collectCalls tm
-collectCalls (TmCase tm y cs tp) = collectCalls tm <> mconcat (fmap (\ (Case x ps tm') -> collectCalls tm') cs)
-collectCalls (TmSamp d tp) = []
-collectCalls (TmAmb tms tp) = mconcat (fmap collectCalls tms)
-collectCalls (TmProd am as) = mconcat (fmap (collectCalls . fst) as)
-collectCalls (TmElimProd am ptm ps tm tp) = collectCalls ptm <> collectCalls tm
-collectCalls (TmEqs tms) = mconcat (fmap collectCalls tms)
+collectCalls tm = collectCalls' tm <> collectCallsTp (typeof tm)
+
+collectCalls' :: Term -> GlobalCalls
+collectCalls' (TmVarL x tp) = collectCallsTp tp
+collectCalls' (TmVarG g x tis as tp) = [(x, tis)] <> mconcat (collectCalls <$> fsts as)
+collectCalls' (TmLam x xtp tm tp) = collectCalls tm
+collectCalls' (TmApp tm1 tm2 tp2 tp) = collectCalls tm1 <> collectCalls tm2
+collectCalls' (TmLet x xtm xtp tm tp) = collectCalls xtm <> collectCalls tm
+collectCalls' (TmCase tm y cs tp) = collectCalls tm <> mconcat (fmap (\ (Case x ps tm') -> collectCalls tm') cs)
+collectCalls' (TmSamp d tp) = []
+collectCalls' (TmAmb tms tp) = mconcat (fmap collectCalls tms)
+collectCalls' (TmProd am as) = mconcat (fmap (collectCalls . fst) as)
+collectCalls' (TmElimProd am ptm ps tm tp) = collectCalls ptm <> collectCalls tm
+collectCalls' (TmEqs tms) = mconcat (fmap collectCalls tms)
+
+collectCallsTp :: Type -> GlobalCalls
+collectCallsTp (TpVar y as) = [(y, as)]
+collectCallsTp (TpArr tp1 tp2) = collectCallsTp tp1 <> collectCallsTp tp2
+collectCallsTp (TpProd am tps) = mconcat (map collectCallsTp tps)
+collectCallsTp NoTp = []
 
 renameCalls :: Map Var (Map [Type] Int) -> Term -> Term
 renameCalls xis (TmVarL x tp) = TmVarL x (renameCallsTp xis tp)
 renameCalls xis (TmVarG g x [] as tp) = TmVarG g x [] [(renameCalls xis tm, renameCallsTp xis tp)| (tm, tp) <- as] (renameCallsTp xis tp)
 renameCalls xis (TmVarG g x tis as tp) =
-  let xisx = xis Map.! x
-      xi = (xis Map.! x) Map.! tis in
+  let xisx = xis `mylu` x
+      xi = (xis `mylu` x) `mylu` tis in
     TmVarG g (instName x xi) []
       [(renameCalls xis tm, renameCallsTp xis tp)| (tm, tp) <- as]
       (renameCallsTp xis tp)
@@ -45,9 +55,11 @@ renameCalls xis (TmLam x xtp tm tp) = TmLam x (renameCallsTp xis xtp) (renameCal
 renameCalls xis (TmApp tm1 tm2 tp2 tp) = TmApp (renameCalls xis tm1) (renameCalls xis tm2) (renameCallsTp xis tp2) (renameCallsTp xis tp)
 renameCalls xis (TmLet x xtm xtp tm tp) = TmLet x (renameCalls xis xtm) (renameCallsTp xis xtp) (renameCalls xis tm) (renameCallsTp xis tp)
 renameCalls xis (TmCase tm (y, as) cs tp) =
-  let (y', as') = maybe (y, as) (\ m -> let yi = m Map.! as in (instName y yi, [])) (xis Map.!? y) in
+  let yi = xis Map.!? y >>= \ m -> m Map.!? as
+      (y', as') = maybe (y, as) (\ i -> (instName y i, [])) yi in
+--      (y', as') = maybe (y, as) (\ m -> let yi = maybe (error $ "y = " ++ y ++ ", as = " ++ show as ++ ", xis = " ++ show xis) id (m Map.!? as) in (instName y yi, [])) (xis Map.!? y) in
     TmCase (renameCalls xis tm) (y', as')
-      (fmap (\ (Case x ps tm') -> Case x [(x', renameCallsTp xis tp) | (x', tp) <- ps] (renameCalls xis tm')) cs) (renameCallsTp xis tp)
+      (fmap (\ (Case x ps tm') -> Case (maybe x (instName x) yi) [(x', renameCallsTp xis tp) | (x', tp) <- ps] (renameCalls xis tm')) cs) (renameCallsTp xis tp)
 renameCalls xis (TmSamp d tp) = TmSamp d (renameCallsTp xis tp)
 renameCalls xis (TmAmb tms tp) = TmAmb (renameCalls xis <$> tms) (renameCallsTp xis tp)
 renameCalls xis (TmProd am as) = TmProd am [(renameCalls xis tm, renameCallsTp xis tp) | (tm, tp) <- as]
@@ -55,9 +67,10 @@ renameCalls xis (TmElimProd am ptm ps tm tp) = TmElimProd am (renameCalls xis pt
 renameCalls xis (TmEqs tms) = TmEqs (renameCalls xis <$> tms)
 
 renameCallsTp :: Map Var (Map [Type] Int) -> Type -> Type
+renameCallsTp xis (TpVar y []) = TpVar y []
 renameCallsTp xis (TpVar y as) =
   maybe (TpVar y as)
-    (\ m -> let yi = m Map.! as in TpVar (instName y yi) [])
+    (\ m -> let yi = m `mylu` as in TpVar (instName y yi) [])
     (xis Map.!? y)
 renameCallsTp xis (TpArr tp1 tp2) = TpArr (renameCallsTp xis tp1) (renameCallsTp xis tp2)
 renameCallsTp xis (TpProd am tps) = TpProd am (map (renameCallsTp xis) tps)
@@ -67,7 +80,7 @@ makeEmptyInsts :: [SProg] -> Insts
 makeEmptyInsts = mconcat . map h where
   h (SProgFun x (Forall ys tp) tm) = SemiMap (Map.singleton x mempty)
   h (SProgExtern x tps rtp) = SemiMap (Map.singleton x mempty)
-  h (SProgData y ps cs) = SemiMap (Map.fromList (map (\ (Ctor x tps) -> (x, mempty)) cs))
+  h (SProgData y ps cs) = SemiMap (Map.fromList ((y, mempty) : map (\ (Ctor x tps) -> (x, mempty)) cs))
 
 makeDefMap :: [SProg] -> DefMap
 makeDefMap = semiMap . mconcat . map h where
@@ -76,18 +89,20 @@ makeDefMap = semiMap . mconcat . map h where
   
   h (SProgFun x (Forall ys tp) tm) = SemiMap (Map.singleton x (collectCalls tm))
   h (SProgExtern x tps rtp) = SemiMap (Map.singleton x [])
-  h (SProgData y ps cs) = SemiMap (Map.fromList (map (\ (Ctor x tps) -> (x, [])) cs))
+  h (SProgData y ps cs) =
+    let ccs = map (\ (Ctor x tps) -> (x, mconcat (map collectCallsTp tps))) cs in
+      SemiMap (Map.fromList ((y, mconcat (snds ccs)) : ccs))
 
 makeTypeParams :: [SProg] -> TypeParams
 makeTypeParams = mconcat . map h where
   h (SProgFun x (Forall ys tp) tm) = Map.singleton x ys
   h (SProgExtern x tps rtp) = Map.singleton x []
-  h (SProgData y ps cs) = Map.fromList (map (\ (Ctor x tps) -> (x, ps)) cs)
+  h (SProgData y ps cs) = Map.fromList ((y, ps) : map (\ (Ctor x tps) -> (x, ps)) cs)
 
 -- If not visited, insert into Insts and recurse
 addInsts :: DefMap -> TypeParams -> Insts -> Var -> [Type] -> Insts
 addInsts dm tpms xis x tis =
-  if tis `Set.member` (semiMap xis Map.! x) then
+  if not (x `Map.member` semiMap xis) || tis `Set.member` (semiMap xis `mylu` x) then
     xis
   else
     processNext x dm tpms
@@ -95,16 +110,16 @@ addInsts dm tpms xis x tis =
 
 processNext :: Var -> DefMap -> TypeParams -> Insts -> Var -> [Type] -> Insts
 processNext cur dm tpms xis x tis =
-  let curpms = tpms Map.! cur
-      curtis = semiMap xis Map.! cur
+  let curpms = tpms `mylu` cur
+      curtis = semiMap xis `mylu` cur
       mksub = \ ctis -> Map.fromList (zip curpms (SubTp <$> ctis)) in
-    foldr (\ (x, tis) xis -> foldr (\ ctis xis -> addInsts dm tpms xis x (subst (mksub ctis) tis)) xis curtis) xis (dm Map.! x)
+    foldr (\ (x, tis) xis -> foldr (\ ctis xis -> addInsts dm tpms xis x (subst (mksub ctis) tis)) xis curtis) xis (dm `mylu` x)
 
-makeInstantiations :: Map Var (Map [Type] Int) -> SProg -> [Prog]
+makeInstantiations :: HasCallStack => Map Var (Map [Type] Int) -> SProg -> [Prog]
 makeInstantiations xis (SProgFun x (Forall [] tp) tm) =
-  if null (Map.toList (xis Map.! x)) then [] else [ProgFun x [] (renameCalls xis tm) tp]
+  if null (Map.toList (xis `mylu` x)) then [] else [ProgFun x [] (renameCalls xis tm) tp]
 makeInstantiations xis (SProgFun x (Forall ys tp) tm) =
-  let tiss = Map.toList (xis Map.! x) in
+  let tiss = Map.toList (xis `mylu` x) in
     map (\ (tis, i) ->
            let s = Map.fromList (zip ys (SubTp <$> tis)) in
              ProgFun (instName x i) [] (renameCalls xis (subst s tm)) (subst s tp))
@@ -112,10 +127,10 @@ makeInstantiations xis (SProgFun x (Forall ys tp) tm) =
 makeInstantiations xis (SProgExtern x tps rtp) = [ProgExtern x tps rtp]
 makeInstantiations xis (SProgData y [] cs) = [ProgData y cs]
 makeInstantiations xis (SProgData y ps cs) =
-    let tiss = Map.toList (xis Map.! y) in
+    let tiss = Map.toList (xis `mylu` y) in
     map (\ (tis, i) ->
            let s = Map.fromList (zip ps (SubTp <$> tis)) in
-             ProgData (instName y i) [Ctor x (map (renameCallsTp xis) tps) | Ctor x tps <- subst s cs])
+             ProgData (instName y i) [Ctor (instName x i) (map (renameCallsTp xis) (subst s tps)) | Ctor x tps <- cs])
       tiss
 
 monomorphizeFile :: SProgs -> Progs

@@ -51,6 +51,7 @@ newVars xs m =
 ----------------------------------------
 
 data SubT = SubVar Var | SubTm Term | SubTp Type
+  deriving (Eq, Ord, Show)
 type Subst = Map Var SubT
 
 type SubstM a = RWS () () Subst a
@@ -151,8 +152,8 @@ instance Substitutable Term where
   substM (TmLet x xtm xtp tm tp) =
     freshen x >>= \ x' ->
     pure (TmLet x') <*> substM xtm <*> substM xtp <*> bind x x' (substM tm) <*> substM tp
-  substM (TmCase tm y cs tp) =
-    pure TmCase <*> substM tm <*> pure y <*> substM cs <*> substM tp
+  substM (TmCase tm (y, as) cs tp) =
+    pure TmCase <*> substM tm <*> (pure ((,) y) <*> substM as) <*> substM cs <*> substM tp
   substM (TmSamp d tp) =
     pure (TmSamp d) <*> substM tp
   substM (TmAmb tms tp) =
