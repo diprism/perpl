@@ -62,7 +62,7 @@ runSubst :: Subst -> SubstM a -> a
 runSubst s r = let (a', r', ()) = runRWS r () s in a'
 
 freshen :: Var -> SubstM Var
-freshen "_" = return "_" -- TODO: Deal with conflicting FGG rules for "_"
+--freshen "_" = return "_" -- TODO: Deal with conflicting FGG rules for "_"
 freshen x =
   fmap (newVar x) get >>= \ x' ->
   modify (Map.insert x' (SubVar x')) >>
@@ -98,12 +98,16 @@ substVar x fv ftm ftp fn =
         {SubVar x' -> fv x'; SubTm tm -> ftm tm; SubTp tp -> ftp tp })
     (Map.lookup x s)
 
-substParams :: [Param] -> SubstM a -> SubstM ([Param], a)
-substParams [] cont = (,) [] <$> cont
-substParams ((x, tp) : ps) cont =
+substParams :: AddMult -> [Param] -> SubstM a -> SubstM ([Param], a)
+substParams am [] cont = (,) [] <$> cont
+substParams Additive (("_", tp) : ps) cont =
+  substM tp >>= \ tp' ->
+  substParams Additive ps cont >>= \ (ps', a) ->
+  return (("_", tp') : ps', a)
+substParams am ((x, tp) : ps) cont =
   freshen x >>= \ x' ->
   substM tp >>= \ tp' ->
-  bind x x' (substParams ps cont) >>= \ (ps', a) ->
+  bind x x' (substParams am ps cont) >>= \ (ps', a) ->
   return ((x', tp') : ps', a)
 
 class Substitutable a where
@@ -167,7 +171,7 @@ instance Substitutable Term where
 --  substM (TmElimAmp tm i tp) =
 --    pure TmElimAmp <*> substM tm <*> pure i <*> substM tp
   substM (TmElimProd am ptm ps tm tp) =
-    pure (TmElimProd am) <*> substM ptm <**> substParams ps (substM tm) <*> substM tp
+    pure (TmElimProd am) <*> substM ptm <**> substParams am ps (substM tm) <*> substM tp
   substM (TmEqs tms) =
     pure TmEqs <*> substM tms
   
@@ -186,7 +190,7 @@ instance Substitutable Term where
 
 instance Substitutable Case where
   substM (Case x ps tm) =
-    pure (Case x) <**> substParams ps (substM tm)
+    pure (Case x) <**> substParams Multiplicative ps (substM tm)
   freeVars (Case x ps tm) =
     foldr (Map.delete . fst) (freeVars tm) ps
 
@@ -235,13 +239,12 @@ instance Substitutable UsTm where
     pure (UsLet x') <*> substM xtp <*> substM xtm <*> bind x x' (substM tm)
   substM (UsAmb tms) =
     pure UsAmb <*> substM tms
---  substM (UsElimAmp tm o) =
---    pure UsElimAmp <*> substM tm <*> pure o
   substM (UsProd am tms) =
     pure (UsProd am) <*> substM tms
   substM (UsElimProd am tm xs tm') =
-    freshens xs >>= \ xs' ->
-    pure (UsElimProd am) <*> substM tm <*> pure xs' <*> binds xs xs' (substM tm')
+    pure (UsElimProd am) <*> substM tm
+      <**> fmap (\ (ps, a) -> (fsts ps, a))
+                (substParams am [(x, NoTp) | x <- xs] (substM tm'))
   substM (UsEqs tms) =
     pure UsEqs <*> substM tms
 
@@ -303,7 +306,7 @@ instance Substitutable Ctor where
 instance Substitutable Prog where
   substM (ProgFun x ps tm tp) =
     bind x x okay >>
-    pure (ProgFun x) <**> substParams ps (substM tm) <*> substM tp
+    pure (ProgFun x) <**> substParams Multiplicative ps (substM tm) <*> substM tp
   substM (ProgExtern x ps tp) =
     bind x x okay >>
     pure (ProgExtern x) <*> substM ps <*> substM tp
