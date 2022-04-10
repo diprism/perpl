@@ -73,7 +73,8 @@ showTermParens _                 _        = False
 showTypeParens :: Type -> ShowHist -> Bool
 showTypeParens (TpArr _ _) ShowArrL = True
 showTypeParens (TpArr _ _) ShowTypeArg = True
-showTypeParens (TpProd am _ ) ShowTypeArg = True
+showTypeParens (TpProd _ _ ) ShowTypeArg = True
+showTypeParens (TpVar _ (_ : _)) ShowTypeArg = True
 showTypeParens _ _ = False
 
 showTpAnn :: Type -> String
