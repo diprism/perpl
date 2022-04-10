@@ -29,7 +29,7 @@ toUsProg (ProgExtern x ps tp) = UsProgExtern x (joinArrows ps tp)
 toUsProg (ProgData y cs) = UsProgData y [] cs
 
 toUsProgs :: Progs -> UsProgs
-toUsProgs (Progs (ProgData "_Unit_" [unit] : ProgData "Bool" [fctor, tctor] : ps) tm) = UsProgs (map toUsProg ps) (toUsTm tm)
+--toUsProgs (Progs (ProgData "_Unit_" [unit] : ProgData "Bool" [fctor, tctor] : ps) tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 toUsProgs (Progs ps tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 
 
@@ -163,6 +163,6 @@ instance Show Progs where
 instance Show SProgs where
   show (SProgs ps end) = delimitWith "\n\n" ([show p | p <- ps] ++ [show end])
 instance Show SProg where
-  show (SProgFun x stp tm) = "define " ++ x ++ " : " ++ show stp ++ " = " ++ show tm
-  show (SProgExtern x tps tp) = "extern " ++ x ++ " : " ++ show (joinArrows tps tp)
-  show (SProgData y tgs ps cs) = "data " ++ delimitWith " " (y : tgs ++ ps) ++ " = " ++ delimitWith " | " [show c | c <- cs]
+  show (SProgFun x stp tm) = "define " ++ x ++ " : " ++ show stp ++ " = " ++ show tm ++ ";"
+  show (SProgExtern x tps tp) = "extern " ++ x ++ " : " ++ show (joinArrows tps tp) ++ ";"
+  show (SProgData y tgs ps cs) = "data " ++ delimitWith " " (y : tgs ++ ps) ++ " = " ++ delimitWith " | " [show c | c <- cs] ++ ";"
