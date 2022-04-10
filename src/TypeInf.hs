@@ -522,14 +522,15 @@ splitProgs (UsProgs ps end) =
 
 inferFuns :: [(Var, Type, UsTm)] -> CheckM SProgs -> CheckM SProgs
 inferFuns fs m =
-  mapM (\ (x, mtp, tm) -> annTp mtp) fs >>= \ itps ->
+  mapM (const freshTp) fs >>= \ itps ->
   let ftps = [(x, itp) | ((x, _, _), itp) <- zip fs itps] in
     inEnvs ftps
     (solvesM ftps
-      (mapM (\ ((x, _, tm), tp) ->
+      (mapM (\ ((x, mtp, tm), itp) ->
                localCurDef x $
                infer tm >>: \ tm' tp' ->
-               constrain (Unify tp tp') >>
+               constrain (Unify itp tp') >>
+               (if mtp /= NoTp then checkType mtp >>= \ mtp' -> constrain (Unify mtp' tp') else okay) >>
                return (x, tm', tp')) (zip fs itps))) >>= \ xtmstps ->
     foldr (\ (x, tm, stp) -> defTerm x DefVar stp) m xtmstps >>= \ (SProgs ps end) ->
     let ps' = map (\ (x, tm, stp) -> SProgFun x stp tm) xtmstps in
