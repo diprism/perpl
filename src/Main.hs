@@ -130,4 +130,4 @@ main =
   processArgs >>= either (const help) (\ opts ->
     (openFile (optInfile opts) ReadMode) >>= \ fh ->
      hGetContents fh >>= \ input ->
-     either die (\ a -> putStrLn a >> exitSuccess) (processContents opts input))
+     either die (\ a -> writeFile (optOutfile opts) a >> exitSuccess) (processContents opts input))

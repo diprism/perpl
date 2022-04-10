@@ -1,0 +1,24 @@
+{- In Penney's game, Player A and Player B choose patterns of three
+   (ordered) coin flips, then flip a fair coin until one player's
+   pattern occurs. That player is the winner.
+
+   https://en.wikipedia.org/wiki/Penney%27s_game -}
+
+data Flip = H | T;
+define flip = sample uniform: Flip;
+
+{- The patterns chosen by the two players. -}
+define pattern_a = (H, T, H);
+define pattern_b = (H, T, H);
+
+data Player = A | B;
+
+define run = \f1: Flip. \f2: Flip.
+  let f3 = flip in
+    if (f1, f2, f3) == pattern_a then A
+    else if (f1, f2, f3) == pattern_b then B
+    else run f2 f3;
+
+run flip flip
+
+

@@ -1,0 +1,34 @@
+{- In a sequence of fair coin flips, we want to know the expected time
+   until a specified pattern occurs.
+
+   http://www.ted.com/talks/peter_donnelly_shows_how_stats_fool_juries
+
+   The expected times should be:
+   
+     HHH = TTT = 14
+     HTT = THH = 8
+     HHT = TTH = 8
+     HTH = THT = 10
+  
+   This version demonstrates how to compute expectations
+   externally. It simply calls an external function called `tick` once
+   per time step so that another program can use the resulting FGG to
+   compute the expected number of calls to `tick`. -}
+
+data Flip = H | T;
+
+{- The pattern to search for. -}
+define pattern = (H, T, H);
+
+data Unit = unit;
+extern tick: Unit; 
+define flip = let _ = tick in sample uniform: Flip;
+
+define run = \f1: Flip. \f2: Flip.
+  let f3 = flip in
+    if (f1, f2, f3) == pattern then unit
+    else run f2 f3;
+
+run flip flip
+
+

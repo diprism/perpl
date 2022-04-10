@@ -1,0 +1,37 @@
+{- In a sequence of fair coin flips, we want to know the expected time
+   until a specified pattern occurs.
+
+   http://www.ted.com/talks/peter_donnelly_shows_how_stats_fool_juries
+
+   The expected times should be:
+   
+     HHH = TTT = 14
+     HTT = THH = 8
+     HHT = TTH = 8
+     HTH = THT = 10
+  
+  This version uses a trick to return a distribution over Unit in
+  which the weight of unit is the expected time. -}
+
+data Flip = H | T;
+
+{- The pattern to search for. -}
+define pattern = (H, T, H);
+
+data Nat = Zero | Succ Nat;
+data Unit = unit;
+define flip = sample uniform: Flip;
+
+define run = \f1: Flip. \f2: Flip.
+  let f3 = flip in
+    if (f1, f2, f3) == pattern then (Succ (Succ (Succ Zero)))
+    else Succ (run f2 f3);
+
+{- weigh n returns the distribution {unit: n}. -}
+define weigh = \n.
+  case n of Zero -> sample fail
+          | Succ n -> amb unit (weigh n);
+
+weigh (run flip flip)
+
+
