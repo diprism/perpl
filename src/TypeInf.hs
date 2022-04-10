@@ -445,14 +445,13 @@ solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
 solveInternal :: SolveVars -> Subst -> Type -> (Subst, [Var], [Var])
 solveInternal vs s rtp =
   let unsolved = Map.difference vs s
+      (utgs, utpvs) = Map.partition id unsolved
       fvs = freeVars (subst s rtp)
-      (tags, internalUnsolved) = Map.partition id (Map.difference unsolved fvs)
-      s' = fmap (\ tg -> SubTp tpUnit) internalUnsolved -- foldr (\ (ix, tg) -> Map.insert ix (SubTp tpUnit)) Map.empty (Map.toList internalUnsolved)
+      internalUnsolved = Map.difference utpvs fvs
+      s' = fmap (\ False -> SubTp tpUnit) internalUnsolved
       s'' = s' `compose` s
   in
---    if null internalUnsolved then
-    (s'', Map.keys (Map.intersection unsolved fvs), Map.keys tags)
---    else error ("internalUnsolved: " ++ show internalUnsolved ++ ", vs: " ++ show vs ++ ", s: " ++ show s ++ ", rtp: " ++ show (subst s rtp) ++ ", rtp2: " ++ show (subst s'' rtp))
+    (s'', Map.keys (Map.intersection utpvs fvs), Map.keys utgs)
 
 solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var], [Var])
 solve g vs rtp cs =
