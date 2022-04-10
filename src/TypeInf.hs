@@ -318,7 +318,7 @@ infer' (UsCase tm cs) =
 --  mapM (const freshTp) ps >>= \ ips ->
   mapM (uncurry inferCase) (zip cs' ctors') >>= \ cs'' ->
   mapM (\ (Case x ps tm) -> constrain (Unify itp (typeof tm))) cs'' >>
-  return (TmCase tm' (y, ips) cs'' itp)
+  return (TmCase tm' (y, itgs ++ ips) cs'' itp)
 
 infer' (UsIf tm1 tm2 tm3) =
   infer tm1 >>: \ tm1' tp1 ->
