@@ -214,7 +214,7 @@ fresh x = newVar x <$> boundVars
 
 freshTpVar' :: IsTag -> CheckM Var
 freshTpVar' tg =
-  fresh "?0" >>= \ x ->
+  fresh (if tg then "#0" else "?0") >>= \ x ->
   modify (Map.insert x tg) >>
   return x
 
@@ -391,8 +391,10 @@ bindTp x tp
   | otherwise = Right (Map.singleton x (SubTp tp))
 
 unify :: Type -> Type -> Either TypeError Subst
-unify (TpVar y@('?' : _) []) tp = bindTp y tp -- Only substitute type inst vars
+unify (TpVar y@('?' : _) []) tp = bindTp y tp -- Only substitute tag/type inst vars
+unify (TpVar y@('#' : _) []) tp = bindTp y tp -- Same ^
 unify tp (TpVar y@('?' : _) []) = bindTp y tp -- Same ^
+unify tp (TpVar y@('#' : _) []) = bindTp y tp -- Same ^
 unify tp1@(TpVar y1 as1) tp2@(TpVar y2 as2)
   | y1 == y2 && length as1 == length as2 =
       unifyAll' (zip as1 as2)
