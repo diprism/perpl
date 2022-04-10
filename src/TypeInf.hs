@@ -598,6 +598,11 @@ inferExtern (x, tp) m =
   defTerm x DefVar (Forall [] [] tp) m >>= \ (SProgs ps end) ->
   return (SProgs (SProgExtern x [] tp : ps) end)
 
+inferEnd :: UsTm -> CheckM SProgs
+inferEnd end =
+  solveM (infer end >>: curry return) >>= \ (end', tp, tgs) ->
+  return (SProgs [] end')
+
 inferProgs :: UsProgs -> CheckM SProgs
 inferProgs ps =
   let (fdeps, ddeps) = getDeps ps
@@ -621,8 +626,7 @@ inferProgs ps =
     -- Then check functions
          (foldr inferFuns
     -- Then check end term
-            (solveM (infer end >>: curry return) >>= \ (end', tp, tgs) ->
-             return (SProgs [] end')) funSCCs') es)
+            (inferEnd end) funSCCs') es)
 
 inferFile :: UsProgs -> Either String SProgs
 inferFile ps =
