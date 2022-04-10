@@ -457,8 +457,7 @@ solveInternal vs s rtp =
 solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var], [Var])
 solve g vs rtp cs =
   unifyAll (getUnifications cs) >>= \ s ->
-  let (s', xs, tgs) = solveInternal vs s rtp
-  in
+  let (s', xs, tgs) = solveInternal vs s rtp in
   solvedWell g s' cs >>
   return (s', xs, tgs)
 
@@ -537,15 +536,6 @@ inferFuns fs m =
     let ps' = map (\ (x, tm, stp) -> SProgFun x stp tm) xtmstps in
     return (SProgs (ps' ++ ps) end)
 
-{-inferData :: [Var] -> (Var, [Var], [Ctor]) -> CheckM SProgs -> CheckM SProgs
-inferData recs (y, xs, cs) m =
-  -- We will check each of the ctor type args later,
-  -- after every datatype has been added to the environment
-  (if y `elem` recs then (freshTagVar >>= \ x -> return [x]) else (return [])) >>= \ tgs ->
-  defData y tgs xs cs m >>= \ (SProgs ps end) ->
-  return (SProgs (SProgData y tgs xs cs : ps) end)
--}
-
 inferData :: [[(Var, [Var], [Ctor])]] -> CheckM SProgs -> CheckM SProgs
 inferData dsccs cont = foldr h cont dsccs
   where
@@ -560,13 +550,17 @@ inferData dsccs cont = foldr h cont dsccs
     checkCtor (Ctor x tps) =
       pure (Ctor x) <*> mapM checkType tps
 
+    checkData :: (Var, [Var], [Ctor]) -> CheckM (Var, [Var], [Ctor])
+    checkData (y, ps, cs) =
+      defParams ps (mapM checkCtor cs) >>= \ cs' ->
+      return (y, ps, cs')
+
     addDefs :: [(Var, [Var], [Var], [Ctor])] -> CheckM SProgs -> CheckM SProgs
     addDefs [] cont = cont
     addDefs ((y, tgs, ps, cs) : ds) cont =
       defData y tgs ps cs (addDefs ds cont) >>= \ (SProgs sps etm) ->
       return (SProgs (SProgData y tgs ps cs : sps) etm)
 
-    --defDatas m = foldr (\ ) m ds
     h :: [(Var, [Var], [Ctor])] -> CheckM SProgs -> CheckM SProgs
     h dscc cont =
       hPerhapsRec dscc >>= \ dscc' ->
@@ -580,17 +574,13 @@ inferData dsccs cont = foldr h cont dsccs
 
     hRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
     hRec dscc =
-      freshTagVar >>= \ itg ->
       listenSolveVars
         (foldl
            (\ m (y, ps, cs) -> defType y [] ps cs m)
-           (mapM (\ (y, ps, cs) ->
-                    pure ((,,) y ps) <*> mapM (\ (Ctor x tps) ->
-                                                 pure (Ctor x) <*> mapM checkType tps)
-                                              cs) dscc)
+           (freshTagVar >> mapM checkData dscc)
            dscc)
         >>= \ (dscc', vs) ->
-      let tgs = itg : Map.keys (Map.filter id vs)
+      let tgs = Map.keys (Map.filter id vs)
           s = Map.fromList [(y, tgs) | (y, ps, cs) <- dscc']
       in
         return [(y, tgs, ps, substTagsCtors s cs) | (y, ps, cs) <- dscc']
