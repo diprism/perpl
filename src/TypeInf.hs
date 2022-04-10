@@ -33,6 +33,7 @@ data TypeError =
   | MissingCases [Var]
   | WrongNumCases Int Int
   | WrongNumArgs Int Int
+  | MultipleDefs Var
 
 instance Show TypeError where
   show (InfiniteType x tp) = "Failed to construct infinite type: " ++ x ++ " := " ++ show tp
@@ -49,8 +50,9 @@ instance Show TypeError where
   show (MissingCases xs) = "Missing cases: " ++ delimitWith ", " xs
   show (WrongNumCases exp act) = "Expected " ++ show exp ++ " cases, but got " ++ show act
   show (WrongNumArgs exp act) = "Expected " ++ show exp ++ " args, but got " ++ show act
+  show (MultipleDefs x) = "Multiple definitions of " ++ show x
 
-data Env = Env { typeEnv :: Map Var ([Var], [Ctor]),
+data Env = Env { typeEnv :: Map Var ([Var], [Var], [Ctor]),
                  localEnv :: Map Var Type,
                  globalEnv :: Map Var (GlobalVar, Scheme) }
 
@@ -71,8 +73,6 @@ instance Substitutable Constraint where
   freeVars (Unify tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
   freeVars (Robust tp) = freeVars tp
 
-type IsTag = Bool
-type ClosedTags = Set Var
 type SolveVars = Map Var IsTag
 
 data Loc = Loc { curDef :: String, curExpr :: String }
@@ -85,8 +85,8 @@ data CheckR = CheckR { checkEnv :: Env, checkLoc :: Loc }
 modifyEnv :: (Env -> Env) -> CheckR -> CheckR
 modifyEnv f cr = cr { checkEnv = f (checkEnv cr) }
 
-typeEnvInsert :: Var -> [Var] -> [Ctor] -> CheckR -> CheckR
-typeEnvInsert y ps cs = modifyEnv $ \ e -> e { typeEnv = Map.insert y (ps, cs) (typeEnv e) }
+typeEnvInsert :: Var -> [Var] -> [Var] -> [Ctor] -> CheckR -> CheckR
+typeEnvInsert y tgs ps cs = modifyEnv $ \ e -> e { typeEnv = Map.insert y (tgs, ps, cs) (typeEnv e) }
 
 localEnvInsert :: Var -> Type -> CheckR -> CheckR
 localEnvInsert x tp = modifyEnv $ \ e -> e { localEnv = Map.insert x tp (localEnv e) }
@@ -121,26 +121,52 @@ localCurExpr a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curExpr = show a
 inEnv :: Var -> Type -> CheckM a -> CheckM a
 inEnv x tp = local $ localEnvInsert x tp
 
+guardDupDef :: Var -> CheckM ()
+guardDupDef x =
+  askEnv >>= \ env ->
+  let isdup = not (x `Map.member` typeEnv env || x `Map.member` globalEnv env) in
+    guardM isdup (MultipleDefs x)
+
+anyDupDefs :: UsProgs -> CheckM ()
+anyDupDefs (UsProgs ps etm) =
+  either
+    (err . MultipleDefs)
+    (const okay)
+    (foldlM h (return Set.empty) ps)
+  where
+    addDef :: Var -> Set Var -> Either Var (Set Var)
+    addDef x xs
+      | x `Set.member` xs = Left x
+      | otherwise = Right (Set.insert x xs)
+    
+    h :: Set Var -> UsProg -> Either Var (Set Var)
+    h xs (UsProgFun x atp tm) = addDef x xs
+    h xs (UsProgExtern x tp) = addDef x xs
+    h xs (UsProgData y ps cs) =
+      foldlM (\ xs' (Ctor x tps) -> addDef x xs') (addDef y xs) cs
+
 defTerm :: Var -> GlobalVar -> Scheme -> CheckM a -> CheckM a
-defTerm x g tp = local $ globalEnvInsert x g tp
+defTerm x g tp =
+  local (globalEnvInsert x g tp)
 
-defType :: Var -> [Var] -> [Ctor] -> CheckM a -> CheckM a
-defType y ps cs = local $ typeEnvInsert y ps cs
+defType :: Var -> [Var] -> [Var] -> [Ctor] -> CheckM a -> CheckM a
+defType y tgs ps cs =
+  local (typeEnvInsert y tgs ps cs)
 
-defData :: Var -> [Var] -> [Ctor] -> CheckM a -> CheckM a
-defData y ps cs m =
+defData :: Var -> [Var] -> [Var] -> [Ctor] -> CheckM a -> CheckM a
+defData y tgs ps cs m =
   foldr
-    (\ (Ctor x tps) -> defTerm x CtorVar (Forall ps (joinArrows tps (TpVar y [TpVar p [] | p <- ps]))))
-    (defType y ps cs m) cs
+    (\ (Ctor x tps) -> defTerm x CtorVar (Forall tgs ps (joinArrows tps (TpVar y [TpVar p [] | p <- tgs ++ ps]))))
+    (defType y tgs ps cs m) cs
 
 defParams :: [Var] -> CheckM a -> CheckM a
 defParams [] m = m
-defParams (x : xs) m = defType x [] [] (defParams xs m)
+defParams (x : xs) m = defType x [] [] [] (defParams xs m)
 
 inEnvs :: [(Var, Type)] -> CheckM a -> CheckM a
 inEnvs = flip $ foldr $ uncurry inEnv
 
-lookupType :: Var -> CheckM ([Var], [Ctor])
+lookupType :: Var -> CheckM ([Var], [Var], [Ctor])
 lookupType x =
   askEnv >>= \ g ->
   maybe (err (ScopeError x)) return (Map.lookup x (typeEnv g))
@@ -150,16 +176,23 @@ lookupTerm x =
   askEnv >>= \ g ->
   maybe (err (ScopeError x)) return ((Left <$> Map.lookup x (localEnv g)) |?| (Right <$> Map.lookup x (globalEnv g)))
 
-lookupCtorType :: [CaseUs] -> CheckM (Var, [Var], [Ctor])
+lookupCtorType :: [CaseUs] -> CheckM (Var, [Var], [Var], [Ctor])
 lookupCtorType [] = err NoCases
 lookupCtorType (CaseUs x _ _ : _) =
   lookupTerm x >>= \ tp ->
   case tp of
-    Right (CtorVar, Forall _ ctp) -> case splitArrows ctp of
-      (_, TpVar y _) -> lookupType y >>= \ (xs, cs) -> return (y, xs, cs)
+    Right (CtorVar, Forall _ _ ctp) -> case splitArrows ctp of
+      (_, TpVar y _) -> lookupType y >>= \ (tgs, xs, cs) -> return (y, tgs, xs, cs)
       (_, etp) -> error "This shouldn't happen"
     Right (DefVar, _) -> err (CtorError x)
     Left loctp -> err (CtorError x)
+
+listenSolveVars :: CheckM a -> CheckM (a, SolveVars)
+listenSolveVars m =
+  get >>= \ vs ->
+  m >>= \ a ->
+  get >>= \ vs' ->
+  return (a, Map.difference vs' vs)
 
 boundVars :: CheckM (Map Var ())
 boundVars =
@@ -181,30 +214,35 @@ fresh x = newVar x <$> boundVars
 
 freshTpVar' :: IsTag -> CheckM Var
 freshTpVar' tg =
---  askLoc >>= \ l ->
   fresh "?0" >>= \ x ->
   modify (Map.insert x tg) >>
   return x
 
-freshTpVar = freshTpVar' False
-freshTag = freshTpVar' True
+freshTp' :: Bool -> CheckM Type
+freshTp' tg = pure TpVar <*> freshTpVar' tg <*> pure []
 
-freshTp :: CheckM Type
-freshTp = pure TpVar <*> freshTpVar <*> pure []
+freshTpVar = freshTpVar' False
+freshTagVar = freshTpVar' True
+freshTp = freshTp' False
+freshTag = freshTp' True
 
 annTp :: Type -> CheckM Type
 annTp NoTp = freshTp
-annTp tp = checkType tp >> return tp
+annTp tp = checkType tp
 
-checkType :: Type -> CheckM ()
+checkType :: Type -> CheckM Type
 checkType (TpArr tp1 tp2) =
-  checkType tp1 >> checkType tp2
+  pure TpArr <*> checkType tp1 <*> checkType tp2
 checkType (TpVar y as) =
-  lookupType y >>= \ (ps, _) ->
-  mapM checkType as >>
-  guardM (length ps == length as) (WrongNumArgs (length ps) (length as))
+  lookupType y >>= \ (tgs, ps, _) ->
+  mapM checkType as >>= \ as' ->
+--  askEnv >>= \ g ->
+--  (if isRecDatatype (fmap snd (typeEnv g)) y then (freshTag >>= \ x -> return [x]) else return []) >>= \ tg ->
+  mapM (const freshTag) tgs >>= \ tgs' ->
+  guardM (length ps == length as) (WrongNumArgs (length ps) (length as)) >>
+  pure (TpVar y (tgs' ++ as'))
 checkType (TpProd am tps) =
-  mapM_ checkType tps
+  pure (TpProd am) <*> mapM checkType tps
 checkType NoTp =
   error "checkType should never see a NoTp!"
 
@@ -229,10 +267,23 @@ infer' (UsVar x) =
   lookupTerm x >>= \ etp ->
   case etp of
     Left tp -> return (TmVarL x tp)
-    Right (gv, Forall tis tp) ->
+    Right (gv, Forall tgs tis tp) ->
+--      askEnv >>= \ g ->
+      mapM (const freshTag) tgs >>= \ tgs' ->
       mapM (const freshTp) tis >>= \ tis' ->
-      let tp' = subst (Map.fromList (zip tis (SubTp <$> tis'))) tp in
-      return (TmVarG gv x tis' [] tp')
+      let tp' = subst (Map.fromList (zip (tgs ++ tis) (SubTp <$> (tgs' ++ tis')))) tp in
+        return (TmVarG gv x (tgs' ++ tis') [] tp')
+{-      
+      let g' = fmap snd (typeEnv g)
+          (_, TpVar y _) = splitArrows tp
+          isrec = gv == CtorVar && isRecType g' (TpVar y []) in
+        (if isrec then fmap Just freshTag else return Nothing) >>= \ tg ->
+        let tg' = maybe [] (\ tgx -> [(y, SubTag tgx)]) tg
+            tp' = subst (Map.fromList (tg' ++ zip tis (SubTp <$> tis'))) tp
+            tis'' = maybe tis' (\ x -> TpVar x [] : tis') tg
+        in
+          return (TmVarG gv x tis'' [] tp')
+-}
 
 infer' (UsLam x xtp tm) =
   annTp xtp >>= \ xtp' ->
@@ -250,9 +301,10 @@ infer' (UsApp tm1 tm2) =
   return (TmApp tm1' tm2' tp2 itp)
 
 infer' (UsCase tm cs) =
-  lookupCtorType cs >>= \ (y, ps, ctors) ->
-  mapM (const freshTp) ps >>= \ ips -> -- TODO: introduce tag here?
-  let psub = Map.fromList (zip ps [SubTp p' | p' <- ips])
+  lookupCtorType cs >>= \ (y, tgs, ps, ctors) ->
+  mapM (const freshTag) tgs >>= \ itgs ->
+  mapM (const freshTp) ps >>= \ ips ->
+  let psub = Map.fromList (zip (tgs ++ ps) [SubTp p' | p' <- itgs ++ ips])
       cs' = sortCases ctors (subst psub cs)
       ctors' = subst psub ctors
       cs_map = Map.fromList [(x, ()) | (CaseUs x _ _) <- cs]
@@ -261,7 +313,7 @@ infer' (UsCase tm cs) =
   guardM (null missingCases) (MissingCases (Map.keys missingCases)) >>
   guardM (length ctors == length cs) (WrongNumCases (length ctors) (length cs)) >>
   infer tm >>: \ tm' ytp ->
-  constrain (Unify (TpVar y ips) ytp) >>
+  constrain (Unify (TpVar y (itgs ++ ips)) ytp) >>
   freshTp >>= \ itp ->
 --  mapM (const freshTp) ps >>= \ ips ->
   mapM (uncurry inferCase) (zip cs' ctors') >>= \ cs'' ->
@@ -378,7 +430,7 @@ unifyAll =
 
 solvedWell :: Env -> Subst -> [(Constraint, Loc)] -> Either (TypeError, Loc) ()
 solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
-  robust' = robust $ \ y -> fmap snd (Map.lookup y (typeEnv e))
+  robust' = robust $ \ y -> fmap (\ (_, _, cs) -> cs) (Map.lookup y (typeEnv e))
 
   h (Unify tp1 tp2) l
     | tp1 /= tp2 = Left (ConflictingTypes tp1 tp2, l)
@@ -388,7 +440,7 @@ solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
     | otherwise = okay
 
 
-solveInternal :: SolveVars -> Subst -> Type -> (Subst, [Var])
+solveInternal :: SolveVars -> Subst -> Type -> (Subst, [Var], [Var])
 solveInternal vs s rtp =
   let unsolved = Map.difference vs s
       fvs = freeVars (subst s rtp)
@@ -397,54 +449,63 @@ solveInternal vs s rtp =
       s'' = s' `compose` s
   in
 --    if null internalUnsolved then
-    (s'', Map.keys (Map.union tags (Map.intersection unsolved fvs)))
+    (s'', Map.keys (Map.intersection unsolved fvs), Map.keys tags)
 --    else error ("internalUnsolved: " ++ show internalUnsolved ++ ", vs: " ++ show vs ++ ", s: " ++ show s ++ ", rtp: " ++ show (subst s rtp) ++ ", rtp2: " ++ show (subst s'' rtp))
 
-solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var])
+solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var], [Var])
 solve g vs rtp cs =
   unifyAll (getUnifications cs) >>= \ s ->
-  let (s', xs) = solveInternal vs s rtp in
+  let (s', xs, tgs) = solveInternal vs s rtp
+  in
   solvedWell g s' cs >>
-  return (s', xs)
+  return (s', xs, tgs)
 
---solveM :: Substitutable a => CheckM (a, Type) -> CheckM (a, Scheme)
-solveM :: CheckM (Term, Type) -> CheckM (Term, Type)
+solveM :: CheckM (Term, Type) -> CheckM (Term, Type, [Var]) -- [Var] is list of tags
 solveM m =
-  get >>= \ vs ->
-  listen m >>= \ ((a, tp), cs) ->
-  pure solve <*> askEnv <*> (fmap (\ vs' -> Map.difference vs' vs) get)
-    <*> pure {-tp-} NoTp <*> pure cs >>=
---  either throwError (\ (s, xs) -> return (subst s a, Forall xs (subst s tp)))
-  either throwError (\ (s, []) -> return (subst s a, subst s tp))
+  listenSolveVars (listen m) >>= \ (((a, tp), cs), vs) ->
+  pure solve <*> askEnv <*> pure vs <*> pure {-tp-} NoTp <*> pure cs >>=
+  either throwError (\ (s, [], tgs) -> return (subst s a, subst s tp, tgs))
 
 solvesM :: [(Var, Type)] -> CheckM [(Var, Term, Type)] -> CheckM [(Var, Term, Scheme)]
 solvesM itps ms =
-  get >>= \ vs ->
-  listen ms >>= \ (atps, cs) ->
+  listenSolveVars (listen ms) >>= \ ((atps, cs), vs) ->
   let (fs, as, tps) = unzip3 atps in
-  pure solve <*> askEnv <*> (fmap (\ vs' -> Map.difference vs' vs) get)
-    <*> pure (TpProd Multiplicative tps) <*> pure cs >>=
+  pure solve <*> askEnv <*> pure vs <*> pure (TpProd Multiplicative tps) <*> pure cs >>=
   either
     throwError
-    (\ (s, xs) ->
+    (\ (s, xs, tgs) ->
         let stps = map (\ tp ->
                           let tp' = subst s tp
-                              xs' = Map.keys (Map.intersection (Map.fromList (map (\ x -> (x, ())) xs)) (freeVars tp')) in
-                            Forall xs' tp') tps
-            s' = foldr (\ (fx, Forall xs' tp') -> Map.insert fx (SubTm (TmVarG DefVar fx (map (\ x -> TpVar x []) xs') [] tp'))) s (zip fs stps) in
+                              xsmap = Map.fromList (map (\ x -> (x, ())) xs)
+                              xs' = Map.keys (Map.intersection xsmap (freeVars tp'))
+                          in
+                            Forall tgs xs' tp') tps
+
+            s' = foldr (\ (fx, Forall tgs' xs' tp') ->
+                          Map.insert fx
+                            (SubTm (TmVarG DefVar fx
+                                    (map (\ x -> TpVar x []) (tgs' ++ xs')) [] tp')))
+                       s (zip fs stps)
+        in
           return (zip3 fs (subst s' as) stps))
 
 
-getDeps :: UsProgs -> Map Var (Set Var)
-getDeps (UsProgs ps end) = clean (foldr h mempty ps) where
-  -- Removes ctors and externs from each set in the map
-  clean :: Map Var (Set Var) -> Map Var (Set Var)
-  clean m = let s = Set.fromList (Map.keys m) in fmap (Set.intersection s) m
-  
-  h :: UsProg -> Map Var (Set Var) -> Map Var (Set Var)
-  h (UsProgFun x mtp tm) deps = Map.insert x (Set.fromList (Map.keys (freeVars tm))) deps
-  h (UsProgExtern x tp) deps = deps -- Map.insert x mempty deps
-  h (UsProgData y ps cs) deps = deps -- foldr (\ (Ctor x tps) -> Map.insert x mempty) deps cs -- TODO: need to do anything for ps here?
+-- Returns (function dependencies, datatype dependencies)
+getDeps :: UsProgs -> (Map Var (Set Var), Map Var (Set Var))
+getDeps (UsProgs ps end) =
+  let (fdeps, ddeps) = foldr h mempty ps in
+    (clean fdeps, clean ddeps)
+  where
+    -- Removes ctors, externs, type parameters from each set in the map
+    clean :: Map Var (Set Var) -> Map Var (Set Var)
+    clean m = let s = Set.fromList (Map.keys m) in fmap (Set.intersection s) m
+    
+    h :: UsProg -> (Map Var (Set Var), Map Var (Set Var)) -> (Map Var (Set Var), Map Var (Set Var))
+    h (UsProgFun x mtp tm) (fdeps, ddeps) =
+      (Map.insert x (Set.fromList (Map.keys (freeVars tm))) fdeps, ddeps)
+    h (UsProgExtern x tp) deps = deps
+    h (UsProgData y ps cs) (fdeps, ddeps) =
+      (fdeps, Map.insert y (Set.fromList (Map.keys (freeVars cs))) ddeps)
 
 splitProgsH :: UsProg -> ([(Var, Type, UsTm)], [(Var, Type)], [(Var, [Var], [Ctor])])
 splitProgsH (UsProgFun x mtp tm) = ([(x, mtp, tm)], [], [])
@@ -458,9 +519,6 @@ splitProgs (UsProgs ps end) =
                                  (fs' ++ fs, es' ++ es, ds' ++ ds))
                            ([], [], []) ps in
     (fs, es, ds, end)
-
-mapMl :: Monad m => (a -> m b) -> [a] -> m [b]
-mapMl f = fmap reverse . mapM f . reverse
 
 inferFuns :: [(Var, Type, UsTm)] -> CheckM SProgs -> CheckM SProgs
 inferFuns fs m =
@@ -477,43 +535,103 @@ inferFuns fs m =
     let ps' = map (\ (x, tm, stp) -> SProgFun x stp tm) xtmstps in
     return (SProgs (ps' ++ ps) end)
 
-inferData :: (Var, [Var], [Ctor]) -> CheckM SProgs -> CheckM SProgs
-inferData (y, xs, cs) m =
+{-inferData :: [Var] -> (Var, [Var], [Ctor]) -> CheckM SProgs -> CheckM SProgs
+inferData recs (y, xs, cs) m =
   -- We will check each of the ctor type args later,
   -- after every datatype has been added to the environment
-  defData y xs cs m >>= \ (SProgs ps end) ->
-  return (SProgs (SProgData y xs cs : ps) end)
+  (if y `elem` recs then (freshTagVar >>= \ x -> return [x]) else (return [])) >>= \ tgs ->
+  defData y tgs xs cs m >>= \ (SProgs ps end) ->
+  return (SProgs (SProgData y tgs xs cs : ps) end)
+-}
+
+inferData :: [[(Var, [Var], [Ctor])]] -> CheckM SProgs -> CheckM SProgs
+inferData dsccs cont = foldr h cont dsccs
+  where
+    recs :: [Var]
+    recs = getRecTypes' (concat [[(y, [], ps, cs) | (y, ps, cs) <- dscc] | dscc <- dsccs])
+    
+    sccIsRec :: [(Var, [Var], [Ctor])] -> Bool
+    sccIsRec [(y, ps, cs)] = y `elem` recs
+    sccIsRec _ = True -- Mutually-recursive datatypes are recursive
+    
+    checkCtor :: Ctor -> CheckM Ctor
+    checkCtor (Ctor x tps) =
+      pure (Ctor x) <*> mapM checkType tps
+
+    addDefs :: [(Var, [Var], [Var], [Ctor])] -> CheckM SProgs -> CheckM SProgs
+    addDefs [] cont = cont
+    addDefs ((y, tgs, ps, cs) : ds) cont =
+      defData y tgs ps cs (addDefs ds cont) >>= \ (SProgs sps etm) ->
+      return (SProgs (SProgData y tgs ps cs : sps) etm)
+
+    --defDatas m = foldr (\ ) m ds
+    h :: [(Var, [Var], [Ctor])] -> CheckM SProgs -> CheckM SProgs
+    h dscc cont =
+      hPerhapsRec dscc >>= \ dscc' ->
+      addDefs dscc' cont
+
+    hPerhapsRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
+    hPerhapsRec dscc = if sccIsRec dscc then hRec dscc else hNonRec dscc
+
+    substTagsCtors :: Map Var [Var] -> [Ctor] -> [Ctor]
+    substTagsCtors s = map $ \ (Ctor x tps) -> Ctor x (map (substTags s) tps)
+
+    hRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
+    hRec dscc =
+      freshTagVar >>= \ itg ->
+      listenSolveVars
+        (foldl
+           (\ m (y, ps, cs) -> defType y [] ps cs m)
+           (mapM (\ (y, ps, cs) ->
+                    pure ((,,) y ps) <*> mapM (\ (Ctor x tps) ->
+                                                 pure (Ctor x) <*> mapM checkType tps)
+                                              cs) dscc)
+           dscc)
+        >>= \ (dscc', vs) ->
+      let tgs = itg : Map.keys (Map.filter id vs)
+          s = Map.fromList [(y, tgs) | (y, ps, cs) <- dscc']
+      in
+        return [(y, tgs, ps, substTagsCtors s cs) | (y, ps, cs) <- dscc']
+    
+    hNonRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
+    hNonRec [(y, ps, cs)] =
+      listenSolveVars (defParams ps (mapM checkCtor cs)) >>= \ (cs', vs) ->
+      let tgs = Map.keys (Map.filter id vs) in
+        return [(y, tgs, ps, cs')]
+    hNonRec _ = error "this shouldn't happen"
+    
 
 inferExtern :: (Var, Type) -> CheckM SProgs -> CheckM SProgs
 inferExtern (x, tp) m =
-  localCurDef x (checkType tp) >>
-  defTerm x DefVar (Forall [] tp) m >>= \ (SProgs ps end) ->
+  localCurDef x (checkType tp) >> -- tp can't have rec datatypes, this returns same tp
+  defTerm x DefVar (Forall [] [] tp) m >>= \ (SProgs ps end) ->
   return (SProgs (SProgExtern x [] tp : ps) end)
 
 inferProgs :: UsProgs -> CheckM SProgs
 inferProgs ps =
-  let m = getDeps ps
+  let (fdeps, ddeps) = getDeps ps
       (fs, es, ds, end) = splitProgs ps
       mfs = Map.fromList [(x, (tp, tm)) | (x, tp, tm) <- fs]
+      mds = Map.fromList [(x, (ps, cs)) | (x, ps, cs) <- ds]
       -- sccs is a list of strongly connected functions.
       -- you can check it in order, by checking together
       -- all the functions in each strongly connected set
-      sccs = scc m
-      sccs' = [[let (tp, tm) = mfs Map.! x in (x, tp, tm) | x <- scc] | scc <- sccs]
+      funSCCs   = scc fdeps
+      dataSCCs  = scc ddeps
+      funSCCs'  = [[let (tp, tm) = mfs Map.! x in (x, tp, tm) | x <- scc] | scc <- funSCCs]
+      dataSCCs' = [[let (ps, cs) = mds Map.! x in (x, ps, cs) | x <- scc] | scc <- dataSCCs]
   in
+    anyDupDefs ps >>
     -- TODO: maybe sort progs back into original order?
     -- Add datatype defs to environment
-    foldr inferData
-      -- Check the type args in each datatype
-      (mapM (\ (y, xs, cs) -> defParams xs (mapM (\ (Ctor x tps) -> mapM checkType tps) cs)) ds >>
-      -- Then check externs
-       foldr inferExtern
-       -- Then check functions
+    inferData dataSCCs'
+    -- Then check externs
+      (foldr inferExtern
+    -- Then check functions
          (foldr inferFuns
-         -- Then check end term
-            (solveM (infer end >>: curry return) >>= \ (end', {-Forall tpms-} tp) ->
-             -- guardM (null tpms) (error "TODO: end term should not have type polymorphism") >>
-             return (SProgs [] end')) sccs') es) ds
+    -- Then check end term
+            (solveM (infer end >>: curry return) >>= \ (end', tp, tgs) ->
+             return (SProgs [] end')) funSCCs') es)
 
 inferFile :: UsProgs -> Either String SProgs
 inferFile ps =

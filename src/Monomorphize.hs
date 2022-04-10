@@ -5,7 +5,6 @@ import Subst
 import Name
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import GHC.Stack.Types (HasCallStack)
 
 newtype SemiMap a b = SemiMap (Map a b) deriving Show
 instance (Ord a, Semigroup b) => Semigroup (SemiMap a b) where
@@ -17,7 +16,7 @@ semiMap (SemiMap m) = m
 
 type Insts = SemiMap Var (Set.Set [Type])
 type GlobalCalls = [(Var, [Type])]
-type TypeParams = Map Var [Var]
+type TypeParams = Map Var ([Var], [Var])
 type DefMap = Map Var GlobalCalls
   
 collectCalls :: Term -> GlobalCalls
@@ -78,26 +77,26 @@ renameCallsTp xis NoTp = NoTp
 
 makeEmptyInsts :: [SProg] -> Insts
 makeEmptyInsts = mconcat . map h where
-  h (SProgFun x (Forall ys tp) tm) = SemiMap (Map.singleton x mempty)
+  h (SProgFun x (Forall tgs ys tp) tm) = SemiMap (Map.singleton x mempty)
   h (SProgExtern x tps rtp) = SemiMap (Map.singleton x mempty)
-  h (SProgData y ps cs) = SemiMap (Map.fromList ((y, mempty) : map (\ (Ctor x tps) -> (x, mempty)) cs))
+  h (SProgData y tgs ps cs) = SemiMap (Map.fromList ((y, mempty) : map (\ (Ctor x tps) -> (x, mempty)) cs))
 
 makeDefMap :: [SProg] -> DefMap
 makeDefMap = semiMap . mconcat . map h where
 --  clean :: DefMap -> DefMap
 --  clean dm = fmap (\ gcs -> Map.toList (Map.intersection (Map.fromList gcs) dm)) dm
   
-  h (SProgFun x (Forall ys tp) tm) = SemiMap (Map.singleton x (collectCalls tm))
+  h (SProgFun x (Forall tgs ys tp) tm) = SemiMap (Map.singleton x (collectCalls tm))
   h (SProgExtern x tps rtp) = SemiMap (Map.singleton x [])
-  h (SProgData y ps cs) =
+  h (SProgData y tgs ps cs) =
     let ccs = map (\ (Ctor x tps) -> (x, mconcat (map collectCallsTp tps))) cs in
       SemiMap (Map.fromList ((y, mconcat (snds ccs)) : ccs))
 
 makeTypeParams :: [SProg] -> TypeParams
 makeTypeParams = mconcat . map h where
-  h (SProgFun x (Forall ys tp) tm) = Map.singleton x ys
-  h (SProgExtern x tps rtp) = Map.singleton x []
-  h (SProgData y ps cs) = Map.fromList ((y, ps) : map (\ (Ctor x tps) -> (x, ps)) cs)
+  h (SProgFun x (Forall tgs ys tp) tm) = Map.singleton x (tgs, ys)
+  h (SProgExtern x tps rtp) = Map.singleton x ([], [])
+  h (SProgData y tgs ps cs) = Map.fromList ((y, (tgs, ps)) : map (\ (Ctor x tps) -> (x, (tgs, ps))) cs)
 
 -- If not visited, insert into Insts and recurse
 addInsts :: DefMap -> TypeParams -> Insts -> Var -> [Type] -> Insts
@@ -110,26 +109,26 @@ addInsts dm tpms xis x tis =
 
 processNext :: Var -> DefMap -> TypeParams -> Insts -> Var -> [Type] -> Insts
 processNext cur dm tpms xis x tis =
-  let curpms = tpms Map.! cur
+  let (curtgs, curpms) = tpms Map.! cur
       curtis = semiMap xis Map.! cur
-      mksub = \ ctis -> Map.fromList (zip curpms (SubTp <$> ctis)) in
+      mksub = \ ctis -> Map.fromList (zip (curtgs ++ curpms) (SubTp <$> ctis)) in
     foldr (\ (x, tis) xis -> foldr (\ ctis xis -> addInsts dm tpms xis x (subst (mksub ctis) tis)) xis curtis) xis (dm Map.! x)
 
-makeInstantiations :: HasCallStack => Map Var (Map [Type] Int) -> SProg -> [Prog]
-makeInstantiations xis (SProgFun x (Forall [] tp) tm) =
+makeInstantiations :: Map Var (Map [Type] Int) -> SProg -> [Prog]
+makeInstantiations xis (SProgFun x (Forall [] [] tp) tm) =
   if null (Map.toList (xis Map.! x)) then [] else [ProgFun x [] (renameCalls xis tm) (renameCallsTp xis tp)]
-makeInstantiations xis (SProgFun x (Forall ys tp) tm) =
+makeInstantiations xis (SProgFun x (Forall tgs ys tp) tm) =
   let tiss = Map.toList (xis Map.! x) in
     map (\ (tis, i) ->
-           let s = Map.fromList (zip ys (SubTp <$> tis)) in
+           let s = Map.fromList (zip (tgs ++ ys) (SubTp <$> tis)) in
              ProgFun (instName x i) [] (renameCalls xis (subst s tm)) (subst s tp))
       tiss
 makeInstantiations xis (SProgExtern x tps rtp) = [ProgExtern x tps rtp]
-makeInstantiations xis (SProgData y [] cs) = [ProgData y cs]
-makeInstantiations xis (SProgData y ps cs) =
+makeInstantiations xis (SProgData y [] [] cs) = [ProgData y cs]
+makeInstantiations xis (SProgData y tgs ps cs) =
     let tiss = Map.toList (xis Map.! y) in
     map (\ (tis, i) ->
-           let s = Map.fromList (zip ps (SubTp <$> tis)) in
+           let s = Map.fromList (zip (tgs ++ ps) (SubTp <$> tis)) in
              ProgData (instName y i) [Ctor (instName x i) (map (renameCallsTp xis) (subst s tps)) | Ctor x tps <- cs])
       tiss
 

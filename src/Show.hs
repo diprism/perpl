@@ -148,8 +148,8 @@ instance Show Type where
   show = flip showType ShowNone
 
 instance Show Scheme where
-  show (Forall [] tp) = show tp
-  show (Forall tpms tp) = "Forall " ++ delimitWith ", " tpms ++ ". " ++ show tp
+  show (Forall [] [] tp) = show tp
+  show (Forall tgs tpms tp) = "Forall " ++ delimitWith ", " (tgs ++ tpms) ++ ". " ++ show tp
 
 instance Show UsProg where
   show (UsProgFun x tp tm) = "define " ++ x ++ showTpAnn tp ++ " = " ++ show tm ++ ";"
@@ -164,4 +164,4 @@ instance Show SProgs where
 instance Show SProg where
   show (SProgFun x stp tm) = "define " ++ x ++ " : " ++ show stp ++ " = " ++ show tm
   show (SProgExtern x tps tp) = "extern " ++ x ++ " : " ++ show (joinArrows tps tp)
-  show (SProgData y ps cs) = "data " ++ delimitWith " " (y : ps) ++ " = " ++ delimitWith " | " [show c | c <- cs]
+  show (SProgData y tgs ps cs) = "data " ++ delimitWith " " (y : tgs ++ ps) ++ " = " ++ delimitWith " | " [show c | c <- cs]

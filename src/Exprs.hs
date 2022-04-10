@@ -21,7 +21,7 @@ data Progs = Progs [Prog] Term
 data SProg =
     SProgFun Var Scheme Term
   | SProgExtern Var [Type] Type
-  | SProgData Var [Var] [Ctor]
+  | SProgData Var [Var] {- tags -} [Var] {- params -} [Ctor]
   deriving (Eq, Ord)
 
 data SProgs = SProgs [SProg] Term
@@ -35,7 +35,10 @@ type Var = String
 type Param = (Var, Type)
 type Arg = (Term, Type)
 
-data Scheme = Forall [Var] Type
+type IsTag = Bool
+
+--                   tags params type
+data Scheme = Forall [Var] [Var] Type
   deriving (Eq, Ord)
 
 data Dist =

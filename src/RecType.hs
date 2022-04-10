@@ -4,55 +4,12 @@ import qualified Control.Monad.State.Lazy as State
 import Data.List
 import Exprs
 import Util
---import Free
+import Free
 import Subst
 import Ctxt
 import Name
 import Show()
 
---------------------------------------------------
-
--- Returns if any of a list of types end up referencing a var
-isRecType' :: Ctxt -> Var -> [Type] -> Bool
-isRecType' g y = h [] where
-  h :: [Var] -> [Type] -> Bool
-  h hist [] = False
-  h hist (TpArr tp1 tp2 : tps) = h hist (tp1 : tp2 : tps)
-  h hist (TpProd am tps' : tps) = h hist (tps' ++ tps)
-  h hist (TpVar y' as : tps)
-    | y == y' = True
-    | y' `elem` hist = h hist tps
-    | otherwise =
-      maybe
-        (h hist (as ++ tps))
-        (\ cs -> h (y' : hist) (foldr (\ (Ctor x as) tps -> as ++ tps) (as ++ tps) cs))
-        (ctxtLookupType g y')
-  h hist (NoTp : tps) = h hist tps
-
--- Returns if y is a recursive datatype
-isRecDatatype :: Ctxt -> Var -> Bool
-isRecDatatype g y =
-  maybe False (isRecType' g y . concatMap (\ (Ctor _ tps) -> tps)) (ctxtLookupType g y)
-
--- Returns if a type is a recursive datatype var
-isRecType :: Ctxt -> Type -> Bool
-isRecType g (TpVar y _) = isRecDatatype g y
-isRecType g _ = False
-
--- Returns the recursive datatypes in a file
-getRecTypes' :: Ctxt -> [Prog] -> [Var]
-getRecTypes' g (ProgData y cs : ds) =
-  if isRecDatatype g y then y : getRecTypes' g ds else getRecTypes' g ds
-getRecTypes' g (ProgFun x ps tm tp : ds) = getRecTypes' g ds
-getRecTypes' g (ProgExtern x ps tp : ds) = getRecTypes' g ds
-getRecTypes' g [] = []
-
--- Returns the recursive datatypes in a file
-getRecTypes :: Progs -> [Var]
-getRecTypes (Progs ds end) =
-  getRecTypes' (ctxtDefProgs (Progs ds end)) ds
-
---------------------------------------------------
 
 -- Collects the free variables of all the cases in
 -- a case-of over something with type rtp
