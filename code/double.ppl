@@ -5,8 +5,13 @@ data Nat = Zero | Succ Nat;
 define double : Nat -> Nat = \n : Nat.
   case n of
   | Zero -> Zero
-  | Succ m -> Succ (Succ m);
+  | Succ m -> Succ (Succ (double m));
 
-double (double (Succ Zero))
+data Unit = unit;
 
-  
+define weigh : Nat -> Unit = \n : Nat.
+  case n of
+  | Zero -> sample fail
+  | Succ m -> amb unit (weigh m);
+
+weigh (double (double (Succ Zero)))
