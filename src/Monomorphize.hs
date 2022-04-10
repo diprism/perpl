@@ -121,7 +121,7 @@ makeInstantiations xis (SProgFun x (Forall tgs ys tp) tm) =
   let tiss = Map.toList (xis Map.! x) in
     map (\ (tis, i) ->
            let s = Map.fromList (zip (tgs ++ ys) (SubTp <$> tis)) in
-             ProgFun (instName x i) [] (renameCalls xis (subst s tm)) (subst s tp))
+             ProgFun (instName x i) [] (renameCalls xis (subst s tm)) (renameCallsTp xis (subst s tp)))
       tiss
 makeInstantiations xis (SProgExtern x tps rtp) = [ProgExtern x tps rtp]
 makeInstantiations xis (SProgData y [] [] cs) = [ProgData y cs]
