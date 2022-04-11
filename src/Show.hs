@@ -157,7 +157,7 @@ instance Show UsProg where
   show (UsProgExtern x tp) = "extern " ++ x ++ showTpAnn tp ++ ";"
   show (UsProgData y ps cs) = "data " ++ delimitWith " " (y : ps) ++ " = " ++ showCasesCtors cs ++ ";"
 instance Show UsProgs where
-  show (UsProgs ps end) = delimitWith "\n\n" ([show p | p <- ps] ++ [show end])
+  show (UsProgs ps end) = delimitWith "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
 instance Show Progs where
   show = show . toUsProgs
 instance Show SProgs where
