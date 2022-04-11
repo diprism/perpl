@@ -5,7 +5,7 @@ data Nat = Zero | Succ Nat;
 define double = \n: Nat.
   case n of
   | Zero -> Zero
-  | Succ m -> double (Succ (Succ m));
+  | Succ m -> Succ (Succ (double m));
 
 define equal = \m: Nat. \n: Nat.
   case m of
