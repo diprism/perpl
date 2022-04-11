@@ -63,6 +63,7 @@ runSubst s r = let (a', r', ()) = runRWS r () s in a'
 
 freshen :: Var -> SubstM Var
 --freshen "_" = return "_" -- TODO: Deal with conflicting FGG rules for "_"
+freshen "_" = freshen "_0"
 freshen x =
   fmap (newVar x) get >>= \ x' ->
   modify (Map.insert x' (SubVar x')) >>

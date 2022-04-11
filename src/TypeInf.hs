@@ -536,6 +536,8 @@ inferFuns fs m =
     let ps' = map (\ (x, tm, stp) -> SProgFun x stp tm) xtmstps in
     return (SProgs (ps' ++ ps) end)
 
+-- TODO: Make sure type params are same in recursive instantes. So disallow
+-- data List a = Nil | Cons a (List Bool);
 inferData :: [[(Var, [Var], [Ctor])]] -> CheckM SProgs -> CheckM SProgs
 inferData dsccs cont = foldr h cont dsccs
   where

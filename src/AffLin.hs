@@ -47,7 +47,7 @@ alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
 -- For example, take x : Bool, which becomes
 -- case x of false -> unit | true -> unit
 discard' :: Term -> Type -> Term -> AffLinM Term
---discard' (TmVarL "_" tp') tp = error ("discard' \"_\" " ++ show tp)
+discard' (TmVarL "_" tp') tp rtm = return rtm -- error ("discard' \"_\" " ++ show tp ++ " in the term " ++ show rtm)
 discard' x (TpArr tp1 tp2) rtm =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
 discard' x (TpProd am tps) rtm
@@ -130,13 +130,15 @@ ambElim tm =
       TmElimProd Additive tm [("x", tp), ("_", unittp)] (TmVarL "x" tp) tp
     _ -> tm
 
-affLinParams :: [Param] -> Term -> AffLinM ([Param], Term, FreeVars)
+affLinParams :: [Param] -> Term -> AffLinM ([Param], Term)
 affLinParams ps body =
   mapParamsM affLinTp ps >>= \ lps ->
   listen (alBinds lps (affLin body)) >>= \ (body', fvs) ->
-  return (lps, ambElim body', fvs)
+--  let dvs = Map.difference (Map.fromList lps) fvs in
+--    discards dvs body' >>= \ body'' ->
+    return (lps, {-ambElim-} body')
       
-affLinLams :: Term -> AffLinM ([Param], Term, FreeVars)
+affLinLams :: Term -> AffLinM ([Param], Term)
 affLinLams = uncurry affLinParams . splitLams
 
 affLinBranches :: (a -> AffLinM b) -> (FreeVars -> b -> AffLinM b) -> [a] -> AffLinM [b]
@@ -159,7 +161,7 @@ affLin (TmVarG gv x tis as y) =
   return (TmVarG gv x tis' as' y')
 affLin (TmLam x tp tm tp') =
   -- L(\ x : tp. tm) => <\ x : tp. L(tm), Z(FV(\ x : tp. tm))>
-  affLinLams (TmLam x tp tm tp') >>= \ (lps, body, fvs) ->
+  listen (affLinLams (TmLam x tp tm tp')) >>= \ ((lps, body), fvs) ->
   ambFun (joinLams lps body) fvs
 affLin (TmApp tm1 tm2 tp2 tp) =
   -- L(tm1 tm2) => L(tm1).1 L(tm2)
@@ -212,17 +214,17 @@ affLin (TmElimProd Additive tm ps tm' tp) =
   -- L(let <x1, x2, ..., xn> = tm in tm') =>
   --    let <x1, x2, ..., xn> = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')
   affLin tm >>= \ tm ->
-  affLinParams ps tm' >>= \ (ps, tm', fvs) ->
+  affLinParams ps tm' >>= \ (ps, tm') ->
   -- Discard all ps that are not used in tm'
-  discards (Map.intersection (Map.fromList ps) fvs) tm' >>= \ tm' ->
+--  discards (Map.intersection (Map.fromList ps) fvs) tm' >>= \ tm' ->
   return (TmElimProd Additive tm (ps ++ [("_", tpUnit)]) tm' (getType tm'))
 affLin (TmElimProd Multiplicative tm ps tm' tp) =
   -- L(let (x1, x2, ..., xn) = tm in tm') =>
   --    let (x1, x2, ..., xn) = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')
   affLin tm >>= \ tm ->
-  affLinParams ps tm' >>= \ (ps, tm', fvs) ->
+  affLinParams ps tm' >>= \ (ps, tm') ->
   -- Discard all ps that are not used in tm'
-  discards (Map.intersection (Map.fromList ps) fvs) tm' >>= \ tm' ->
+--  discards (Map.intersection (Map.fromList ps) fvs) tm' >>= \ tm' ->
   return (TmElimProd Multiplicative tm ps tm' (getType tm'))
 affLin (TmEqs tms) =
   pure TmEqs <*> mapM affLin tms
