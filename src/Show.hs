@@ -161,7 +161,7 @@ instance Show UsProgs where
 instance Show Progs where
   show = show . toUsProgs
 instance Show SProgs where
-  show (SProgs ps end) = delimitWith "\n\n" ([show p | p <- ps] ++ [show end])
+  show (SProgs ps end) = delimitWith "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
 instance Show SProg where
   show (SProgFun x stp tm) = "define " ++ x ++ " : " ++ show stp ++ " = " ++ show tm ++ ";"
   show (SProgExtern x tps tp) = "extern " ++ x ++ " : " ++ show (joinArrows tps tp) ++ ";"
