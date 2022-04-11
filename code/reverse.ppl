@@ -1,0 +1,18 @@
+data List a = Nil | Cons a (List a);
+
+-- reverseh : Forall a. List a -> List a -> List a
+define reverseh = \ acc. \ xs. case xs of
+  | Nil -> acc
+  | Cons x xs' -> reverseh (Cons x acc) xs';
+
+-- reverse : Forall a. List a -> List a
+define reverse = reverseh Nil;
+
+-- listEq : Forall a. List a -> List a -> Bool
+define listEq = \ xs. \ ys. case xs of
+  | Nil -> (case ys of Nil -> True | Cons y ys' -> False)
+  | Cons x xs' -> (case ys of Nil -> False | Cons y ys' -> if x == y then listEq xs' ys' else False);
+
+--define input : List Bool = Cons True (Cons False Nil);
+
+listEq (Cons True (Cons False Nil)) (reverse (reverse (Cons True (Cons False Nil))));
