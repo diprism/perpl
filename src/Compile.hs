@@ -85,10 +85,10 @@ caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
   term2fgg (ctxtDeclArgs g as) xtm +>= \ xs_xtm_as ->
   let all_xs = Map.toList all_fvs
       unused_ps = Map.toList (Map.difference all_fvs (Map.fromList xs_xtm_as))
-      vctp : vtp : unused_nps = newNames (TpVar y : tp : snds unused_ps)
-      fac = ctorFactorName x (paramsToArgs (nameParams x (snds as))) (TpVar y)
+      vctp : vtp : unused_nps = newNames (TpVar y [] : tp : snds unused_ps)
+      fac = ctorFactorName x (paramsToArgs (nameParams x (snds as))) (TpVar y [])
   in
-    mkRule (TmCase ctm y cs tp)
+    mkRule (TmCase ctm (y, []) cs tp)
       (vctp : vtp : xs_xtm_as ++ as ++ xs_ctm ++ all_xs ++ unused_ps ++ unused_nps)
       (Edge' (xs_ctm ++ [vctp]) (show ctm) :
        Edge' (xs_xtm_as ++ [vtp]) (show xtm) :
@@ -174,7 +174,7 @@ term2fgg g (TmApp tm1 tm2 tp2 tp) =
        Edge' (xs1 ++ [varr]) (show tm1),
        Edge' [vtp2, vtp, varr] fac]
       (xs1 ++ xs2 ++ [vtp])    
-term2fgg g (TmCase tm y cs tp) =
+term2fgg g (TmCase tm (y, _) cs tp) =
   term2fgg g tm +>= \ xs ->
   let fvs = freeVars cs in
     bindCases (Map.toList (Map.union (freeVars tm) fvs)) (map (caseRule g fvs xs tm y cs tp) cs)
@@ -282,7 +282,7 @@ term2fgg g (TmEqs tms) =
   let tmstp = getType (head tms)
       ntms = length tms
       fac = eqFactorName tmstp ntms
-      (vbtp : vtps) = newNames (TpVar "Bool" : [getType tm | tm <- tms]) in
+      (vbtp : vtps) = newNames (tpBool : [getType tm | tm <- tms]) in
     addFactor fac (getEqWeights (domainSize g tmstp) ntms) +>
     mkRule (TmEqs tms)
       (vbtp : vtps ++ concat xss)
@@ -295,7 +295,7 @@ type2fgg g tp =
   type2fgg' g tp
 
 type2fgg' :: Ctxt -> Type -> RuleM
-type2fgg' g (TpVar y) = returnRule
+type2fgg' g (TpVar y _) = returnRule
 type2fgg' g (TpArr tp1 tp2) = type2fgg g tp1 +> type2fgg g tp2
 type2fgg' g (TpProd am tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
 type2fgg' g NoTp = error "Compiling NoTp to FGG rule"
@@ -328,9 +328,9 @@ prog2fgg g (ProgExtern x ps tp) =
   -}
 prog2fgg g (ProgData y cs) =
   foldr (\ (fac, ws) rm -> addFactor fac ws +> rm) returnRule
-    (getCtorWeightsAll (domainValues g) cs (TpVar y)) +>
-  foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) (TpVar y) cs) returnRule cs +>
-  type2fgg g (TpVar y)
+    (getCtorWeightsAll (domainValues g) cs (TpVar y [])) +>
+  foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) (TpVar y []) cs) returnRule cs +>
+  type2fgg g (TpVar y [])
 
 -- Goes through a program and adds all the rules for it
 progs2fgg :: Ctxt -> Progs -> RuleM
@@ -348,7 +348,7 @@ domainValues g = tpVals where
         (tpVals tp) tps
   
   tpVals :: Type -> [String]
-  tpVals (TpVar y) =
+  tpVals (TpVar y _) =
     maybe2 (ctxtLookupType g y) [] $ \ cs ->
       concat [foldl (kronwith $ \ d da -> d ++ " " ++ parens da) [x] (map tpVals as)
              | (Ctor x as) <- cs]

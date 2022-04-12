@@ -54,6 +54,9 @@ Just a |?| m_else = Just a
 okay :: Monad m => m ()
 okay = return ()
 
+foldlM :: Monad m => (b -> a -> m b) -> m b -> [a] -> m b
+foldlM f = foldl (\ mb a -> mb >>= \ b -> f b a)
+
 isDefVar :: GlobalVar -> Bool
 isDefVar DefVar = True
 isDefVar CtorVar = False
@@ -74,7 +77,7 @@ getType (TmSamp d tp) = tp
 getType (TmAmb tms tp) = tp
 getType (TmProd am as) = TpProd am (snds as)
 getType (TmElimProd am tm ps tm' tp) = tp
-getType (TmEqs tms) = TpVar "Bool"
+getType (TmEqs tms) = TpVar "Bool" []
 
 typeof = getType
 
@@ -237,6 +240,11 @@ mapProgM mtm (ProgData y cs) =
 mapProgsM :: Monad m => (Term -> m Term) -> Progs -> m Progs
 mapProgsM f (Progs ps end) =
   pure Progs <*> mapM (mapProgM f) ps <*> f end
+
+--mapFstM :: Monad m => (a -> m c) -> m (a, b) -> (c, b)
+--mapFstM f m = m >>= \ (a, b) -> f a >>= \ c -> return (c, b)
+--mapSndM :: Monad m => (b -> m c) -> m (a, b) -> (a, c)
+--mapSndM f m = m >>= \ (a, b) -> f b >>= \ c -> return (b, c)
 
 -- Concats a list of lists, adding a delimiter
 -- Example: delimitWith ", " ["item 1", "item 2", "item 3"] = "item 1, item 2, item 3"

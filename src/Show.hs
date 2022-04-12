@@ -7,12 +7,12 @@ import Util
 toUsTm :: Term -> UsTm
 toUsTm (TmVarL x _) = UsVar x
 toUsTm (TmVarG gv x tis as tp) =
-  foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar {- x -} (foldr (\ tp x -> x ++ " [" ++ show tp ++ "]") x tis)) as
+  foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar {- x -} (foldl (\ x tp -> x ++ " [" ++ show tp ++ "]") x tis)) as
 toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x xtp (toUsTm xtm) (toUsTm tm)
 --toUsTm (TmCase tm "Bool" [Case "True" [] thentm, Case "False" [] elsetm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
-toUsTm (TmCase tm "Bool" [Case "False" [] elsetm, Case "True" [] thentm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
+toUsTm (TmCase tm ("Bool", []) [Case "False" [] elsetm, Case "True" [] thentm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmSamp d tp) = UsSamp d tp
 toUsTm (TmAmb tms tp) = UsAmb [toUsTm tm | tm <- tms]
@@ -26,10 +26,10 @@ toCaseUs (Case x as tm) = CaseUs x (fsts as) (toUsTm tm)
 toUsProg :: Prog -> UsProg
 toUsProg (ProgFun x ps tm tp) = UsProgFun x (joinArrows (snds ps) tp) (toUsTm (joinLams ps tm))
 toUsProg (ProgExtern x ps tp) = UsProgExtern x (joinArrows ps tp)
-toUsProg (ProgData y cs) = UsProgData y cs
+toUsProg (ProgData y cs) = UsProgData y [] cs
 
 toUsProgs :: Progs -> UsProgs
-toUsProgs (Progs (ProgData "_Unit_" [unit] : ProgData "Bool" [fctor, tctor] : ps) tm) = UsProgs (map toUsProg ps) (toUsTm tm)
+--toUsProgs (Progs (ProgData "_Unit_" [unit] : ProgData "Bool" [fctor, tctor] : ps) tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 toUsProgs (Progs ps tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 
 
@@ -73,7 +73,8 @@ showTermParens _                 _        = False
 showTypeParens :: Type -> ShowHist -> Bool
 showTypeParens (TpArr _ _) ShowArrL = True
 showTypeParens (TpArr _ _) ShowTypeArg = True
-showTypeParens (TpProd am _ ) ShowTypeArg = True
+showTypeParens (TpProd _ _ ) ShowTypeArg = True
+showTypeParens (TpVar _ (_ : _)) ShowTypeArg = True
 showTypeParens _ _ = False
 
 showTpAnn :: Type -> String
@@ -105,7 +106,7 @@ showTermh (UsEqs tms) = delimitWith " == " [showTerm tm ShowAppL | tm <- tms]
 
 -- Type show helper (ignoring parentheses)
 showTypeh :: Type -> String
-showTypeh (TpVar y) = y
+showTypeh (TpVar y as) = delimitWith " " (y : [show a | a <- as])
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
 --showTypeh (TpAmp tps) = delimitWith " & " [showType tp ShowTypeArg | tp <- tps]
 showTypeh (TpProd am tps) = delimitWith (if am == Additive then " & " else " * ") [showType tp ShowTypeArg | tp <- tps]
@@ -148,20 +149,20 @@ instance Show Type where
   show = flip showType ShowNone
 
 instance Show Scheme where
-  show (Forall [] tp) = show tp
-  show (Forall tpms tp) = "Forall " ++ delimitWith ", " tpms ++ ". " ++ show tp
+  show (Forall [] [] tp) = show tp
+  show (Forall tgs tpms tp) = "Forall " ++ delimitWith ", " (tgs ++ tpms) ++ ". " ++ show tp
 
 instance Show UsProg where
   show (UsProgFun x tp tm) = "define " ++ x ++ showTpAnn tp ++ " = " ++ show tm ++ ";"
   show (UsProgExtern x tp) = "extern " ++ x ++ showTpAnn tp ++ ";"
-  show (UsProgData y cs) = "data " ++ y ++ " = " ++ showCasesCtors cs ++ ";"
+  show (UsProgData y ps cs) = "data " ++ delimitWith " " (y : ps) ++ " = " ++ showCasesCtors cs ++ ";"
 instance Show UsProgs where
-  show (UsProgs ps end) = delimitWith "\n\n" ([show p | p <- ps] ++ [show end])
+  show (UsProgs ps end) = delimitWith "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
 instance Show Progs where
   show = show . toUsProgs
 instance Show SProgs where
-  show (SProgs ps end) = delimitWith "\n\n" ([show p | p <- ps] ++ [show end])
+  show (SProgs ps end) = delimitWith "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
 instance Show SProg where
-  show (SProgFun x stp tm) = "define " ++ x ++ " : " ++ show stp ++ " = " ++ show tm
-  show (SProgExtern x tps tp) = "extern " ++ x ++ " : " ++ show (joinArrows tps tp)
-  show (SProgData y cs) = "data " ++ y ++ " = " ++ delimitWith " | " [show c | c <- cs]
+  show (SProgFun x stp tm) = "define " ++ x ++ " : " ++ show stp ++ " = " ++ show tm ++ ";"
+  show (SProgExtern x tps tp) = "extern " ++ x ++ " : " ++ show (joinArrows tps tp) ++ ";"
+  show (SProgData y tgs ps cs) = "data " ++ delimitWith " " (y : tgs ++ ps) ++ " = " ++ delimitWith " | " [show c | c <- cs] ++ ";"

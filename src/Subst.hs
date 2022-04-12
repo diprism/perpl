@@ -51,6 +51,7 @@ newVars xs m =
 ----------------------------------------
 
 data SubT = SubVar Var | SubTm Term | SubTp Type
+  deriving (Eq, Ord, Show)
 type Subst = Map Var SubT
 
 type SubstM a = RWS () () Subst a
@@ -61,7 +62,8 @@ runSubst :: Subst -> SubstM a -> a
 runSubst s r = let (a', r', ()) = runRWS r () s in a'
 
 freshen :: Var -> SubstM Var
-freshen "_" = return "_" -- TODO: Deal with conflicting FGG rules for "_"
+--freshen "_" = return "_" -- TODO: Deal with conflicting FGG rules for "_"
+freshen "_" = freshen "_0"
 freshen x =
   fmap (newVar x) get >>= \ x' ->
   modify (Map.insert x' (SubVar x')) >>
@@ -97,12 +99,16 @@ substVar x fv ftm ftp fn =
         {SubVar x' -> fv x'; SubTm tm -> ftm tm; SubTp tp -> ftp tp })
     (Map.lookup x s)
 
-substParams :: [Param] -> SubstM a -> SubstM ([Param], a)
-substParams [] cont = (,) [] <$> cont
-substParams ((x, tp) : ps) cont =
+substParams :: AddMult -> [Param] -> SubstM a -> SubstM ([Param], a)
+substParams am [] cont = (,) [] <$> cont
+substParams Additive (("_", tp) : ps) cont =
+  substM tp >>= \ tp' ->
+  substParams Additive ps cont >>= \ (ps', a) ->
+  return (("_", tp') : ps', a)
+substParams am ((x, tp) : ps) cont =
   freshen x >>= \ x' ->
   substM tp >>= \ tp' ->
-  bind x x' (substParams ps cont) >>= \ (ps', a) ->
+  bind x x' (substParams am ps cont) >>= \ (ps', a) ->
   return ((x', tp') : ps', a)
 
 class Substitutable a where
@@ -126,12 +132,18 @@ freeVarsF = foldr (\ a -> Map.union (freeVars a)) Map.empty
     
 instance Substitutable Type where
   substM (TpArr tp1 tp2) = pure TpArr <*> substM tp1 <*> substM tp2
-  substM (TpVar y) = substVar y TpVar (const (TpVar y)) id (TpVar y)
+  substM (TpVar y as) =
+    substM as >>= \ as' ->
+    substVar y
+      (\ y' -> TpVar y' as')
+      (const (TpVar y as'))
+      id
+      (TpVar y as')
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
   substM NoTp = pure NoTp
 
   freeVars (TpArr tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
-  freeVars (TpVar y) = Map.singleton y NoTp
+  freeVars (TpVar y as) = Map.singleton y NoTp <> freeVars as
   freeVars (TpProd am tps) = Map.unions (freeVars <$> tps)
   freeVars NoTp = Map.empty
 
@@ -149,8 +161,8 @@ instance Substitutable Term where
   substM (TmLet x xtm xtp tm tp) =
     freshen x >>= \ x' ->
     pure (TmLet x') <*> substM xtm <*> substM xtp <*> bind x x' (substM tm) <*> substM tp
-  substM (TmCase tm y cs tp) =
-    pure TmCase <*> substM tm <*> pure y <*> substM cs <*> substM tp
+  substM (TmCase tm (y, as) cs tp) =
+    pure TmCase <*> substM tm <*> (pure ((,) y) <*> substM as) <*> substM cs <*> substM tp
   substM (TmSamp d tp) =
     pure (TmSamp d) <*> substM tp
   substM (TmAmb tms tp) =
@@ -160,7 +172,7 @@ instance Substitutable Term where
 --  substM (TmElimAmp tm i tp) =
 --    pure TmElimAmp <*> substM tm <*> pure i <*> substM tp
   substM (TmElimProd am ptm ps tm tp) =
-    pure (TmElimProd am) <*> substM ptm <**> substParams ps (substM tm) <*> substM tp
+    pure (TmElimProd am) <*> substM ptm <**> substParams am ps (substM tm) <*> substM tp
   substM (TmEqs tms) =
     pure TmEqs <*> substM tms
   
@@ -179,7 +191,7 @@ instance Substitutable Term where
 
 instance Substitutable Case where
   substM (Case x ps tm) =
-    pure (Case x) <**> substParams ps (substM tm)
+    pure (Case x) <**> substParams Multiplicative ps (substM tm)
   freeVars (Case x ps tm) =
     foldr (Map.delete . fst) (freeVars tm) ps
 
@@ -228,13 +240,12 @@ instance Substitutable UsTm where
     pure (UsLet x') <*> substM xtp <*> substM xtm <*> bind x x' (substM tm)
   substM (UsAmb tms) =
     pure UsAmb <*> substM tms
---  substM (UsElimAmp tm o) =
---    pure UsElimAmp <*> substM tm <*> pure o
   substM (UsProd am tms) =
     pure (UsProd am) <*> substM tms
   substM (UsElimProd am tm xs tm') =
-    freshens xs >>= \ xs' ->
-    pure (UsElimProd am) <*> substM tm <*> pure xs' <*> binds xs xs' (substM tm')
+    pure (UsElimProd am) <*> substM tm
+      <**> fmap (\ (ps, a) -> (fsts ps, a))
+                (substParams am [(x, NoTp) | x <- xs] (substM tm'))
   substM (UsEqs tms) =
     pure UsEqs <*> substM tms
 
@@ -278,9 +289,10 @@ instance Substitutable UsProg where
   substM (UsProgExtern x tp) =
     bind x x okay >>
     pure (UsProgExtern x) <*> substM tp
-  substM (UsProgData y cs) =
+  substM (UsProgData y ps cs) =
     bind y y okay >>
-    pure (UsProgData y) <*> substM cs
+    freshens ps >>= \ ps' ->
+    pure (UsProgData y ps') <*> binds ps ps' (substM cs)
 
   freeVars ps = error "freeVars on a UsProg"
 
@@ -295,7 +307,7 @@ instance Substitutable Ctor where
 instance Substitutable Prog where
   substM (ProgFun x ps tm tp) =
     bind x x okay >>
-    pure (ProgFun x) <**> substParams ps (substM tm) <*> substM tp
+    pure (ProgFun x) <**> substParams Multiplicative ps (substM tm) <*> substM tp
   substM (ProgExtern x ps tp) =
     bind x x okay >>
     pure (ProgExtern x) <*> substM ps <*> substM tp
@@ -313,16 +325,22 @@ instance Substitutable Prog where
     freeVars cs-}
 
 instance Substitutable SProg where
-  substM (SProgFun x (Forall tpms tp) tm) =
+  substM (SProgFun x (Forall tgs tpms tp) tm) =
     bind x x okay >>
-    freshens tpms >>= \ tpms' ->
-    binds tpms tpms' (pure (SProgFun x) <*> (pure (Forall tpms') <*> substM tp) <*> substM tm)
+    freshens tgs >>= \ tgs' ->
+    binds tgs tgs'
+      (freshens tpms >>= \ tpms' ->
+       binds tpms tpms'
+         (pure (SProgFun x) <*> (pure (Forall tgs' tpms') <*> substM tp) <*> substM tm))
   substM (SProgExtern x tps tp) =
     bind x x okay >>
     pure (SProgExtern x) <*> substM tps <*> substM tp
-  substM (SProgData y cs) =
+  substM (SProgData y tgs ps cs) =
     bind y y okay >>
-    pure (SProgData y) <*> substM cs
+    freshens tgs >>= \ tgs' ->
+    binds tgs tgs'
+      (freshens ps >>= \ ps' ->
+       pure (SProgData y tgs' ps') <*> binds ps ps' (substM cs))
 
   freeVars p = error "freeVars on a Prog"
 
@@ -341,13 +359,24 @@ instance Substitutable SProgs where
 -- For ad-hoc type var substitution,
 -- rename all occurrences of xi to xf in a type
 substType :: Var -> Var -> Type -> Type
-substType xi xf (TpVar y) =
-  TpVar (if xi == y then xf else y)
+substType xi xf (TpVar y as) =
+  TpVar (if xi == y then xf else y) (map (substType xi xf) as)
 substType xi xf (TpArr tp1 tp2) =
   TpArr (substType xi xf tp1) (substType xi xf tp2)
 substType xi xf (TpProd am tps) =
   TpProd am [substType xi xf tp | tp <- tps]
 substType xi xf NoTp = NoTp
+
+-- Adds tags to type vars
+substTags :: Map Var [Var] -> Type -> Type
+substTags ytgs (TpVar y as) =
+  let as' = map (substTags ytgs) as in
+    TpVar y (maybe as' (\ tgs -> [TpVar x [] | x <- tgs] ++ as') (ytgs Map.!? y))
+substTags ytgs (TpArr tp1 tp2) =
+  TpArr (substTags ytgs tp1) (substTags ytgs tp2)
+substTags ytgs (TpProd am tps) =
+  TpProd am (map (substTags ytgs) tps)
+substTags ytgs NoTp = NoTp
 
 freshVar' :: Subst -> Var -> Var
 freshVar' s x =
@@ -365,8 +394,10 @@ instance Substitutable CtxtDef where
   freeVars (DefData cs) = freeVars cs
 
 instance Substitutable Scheme where
-  substM (Forall xs tp) =
-    freshens xs >>= \ xs' ->
-    pure (Forall xs') <*> binds xs xs' (substM tp)
+  substM (Forall tgs xs tp) =
+    freshens tgs >>= \ tgs' ->
+    binds tgs tgs'
+      (freshens xs >>= \ xs' ->
+       pure (Forall tgs xs') <*> binds xs xs' (substM tp))
 
-  freeVars (Forall xs tp) = foldr Map.delete (freeVars tp) xs
+  freeVars (Forall tgs xs tp) = foldr Map.delete (freeVars tp) (tgs ++ xs)

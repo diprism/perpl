@@ -276,24 +276,37 @@ TYPE2 :=
 -- Product, Ampersand
 parseType2 :: ParseM Type
 parseType2 = parseType3 >>= \ tp -> parsePeek >>= \ t -> case t of
-  TkStar -> pure (TpProd Multiplicative) <*> parseTpsDelim TkStar [tp]
-  TkAmp  -> pure (TpProd Additive) <*> parseTpsDelim TkAmp [tp]
+  TkStar  -> pure (TpProd Multiplicative) <*> parseTpsDelim TkStar [tp]
+  TkAmp   -> pure (TpProd Additive) <*> parseTpsDelim TkAmp [tp]
   _ -> pure tp
 
 {-
 
 TYPE3 :=
-  | VAR
-  | (TYPE1)
-  | error
+  | VAR TYPE4...
+  | TYPE4
 
  -}
 
 -- TypeVar
 parseType3 :: ParseM Type
 parseType3 = parsePeek >>= \ t -> case t of
-  TkVar v -> parseEat *> pure (TpVar v)
-  TkBool -> parseEat *> pure (TpVar "Bool")
+  TkVar v -> parseEat *> pure (TpVar v) <*> parseTypes
+  _ -> parseType4
+
+{-
+
+TYPE4 :=
+  | VAR
+  | (TYPE1)
+  | error
+
+-}
+
+parseType4 :: ParseM Type
+parseType4 = parsePeek >>= \ t -> case t of
+  TkVar v -> parseEat *> pure (TpVar v [])
+  TkBool -> parseEat *> pure (TpVar "Bool" [])
   TkParenL -> parseEat *> parseType1 <* parseDrop TkParenR
   _ -> parseErr "couldn't parse a type here; perhaps add parentheses?"
 
@@ -316,7 +329,7 @@ parseDist = parsePeek >>= \ t -> case t of
 
 -- List of Types
 parseTypes :: ParseM [Type]
-parseTypes = parseElse [] (parseType3 >>= \ tp -> fmap ((:) tp) parseTypes)
+parseTypes = parseElse [] (parseType4 >>= \ tp -> fmap ((:) tp) parseTypes)
 
 -- Program
 parseProg :: ParseM (Maybe UsProg)
@@ -327,8 +340,8 @@ parseProg = parsePeek >>= \ t -> case t of
 -- extern x : type; ...
   TkExtern -> parseEat *> pure Just <*> (pure UsProgExtern <*> parseVar <*> parseTpAnn
                 <* parseDrop TkSemicolon)
--- data Y = ctors; ...
-  TkData -> parseEat *> pure Just <*> (pure UsProgData <*> parseVar <* parseDrop TkEq
+-- data Y vars = ctors; ...
+  TkData -> parseEat *> pure Just <*> (pure UsProgData <*> parseVar <*> parseVars <* parseDrop TkEq
               <*> parseCtors <* parseDrop TkSemicolon)
   _ -> pure Nothing
 

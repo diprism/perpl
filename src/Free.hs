@@ -102,11 +102,24 @@ isLin' x = (LinYes ==) . h where
     if x `elem` fsts ps then h tm else h_as LinErr [tm, tm']
   h (TmEqs tms) = h_as LinErr tms
 
+-- Returns if a type has an arrow, ampersand, or recursive datatype anywhere in it
+robust :: (Var -> Maybe [Ctor]) -> Type -> Bool
+robust g = not . h [] where
+  h :: [Var] -> Type -> Bool
+  h visited (TpVar y as) = (y `elem` visited) || any (h (y : visited)) as || maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (g y)
+  h visited (TpArr _ _) = True
+  h visited (TpProd am tps) = am == Additive || any (h visited) tps
+  h visited NoTp = False
+
+--------------------------------------------------
+
+-- TODO: merge with isRecType code?
 typeIsRecursive' :: (Var -> Maybe [Ctor]) -> Type -> Maybe [(Var, [Ctor])]
 typeIsRecursive' g = h [] [] where
   anyM f = foldr ((|?|) . f) Nothing
-  h visited datahist (TpVar y) =
+  h visited datahist (TpVar y as) =
     (if y `elem` visited then Just datahist else Nothing)
+      |?| anyM (h visited datahist) as
       |?| (g y >>= \ cs -> anyM (\ (Ctor _ tps) -> anyM (h (y : visited) ((y, cs) : datahist)) tps) cs)
   h visited datahist (TpArr tp1 tp2) = h visited datahist tp1 |?| h visited datahist tp2
   h visited datahist (TpProd am tps) = anyM (h visited datahist) tps
@@ -116,19 +129,54 @@ typeIsRecursive' g = h [] [] where
 typeIsRecursive :: (Var -> Maybe [Ctor]) -> Type -> Bool
 typeIsRecursive g = maybe False (const True) . typeIsRecursive' g
 
-  {-h [] where
-  h visited (TpVar y) =
-    y `elem` visited ||
-      maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (g y)
-  h visited (TpArr tp1 tp2) = h visited tp1 || h visited tp2
-  h visited (TpProd am tps) = any (h visited) tps
-  h visited NoTp = False-}
+--------------------------------------------------
 
--- Returns if a type has an arrow, ampersand, or recursive datatype anywhere in it
-robust :: (Var -> Maybe [Ctor]) -> Type -> Bool
-robust g = not . h [] where
-  h :: [Var] -> Type -> Bool
-  h visited (TpVar y) = (y `elem` visited) || maybe False (any $ \ (Ctor _ tps) -> any (h (y : visited)) tps) (g y)
-  h visited (TpArr _ _) = True
-  h visited (TpProd am tps) = am == Additive || any (h visited) tps
-  h visited NoTp = False
+-- Returns if any of a list of types end up referencing a var
+isRecType' :: Map Var [Ctor] -> Var -> [Type] -> Bool
+isRecType' g y = h [] where
+  h :: [Var] -> [Type] -> Bool
+  h hist [] = False
+  h hist (TpArr tp1 tp2 : tps) = h hist (tp1 : tp2 : tps)
+  h hist (TpProd am tps' : tps) = h hist (tps' ++ tps)
+  h hist (TpVar y' as : tps)
+    | y == y' = True
+    | y' `elem` hist = h hist tps
+    | otherwise =
+      maybe
+        (h hist (as ++ tps))
+        (\ cs -> h (y' : hist) (foldr (\ (Ctor x as') tps -> as' ++ tps) (as ++ tps) cs))
+        (g Map.!? y')
+  h hist (NoTp : tps) = h hist tps
+
+-- Returns if y is a recursive datatype
+isRecDatatype :: Map Var [Ctor] -> Var -> Bool
+isRecDatatype g y =
+  maybe False (isRecType' g y . concatMap (\ (Ctor _ tps) -> tps)) (g Map.!? y)
+
+-- Returns if a type is a recursive datatype var
+isRecType :: Map Var [Ctor] -> Type -> Bool
+isRecType g (TpVar y _) = isRecDatatype g y
+isRecType g _ = False
+
+-- Returns the recursive datatypes in a file
+getRecTypes' :: [(Var, [Var], [Var], [Ctor])] -> [Var]
+getRecTypes' ds =
+  let g = foldr (\ (y, tgs, xs, cs) -> Map.insert y cs) mempty ds in
+    concat [if isRecDatatype g y then [y] else [] | (y, tgs, xs, cs) <- ds]
+
+getDataSProgs :: [SProg] -> [(Var, [Var], [Var], [Ctor])]
+getDataSProgs ps = concat [h p | p <- ps] where
+  h (SProgData y tgs xs cs) = [(y, tgs, xs, cs)]
+  h _ = []
+
+getDataProgs :: [Prog] -> [(Var, [Var], [Var], [Ctor])]
+getDataProgs ps = concat [h p | p <- ps] where
+  h (ProgData y cs) = [(y, [], [], cs)]
+  h _ = []
+
+-- Returns the recursive datatypes in a file
+getRecTypes :: Progs -> [Var]
+getRecTypes (Progs ds end) = getRecTypes' (getDataProgs ds)
+
+getRecTypesS :: SProgs -> [Var]
+getRecTypesS (SProgs ds end) = getRecTypes' (getDataSProgs ds)
