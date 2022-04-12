@@ -80,22 +80,14 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
            ("class", JSstring "finite"),
            ("values", JSarray $ map JSstring ds')
          ]),
-{-       ("factors", mapToList fs $
-         \ (d, ws) -> JSobject [
-           ("function", JSstring "categorical"),
-           ("type", JSarray $ map JSstring d),
-           ("weights", weights_to_json ws)
-         ])
-    ])]-}
-         ("factors",
-          let fs_filtered = Map.mapMaybe (\ (d, mws) -> maybe Nothing (\ ws -> Just (d, ws)) mws) fs in
+      ("factors",
+        let fs_filtered = Map.mapMaybe (\ (d, mws) -> maybe Nothing (\ ws -> Just (d, ws)) mws) fs in
           mapToList fs_filtered $
-           \ (d, ws) -> JSobject [
-             ("function", JSstring "categorical"),
-               ("type", JSarray $ map JSstring d),
-               ("weights", weights_to_json ws)
-             ])
-        ])
+          \ (d, ws) -> JSobject [
+            ("function", JSstring "finite"),
+            ("weights", weights_to_json ws)
+          ])
+      ])
     ]
     
 instance Show FGG_JSON where
