@@ -1,9 +1,13 @@
+{- Code for storing information about what is in scope -}
+-- TODO: merge with Env (in src/TypeInf.hs)
+
 module Ctxt where
 import qualified Data.Map as Map
 import Exprs
 import Util
 import Show()
 
+-- Which kind of var: local function, global function, or constructor
 data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
   deriving (Eq, Show)
 
@@ -22,6 +26,7 @@ emptyCtxt = Map.empty
 ctxtDeclTerm :: Ctxt -> Var -> Type -> Ctxt
 ctxtDeclTerm g x tp = Map.insert x (DefTerm ScopeLocal tp) g
 
+-- Add params to context
 ctxtDeclArgs :: Ctxt -> [Param] -> Ctxt
 ctxtDeclArgs = foldl $ uncurry . ctxtDeclTerm
 
