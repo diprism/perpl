@@ -7,10 +7,6 @@ import Exprs
 import Util
 import Show()
 
--- Which kind of var: local function, global function, or constructor
-data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
-  deriving (Eq, Show)
-
 data CtxtDef =
     DefTerm Scope Type
   | DefData [Ctor]

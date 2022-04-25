@@ -1,4 +1,5 @@
 -- Adapted from http://dev.stephendiehl.com/fun/006_hindley_milner.html
+{- Code for Hindley-Milner type inference and type checking -}
 
 module TypeInf where
 import qualified Data.Map as Map
@@ -13,9 +14,6 @@ import Name
 import Show()
 import SCC
 import Fresh
-
-data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
-  deriving Eq
 
 -- Convention: expected type, then actual type
 -- TODO: Enforce this convention
