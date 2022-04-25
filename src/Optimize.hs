@@ -158,7 +158,7 @@ safe2sub g x xtm tm =
     -- Returns if there are no global def vars or ambs/fails/uniforms
     noDefsSamps :: Term -> Bool
     noDefsSamps (TmVarL x tp) = True
-    noDefsSamps (TmVarG g x _ as tp) = isCtorVar g && all (noDefsSamps . fst) as
+    noDefsSamps (TmVarG g x _ as tp) = g == CtorVar && all (noDefsSamps . fst) as
     noDefsSamps (TmLam x tp tm tp') = noDefsSamps tm
     noDefsSamps (TmApp tm1 tm2 tp2 tp) = noDefsSamps tm1 && noDefsSamps tm2
     noDefsSamps (TmLet x xtm xtp tm tp) = noDefsSamps xtm && noDefsSamps tm
