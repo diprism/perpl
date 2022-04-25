@@ -16,6 +16,8 @@ import Subst
 4. (let x = t1 in t2) -> (t2[x := t1])     where x occurs once-ish in t2 (see note below)
 5. (define y = \ a*. x a*; ...) -> ...[y := x]
 
+Note that some of these have yet to be implemented
+
 Notes:
 - Optimization (1) enforces the invariant that the return type of every case-of is not
   an arrow type.
