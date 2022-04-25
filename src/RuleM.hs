@@ -159,9 +159,12 @@ getProdWeights tpvs =
         (vector (tensorIdRow pos out)) as')
   | as' <- kronpos tpvs]
 
+-- Returns the weights tensor for when the individual elements
+-- in a product equal the entire product (see tensorId for more info)
 getProdWeightsV :: [[String]] -> Weights
 getProdWeightsV tpvs = tensorId [length vs | vs <- tpvs]
 
+-- Returns the weights for (tm1 == tm2 == ... == tmn)
 getEqWeights :: Int -> Int -> Weights
 getEqWeights dom ntms =
   foldr
@@ -170,11 +173,6 @@ getEqWeights dom ntms =
     [0..ntms-1]
     True
     Nothing
---  Vector [foldr
---            (\ _ ws b -> Vector [ws (b && i == j) | j <- [0..dom-1]])
---            (\ b -> Vector (if b then [Scalar 0, Scalar 1] else [Scalar 1, Scalar 0]))
---            [1..dom - 1] True
---          | i <- [0..dom - 1]]
 
 -- TODO: it is no longer necessary to be this complex—now the we just need
 -- to take and return a single (non-nested) list

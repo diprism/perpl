@@ -105,7 +105,8 @@ Vector a !!! (SliceRange s e : ss) =
 tensorIdRow :: Num n => Int -> Int -> [n]
 tensorIdRow i l = replicate i 0 ++ [1] ++ replicate (l - i - 1) 0
 
--- Returns a 1-diagonal tensor of some shape
+-- For [d1, d2, ..., dn], returns a 1-diagonal tensor
+-- with shape [d1, d2, .., dn, (d1*d2*...*dn)]
 tensorId :: Num n => [Int] -> Tensor n
 tensorId dims =
   foldr
