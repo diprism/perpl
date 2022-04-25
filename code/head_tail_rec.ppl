@@ -85,6 +85,10 @@ define reverseT = reverseT' Nil;
 define reverse = reverseT;
 define double = doubleH;
 
+-- Note that nested tail-recursive calls (e.g. double, reverse)
+-- cause double-exponential increase in factor size of their
+-- refunctionalized datatypes
+
 XOR rev1;
 --even exp1;
 
