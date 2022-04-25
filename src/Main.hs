@@ -3,10 +3,10 @@ import System.Exit
 import System.Environment
 import System.IO
 import Exprs
-import Parse
-import TypeInf
+import Parse.Lib
+import TypeInf.Lib
+import FGG.Lib
 import Monomorphize
-import FGG
 import RecType
 import AffLin
 import Optimize
@@ -100,7 +100,7 @@ processContents (CmdArgs ifn ofn c m e dr l o) s =
   -- Add Bool, True, False
   >>= Right . progBuiltins
   -- Type check the file (:: UsProgs -> Progs)
-  >>= inferFile
+  >>= infer
 --  >>= return . show
   >>= if not m then return . show else (\ x -> (Right . monomorphizeFile) x
   >>= Right . argifyFile

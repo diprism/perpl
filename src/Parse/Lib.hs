@@ -1,4 +1,4 @@
-module Parse where
+module Parse.Lib (parse) where
 import Parse.Parse (parseFile)
 import Parse.Lex (lexFile)
 import Exprs
