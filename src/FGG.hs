@@ -46,6 +46,7 @@ unionFactors ((x, tw) : fs) gs =
   let hs = unionFactors fs gs in
     maybe ((x, tw) : hs) (const hs) (lookup x hs)
 
+-- Creates a JSON object from a weights tensor
 weights_to_json :: Weights -> JSON
 weights_to_json (Scalar n) = JSdouble n
 weights_to_json (Vector ts) = JSarray [weights_to_json v | v <- ts]
@@ -83,13 +84,6 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
            ("class", JSstring "finite"),
            ("values", JSarray $ map JSstring ds')
          ]),
-{-       ("factors", mapToList fs $
-         \ (d, ws) -> JSobject [
-           ("function", JSstring "categorical"),
-           ("type", JSarray $ map JSstring d),
-           ("weights", weights_to_json ws)
-         ])
-    ])]-}
          ("factors",
           let fs_filtered = Map.mapMaybe (\ (d, mws) -> maybe Nothing (\ ws -> Just (d, ws)) mws) fs in
           mapToList fs_filtered $
@@ -100,7 +94,7 @@ fgg_to_json (FGG_JSON ds fs nts s rs) =
              ])
         ])
     ]
-    
+
 instance Show FGG_JSON where
   show = pprint_json . fgg_to_json
 
