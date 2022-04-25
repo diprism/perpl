@@ -10,7 +10,7 @@ import Free
 import Util
 import Name
 import Show()
-import SCC
+import Algs.SCC
 
 bindTp :: Var -> Type -> Either TypeError Subst
 bindTp x tp
