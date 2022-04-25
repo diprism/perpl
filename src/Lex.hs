@@ -1,41 +1,43 @@
+{- Lexer code -}
+
 module Lex where
 import Exprs
 
 -- Possible tokens
 data Token =
-    TkVar Var
-  | TkNum Int
-  | TkLam
-  | TkParenL
-  | TkParenR
-  | TkEq
-  | TkSample
-  | TkFail
-  | TkAmb
-  | TkUni
-  | TkCase
-  | TkOf
-  | TkLet
-  | TkIn
-  | TkArr
-  | TkLeftArr
-  | TkAmp
-  | TkStar
-  | TkColon
-  | TkDot
-  | TkComma
-  | TkLangle
-  | TkRangle
-  | TkBar
-  | TkSemicolon
-  | TkFun
-  | TkExtern
-  | TkData
-  | TkBool
-  | TkIf
-  | TkThen
-  | TkElse
-  | TkDoubleEq
+    TkVar Var -- "x"
+  | TkNum Int -- not sure if this is used anymore...
+  | TkLam -- "\"
+  | TkParenL -- "("
+  | TkParenR -- ")"
+  | TkEq -- "="
+  | TkSample -- "sample"
+  | TkFail -- "fail"
+  | TkAmb -- "amb"
+  | TkUni -- "uniform"
+  | TkCase -- "case"
+  | TkOf -- "of"
+  | TkLet -- "let"
+  | TkIn -- "in"
+  | TkArr -- "->"
+  | TkLeftArr -- "<-"
+  | TkAmp -- "&"
+  | TkStar -- "*"
+  | TkColon -- ":"
+  | TkDot -- "."
+  | TkComma -- ","
+  | TkLangle -- "<"
+  | TkRangle -- ">"
+  | TkBar -- "|"
+  | TkSemicolon -- ";"
+  | TkFun -- "define"
+  | TkExtern -- "extern"
+  | TkData -- "data"
+  | TkBool -- "Bool"
+  | TkIf -- "if"
+  | TkThen -- "then"
+  | TkElse -- "else"
+  | TkDoubleEq -- "=="
   deriving Eq
 
 instance Show Token where
@@ -78,12 +80,15 @@ instance Show Token where
 
 type Pos = (Int, Int) -- Line, column
 
+-- Increments column by n
 forward' :: Int -> Pos -> Pos
 forward' n (line, column) = (line, column + n)
 
+-- Increments column by 1
 forward :: Pos -> Pos
 forward = forward' 1
 
+-- Goes to the next line
 next :: Pos -> Pos
 next (line, column) = (succ line, 0)
 
@@ -92,6 +97,7 @@ punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkLeftArr, Tk
 -- List of keyword tokens (use alphanumeric chars)
 keywords = [TkFail, TkAmb, TkUni, TkCase, TkOf, TkLet, TkIn, TkUni, TkSample, TkFun, TkExtern, TkData, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
 
+-- Tries to lex s as punctuation, otherwise lexing s as a keyword or a var
 lexPunctuation :: String -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
 lexPunctuation s =
   foldr (\ t owise -> maybe owise (flip (lexAdd (show t)) t) (prefix (show t) s))
@@ -163,4 +169,5 @@ lexErr (line, col) = Left $ "Lex error at line " ++ show line ++ ", column " ++ 
 lexStr :: String -> Either String [(Pos, Token)]
 lexStr s = either lexErr (Right . reverse) $ lexStrh s (1, 0) []
 
+-- Synonym for lexStr
 lexFile = lexStr
