@@ -2,7 +2,7 @@
 -- Adapted from the pseudocode from
 -- https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm
 
-module SCC where
+module SCC (scc) where
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
