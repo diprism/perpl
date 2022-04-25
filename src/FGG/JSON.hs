@@ -1,6 +1,6 @@
 {- JSON Functions -}
 
-module JSON where
+module FGG.JSON where
 import Util
 
 data JSON =

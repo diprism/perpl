@@ -1,10 +1,10 @@
-module Compile where
+module FGG.Compile where
 import Data.List
 import qualified Data.Map as Map
 import Exprs
-import FGG
+import FGG.FGG
 import Util
-import RuleM
+import FGG.RuleM
 import Ctxt
 import Name
 import Show

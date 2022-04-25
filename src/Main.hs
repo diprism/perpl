@@ -6,7 +6,7 @@ import Exprs
 import Parse
 import TypeInf
 import Monomorphize
-import Compile
+import FGG
 import RecType
 import AffLin
 import Optimize
