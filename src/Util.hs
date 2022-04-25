@@ -104,6 +104,16 @@ sortCases ctors cases = snds $ sortBy (\ (a, _) (b, _) -> compare a b) (label ca
 
   label = map $ \ c@(CaseUs x as tm) -> (getIdx 0 x ctors, c)
 
+-- Returns the ctors to the left and to the right of one named x
+-- (but discards the ctor named x itself)
+splitCtorsAt :: [Ctor] -> Var -> ([Ctor], [Ctor])
+splitCtorsAt [] x = ([], [])
+splitCtorsAt (Ctor x' as : cs) x
+  | x == x' = ([], cs)
+  | otherwise =
+    let (b, a) = splitCtorsAt cs x in
+      (Ctor x' as : b, a)
+
 
 -- Splits tp1 -> tp2 -> ... -> tpn into ([tp1, tp2, ...], tpn)
 splitArrows :: Type -> ([Type], Type)

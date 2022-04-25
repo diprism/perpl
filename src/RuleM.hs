@@ -1,3 +1,5 @@
+{- Code for generating FGG rules, and the RuleM "monad-like" datatype -}
+
 module RuleM where
 import Data.List
 import qualified Data.Map as Map
@@ -14,6 +16,7 @@ data RuleM = RuleM [(Int, Rule)] [External] [Nonterminal] [Factor]
 -- RuleM instances of >>= and >= (since not
 -- technically a monad, need to pick new names)
 infixl 1 +>=, +>, +>=*
+-- Like (>>=) but for RuleM
 (+>=) :: RuleM -> ([External] -> RuleM) -> RuleM
 RuleM rs xs nts fs +>= g =
   let RuleM rs' xs' nts' fs' = g xs in
@@ -22,6 +25,7 @@ RuleM rs xs nts fs +>= g =
           (nts ++ nts')
           (unionFactors fs fs')
 
+-- Like (>>) but for RuleM
 (+>) :: RuleM -> RuleM -> RuleM
 r1 +> r2 = r1 +>= \ _ -> r2
 
@@ -39,6 +43,7 @@ addExts xs = RuleM [] xs [] []
 addExt :: Var -> Type -> RuleM
 addExt x tp = addExts [(x, tp)]
 
+-- Add a list of nonterminals
 addNonterms :: [Nonterminal] -> RuleM
 addNonterms nts = RuleM [] [] nts []
 
@@ -54,6 +59,7 @@ addRules rs = RuleM rs [] [] []
 addRule :: Int -> Rule -> RuleM
 addRule reps r = addRules [(reps, r)]
 
+-- Convert a HGF' to a HFG
 castHGF :: HGF' -> HGF
 castHGF (HGF' ns es xs) =
   let (ns', [ins]) = combineExts [ns]
@@ -62,9 +68,11 @@ castHGF (HGF' ns es xs) =
       [Edge [m Map.! v | (v, tp) <- as] l | Edge' as l <- es]
       (nub [m Map.! v | (v, tp) <- xs])
 
+-- Adds an "incomplete" factor (extern)
 addIncompleteFactor :: Var -> RuleM
 addIncompleteFactor x = RuleM [] [] [] [(x, Nothing)]
 
+-- Adds a factor x with weights tensor w
 addFactor :: Var -> Weights -> RuleM
 addFactor x w = RuleM [] [] [] [(x, Just w)]
 
@@ -84,19 +92,10 @@ setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
 isRule :: String -> RuleM -> Bool
 isRule lhs (RuleM rs xs nts fs) = any (\ (_, Rule lhs' _) -> lhs == lhs') rs
 
+
 -- Returns the Weights for a function tp1 -> tp2
 getPairWeights :: Int -> Int -> Weights
 getPairWeights tp1s tp2s = tensorId [tp1s, tp2s]
-
--- Returns the ctors to the left and to the right of one named x
--- (but discards the ctor named x itself)
-splitCtorsAt :: [Ctor] -> Var -> ([Ctor], [Ctor])
-splitCtorsAt [] x = ([], [])
-splitCtorsAt (Ctor x' as : cs) x
-  | x == x' = ([], cs)
-  | otherwise =
-    let (b, a) = splitCtorsAt cs x in
-      (Ctor x' as : b, a)
 
 -- Computes the weights for a function with params ps and return type tp
 getExternWeights :: (Type -> [String]) -> [Type] -> Type -> Weights
@@ -109,7 +108,6 @@ getCtorWeightsAll dom cs y =
   concat [[(ctorFactorName x [(TmVarL x atp, atp) | (x, atp) <- zip as' as] y, ws)
           | (as', ws) <- getCtorWeights dom (Ctor x as) cs]
          | Ctor x as <- cs]
-  
 
 -- Computes the weights for a specific constructor
 getCtorWeights :: (Type -> [String]) -> Ctor -> [Ctor] -> [([String], Weights)]
@@ -143,14 +141,15 @@ getCtorWeightsFlat dom (Ctor x as) cs =
 getCtorEqWeights :: Int {- num of possible values -} -> Weights
 getCtorEqWeights cs = tensorId [cs]
 
-getAmpWeights :: (Type -> [String]) -> [Type] -> [Weights]
-getAmpWeights dom tps =
-  let tpvs = map dom tps in
-    [Vector
-      (concatMap
-        (\ (j, vs) ->
-            [Vector [Scalar (if l == k && i == j then 1 else 0) | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs]) (enumerate tpvs)) | (i, itpvs) <- enumerate tpvs]
+-- Computes the weights for the &-product of a list of types (rather, their domains)
+getAmpWeights :: [[String]] -> [Weights]
+getAmpWeights tpvs =
+  [Vector
+    (concatMap
+      (\ (j, vs) ->
+          [Vector [Scalar (if l == k && i == j then 1 else 0) | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs]) (enumerate tpvs)) | (i, itpvs) <- enumerate tpvs]
 
+-- Computes the weights for the *-product of a list of types (rather, their domains)
 getProdWeights :: [[String]] -> [([String], Weights)]
 getProdWeights tpvs =
   [([a | (_, _, a) <- as'],

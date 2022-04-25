@@ -123,7 +123,7 @@ ampRule g all_fvs as i tm tp =
 
 addAmpFactors :: Ctxt -> [Type] -> RuleM
 addAmpFactors g tps =
-  let ws = getAmpWeights (domainValues g) tps in
+  let ws = getAmpWeights (map (domainValues g) tps) in
     foldr (\ (i, w) r -> r +> addFactor (ampFactorName tps i) w) returnRule (enumerate ws)
 
 
