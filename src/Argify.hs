@@ -1,7 +1,11 @@
 {-
 Code that applies the following transformations:
 1. define foo = \ a. \ b. tm;   =>   define foo a b = tm;
-2. TmApp (TmApp (TmVarG x) tm1) tm2   =>   TmVarG x [tm1, tm2]
+2. TmApp (TmApp (TmVarG x) tm1) tm2...   =>   TmVarG x [tm1, tm2, ...]
+
+This transformation makes AffLin more efficient,
+because we don't need to have functions like a -> b -> c
+become (a -> ((b -> c) & Unit)) & Unit, only (a -> b -> c) & Unit
 -}
 
 module Argify where
