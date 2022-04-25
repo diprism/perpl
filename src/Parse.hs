@@ -1,23 +1,29 @@
+{- Parser code -}
+
 module Parse where
 import Exprs
 import Lex
 
+-- Throws a lexer error message at a certain position
 lexErr (line, col) = Left $ "Lex error at line " ++ show line ++ ", column " ++ show col
 
+-- Throws a parser error message (s) at a certain position (p)
 parseErr' p s = Left (p, s)
 
 eofPos = (-1, 0)
 eofErr = parseErr' eofPos "unexpected EOF"
 
+-- Throws a parser error message (s) at the current position
 parseErr s = ParseM $ \ ts ->
   let p = case ts of [] -> eofPos; ((p, _) : ts) -> p in
     Left (p, s)
 
+-- Parse error message formatting
 formatParseErr (line, col) emsg = Left $
   "Parse error at line " ++ show line ++
     ", column " ++ show col ++ ": " ++ emsg
 
--- Parsing monad
+-- Parsing monad: given the lexed tokens, returns either an error or (a, remaining tokens)
 newtype ParseM a = ParseM ([(Pos, Token)] -> Either (Pos, String) (a, [(Pos, Token)]))
 
 -- Extract the function from ParseM
@@ -33,6 +39,7 @@ parseMr = curry Right
 parseElse a' (ParseM a) =
   ParseM $ \ ts -> either (\ _ -> Right (a', ts)) Right (a ts)
 
+-- ParseM instances:
 instance Functor ParseM where
   fmap f (ParseM g) = ParseM $ \ ts -> g ts >>= \ p -> Right (f (fst p), snd p)
 
@@ -46,9 +53,11 @@ instance Applicative ParseM where
 instance Monad ParseM where
   (ParseM f) >>= g = ParseM $ \ ts -> f ts >>= \ (a, ts') -> parseMf (g a) ts'
 
+-- Peek at the next n tokens without consuming them
 parsePeeks :: Int -> ParseM [Token]
 parsePeeks n = ParseM $ \ ts -> if length ts < n then eofErr else parseMr [t | (_, t) <- take n ts] ts
 
+-- Peek at the next token without consuming it
 parsePeek :: ParseM Token
 parsePeek = head <$> parsePeeks 1
 
@@ -91,6 +100,7 @@ parseVars = parsePeek >>= \ t -> case t of
   TkVar v -> parseEat *> pure ((:) v) <*> parseVars
   _ -> pure []
 
+-- Parse comma-delimited symbols
 parseVarsCommas :: ParseM [Var]
 parseVarsCommas = parsePeeks 2 >>= \ ts -> case ts of
   [TkVar v, TkComma] -> parseEat *> parseEat *> pure ((:) v) <*> parseVarsCommas
@@ -139,11 +149,6 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
   _ -> parseTerm2
 
---parseLamArgs :: ParseM [(Var, Type)]
---parseLamArgs =
---  pure (curry (:)) <*> parseVar <*> parseTpAnn
---    <*> parseElse [] (parseDrop TkComma >> parseLamArgs)
-
 
 {-
 
@@ -159,36 +164,27 @@ parseTerm2 :: ParseM UsTm
 parseTerm2 = parsePeek >>= \ t -> case t of
 -- sample dist : type
   TkSample -> parseEat *> pure UsSamp <*> parseDist <*> parseTpAnn
+-- amb tm*
   TkAmb -> parseEat *> parseAmbs []
   _ -> parseTerm3
 
+-- Parse tok-delimited terms
 parseTmsDelim :: Token -> [UsTm] -> ParseM [UsTm]
 parseTmsDelim tok tms = parsePeek >>= \ t ->
   if t == tok
     then parseEat >> parseTerm1 >>= \ tm -> parseTmsDelim tok (tm : tms)
     else return (reverse tms)
 
+-- Parses an integer (is this used anymore?)
 parseNum :: ParseM Int
 parseNum = parsePeek >>= \ t -> case t of
   TkNum o -> parseEat >> return o
   _ -> parseErr "Expected a number here"
 
 
-{-
-
-TERM3 :=
-  | TERM4 . NUM . NUM
-  | TERM4
-
- -}
-
+-- No longer needed, directly calls parseTerm4
 parseTerm3 :: ParseM UsTm
 parseTerm3 = parseTerm4
-{-parseTerm3 = parseTerm4 >>= \ tm -> parsePeek >>= \ t -> case t of
-  -- TkComma -> pure UsProdIn <*> parseTmsDelim TkComma [tm]
-  TkDot -> pure (curry (UsElimAmp tm)) <* parseEat <*> (pred <$> parseNum) <* parseDrop TkDot <*> parseNum
-  _ -> return tm
--}
 
 {-
 
@@ -206,13 +202,15 @@ parseTerm4 =
     TkDoubleEq -> UsEqs <$> parseTmsDelim TkDoubleEq [tm]
     _ -> parseTermApp tm
 
-
-parseAmbs tms =
-  parseElse (UsAmb (reverse tms)) (parseTerm5 >>= \ tm -> parseAmbs (tm : tms))
+-- Parses the "tm*" part of "amb tm*"
+parseAmbs :: [UsTm] -> ParseM UsTm
+parseAmbs acc =
+  parseElse (UsAmb (reverse acc)) (parseTerm5 >>= \ tm -> parseAmbs (tm : acc))
 
 -- Parse an application spine
-parseTermApp tm =
-  parseElse tm $ parseTerm5 >>= parseTermApp . UsApp tm
+parseTermApp :: UsTm -> ParseM UsTm
+parseTermApp acc =
+  parseElse acc $ parseTerm5 >>= parseTermApp . UsApp acc
 
 {-
 
@@ -232,10 +230,12 @@ parseTerm5 = parsePeek >>= \ t -> case t of
   TkLangle -> parseEat *> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm]) <* parseDrop TkRangle
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
-parseTpsDelim tok tps = parsePeek >>= \ t ->
+-- Parses tok-delimited types
+parseTpsDelim :: Token -> [Type] -> ParseM [Type]
+parseTpsDelim tok acc = parsePeek >>= \ t ->
   if t == tok
-    then (parseEat >> parseType3 >>= \ tp' -> parseTpsDelim tok (tp' : tps))
-    else pure (reverse tps)
+    then (parseEat >> parseType3 >>= \ tp' -> parseTpsDelim tok (tp' : acc))
+    else pure (reverse acc)
 
 
 {- Type Annotation
