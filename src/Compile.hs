@@ -6,7 +6,6 @@ import FGG
 import Util
 import RuleM
 import Ctxt
---import Free
 import Name
 import Show
 import Tensor
@@ -17,7 +16,7 @@ import Subst
 addStartRuleIfNecessary :: Term -> RuleM -> (String, RuleM)
 addStartRuleIfNecessary tm rm =
   let stm = show tm
-      tp = getType tm
+      tp = typeof tm
       [vtp] = newNames [tp] in
     if isRule stm rm then (stm, rm) else
       (startName,
@@ -279,10 +278,10 @@ term2fgg g (TmElimProd Multiplicative ptm ps tm tp) =
          (ptmxs ++ foldr delete tmxs ps ++ [vtp])
 term2fgg g (TmEqs tms) =
   [term2fgg g tm | tm <- tms] +>=* \ xss ->
-  let tmstp = getType (head tms)
+  let tmstp = typeof (head tms)
       ntms = length tms
       fac = eqFactorName tmstp ntms
-      (vbtp : vtps) = newNames (tpBool : [getType tm | tm <- tms]) in
+      (vbtp : vtps) = newNames (tpBool : [typeof tm | tm <- tms]) in
     addFactor fac (getEqWeights (domainSize g tmstp) ntms) +>
     mkRule (TmEqs tms)
       (vbtp : vtps ++ concat xss)

@@ -89,7 +89,7 @@ liftAmb (TmEqs tms) =
     joinAmbs (map TmEqs (kronall tms')) (TpVar "Bool" [])
 
 liftFail'' :: (Term, Maybe Term) -> Term
-liftFail'' (tm, Nothing) = TmSamp DistFail (getType tm)
+liftFail'' (tm, Nothing) = TmSamp DistFail (typeof tm)
 liftFail'' (tm, Just tm') = tm'
 
 liftFail' :: Term -> Maybe Term

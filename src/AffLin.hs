@@ -101,7 +101,7 @@ discard x tp tm =
   if robust (ctxtLookupType g) tp
     then return tm
     else (discard' (TmVarL x tp) tp tm){- >>= \ dtm ->
-          return (TmLet "_" dtm tpUnit tm (getType tm)))-}
+          return (TmLet "_" dtm tpUnit tm (typeof tm)))-}
 
 -- Discard a set of variables
 discards :: FreeVars -> Term -> AffLinM Term
@@ -130,7 +130,7 @@ affLinCase (Case x ps tm) =
 -- ambFun `\ x : T. tm` = `<\ x : T. tm, Z(FV(\ x : T. tm))>`,
 ambFun :: Term -> FreeVars -> AffLinM Term
 ambFun tm fvs =
-  let tp = getType tm in
+  let tp = typeof tm in
     case tp of
       TpArr _ _ ->
         discards fvs tmUnit >>= \ ntm ->
@@ -141,7 +141,7 @@ ambFun tm fvs =
 -- So ambElim `<f, unit>` = `f`
 ambElim :: Term -> Term
 ambElim tm =
-  case getType tm of
+  case typeof tm of
     TpProd Additive [tp, unittp] ->
       TmElimProd Additive tm [("x", tp), ("_", unittp)] (TmVarL "x" tp) tp
     _ -> tm
@@ -188,9 +188,9 @@ affLin (TmApp tm1 tm2 tp2 tp) =
 affLin (TmLet x xtm xtp tm tp) =
   -- L(let x : xtp = xtm in tm) => let x : L(xtp) = L(xtm) in let _ = Z({x} - FV(tm)) in L(tm)
   affLin xtm >>= \ xtm' ->
-  let xtp' = getType xtm' in
+  let xtp' = typeof xtm' in
     alBind x xtp' (affLin tm) >>= \ tm' ->
-    return (TmLet x xtm' xtp' tm' (getType tm'))
+    return (TmLet x xtm' xtp' tm' (typeof tm'))
 affLin (TmCase tm y cs tp) =
   -- L(case tm of C1 | C2 | ... | Cn) => case L(tm) of L*(C1) | L*(C2) | ... | L*(Cn),
   -- where L*(C) = let _ = Z((FV(C1) ∪ FV(C2) ∪ ... ∪ FV(Cn)) - FV(C)) in L(C)
@@ -208,7 +208,7 @@ affLin (TmAmb tms tp) =
   affLinBranches affLin discards tms >>= \ tms' ->
   -- Same as in TmCase above, I think the below should work; if not, use type of first tm
   affLinTp tp >>= \ tp' ->
-  --  (if null tms' then affLinTp tp else return (getType (head tms'))) >>= \ tp' ->
+  --  (if null tms' then affLinTp tp else return (typeof (head tms'))) >>= \ tp' ->
   return (TmAmb tms' tp')
 affLin (TmProd am as)
   | am == Additive =
@@ -223,13 +223,13 @@ affLin (TmElimProd Additive tm ps tm' tp) =
   --    let <x1, x2, ..., xn> = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')
   affLin tm >>= \ tm ->
   affLinParams ps tm' >>= \ (ps, tm') ->
-  return (TmElimProd Additive tm (ps ++ [("_", tpUnit)]) tm' (getType tm'))
+  return (TmElimProd Additive tm (ps ++ [("_", tpUnit)]) tm' (typeof tm'))
 affLin (TmElimProd Multiplicative tm ps tm' tp) =
   -- L(let (x1, x2, ..., xn) = tm in tm') =>
   --    let (x1, x2, ..., xn) = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')
   affLin tm >>= \ tm ->
   affLinParams ps tm' >>= \ (ps, tm') ->
-  return (TmElimProd Multiplicative tm ps tm' (getType tm'))
+  return (TmElimProd Multiplicative tm ps tm' (typeof tm'))
 affLin (TmEqs tms) =
   -- L(tm1 == tm2 == ... == tmn) =>
   --   L(tm1) == L(tm2) == ... == L(tmn)

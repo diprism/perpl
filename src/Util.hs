@@ -69,31 +69,19 @@ okay = return ()
 foldlM :: Monad m => (b -> a -> m b) -> m b -> [a] -> m b
 foldlM f = foldl (\ mb a -> mb >>= \ b -> f b a)
 
-{-
-isDefVar :: GlobalVar -> Bool
-isDefVar DefVar = True
-isDefVar CtorVar = False
-
-isCtorVar :: GlobalVar -> Bool
-isCtorVar CtorVar = True
-isCtorVar DefVar = False
--}
-
 -- Gets the type of an elaborated term in O(1) time
-getType :: Term -> Type
-getType (TmVarL x tp) = tp
-getType (TmVarG gv x tis as tp) = tp
-getType (TmLam x tp tm tp') = TpArr tp tp'
-getType (TmApp tm1 tm2 tp2 tp) = tp
-getType (TmLet x xtm xtp tm tp) = tp
-getType (TmCase ctm y cs tp) = tp
-getType (TmSamp d tp) = tp
-getType (TmAmb tms tp) = tp
-getType (TmProd am as) = TpProd am (snds as)
-getType (TmElimProd am tm ps tm' tp) = tp
-getType (TmEqs tms) = TpVar "Bool" []
-
-typeof = getType
+typeof :: Term -> Type
+typeof (TmVarL x tp) = tp
+typeof (TmVarG gv x tis as tp) = tp
+typeof (TmLam x tp tm tp') = TpArr tp tp'
+typeof (TmApp tm1 tm2 tp2 tp) = tp
+typeof (TmLet x xtm xtp tm tp) = tp
+typeof (TmCase ctm y cs tp) = tp
+typeof (TmSamp d tp) = tp
+typeof (TmAmb tms tp) = tp
+typeof (TmProd am as) = TpProd am (snds as)
+typeof (TmElimProd am tm ps tm' tp) = tp
+typeof (TmEqs tms) = TpVar "Bool" []
 
 -- "let <_, _, x, _> in ..."  =>  index of x = 2
 injIndex :: [Var] -> Int
@@ -171,7 +159,7 @@ splitLets tm = ([], tm)
 -- Joins ([(x2, tm2, tp2), (x3, tm3, tp3), ..., (xn, tmn, tpn)], tm1) into let x2 = tm2 in let x3 = tm3 in ... let xn = tmn in tm1
 joinLets :: [(Var, Term, Type)] -> Term -> Term
 joinLets ds tm = h ds where
-  tp = getType tm
+  tp = typeof tm
   h [] = tm
   h ((x, xtm, xtp) : ds) = TmLet x xtm xtp (h ds) tp
 
@@ -200,11 +188,11 @@ addArgs gv x tis tas vas y =
 -- Eta-expands a constructor with the necessary extra args
 etaExpand :: GlobalVar -> Var -> [Type] -> [Arg] -> [Param] -> Type -> Term
 etaExpand gv x tis tas vas y =
-  foldr (\ (a, atp) tm -> TmLam a atp tm (getType tm))
+  foldr (\ (a, atp) tm -> TmLam a atp tm (typeof tm))
     (addArgs gv x tis tas vas y) vas
 
 toArg :: Term -> Arg
-toArg tm = (tm, getType tm)
+toArg tm = (tm, typeof tm)
 
 toArgs :: [Term] -> [Arg]
 toArgs = map toArg

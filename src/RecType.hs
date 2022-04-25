@@ -260,12 +260,12 @@ derefunTerm dr g rtp = fst . h where
     | dr == Defun && tp1 == rtp =
         let (tm1', tp1') = h tm1
             cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]
-            tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> getType xtm in
+            tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> typeof xtm in
           TmCase (TmVarG DefVar applyN [] [(tm1', tp1')] (TpVar rtp [])) (rtp, []) cs' tp2'
     | otherwise =
         let (tm1', TpVar tp1' []) = h tm1
             cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]
-            tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> getType xtm in
+            tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> typeof xtm in
           TmCase tm1' (tp1', []) cs' tp2'
   h' (TmSamp d tp) = TmSamp d tp
   h' (TmAmb tms tp) =
