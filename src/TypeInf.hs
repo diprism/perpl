@@ -12,6 +12,7 @@ import Util
 import Name
 import Show()
 import SCC
+import Fresh
 
 data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
   deriving Eq
