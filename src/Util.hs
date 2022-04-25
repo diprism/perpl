@@ -83,6 +83,7 @@ typeof (TmProd am as) = TpProd am (snds as)
 typeof (TmElimProd am tm ps tm' tp) = tp
 typeof (TmEqs tms) = TpVar "Bool" []
 
+-- Returns the index of the only non-underscore var
 -- "let <_, _, x, _> in ..."  =>  index of x = 2
 injIndex :: [Var] -> Int
 injIndex = h . zip [0..] where
@@ -91,6 +92,8 @@ injIndex = h . zip [0..] where
   h ((i, x) : xs) = i
 
 -- Sorts cases according to the order they are appear in the datatype definition
+-- This allows you to do case tm of C2->... | C1->..., which then gets translated to
+-- case tm of C1->... | C2->... for ease of use internally
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
 sortCases ctors cases = snds $ sortBy (\ (a, _) (b, _) -> compare a b) (label cases) where
   getIdx :: Int -> Var -> [Ctor] -> Int
@@ -194,6 +197,7 @@ etaExpand gv x tis tas vas y =
 toArg :: Term -> Arg
 toArg tm = (tm, typeof tm)
 
+-- Maps toArg over a list of terms
 toArgs :: [Term] -> [Arg]
 toArgs = map toArg
 
@@ -226,6 +230,7 @@ mapParams = map . mapParam
 mapCasesM :: Monad m => (Var -> [Param] -> Term -> m Term) -> [Case] -> m [Case]
 mapCasesM f = mapM $ \ (Case x ps tm) -> pure (Case x ps) <*> f x ps tm
 
+-- Applies f to all the types in a list of ctors
 mapCtorsM :: Monad m => (Type -> m Type) -> [Ctor] -> m [Ctor]
 mapCtorsM f = mapM $ \ (Ctor x tps) -> pure (Ctor x) <*> mapM f tps
 
@@ -242,11 +247,6 @@ mapProgM mtm (ProgData y cs) =
 mapProgsM :: Monad m => (Term -> m Term) -> Progs -> m Progs
 mapProgsM f (Progs ps end) =
   pure Progs <*> mapM (mapProgM f) ps <*> f end
-
---mapFstM :: Monad m => (a -> m c) -> m (a, b) -> (c, b)
---mapFstM f m = m >>= \ (a, b) -> f a >>= \ c -> return (c, b)
---mapSndM :: Monad m => (b -> m c) -> m (a, b) -> (a, c)
---mapSndM f m = m >>= \ (a, b) -> f b >>= \ c -> return (b, c)
 
 -- Concats a list of lists, adding a delimiter
 -- Example: delimitWith ", " ["item 1", "item 2", "item 3"] = "item 1, item 2, item 3"
