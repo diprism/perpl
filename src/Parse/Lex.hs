@@ -1,6 +1,6 @@
 {- Lexer code -}
 
-module Lex where
+module Parse.Lex where
 import Exprs
 
 -- Possible tokens

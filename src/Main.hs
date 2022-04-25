@@ -4,7 +4,6 @@ import System.Environment
 import System.IO
 import Exprs
 import Parse
-import Lex
 import TypeInf
 import Monomorphize
 import Compile
@@ -94,10 +93,8 @@ processContents (CmdArgs ifn ofn c m e dr l o) s =
       c' = c && l'
   in
   return s
-  -- String to list of tokens
-  >>= lexFile
-  -- List of tokens to UsProgs
-  >>= parseFile
+  -- String to UsProgs
+  >>= parse
   -- Pick a unique name for each bound var
   >>= alphaRenameProgs ctxtDefUsProgs
   -- Add Bool, True, False
