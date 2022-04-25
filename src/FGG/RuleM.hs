@@ -7,7 +7,7 @@ import Exprs
 import FGG.FGG
 import Util
 import Name
-import Tensor
+import FGG.Tensor
 
 -- RuleM monad-like datatype and functions
 type External = (Var, Type)

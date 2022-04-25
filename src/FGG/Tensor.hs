@@ -1,6 +1,6 @@
 {- Tensor code for FGG factor generation -}
 
-module Tensor where
+module FGG.Tensor where
 import Util
 
 -- Prelude's `zip` doesn't throw an error when the lists

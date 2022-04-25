@@ -5,7 +5,7 @@ import qualified Data.Map as Map
 import Data.List
 import Util
 import Exprs
-import Tensor
+import FGG.Tensor
 import FGG.JSON
 import Show()
 

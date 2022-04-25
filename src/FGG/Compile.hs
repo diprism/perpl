@@ -1,14 +1,14 @@
 module FGG.Compile where
 import Data.List
 import qualified Data.Map as Map
-import Exprs
-import FGG.FGG
-import Util
 import FGG.RuleM
+import FGG.Tensor
+import FGG.FGG
+import Exprs
+import Util
 import Ctxt
 import Name
 import Show
-import Tensor
 import Subst
 
 -- If the start term is just a factor (has no rule), then we need to
