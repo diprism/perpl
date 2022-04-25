@@ -1,7 +1,7 @@
+{- JSON Functions -}
+
 module JSON where
 import Util
-
-{- ====== JSON Functions ====== -}
 
 data JSON =
     JSnull
