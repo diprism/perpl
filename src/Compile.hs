@@ -364,11 +364,27 @@ domainValues g = tpVals where
 domainSize :: Ctxt -> Type -> Int
 domainSize g = length . domainValues g
 
+{- -- Returns average factor size
+fggFactors :: FGG_JSON -> Int
+fggFactors (FGG_JSON _ fs _ _ _) = avg (map tensorSize (getJusts (fmap snd (Map.elems fs))))
+  where
+    getJusts (Nothing : xs) = getJusts xs
+    getJusts (Just x : xs) = x : getJusts xs
+    getJusts [] = []
+
+    tensorSize = product . tensorShape
+
+    avg xs = sum xs `div` length xs
+-}
+
 -- Converts an elaborated program into an FGG
 compileFile :: Progs -> Either String String
 compileFile ps =
   let g = ctxtDefProgs ps
       Progs _ end = ps
       rm = progs2fgg g ps
-      (end', RuleM rs xs nts fs) = addStartRuleIfNecessary end rm in
-    return (show (rulesToFGG (domainValues g) end' (reverse rs) nts fs))
+      (end', RuleM rs xs nts fs) = addStartRuleIfNecessary end rm
+      fgg = rulesToFGG (domainValues g) end' (reverse rs) nts fs
+  in
+--    Left (show (fggFactors fgg))
+    return (show fgg)
