@@ -20,7 +20,11 @@ import Subst
 -- We apply the following transformations to types,
 -- rewriting terms so that they have the new transformed type:
 --   1. L(tp1 -> tp2 -> ... -> tpn) = (L(tp1) -> L(tp2) -> ... -> L(tpn)) & Unit
---   2. L(tp1 &  tp2 &
+--   2. L(tp1 &  tp2 *  ... &  tpn) =  L(tp1) &  L(tp2) &  ... &  L(tpn)  & Unit
+-- Then for terms, we basically apply these two transformations to match the new types:
+--   1. L(tm a1 a2 ... an) = let <f, _> = L(tm) in f L(a1) L(a2) ... L(an)
+--   2. L(<tm1, tm2, ..., tmn>) => <L*(tm1), L*(tm2), ..., L*(tmn), L*(unit)>
+--        (where L* denotes L but with calls to Z to ensure all branches have same FVs)
 
 -- Reader, Writer, State monad
 type AffLinM a = RWS Ctxt FreeVars () a
