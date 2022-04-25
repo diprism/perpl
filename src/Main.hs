@@ -5,7 +5,7 @@ import System.IO
 import Exprs
 import Parse
 import Lex
-import TypeInf
+import TypeInf.Solve
 import Monomorphize
 import Compile
 import RecType
