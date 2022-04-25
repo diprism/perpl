@@ -1,3 +1,7 @@
+{- Code for checking if a variable occurs affinely/linearly in a term -}
+-- Note: this file has become pretty unfocused, and should probably get
+-- moved in parts to other files at some point
+
 module Free where
 import Exprs
 import Util
