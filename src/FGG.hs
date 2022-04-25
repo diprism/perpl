@@ -1,3 +1,5 @@
+{- FGG datatype code -}
+
 module FGG where
 import qualified Data.Map as Map
 import Data.List
@@ -8,12 +10,12 @@ import JSON
 import Show()
 
 -- Should the compiler make sure there aren't conflicting nonterminal domains?
+-- This is only really a sanity check, and can be turned on/off as pleased
+-- (though for the sake of efficiency, perhaps better off for stable releases)
 checkDomsEq = True
 
-{- ====== FGG Functions ====== -}
-
 type Nonterminal = (Var, Type)
-type Domain = [String]
+type Domain = [String] -- list of values for some type
 type Value = String
 type FType = [Value]
 type Factor = (String, Maybe Weights)
@@ -37,10 +39,11 @@ data FGG_JSON = FGG_JSON {
   rules :: [(Int, Rule)]
 }
 
-concatFactors :: [Factor] -> [Factor] -> [Factor]
-concatFactors [] gs = gs
-concatFactors ((x, tw) : fs) gs =
-  let hs = concatFactors fs gs in
+-- Take the union of two lists of factors
+unionFactors :: [Factor] -> [Factor] -> [Factor]
+unionFactors [] gs = gs
+unionFactors ((x, tw) : fs) gs =
+  let hs = unionFactors fs gs in
     maybe ((x, tw) : hs) (const hs) (lookup x hs)
 
 weights_to_json :: Weights -> JSON

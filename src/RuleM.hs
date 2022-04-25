@@ -20,7 +20,7 @@ RuleM rs xs nts fs +>= g =
     RuleM (rs ++ rs')
           (unionBy (\ (a, _) (a', _) -> a == a') xs xs')
           (nts ++ nts')
-          (concatFactors fs fs')
+          (unionFactors fs fs')
 
 (+>) :: RuleM -> RuleM -> RuleM
 r1 +> r2 = r1 +>= \ _ -> r2
