@@ -1,7 +1,7 @@
 {- JSON Functions -}
 
-module FGG.JSON where
-import Util
+module Util.JSON where
+import Util.Helpers
 
 data JSON =
     JSnull

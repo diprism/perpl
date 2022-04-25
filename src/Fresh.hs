@@ -1,5 +1,5 @@
 module Fresh where
-import Util
+import Util.Helpers
 import Exprs
 import qualified Data.Map as Map
 import Data.Char

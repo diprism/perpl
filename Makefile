@@ -10,4 +10,4 @@ tests:
 	./run_tests.sh
 
 clean:
-	rm -f *.o *.hi *.exe .objects/*.o .objects/*.hi
+	rm -f *.o *.hi *.exe .objects/*.o .objects/*.hi .objects/*/*.o .objects/*/*.hi

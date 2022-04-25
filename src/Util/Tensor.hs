@@ -1,7 +1,7 @@
 {- Tensor code for FGG factor generation -}
 
-module FGG.Tensor where
-import Util
+module Util.Tensor where
+import Util.Helpers
 
 -- Prelude's `zip` doesn't throw an error when the lists
 -- have different lengths, dropping from the longer list

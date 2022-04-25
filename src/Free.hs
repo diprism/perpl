@@ -4,7 +4,7 @@
 
 module Free where
 import Exprs
-import Util
+import Util.Helpers
 import Subst
 import qualified Data.Map as Map
 

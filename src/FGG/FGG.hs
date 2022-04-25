@@ -3,10 +3,10 @@
 module FGG.FGG where
 import qualified Data.Map as Map
 import Data.List
-import Util
+import Util.Helpers
 import Exprs
-import FGG.Tensor
-import FGG.JSON
+import Util.Tensor
+import Util.JSON
 import Show()
 
 -- Should the compiler make sure there aren't conflicting nonterminal domains?

@@ -5,7 +5,7 @@ module Subst where
 import qualified Data.Map as Map
 import Control.Monad.RWS.Lazy
 import Exprs
-import Util
+import Util.Helpers
 import Ctxt
 import Fresh
 

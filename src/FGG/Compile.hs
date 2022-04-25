@@ -2,10 +2,10 @@ module FGG.Compile where
 import Data.List
 import qualified Data.Map as Map
 import FGG.RuleM
-import FGG.Tensor
+import Util.Tensor
 import FGG.FGG
+import Util.Helpers
 import Exprs
-import Util
 import Ctxt
 import Name
 import Show

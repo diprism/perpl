@@ -1,6 +1,6 @@
 module Show where
 import Exprs
-import Util
+import Util.Helpers
 
 {- Convert back from elaborated terms to user terms -}
 

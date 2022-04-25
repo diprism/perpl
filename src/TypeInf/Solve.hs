@@ -4,13 +4,13 @@ import qualified Data.Set as Set
 import Control.Monad.RWS.Lazy
 import Control.Monad.Except
 import TypeInf.Check
+import Util.Helpers
+import Util.SCC
 import Exprs
 import Subst
 import Free
-import Util
 import Name
 import Show()
-import Algs.SCC
 
 bindTp :: Var -> Type -> Either TypeError Subst
 bindTp x tp

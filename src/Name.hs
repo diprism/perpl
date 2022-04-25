@@ -1,6 +1,6 @@
 module Name where
 import Exprs
-import Util
+import Util.Helpers
 import Show()
 
 {- Naming conventions for internally-generated variables -}

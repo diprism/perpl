@@ -9,7 +9,7 @@ import Control.Monad.Except
 import Exprs
 import Subst
 import Free
-import Util
+import Util.Helpers
 import Name
 import Show()
 import Fresh

@@ -1,6 +1,6 @@
 {- Various helpful utility functions -}
 
-module Util where
+module Util.Helpers where
 import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set

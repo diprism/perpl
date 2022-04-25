@@ -4,7 +4,7 @@
 module Ctxt where
 import qualified Data.Map as Map
 import Exprs
-import Util
+import Util.Helpers
 import Show()
 
 data CtxtDef =

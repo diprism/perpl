@@ -5,9 +5,9 @@ import Data.List
 import qualified Data.Map as Map
 import Exprs
 import FGG.FGG
-import Util
+import Util.Helpers
 import Name
-import FGG.Tensor
+import Util.Tensor
 
 -- RuleM monad-like datatype and functions
 type External = (Var, Type)

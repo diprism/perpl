@@ -3,7 +3,7 @@ import qualified Data.Map as Map
 import Control.Monad.RWS
 import Exprs
 import Ctxt
-import Util
+import Util.Helpers
 import Name
 import Free
 import Subst

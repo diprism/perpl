@@ -1,6 +1,6 @@
 module Monomorphize where
 import Exprs
-import Util
+import Util.Helpers
 import Subst
 import Name
 import qualified Data.Map as Map
