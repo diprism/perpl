@@ -110,7 +110,7 @@ processContents (CmdArgs ifn ofn c m e dr l o) s =
 --  >>= alphaRenameProgs (const emptyCtxt)
 --  >>= return . show
   -- Apply various optimizations
-  >>= doIf o optimizeFile
+--  >>= doIf o optimizeFile
   -- Eliminate recursive types (de/refunctionalization)
   >>= doIf e' (elimRecTypes dr)
 --  >>= return . show
