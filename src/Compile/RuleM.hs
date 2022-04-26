@@ -5,14 +5,15 @@ import Data.List
 import qualified Data.Map as Map
 import Exprs
 import Struct
-import Compile.FGG
+import Util.FGG
 import Util.Helpers
 import Name
 import Util.Tensor
 
 -- RuleM monad-like datatype and functions
 type External = (Var, Type)
-data RuleM = RuleM [(Int, Rule)] [External] [Nonterminal] [Factor]
+type Nonterminal = (Var, Type)
+data RuleM = RuleM [(Int, Rule Type)] [External] [Nonterminal] [Factor]
 
 -- RuleM instances of >>= and >= (since not
 -- technically a monad, need to pick new names)
@@ -53,21 +54,22 @@ addNonterm :: Var -> Type -> RuleM
 addNonterm x tp = addNonterms [(x, tp)]
 
 -- Add a list of rules
-addRules :: [(Int, Rule)] -> RuleM
+addRules :: [(Int, Rule Type)] -> RuleM
 addRules rs = RuleM rs [] [] []
 
 -- Add a single rule
-addRule :: Int -> Rule -> RuleM
+addRule :: Int -> Rule Type -> RuleM
 addRule reps r = addRules [(reps, r)]
 
--- Convert a HGF' to a HFG
-castHGF :: HGF' -> HGF
+{--- Convert a HGF' to a HFG
+castHGF :: HGF'  -> HGF
 castHGF (HGF' ns es xs) =
   let (ns', [ins]) = combineExts [ns]
       m = Map.fromList [(v, ins !! i) | ((v, tp), i) <- zip ns' ins] in
     HGF (snds ns)
       [Edge [m Map.! v | (v, tp) <- as] l | Edge' as l <- es]
       (nub [m Map.! v | (v, tp) <- xs])
+-}
 
 -- Adds an "incomplete" factor (extern)
 addIncompleteFactor :: Var -> RuleM

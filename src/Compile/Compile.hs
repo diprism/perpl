@@ -3,7 +3,7 @@ import Data.List
 import qualified Data.Map as Map
 import Compile.RuleM
 import Util.Tensor
-import Compile.FGG
+import Util.FGG
 import Util.Helpers
 import Exprs
 import Struct
@@ -11,6 +11,10 @@ import Ctxt
 import Name
 import Show
 import Subst
+
+-- Pick throwaway var names
+newNames :: [a] -> [(Var, a)]
+newNames as = [(" " ++ show j, atp) | (j, atp) <- enumerate as]
 
 -- If the start term is just a factor (has no rule), then we need to
 -- add a rule [%start%]-(v) -> [tm]-(v)
@@ -50,19 +54,15 @@ bindCases xs =
   setExts xs . foldr (\ rm rm' -> rm +> {-resetExts-} rm') returnRule
 
 -- Creates dangling edges that discard a set of nodes
-discardEdges' :: [(Var, Type)] -> [(Var, Type)] -> [Edge']
+discardEdges' :: [(Var, Type)] -> [(Var, Type)] -> [Edge' Type]
 discardEdges' d_xs d_ns = [Edge' [(x, tp), vn] x | ((x, tp), vn) <- zip d_xs d_ns]
 
--- Pick throwaway var names
-newNames :: [a] -> [(Var, a)]
-newNames as = [(" " ++ show j, atp) | (j, atp) <- enumerate as]
-
 -- mkRule creates a rule from a lhs term, a list of nodes, and a function that returns the edges and external nodes given a list of the nodes' indices (it does some magic on the nodes, so the indices are not necessarily in the same order as the nodes)
-mkRule :: Term -> [(Var, Type)] -> [Edge'] -> [(Var, Type)] -> RuleM
+mkRule :: Term -> [(Var, Type)] -> [Edge' Type] -> [(Var, Type)] -> RuleM
 mkRule = mkRuleReps 1
 
 -- Creates this rule `reps` times
-mkRuleReps :: Int -> Term -> [(Var, Type)] -> [Edge'] -> [(Var, Type)] -> RuleM
+mkRuleReps :: Int -> Term -> [(Var, Type)] -> [Edge' Type] -> [External] -> RuleM
 mkRuleReps reps lhs ns es xs =
   addRule reps (Rule (show lhs) (castHGF (HGF' (nub ns) es xs)))
 
@@ -387,4 +387,4 @@ compileFile ps =
       fgg = rulesToFGG (domainValues g) end' (reverse rs) nts fs
   in
 --    Left (show (fggFactors fgg))
-    return (show fgg)
+    return (showFGG fgg)
