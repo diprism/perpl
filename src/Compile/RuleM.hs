@@ -1,11 +1,11 @@
 {- Code for generating FGG rules, and the RuleM "monad-like" datatype -}
 
-module FGG.RuleM where
+module Compile.RuleM where
 import Data.List
 import qualified Data.Map as Map
 import Exprs
 import Struct
-import FGG.FGG
+import Compile.FGG
 import Util.Helpers
 import Name
 import Util.Tensor

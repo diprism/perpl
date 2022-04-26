@@ -1,2 +1,2 @@
-module FGG.Lib (compileFile) where
-import FGG.Compile (compileFile)
+module Compile.Lib (compileFile) where
+import Compile.Compile (compileFile)

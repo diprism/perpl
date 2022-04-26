@@ -1,9 +1,9 @@
-module FGG.Compile where
+module Compile.Compile where
 import Data.List
 import qualified Data.Map as Map
-import FGG.RuleM
+import Compile.RuleM
 import Util.Tensor
-import FGG.FGG
+import Compile.FGG
 import Util.Helpers
 import Exprs
 import Struct

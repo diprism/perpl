@@ -5,7 +5,7 @@ import System.IO
 import Exprs
 import Parse.Lib
 import TypeInf.Lib
-import FGG.Lib
+import Compile.Lib
 import Monomorphize
 import RecType
 import AffLin

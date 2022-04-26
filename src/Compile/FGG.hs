@@ -1,6 +1,6 @@
 {- FGG datatype code -}
 
-module FGG.FGG where
+module Compile.FGG where
 import qualified Data.Map as Map
 import Data.List
 import Util.Helpers
