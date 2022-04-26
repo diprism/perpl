@@ -1,6 +1,7 @@
 module Show where
 import Exprs
 import Util.Helpers
+import Struct
 
 {- Convert back from elaborated terms to user terms -}
 

@@ -7,6 +7,7 @@ import qualified Data.Set as Set
 import Control.Monad.RWS.Lazy
 import Control.Monad.Except
 import Exprs
+import Struct
 import Subst
 import Free
 import Util.Helpers

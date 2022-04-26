@@ -6,6 +6,7 @@ import Util.Tensor
 import FGG.FGG
 import Util.Helpers
 import Exprs
+import Struct
 import Ctxt
 import Name
 import Show

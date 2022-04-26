@@ -3,6 +3,7 @@ import qualified Data.Map as Map
 import qualified Control.Monad.State.Lazy as State
 import Data.List
 import Exprs
+import Struct
 import Util.Helpers
 import Free
 import Subst

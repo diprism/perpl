@@ -1,5 +1,6 @@
 module Monomorphize where
 import Exprs
+import Struct
 import Util.Helpers
 import Subst
 import Name

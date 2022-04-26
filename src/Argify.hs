@@ -11,6 +11,7 @@ become (a -> ((b -> c) & Unit)) & Unit, only (a -> b -> c) & Unit
 module Argify where
 import qualified Data.Map as Map
 import Exprs
+import Struct
 import Util.Helpers
 import Name
 import Subst

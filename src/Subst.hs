@@ -8,6 +8,7 @@ import Exprs
 import Util.Helpers
 import Ctxt
 import Fresh
+import Struct
 
 ----------------------------------------
 

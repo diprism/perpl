@@ -3,6 +3,7 @@ module Optimize where
 import qualified Data.Map as Map
 import Exprs
 import Ctxt
+import Struct
 import Util.Helpers
 import Name
 import Free

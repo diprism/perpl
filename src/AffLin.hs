@@ -2,6 +2,7 @@ module AffLin where
 import qualified Data.Map as Map
 import Control.Monad.RWS
 import Exprs
+import Struct
 import Ctxt
 import Util.Helpers
 import Name

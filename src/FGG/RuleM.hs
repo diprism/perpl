@@ -4,6 +4,7 @@ module FGG.RuleM where
 import Data.List
 import qualified Data.Map as Map
 import Exprs
+import Struct
 import FGG.FGG
 import Util.Helpers
 import Name
