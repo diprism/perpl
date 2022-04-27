@@ -7,13 +7,13 @@ import Parse.Lib
 import TypeInf.Lib
 import Compile.Lib
 import Transform.Monomorphize
-import Transform.RecType
+import Transform.DR
 import Transform.AffLin
 import Transform.Optimize
 import Transform.Argify
-import Subst
-import Ctxt
-import Name
+import Scope.Subst
+import Scope.Ctxt
+import Scope.Name
 
 data CmdArgs = CmdArgs {
   optInfile :: String,

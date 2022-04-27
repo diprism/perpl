@@ -2,12 +2,12 @@ module Transform.Optimize where
 --import Data.Maybe
 import qualified Data.Map as Map
 import Exprs
-import Ctxt
 import Struct
 import Util.Helpers
-import Name
-import Free
-import Subst
+import Scope.Name
+import Scope.Free
+import Scope.Subst
+import Scope.Ctxt
 
 {- Provides various optimizations:
 1. (case t of C1 a* -> \x. t1 | C2 b* -> \y. t2 | C3 c* -> t3)

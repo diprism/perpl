@@ -2,8 +2,8 @@ module Transform.Monomorphize where
 import Exprs
 import Struct
 import Util.Helpers
-import Subst
-import Name
+import Scope.Subst
+import Scope.Name
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 

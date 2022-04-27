@@ -13,8 +13,8 @@ import qualified Data.Map as Map
 import Exprs
 import Struct
 import Util.Helpers
-import Name
-import Subst
+import Scope.Name
+import Scope.Subst
 
 
 argify :: Term -> Term

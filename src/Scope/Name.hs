@@ -1,4 +1,4 @@
-module Name where
+module Scope.Name where
 import Exprs
 import Util.Helpers
 import Show()

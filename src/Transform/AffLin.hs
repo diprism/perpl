@@ -3,11 +3,11 @@ import qualified Data.Map as Map
 import Control.Monad.RWS
 import Exprs
 import Struct
-import Ctxt
 import Util.Helpers
-import Name
-import Free
-import Subst
+import Scope.Ctxt
+import Scope.Name
+import Scope.Free
+import Scope.Subst
 
 {- ====== Affine to Linear Functions ====== -}
 -- These functions convert affine terms to

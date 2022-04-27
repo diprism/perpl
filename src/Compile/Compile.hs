@@ -7,10 +7,10 @@ import Util.FGG
 import Util.Helpers
 import Exprs
 import Struct
-import Ctxt
-import Name
 import Show
-import Subst
+import Scope.Ctxt
+import Scope.Name
+import Scope.Subst
 
 -- Pick throwaway var names
 newNames :: [a] -> [(Var, a)]

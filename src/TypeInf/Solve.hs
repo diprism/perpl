@@ -7,9 +7,9 @@ import TypeInf.Check
 import Util.Helpers
 import Util.SCC
 import Exprs
-import Subst
-import Free
-import Name
+import Scope.Subst
+import Scope.Free
+import Scope.Name
 import Show()
 
 bindTp :: Var -> Type -> Either TypeError Subst

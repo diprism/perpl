@@ -1,13 +1,13 @@
 -- Adapted from http://dev.stephendiehl.com/fun/006_hindley_milner.html
 {- Substitution code -}
 
-module Subst where
+module Scope.Subst where
 import qualified Data.Map as Map
 import Control.Monad.RWS.Lazy
 import Exprs
 import Util.Helpers
-import Ctxt
-import Fresh
+import Scope.Ctxt
+import Scope.Fresh
 import Struct
 
 ----------------------------------------

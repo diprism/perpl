@@ -8,12 +8,12 @@ import Control.Monad.RWS.Lazy
 import Control.Monad.Except
 import Exprs
 import Struct
-import Subst
-import Free
 import Util.Helpers
-import Name
 import Show()
-import Fresh
+import Scope.Fresh
+import Scope.Subst
+import Scope.Free
+import Scope.Name
 
 -- Convention: expected type, then actual type
 -- TODO: Enforce this convention

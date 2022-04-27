@@ -1,4 +1,4 @@
-module Fresh where
+module Scope.Fresh where
 import Util.Helpers
 import Exprs
 import qualified Data.Map as Map

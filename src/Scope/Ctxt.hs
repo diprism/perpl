@@ -1,7 +1,7 @@
 {- Code for storing information about what is in scope -}
 -- TODO: merge with Env (in src/TypeInf.hs)
 
-module Ctxt where
+module Scope.Ctxt where
 import qualified Data.Map as Map
 import Exprs
 import Util.Helpers

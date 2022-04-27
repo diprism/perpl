@@ -1,14 +1,14 @@
-module Transform.RecType where
+module Transform.DR where
 import qualified Data.Map as Map
 import qualified Control.Monad.State.Lazy as State
 import Data.List
 import Exprs
 import Struct
 import Util.Helpers
-import Free
-import Subst
-import Ctxt
-import Name
+import Scope.Free
+import Scope.Subst
+import Scope.Ctxt
+import Scope.Name
 import Show()
 
 

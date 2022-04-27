@@ -7,8 +7,8 @@ import Exprs
 import Struct
 import Util.FGG
 import Util.Helpers
-import Name
 import Util.Tensor
+import Scope.Name
 
 -- RuleM monad-like datatype and functions
 type External = (Var, Type)

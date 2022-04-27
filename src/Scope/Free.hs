@@ -2,10 +2,10 @@
 -- Note: this file has become pretty unfocused, and should probably get
 -- moved in parts to other files at some point
 
-module Free where
+module Scope.Free where
 import Exprs
 import Util.Helpers
-import Subst
+import Scope.Subst
 import qualified Data.Map as Map
 
 -- For checking linearity, vars can appear:
