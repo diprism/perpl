@@ -128,7 +128,7 @@ fgg_to_json (FGG ds fs nts s rs) =
           let fs_filtered = Map.mapMaybe (\ (d, mws) -> maybe Nothing (\ ws -> Just (d, ws)) mws) fs in
           mapToList fs_filtered $
            \ (d, ws) -> JSobject [
-             ("function", JSstring "categorical"),
+             ("function", JSstring "finite"),
                ("type", JSarray $ map JSstring d),
                ("weights", weights_to_json ws)
              ])
