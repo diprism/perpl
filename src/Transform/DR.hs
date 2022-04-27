@@ -436,7 +436,7 @@ whichDR explicit_drs ps =
 elimRecTypes :: [(Var, DeRe)] -> Progs -> Either String Progs
 elimRecTypes explicit_drs ps =
   whichDR explicit_drs ps >>=
-  derefunThese ups
+  derefunThese ps
 
 
 
