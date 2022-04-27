@@ -30,6 +30,7 @@ data TypeError =
   | WrongNumCases Int Int -- wrong number of cases
   | WrongNumArgs Int Int -- wrong number of args, in a case (`... | Cons h t bad -> ...`)
   | MultipleDefs Var -- variable is defined multiple times
+  | ExternRecData -- externs can't use recursive datatypes
 
 instance Show TypeError where
   show (InfiniteType x tp) = "Failed to construct infinite type: " ++ x ++ " := " ++ show tp
@@ -46,6 +47,7 @@ instance Show TypeError where
   show (WrongNumCases exp act) = "Expected " ++ show exp ++ " cases, but got " ++ show act
   show (WrongNumArgs exp act) = "Expected " ++ show exp ++ " args, but got " ++ show act
   show (MultipleDefs x) = "Multiple definitions of " ++ show x
+  show ExternRecData = "Extern cannot use recursive datatypes"
 
 
 {- ===== Constraints ===== -}
@@ -171,6 +173,13 @@ anyDupDefs (UsProgs ps etm) =
     h xs (UsProgExtern x tp) = addDef x xs
     h xs (UsProgData y ps cs) =
       foldlM (\ xs' (Ctor x tps) -> addDef x xs') (addDef y xs) cs
+
+-- Makes sure an extern's type has no recursive datatypes in it
+guardExternRec :: Type -> CheckM ()
+guardExternRec tp =
+  askEnv >>= \ env ->
+  let g = fmap (\ (_, _, cs) -> cs) (typeEnv env) in
+  guardM (not (typeIsRecursive ((Map.!?) g) tp)) ExternRecData
 
 -- Defines a global function
 defTerm :: Var -> GlobalVar -> Scheme -> CheckM a -> CheckM a

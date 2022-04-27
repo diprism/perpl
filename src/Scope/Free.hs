@@ -130,6 +130,8 @@ typeIsRecursive' g = h [] [] where
   h visited datahist NoTp = Nothing
 
 -- Returns if a type has an infinite domain (i.e. it contains (mutually) recursive datatypes anywhere in it)
+-- Differs from isRecType below in that this asks if any vars in a type are recursive,
+-- where isRecType asks if a specific var is recursive
 typeIsRecursive :: (Var -> Maybe [Ctor]) -> Type -> Bool
 typeIsRecursive g = maybe False (const True) . typeIsRecursive' g
 
