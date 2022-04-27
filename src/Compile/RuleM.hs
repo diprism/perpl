@@ -12,12 +12,19 @@ import Scope.Name
 -- RuleM monad-like datatype and functions
 type External = (Var, Type)
 type Nonterminal = (Var, Type)
+-- RuleM stores the following:
+--   1. [(Int, Rule Type)]: a list of rules and how many times to duplicate them
+--                            (so amb True False True => p(True) = **2**, p(False) = 1)
+--   2. [External]: list of external nodes from the expression
+--   3. [Nonterminal]: nonterminal accumulator
+--   4. [Factor]: factor accumulator
 data RuleM = RuleM [(Int, Rule Type)] [External] [Nonterminal] [Factor]
 
 -- RuleM instances of >>= and >= (since not
 -- technically a monad, need to pick new names)
 infixl 1 +>=, +>, +>=*
 -- Like (>>=) but for RuleM
+-- Second arg receives as input the external nodes from the first arg
 (+>=) :: RuleM -> ([External] -> RuleM) -> RuleM
 RuleM rs xs nts fs +>= g =
   let RuleM rs' xs' nts' fs' = g xs in
@@ -59,16 +66,6 @@ addRules rs = RuleM rs [] [] []
 -- Add a single rule
 addRule :: Int -> Rule Type -> RuleM
 addRule reps r = addRules [(reps, r)]
-
-{--- Convert a HGF' to a HFG
-castHGF :: HGF'  -> HGF
-castHGF (HGF' ns es xs) =
-  let (ns', [ins]) = combineExts [ns]
-      m = Map.fromList [(v, ins !! i) | ((v, tp), i) <- zip ns' ins] in
-    HGF (snds ns)
-      [Edge [m Map.! v | (v, tp) <- as] l | Edge' as l <- es]
-      (nub [m Map.! v | (v, tp) <- xs])
--}
 
 -- Adds an "incomplete" factor (extern)
 addIncompleteFactor :: Var -> RuleM
