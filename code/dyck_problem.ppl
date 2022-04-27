@@ -1,0 +1,27 @@
+-- Generates an n-length list and computes the weight/probability
+-- that it is a valid Dyck string
+
+data List a = Nil | Cons a (List a); -- D
+data Nat = Zero | Succ Nat; -- R
+
+define symbol = sample amb : Bool; -- unexpectedly low weights
+--define symbol = sample uniform : Bool; -- expected weights
+
+-- Generates a random Word of length 2n
+define randomList = \ n. case n of
+  | Zero -> Nil
+  | Succ n' -> Cons symbol (randomList n');
+
+define recognize : List Bool -> Bool =
+  \ ps. run ps Zero;
+
+define run : List Bool -> Nat -> Bool =
+  \ ps. \ c. case ps of
+    | Nil -> (case c of Zero -> True | Succ c -> False)
+    | Cons p ps -> (case p of
+      | False -> run ps (Succ c)
+      | True -> (case c of Zero -> False | Succ c -> run ps c));
+
+define length = Succ (Succ (Succ (Succ (Succ (Succ Zero))))); -- 6
+
+recognize (randomList length);
