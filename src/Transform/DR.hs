@@ -396,6 +396,7 @@ tryPickDR explicit_drs rtp (RecDeps ds rs) chosen =
 pickNextDR :: [(Var, DeRe)] -> RecEdges -> [(Var, DeRe)] -> Maybe (Var, DeRe)
 pickNextDR explicit_drs res drs = Map.foldrWithKey (\ rtp rds dr_else -> tryPickDR explicit_drs rtp rds drs |?| dr_else) Nothing res
 
+-- Error message for when no DR sequence can be found
 spanGraphError :: RecEdges -> [(Var, DeRe)] -> Either String a
 spanGraphError res chosen =
   Left $ "Failed to resolve the following dependencies:\n" ++
@@ -410,8 +411,8 @@ spanGraphError res chosen =
       depstr :: Char -> Var -> [Var] -> String
       depstr dr name deps = dr : "[" ++ name ++ "] <- " ++ delimitWith ", " (relevantDeps deps)
 
--- Pops nodes from the graph that satisfy pickNextDR until none remain, returning
--- the recursive datatype names and whether to de- or refunctionalize them
+-- Greedily pops nodes from the graph that satisfy tryPickDR until none remain,
+-- returning the recursive datatype names and whether to de- or refunctionalize them
 spanGraph :: [(Var, DeRe)] -> RecEdges -> Either String [(Var, DeRe)]
 spanGraph explicit_drs = h [] where
   h :: [(Var, DeRe)] -> RecEdges -> Either String [(Var, DeRe)]
@@ -422,8 +423,7 @@ spanGraph explicit_drs = h [] where
           return (pickNextDR explicit_drs res chosen) >>= \ (rtp, dr) ->
         h ((rtp, dr) : chosen) (Map.delete rtp res)
 
--- Given some explicit datatypes to de- or refun, compute which to
--- do on the rest
+-- Given some explicit datatypes to de- or refun, compute which to do on the rest
 whichDR :: [(Var, DeRe)] -> Progs -> Either String [(Var, DeRe)]
 whichDR explicit_drs ps =
   spanGraph explicit_drs (initGraph (ctxtDefProgs ps) ps (getRecTypes ps))
@@ -431,18 +431,11 @@ whichDR explicit_drs ps =
 
 --------------------------------------------------
 
-unitProg :: Prog
-unitProg = ProgData tpUnitName unitCtors
-
-addUnitProg :: Progs -> Progs
-addUnitProg (Progs ds end) = Progs (unitProg : ds) end
-
 -- TODO: figure out naming of fold/unfold functions (fold/apply or apply/unfold?)
 -- Eliminates the recursive datatypes in a file, by de- or refunctionalizing them
 elimRecTypes :: [(Var, DeRe)] -> Progs -> Either String Progs
 elimRecTypes explicit_drs ps =
-  let ups = addUnitProg ps in
-  whichDR explicit_drs ups >>=
+  whichDR explicit_drs ps >>=
   derefunThese ups
 
 
