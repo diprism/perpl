@@ -6,10 +6,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.RWS.Lazy
 import Control.Monad.Except
-import Exprs
-import Struct
+import Struct.Lib
 import Util.Helpers
-import Show()
 import Scope.Fresh
 import Scope.Subst
 import Scope.Free

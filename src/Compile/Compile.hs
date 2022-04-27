@@ -5,9 +5,7 @@ import Compile.RuleM
 import Util.Tensor
 import Util.FGG
 import Util.Helpers
-import Exprs
-import Struct
-import Show
+import Struct.Lib
 import Scope.Ctxt
 import Scope.Name
 import Scope.Subst

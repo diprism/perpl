@@ -2,7 +2,7 @@
 
 module Parse.Parse where
 import Parse.Lex
-import Exprs
+import Struct.Lib
 
 -- Throws a lexer error message at a certain position
 lexErr (line, col) = Left $ "Lex error at line " ++ show line ++ ", column " ++ show col

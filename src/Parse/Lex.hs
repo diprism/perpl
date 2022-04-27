@@ -1,7 +1,7 @@
 {- Lexer code -}
 
 module Parse.Lex where
-import Exprs
+import Struct.Lib
 
 -- Possible tokens
 data Token =

@@ -1,8 +1,7 @@
 module Transform.Optimize where
 --import Data.Maybe
 import qualified Data.Map as Map
-import Exprs
-import Struct
+import Struct.Lib
 import Util.Helpers
 import Scope.Name
 import Scope.Free

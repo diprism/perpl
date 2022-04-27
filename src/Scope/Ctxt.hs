@@ -3,10 +3,8 @@
 
 module Scope.Ctxt where
 import qualified Data.Map as Map
-import Exprs
+import Struct.Lib
 import Util.Helpers
-import Struct
-import Show()
 
 data CtxtDef =
     DefTerm Scope Type

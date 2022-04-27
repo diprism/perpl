@@ -3,8 +3,7 @@
 module Compile.RuleM where
 import Data.List
 import qualified Data.Map as Map
-import Exprs
-import Struct
+import Struct.Lib
 import Util.FGG
 import Util.Helpers
 import Util.Tensor

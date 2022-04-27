@@ -1,7 +1,6 @@
 module Scope.Name where
-import Exprs
+import Struct.Lib
 import Util.Helpers
-import Show()
 
 {- Naming conventions for internally-generated variables -}
 

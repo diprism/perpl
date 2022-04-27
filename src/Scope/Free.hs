@@ -3,7 +3,7 @@
 -- moved in parts to other files at some point
 
 module Scope.Free where
-import Exprs
+import Struct.Lib
 import Util.Helpers
 import Scope.Subst
 import qualified Data.Map as Map

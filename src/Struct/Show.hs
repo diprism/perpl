@@ -1,7 +1,7 @@
-module Show where
-import Exprs
+module Struct.Show where
 import Util.Helpers
-import Struct
+import Struct.Exprs
+import Struct.Helpers
 
 {- Convert back from elaborated terms to user terms -}
 
@@ -35,13 +35,6 @@ toUsProgs (Progs ps tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 
 
 {- Show Instances -}
-
-parens :: String -> String
-parens s = "(" ++ s ++ ")"
-
-parensIf :: Bool -> String -> String
-parensIf True = parens
-parensIf False = id
 
 data ShowHist = ShowAppL | ShowAppR | ShowCase | ShowArrL | ShowTypeArg | ShowNone
   deriving Eq

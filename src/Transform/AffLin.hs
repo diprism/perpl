@@ -1,8 +1,7 @@
 module Transform.AffLin where
 import qualified Data.Map as Map
 import Control.Monad.RWS
-import Exprs
-import Struct
+import Struct.Lib
 import Util.Helpers
 import Scope.Ctxt
 import Scope.Name

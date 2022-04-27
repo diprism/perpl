@@ -1,5 +1,5 @@
-module Struct where
-import Exprs
+module Struct.Helpers where
+import Struct.Exprs
 import Util.Helpers
 import Data.List
 

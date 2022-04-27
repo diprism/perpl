@@ -1,6 +1,6 @@
 {- Datatypes representing PPL code structures -}
 
-module Exprs where
+module Struct.Exprs where
 
 -- User-level program
 data UsProgs = UsProgs [UsProg] UsTm

@@ -2,7 +2,7 @@ module Main where
 import System.Exit
 import System.Environment
 import System.IO
-import Exprs
+import Struct.Lib
 import Parse.Lib
 import TypeInf.Lib
 import Compile.Lib

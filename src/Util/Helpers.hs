@@ -75,6 +75,14 @@ delimitWith del [] = []
 delimitWith del [as] = as
 delimitWith del (h : t) = h ++ del ++ delimitWith del t
 
+parens :: String -> String
+parens s = "(" ++ s ++ ")"
+
+parensIf :: Bool -> String -> String
+parensIf True = parens
+parensIf False = id
+
+
 -- Collects duplicates, counting how many
 -- collectDups ['a', 'b', 'c', 'b', 'c', 'b'] = [('a', 1), ('b', 3), ('c', 2)]
 collectDups :: Ord a => [a] -> [(a, Int)]

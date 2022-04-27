@@ -10,8 +10,7 @@ become (a -> ((b -> c) & Unit)) & Unit, only (a -> b -> c) & Unit
 
 module Transform.Argify where
 import qualified Data.Map as Map
-import Exprs
-import Struct
+import Struct.Lib
 import Util.Helpers
 import Scope.Name
 import Scope.Subst

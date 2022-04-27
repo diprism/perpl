@@ -1,6 +1,5 @@
 module Transform.Monomorphize where
-import Exprs
-import Struct
+import Struct.Lib
 import Util.Helpers
 import Scope.Subst
 import Scope.Name
