@@ -1,4 +1,4 @@
-module Optimize where
+module Transform.Optimize where
 --import Data.Maybe
 import qualified Data.Map as Map
 import Exprs

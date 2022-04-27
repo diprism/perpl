@@ -6,13 +6,13 @@ import Exprs
 import Parse.Lib
 import TypeInf.Lib
 import Compile.Lib
-import Monomorphize
-import RecType
-import AffLin
-import Optimize
+import Transform.Monomorphize
+import Transform.RecType
+import Transform.AffLin
+import Transform.Optimize
+import Transform.Argify
 import Subst
 import Ctxt
-import Argify
 import Name
 
 data CmdArgs = CmdArgs {

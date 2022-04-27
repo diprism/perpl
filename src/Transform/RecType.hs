@@ -1,4 +1,4 @@
-module RecType where
+module Transform.RecType where
 import qualified Data.Map as Map
 import qualified Control.Monad.State.Lazy as State
 import Data.List

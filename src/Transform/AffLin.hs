@@ -1,4 +1,4 @@
-module AffLin where
+module Transform.AffLin where
 import qualified Data.Map as Map
 import Control.Monad.RWS
 import Exprs

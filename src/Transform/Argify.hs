@@ -8,7 +8,7 @@ because we don't need to have functions like a -> b -> c
 become (a -> ((b -> c) & Unit)) & Unit, only (a -> b -> c) & Unit
 -}
 
-module Argify where
+module Transform.Argify where
 import qualified Data.Map as Map
 import Exprs
 import Struct
