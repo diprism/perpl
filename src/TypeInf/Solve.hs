@@ -155,7 +155,8 @@ inferFuns fs m =
     (solvesM ftps
       (mapM (\ ((x, mtp, tm), itp) ->
                localCurDef x $
-               infer tm >>: \ tm' tp' ->
+               infer tm >>= \ tm' ->
+               let tp' = typeof tm' in
                constrain (Unify itp tp') >>
                (if mtp /= NoTp then checkType mtp >>= \ mtp' -> constrain (Unify mtp' tp') else okay) >>
                return (x, tm', tp')) (zip fs itps))) >>= \ xtmstps ->
@@ -230,7 +231,7 @@ inferExtern (x, tp) m =
 
 inferEnd :: UsTm -> CheckM SProgs
 inferEnd end =
-  solveM (infer end >>: curry return) >>= \ (end', tp, tgs) ->
+  solveM (infer end >>= \ end' -> return (end', typeof end')) >>= \ (end', tp, tgs) ->
   return (SProgs [] end')
 
 inferProgs :: UsProgs -> CheckM SProgs

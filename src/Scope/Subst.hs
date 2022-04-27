@@ -15,6 +15,10 @@ data SubT = SubVar Var | SubTm Term | SubTp Type
   deriving (Eq, Ord, Show)
 type Subst = Map Var SubT
 
+-- Composes two substitutions
+compose :: Subst -> Subst -> Subst
+s1 `compose` s2 = Map.map (subst s1) s2 `Map.union` s1
+
 -- State monad, where s = Subst
 type SubstM a = RWS () () Subst a
 

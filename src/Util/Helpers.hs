@@ -88,3 +88,6 @@ parensIf False = id
 collectDups :: Ord a => [a] -> [(a, Int)]
 collectDups =
   Map.toList . foldr (Map.alter $ Just . maybe 1 succ) Map.empty
+
+listDifference :: Ord a => [a] -> [a] -> [a]
+listDifference as1 as2 = Set.toList (Set.difference (Set.fromList as1) (Set.fromList as2))
