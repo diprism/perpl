@@ -1,52 +1,13 @@
 -- Adapted from http://dev.stephendiehl.com/fun/006_hindley_milner.html
+{- Substitution code -}
 
-module Subst where
-import Data.Char
+module Scope.Subst where
 import qualified Data.Map as Map
 import Control.Monad.RWS.Lazy
-import Exprs
-import Util
-import Ctxt
-
-----------------------------------------
-
-data SplitVar = SplitVar String Int String
-succSplitVar (SplitVar pre i suf) = SplitVar pre (succ i) suf
-instance Show SplitVar where
-  show (SplitVar pre i suf) = pre ++ show i ++ suf
-
--- Splits abc14'' into SplitVar "abc" 14 "\'\'"
-splitVar :: Var -> SplitVar
-splitVar x =
-  let (pre, i, suf) = h True (reverse x)
-      pre' = reverse pre
-      i' = reverse i
-      suf' = reverse suf
-      i'' = if null i' then 0 else succ (read i' :: Int)
-  in
-    SplitVar pre' i'' suf'
-  where
-    h :: Bool -> String -> (String, String, String)
-    h b "" = ("", "", "")
-    h True ('\'' : cs) =
-      let (pre, i, suf) = h True cs in
-        (pre, i, '\'' : suf)
-    h True (c : cs) = h False (c : cs)
-    h False (c : cs)
-      | isDigit c =
-        let (pre, i, suf) = h False cs in
-          (pre, c : i, suf)
-      | otherwise = (c : cs, "", "")
-
--- Given a map and a var, try new var names until it is no longer in the map
-newVar :: Var -> Map Var a -> Var
-newVar x xs = if Map.member x xs then h xs (splitVar x) else x
-  where
-    h xs x = let x' = show x in if Map.member x' xs then h xs (succSplitVar x) else x'
-
-newVars :: [Var] -> Map Var a -> [Var]
-newVars xs m =
-  foldr (\ x gxs g -> let x' = newVar x g in gxs (Map.insert x' () g)) (const []) xs (() <$ m)
+import Util.Helpers
+import Scope.Ctxt
+import Scope.Fresh
+import Struct.Lib
 
 ----------------------------------------
 
@@ -54,26 +15,35 @@ data SubT = SubVar Var | SubTm Term | SubTp Type
   deriving (Eq, Ord, Show)
 type Subst = Map Var SubT
 
+-- Composes two substitutions
+compose :: Subst -> Subst -> Subst
+s1 `compose` s2 = Map.map (subst s1) s2 `Map.union` s1
+
+-- State monad, where s = Subst
 type SubstM a = RWS () () Subst a
 
+-- Returns a map of vars and their types (if a term var)
+-- If a var is a type var, the type will be NoType
 type FreeVars = Map Var Type
 
+-- Runs the substitution monad
 runSubst :: Subst -> SubstM a -> a
 runSubst s r = let (a', r', ()) = runRWS r () s in a'
 
+-- Picks a fresh name derived from x
 freshen :: Var -> SubstM Var
---freshen "_" = return "_" -- TODO: Deal with conflicting FGG rules for "_"
-freshen "_" = freshen "_0"
+freshen "_" = freshen "_0" -- get rid of '_'s
 freshen x =
   fmap (newVar x) get >>= \ x' ->
   modify (Map.insert x' (SubVar x')) >>
   return x'
 
+-- Pick fresh names for a list of vars
 freshens :: [Var] -> SubstM [Var]
 freshens [] = return []
 freshens (x : xs) = freshen x >>= \ x' -> pure ((:) x') <*> bind x x' (freshens xs)
 
-
+-- Rename x to x' in m
 bind :: Var -> Var -> SubstM a -> SubstM a
 bind x x' m =
   substVT x >>= \ oldx ->
@@ -85,12 +55,15 @@ bind x x' m =
   modify (Map.insert x' oldx') >>
   return a
 
+-- Renames all xs to xs' in m
 binds :: [Var] -> [Var] -> SubstM a -> SubstM a
 binds xs xs' m = foldr (uncurry bind) m (zip xs xs')
 
+-- Lookup a variable
 substVT :: Var -> SubstM SubT
 substVT x = get >>= \ s -> return (maybe (SubVar x) id (Map.lookup x s))
 
+-- Lookup a variable, with continuations for var, term, type, and if undefined
 substVar :: Var -> (Var -> a) -> (Term -> a) -> (Type -> a) -> a -> SubstM a
 substVar x fv ftm ftp fn =
   get >>= \ s ->
@@ -99,6 +72,7 @@ substVar x fv ftm ftp fn =
         {SubVar x' -> fv x'; SubTm tm -> ftm tm; SubTp tp -> ftp tp })
     (Map.lookup x s)
 
+-- Freshens params, and binds them in cont
 substParams :: AddMult -> [Param] -> SubstM a -> SubstM ([Param], a)
 substParams am [] cont = (,) [] <$> cont
 substParams Additive (("_", tp) : ps) cont =
@@ -111,25 +85,32 @@ substParams am ((x, tp) : ps) cont =
   bind x x' (substParams am ps cont) >>= \ (ps', a) ->
   return ((x', tp') : ps', a)
 
+-- "Substitutable" typeclass definition: must have freeVars and substM
 class Substitutable a where
   freeVars :: a -> FreeVars
   substM :: a -> SubstM a
 
+-- Run substM
 subst :: Substitutable a => Subst -> a -> a
 subst r a = runSubst r (substM a)
 
+-- Run substM under a given context
 substWithCtxt :: Substitutable a => Ctxt -> Subst -> a -> a
 substWithCtxt g s = subst (Map.union (Map.mapWithKey (const . SubVar) g) s)
 
+-- Run substM with no substitutions, so just alpha-rename bound vars
 alphaRename :: Substitutable a => Ctxt -> a -> a
 alphaRename g = substWithCtxt g Map.empty
 
+-- Substitutes inside a Functor/Traversable t
 substF :: (Functor t, Traversable t, Substitutable a) => t a -> SubstM (t a)
 substF fa = sequence (fmap substM fa)
 
+-- Returns all free vars in a foldable
 freeVarsF :: (Foldable f, Substitutable a) => f a -> FreeVars
 freeVarsF = foldr (\ a -> Map.union (freeVars a)) Map.empty
-    
+
+
 instance Substitutable Type where
   substM (TpArr tp1 tp2) = pure TpArr <*> substM tp1 <*> substM tp2
   substM (TpVar y as) =
@@ -201,10 +182,6 @@ instance Substitutable a => Substitutable [a] where
 instance Substitutable a => Substitutable (Maybe a) where
   substM = substF
   freeVars = freeVarsF
-
---instance (Substitutable a, Substitutable b) => Substitutable (a, b) where
---  substM (a, b) = pure (,) <*> substM a <*> substM b
---  freeVars (a, b) = error "freeVars called on a product" -- freeVars a -- Map.union (freeVars a) (freeVars b)
 
 instance Substitutable SubT where
   substM (SubTm tm) = pure SubTm <*> substM tm
@@ -316,13 +293,6 @@ instance Substitutable Prog where
     pure (ProgData y) <*> substM cs
 
   freeVars p = error "freeVars on a Prog"
-  {-freeVars (ProgFun x ps tm tp) =
-    let (pxs, ptps) = unzip ps in
-      foldr Map.delete (Map.unions [freeVars tm, freeVars tp, freeVars ptps]) pxs
-  freeVars (ProgExtern x xp ps tp) =
-    freeVars (ps ++ [tp])
-  freeVars (ProgData y cs) =
-    freeVars cs-}
 
 instance Substitutable SProg where
   substM (SProgFun x (Forall tgs tpms tp) tm) =

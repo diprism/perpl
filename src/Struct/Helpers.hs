@@ -1,86 +1,23 @@
-module Util where
+module Struct.Helpers where
+import Struct.Exprs
+import Util.Helpers
 import Data.List
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import Exprs
-
-type Map k v = Map.Map k v
-type Set v = Set.Set v
-
-fsts :: Functor f => f (a, b) -> f a
-fsts = fmap fst
-
-snds :: Functor f => f (a, b) -> f b
-snds = fmap snd
-
-mapLeft :: (a -> b) -> Either a c -> Either b c
-mapLeft f (Left a) = Left (f a)
-mapLeft f (Right c) = Right c
-
--- Creates a matrix of all possible combinations of two lists
-kronecker :: [a] -> [b] -> [[(a, b)]]
-kronecker as bs = [[(a, b) | b <- bs] | a <- as]
-
--- Calls a function for each possible combination of elements from two lists,
--- collecting into a list of results
-kronwith :: (a -> b -> c) -> [a] -> [b] -> [c]
-kronwith f as bs = [f a b | (a, b) <- concat (kronecker as bs)]
-
--- n-dimensional Kronecker product
-kronall :: [[a]] -> [[a]]
-kronall = foldr (\ vs ws -> [(v : xs) | v <- vs, xs <- ws ]) [[]]
-
--- kronall, but keeps track of the position (row, col) each element came from
-kronpos :: [[a]] -> [[(Int, Int, a)]]
-kronpos as = kronall [[(i, length as', a) | (i, a) <- enumerate as'] | as' <- as]
-
--- [a, b, c, ...] -> [(0, a), (1, b), (2, c), ...]
-enumerate :: [a] -> [(Int, a)]
-enumerate = zip [0..]
-
--- Argument-reordered version of maybe
-maybe2 :: Maybe a -> b -> (a -> b) -> b
-maybe2 m n j = maybe n j m
-
-infixl 4 <**>
-(<**>) :: Applicative f => f (a -> b -> c) -> f (a, b) -> f c
-(<**>) = (<*>) . fmap uncurry
-
-infixr 2 |?|
-(|?|) :: Maybe a -> Maybe a -> Maybe a
-Nothing |?| m_else = m_else
-Just a |?| m_else = Just a
-
-okay :: Monad m => m ()
-okay = return ()
-
-foldlM :: Monad m => (b -> a -> m b) -> m b -> [a] -> m b
-foldlM f = foldl (\ mb a -> mb >>= \ b -> f b a)
-
-isDefVar :: GlobalVar -> Bool
-isDefVar DefVar = True
-isDefVar CtorVar = False
-
-isCtorVar :: GlobalVar -> Bool
-isCtorVar CtorVar = True
-isCtorVar DefVar = False
 
 -- Gets the type of an elaborated term in O(1) time
-getType :: Term -> Type
-getType (TmVarL x tp) = tp
-getType (TmVarG gv x tis as tp) = tp
-getType (TmLam x tp tm tp') = TpArr tp tp'
-getType (TmApp tm1 tm2 tp2 tp) = tp
-getType (TmLet x xtm xtp tm tp) = tp
-getType (TmCase ctm y cs tp) = tp
-getType (TmSamp d tp) = tp
-getType (TmAmb tms tp) = tp
-getType (TmProd am as) = TpProd am (snds as)
-getType (TmElimProd am tm ps tm' tp) = tp
-getType (TmEqs tms) = TpVar "Bool" []
+typeof :: Term -> Type
+typeof (TmVarL x tp) = tp
+typeof (TmVarG gv x tis as tp) = tp
+typeof (TmLam x tp tm tp') = TpArr tp tp'
+typeof (TmApp tm1 tm2 tp2 tp) = tp
+typeof (TmLet x xtm xtp tm tp) = tp
+typeof (TmCase ctm y cs tp) = tp
+typeof (TmSamp d tp) = tp
+typeof (TmAmb tms tp) = tp
+typeof (TmProd am as) = TpProd am (snds as)
+typeof (TmElimProd am tm ps tm' tp) = tp
+typeof (TmEqs tms) = TpVar "Bool" []
 
-typeof = getType
-
+-- Returns the index of the only non-underscore var
 -- "let <_, _, x, _> in ..."  =>  index of x = 2
 injIndex :: [Var] -> Int
 injIndex = h . zip [0..] where
@@ -89,6 +26,8 @@ injIndex = h . zip [0..] where
   h ((i, x) : xs) = i
 
 -- Sorts cases according to the order they are appear in the datatype definition
+-- This allows you to do case tm of C2->... | C1->..., which then gets translated to
+-- case tm of C1->... | C2->... for ease of use internally
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
 sortCases ctors cases = snds $ sortBy (\ (a, _) (b, _) -> compare a b) (label cases) where
   getIdx :: Int -> Var -> [Ctor] -> Int
@@ -98,6 +37,16 @@ sortCases ctors cases = snds $ sortBy (\ (a, _) (b, _) -> compare a b) (label ca
     | otherwise = getIdx (succ i) x cs
 
   label = map $ \ c@(CaseUs x as tm) -> (getIdx 0 x ctors, c)
+
+-- Returns the ctors to the left and to the right of one named x
+-- (but discards the ctor named x itself)
+splitCtorsAt :: [Ctor] -> Var -> ([Ctor], [Ctor])
+splitCtorsAt [] x = ([], [])
+splitCtorsAt (Ctor x' as : cs) x
+  | x == x' = ([], cs)
+  | otherwise =
+    let (b, a) = splitCtorsAt cs x in
+      (Ctor x' as : b, a)
 
 
 -- Splits tp1 -> tp2 -> ... -> tpn into ([tp1, tp2, ...], tpn)
@@ -157,7 +106,7 @@ splitLets tm = ([], tm)
 -- Joins ([(x2, tm2, tp2), (x3, tm3, tp3), ..., (xn, tmn, tpn)], tm1) into let x2 = tm2 in let x3 = tm3 in ... let xn = tmn in tm1
 joinLets :: [(Var, Term, Type)] -> Term -> Term
 joinLets ds tm = h ds where
-  tp = getType tm
+  tp = typeof tm
   h [] = tm
   h ((x, xtm, xtp) : ds) = TmLet x xtm xtp (h ds) tp
 
@@ -186,12 +135,13 @@ addArgs gv x tis tas vas y =
 -- Eta-expands a constructor with the necessary extra args
 etaExpand :: GlobalVar -> Var -> [Type] -> [Arg] -> [Param] -> Type -> Term
 etaExpand gv x tis tas vas y =
-  foldr (\ (a, atp) tm -> TmLam a atp tm (getType tm))
+  foldr (\ (a, atp) tm -> TmLam a atp tm (typeof tm))
     (addArgs gv x tis tas vas y) vas
 
 toArg :: Term -> Arg
-toArg tm = (tm, getType tm)
+toArg tm = (tm, typeof tm)
 
+-- Maps toArg over a list of terms
 toArgs :: [Term] -> [Arg]
 toArgs = map toArg
 
@@ -224,6 +174,7 @@ mapParams = map . mapParam
 mapCasesM :: Monad m => (Var -> [Param] -> Term -> m Term) -> [Case] -> m [Case]
 mapCasesM f = mapM $ \ (Case x ps tm) -> pure (Case x ps) <*> f x ps tm
 
+-- Applies f to all the types in a list of ctors
 mapCtorsM :: Monad m => (Type -> m Type) -> [Ctor] -> m [Ctor]
 mapCtorsM f = mapM $ \ (Ctor x tps) -> pure (Ctor x) <*> mapM f tps
 
@@ -241,20 +192,3 @@ mapProgsM :: Monad m => (Term -> m Term) -> Progs -> m Progs
 mapProgsM f (Progs ps end) =
   pure Progs <*> mapM (mapProgM f) ps <*> f end
 
---mapFstM :: Monad m => (a -> m c) -> m (a, b) -> (c, b)
---mapFstM f m = m >>= \ (a, b) -> f a >>= \ c -> return (c, b)
---mapSndM :: Monad m => (b -> m c) -> m (a, b) -> (a, c)
---mapSndM f m = m >>= \ (a, b) -> f b >>= \ c -> return (b, c)
-
--- Concats a list of lists, adding a delimiter
--- Example: delimitWith ", " ["item 1", "item 2", "item 3"] = "item 1, item 2, item 3"
-delimitWith :: [a] -> [[a]] -> [a]
-delimitWith del [] = []
-delimitWith del [as] = as
-delimitWith del (h : t) = h ++ del ++ delimitWith del t
-
--- Collects duplicates, counting how many
--- collectDups ['a', 'b', 'c', 'b', 'c', 'b'] = [('a', 1), ('b', 3), ('c', 2)]
-collectDups :: Ord a => [a] -> [(a, Int)]
-collectDups =
-  Map.toList . foldr (Map.alter $ Just . maybe 1 succ) Map.empty

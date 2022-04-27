@@ -1,11 +1,10 @@
-module Ctxt where
-import qualified Data.Map as Map
-import Exprs
-import Util
-import Show()
+{- Code for storing information about what is in scope -}
+-- TODO: merge with Env (in src/TypeInf.hs)
 
-data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
-  deriving (Eq, Show)
+module Scope.Ctxt where
+import qualified Data.Map as Map
+import Struct.Lib
+import Util.Helpers
 
 data CtxtDef =
     DefTerm Scope Type
@@ -22,6 +21,7 @@ emptyCtxt = Map.empty
 ctxtDeclTerm :: Ctxt -> Var -> Type -> Ctxt
 ctxtDeclTerm g x tp = Map.insert x (DefTerm ScopeLocal tp) g
 
+-- Add params to context
 ctxtDeclArgs :: Ctxt -> [Param] -> Ctxt
 ctxtDeclArgs = foldl $ uncurry . ctxtDeclTerm
 

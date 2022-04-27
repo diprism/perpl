@@ -1,7 +1,7 @@
-module JSON where
-import Util
+{- JSON Functions -}
 
-{- ====== JSON Functions ====== -}
+module Util.JSON where
+import Util.Helpers
 
 data JSON =
     JSnull

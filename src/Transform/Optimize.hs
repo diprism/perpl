@@ -1,12 +1,12 @@
-module Optimize where
+module Transform.Optimize where
 --import Data.Maybe
 import qualified Data.Map as Map
-import Exprs
-import Ctxt
-import Util
-import Name
-import Free
-import Subst
+import Struct.Lib
+import Util.Helpers
+import Scope.Name
+import Scope.Free
+import Scope.Subst
+import Scope.Ctxt
 
 {- Provides various optimizations:
 1. (case t of C1 a* -> \x. t1 | C2 b* -> \y. t2 | C3 c* -> t3)
@@ -15,6 +15,8 @@ import Subst
 3. (case C4 t* of C1 a* -> t1 | ... | C4 d* -> t4 | ...) -> (let d* = t* in t4)
 4. (let x = t1 in t2) -> (t2[x := t1])     where x occurs once-ish in t2 (see note below)
 5. (define y = \ a*. x a*; ...) -> ...[y := x]
+
+Note that some of these have yet to be implemented
 
 Notes:
 - Optimization (1) enforces the invariant that the return type of every case-of is not
@@ -89,7 +91,7 @@ liftAmb (TmEqs tms) =
     joinAmbs (map TmEqs (kronall tms')) (TpVar "Bool" [])
 
 liftFail'' :: (Term, Maybe Term) -> Term
-liftFail'' (tm, Nothing) = TmSamp DistFail (getType tm)
+liftFail'' (tm, Nothing) = TmSamp DistFail (typeof tm)
 liftFail'' (tm, Just tm') = tm'
 
 liftFail' :: Term -> Maybe Term
@@ -158,7 +160,7 @@ safe2sub g x xtm tm =
     -- Returns if there are no global def vars or ambs/fails/uniforms
     noDefsSamps :: Term -> Bool
     noDefsSamps (TmVarL x tp) = True
-    noDefsSamps (TmVarG g x _ as tp) = isCtorVar g && all (noDefsSamps . fst) as
+    noDefsSamps (TmVarG g x _ as tp) = g == CtorVar && all (noDefsSamps . fst) as
     noDefsSamps (TmLam x tp tm tp') = noDefsSamps tm
     noDefsSamps (TmApp tm1 tm2 tp2 tp) = noDefsSamps tm1 && noDefsSamps tm2
     noDefsSamps (TmLet x xtm xtp tm tp) = noDefsSamps xtm && noDefsSamps tm

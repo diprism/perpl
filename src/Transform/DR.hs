@@ -1,14 +1,13 @@
-module RecType where
+module Transform.DR where
 import qualified Data.Map as Map
 import qualified Control.Monad.State.Lazy as State
 import Data.List
-import Exprs
-import Util
-import Free
-import Subst
-import Ctxt
-import Name
-import Show()
+import Struct.Lib
+import Util.Helpers
+import Scope.Free
+import Scope.Subst
+import Scope.Ctxt
+import Scope.Name
 
 
 -- Collects the free variables of all the cases in
@@ -174,7 +173,7 @@ defoldTerm rtp = h where
   h :: Term -> DefoldM Term
   h (TmVarL x tp) = pure (TmVarL x tp)
   h (TmVarG gv x _ as tp)
-    | isCtorVar gv && tp == TpVar rtp [] =
+    | gv == CtorVar && tp == TpVar rtp [] =
         mapArgsM h as >>= \ as' ->
         State.get >>= \ fs ->
         let fvs = Map.toList (freeVars (fsts as'))
@@ -235,9 +234,9 @@ derefunTerm dr g rtp = fst . h where
   h' :: Term -> Term
   h' (TmVarL x tp) = let tp' = sub tp in TmVarL x tp'
   h' (TmVarG gv x _ as tp)
-    | dr == Refun && isCtorVar gv && tp == TpVar rtp [] =
+    | dr == Refun && gv == CtorVar && tp == TpVar rtp [] =
       TmVarG DefVar unfoldN [] [(TmVarG gv x [] (h_as as) tp, tp)] (TpVar unfoldTypeN [])
-    | dr == Defun && isDefVar gv && x == applyN =
+    | dr == Defun && gv == DefVar && x == applyN =
       let [(etm, etp)] = as in h' etm
     | otherwise =
       maybe2 (ctxtLookupTerm g x) (TmVarG gv x [] (h_as as) tp) $ \ (_, tp') ->
@@ -260,12 +259,12 @@ derefunTerm dr g rtp = fst . h where
     | dr == Defun && tp1 == rtp =
         let (tm1', tp1') = h tm1
             cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]
-            tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> getType xtm in
+            tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> typeof xtm in
           TmCase (TmVarG DefVar applyN [] [(tm1', tp1')] (TpVar rtp [])) (rtp, []) cs' tp2'
     | otherwise =
         let (tm1', TpVar tp1' []) = h tm1
             cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]
-            tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> getType xtm in
+            tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> typeof xtm in
           TmCase tm1' (tp1', []) cs' tp2'
   h' (TmSamp d tp) = TmSamp d tp
   h' (TmAmb tms tp) =
@@ -397,6 +396,7 @@ tryPickDR explicit_drs rtp (RecDeps ds rs) chosen =
 pickNextDR :: [(Var, DeRe)] -> RecEdges -> [(Var, DeRe)] -> Maybe (Var, DeRe)
 pickNextDR explicit_drs res drs = Map.foldrWithKey (\ rtp rds dr_else -> tryPickDR explicit_drs rtp rds drs |?| dr_else) Nothing res
 
+-- Error message for when no DR sequence can be found
 spanGraphError :: RecEdges -> [(Var, DeRe)] -> Either String a
 spanGraphError res chosen =
   Left $ "Failed to resolve the following dependencies:\n" ++
@@ -411,8 +411,8 @@ spanGraphError res chosen =
       depstr :: Char -> Var -> [Var] -> String
       depstr dr name deps = dr : "[" ++ name ++ "] <- " ++ delimitWith ", " (relevantDeps deps)
 
--- Pops nodes from the graph that satisfy pickNextDR until none remain, returning
--- the recursive datatype names and whether to de- or refunctionalize them
+-- Greedily pops nodes from the graph that satisfy tryPickDR until none remain,
+-- returning the recursive datatype names and whether to de- or refunctionalize them
 spanGraph :: [(Var, DeRe)] -> RecEdges -> Either String [(Var, DeRe)]
 spanGraph explicit_drs = h [] where
   h :: [(Var, DeRe)] -> RecEdges -> Either String [(Var, DeRe)]
@@ -423,8 +423,7 @@ spanGraph explicit_drs = h [] where
           return (pickNextDR explicit_drs res chosen) >>= \ (rtp, dr) ->
         h ((rtp, dr) : chosen) (Map.delete rtp res)
 
--- Given some explicit datatypes to de- or refun, compute which to
--- do on the rest
+-- Given some explicit datatypes to de- or refun, compute which to do on the rest
 whichDR :: [(Var, DeRe)] -> Progs -> Either String [(Var, DeRe)]
 whichDR explicit_drs ps =
   spanGraph explicit_drs (initGraph (ctxtDefProgs ps) ps (getRecTypes ps))
@@ -432,19 +431,12 @@ whichDR explicit_drs ps =
 
 --------------------------------------------------
 
-unitProg :: Prog
-unitProg = ProgData tpUnitName unitCtors
-
-addUnitProg :: Progs -> Progs
-addUnitProg (Progs ds end) = Progs (unitProg : ds) end
-
 -- TODO: figure out naming of fold/unfold functions (fold/apply or apply/unfold?)
 -- Eliminates the recursive datatypes in a file, by de- or refunctionalizing them
 elimRecTypes :: [(Var, DeRe)] -> Progs -> Either String Progs
 elimRecTypes explicit_drs ps =
-  let ups = addUnitProg ps in
-  whichDR explicit_drs ups >>=
-  derefunThese ups
+  whichDR explicit_drs ps >>=
+  derefunThese ps
 
 
 
