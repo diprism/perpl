@@ -217,6 +217,7 @@ parseTermApp acc =
 TERM5 :=
   | VAR                      variable
   | (TERM1)                  grouping
+  | ()                       multiplicative tuple of zero terms
   | (TERM1, ...)             multiplicative tuple of two or more terms
   | <TERM1> | <TERM1, ...>   additive tuple of one or more terms
   | error
@@ -302,8 +303,9 @@ parseType3 = parsePeek >>= \ t -> case t of
 {-
 
 TYPE4 :=
-  | VAR
-  | (TYPE1)
+  | VAR                         type variable
+  | (TYPE1)                     grouping
+  | Bool | Unit                 built-in type names
   | error
 
 -}
@@ -312,6 +314,7 @@ parseType4 :: ParseM Type
 parseType4 = parsePeek >>= \ t -> case t of
   TkVar v -> parseEat *> pure (TpVar v [])
   TkBool -> parseEat *> pure (TpVar "Bool" [])
+  TkUnit -> parseEat *> pure (TpProd Multiplicative [])
   TkParenL -> parseEat *> parseType1 <* parseDrop TkParenR
   _ -> parseErr "couldn't parse a type here; perhaps add parentheses?"
 
