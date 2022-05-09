@@ -168,7 +168,7 @@ parseTerm2 = parsePeek >>= \ t -> case t of
   TkAmb -> parseEat *> parseAmbs []
   _ -> parseTerm3
 
--- Parse tok-delimited terms
+-- Parse one or more tok-delimited terms
 parseTmsDelim :: Token -> [UsTm] -> ParseM [UsTm]
 parseTmsDelim tok tms = parsePeek >>= \ t ->
   if t == tok
@@ -215,9 +215,10 @@ parseTermApp acc =
 {-
 
 TERM5 :=
-  | VAR
-  | (TERM1)
-  | <TERM1, ...>
+  | VAR                      variable
+  | (TERM1)                  grouping
+  | (TERM1, ...)             multiplicative tuple of two or more terms
+  | <TERM1> | <TERM1, ...>   additive tuple of one or more terms
   | error
 
  -}
@@ -226,7 +227,11 @@ TERM5 :=
 parseTerm5 :: ParseM UsTm
 parseTerm5 = parsePeek >>= \ t -> case t of
   TkVar v -> parseEat *> pure (UsVar v)
-  TkParenL -> parseEat *> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd Multiplicative tms)) <* parseDrop TkParenR -- TODO: product
+  TkParenL -> parseEat *> (
+    parsePeek >>= \ t -> case t of
+        TkParenR -> pure (UsProd Multiplicative [])
+        _ -> parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd Multiplicative tms)
+    ) <* parseDrop TkParenR
   TkLangle -> parseEat *> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm]) <* parseDrop TkRangle
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
