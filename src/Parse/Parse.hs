@@ -153,7 +153,6 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 {-
 
 TERM2 :=
-  | sample DIST : TYPE1
   | amb TERM5*
   | factor weight
   | fail : TYPE1
@@ -163,8 +162,6 @@ TERM2 :=
 
 parseTerm2 :: ParseM UsTm
 parseTerm2 = parsePeek >>= \ t -> case t of
--- sample dist : type
-  TkSample -> parseEat *> pure UsSamp <*> parseDist <*> parseTpAnn
 -- amb tm*
   TkAmb -> parseEat *> parseAmbs []
 -- factor wt
@@ -323,14 +320,6 @@ parseCtors = ParseM $ \ ts -> case ts of
 parseCtorsH = parsePeek >>= \ t -> case t of
   TkBar -> parseEat *> pure (:) <*> (pure Ctor <*> parseVar <*> parseTypes) <*> parseCtorsH
   _ -> pure []
-
--- Dist
-parseDist :: ParseM Dist
-parseDist = parsePeek >>= \ t -> case t of
-  TkAmb  -> parseEat *> pure DistAmb
-  TkFail -> parseEat *> pure DistFail
-  TkUni  -> parseEat *> pure DistUni
-  _ -> parseErr ("expected one of " ++ show TkAmb ++ ", " ++ show TkFail ++ ", or " ++ show TkUni ++ " here")
 
 -- List of Types
 parseTypes :: ParseM [Type]

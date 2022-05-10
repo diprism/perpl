@@ -11,7 +11,6 @@ typeof (TmLam x tp tm tp') = TpArr tp tp'
 typeof (TmApp tm1 tm2 tp2 tp) = tp
 typeof (TmLet x xtm xtp tm tp) = tp
 typeof (TmCase ctm y cs tp) = tp
-typeof (TmSamp d tp) = tp
 typeof (TmAmb tms tp) = tp
 typeof (TmFactor wt tp) = tp
 typeof (TmProd am as) = TpProd am (snds as)
@@ -116,11 +115,9 @@ splitAmbs :: Term -> [Term]
 splitAmbs (TmAmb tms tp) = tms
 splitAmbs tm = [tm]
 
--- Joins a list of terms into a TmAmb if there are >= 2 branches
+-- Joins a list of terms into a TmAmb if there are != 1 branches
 -- If there is only one branch, return it
--- If there are no branches, return fail
 joinAmbs :: [Term] -> Type -> Term
-joinAmbs [] tp = TmSamp DistFail tp
 joinAmbs (tm : []) tp = tm
 joinAmbs tms tp = TmAmb tms tp
 

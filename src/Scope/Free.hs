@@ -38,7 +38,6 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccs (UsCase tm cs) = foldr (Map.unionWith max . countOccsCase) (countOccs tm) cs
     countOccs (UsIf tm1 tm2 tm3) = Map.unionWith (+) (countOccs tm1) (Map.unionWith max (countOccs tm2) (countOccs tm3))
     countOccs (UsTmBool b) = Map.empty
-    countOccs (UsSamp d tp) = Map.empty
     countOccs (UsLet x tp tm tm') = Map.unionWith max (countOccs tm) (Map.delete x $ countOccs tm')
     countOccs (UsAmb tms) = Map.unionsWith max (map countOccs tms)
     countOccs (UsFactor wt) = Map.empty
@@ -71,7 +70,6 @@ isLin x tm = h tm == LinYes where
     (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
   h (UsIf tm1 tm2 tm3) = linIf' (h tm1) (h_as LinErr [tm2, tm3]) (h_as LinYes [tm2, tm3])
   h (UsTmBool b) = LinNo
-  h (UsSamp d tp) = LinNo
   h (UsLet x' tp tm tm') =
     if x == x' then h tm else h_as LinErr [tm, tm']
   h (UsAmb tms) = h_as LinYes tms
@@ -102,7 +100,6 @@ isLin' x = (LinYes ==) . h where
     (foldr (\ c -> linIf' (linCase c) LinErr) LinYes cs)
     -- make sure x is linear in all the cases, or in none of the cases
     (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
-  h (TmSamp d tp) = LinNo
   h (TmAmb tms tp) = h_as LinYes tms
   h (TmFactor wt tp) = LinNo
   h (TmProd am as) = h_as (if am == Additive then LinYes else LinErr) (fsts as)

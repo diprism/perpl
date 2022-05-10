@@ -12,7 +12,8 @@ import Scope.Ctxt
 1. (case t of C1 a* -> \x. t1 | C2 b* -> \y. t2 | C3 c* -> t3)
      -> (\x. case t of C1 a* -> t1 | C2 b* -> t2[y := x] | C3 c* -> t3 x)
 2. (\ x. f) t   ->   (let x = t in f)
-3. (case C4 t* of C1 a* -> t1 | ... | C4 d* -> t4 | ...) -> (let d* = t* in t4)
+3. case-of-known-constructor
+   (case C4 t* of C1 a* -> t1 | ... | C4 d* -> t4 | ...) -> (let d* = t* in t4)
 4. (let x = t1 in t2) -> (t2[x := t1])     where x occurs once-ish in t2 (see note below)
 5. (define y = \ a*. x a*; ...) -> ...[y := x]
 
@@ -64,11 +65,10 @@ liftAmb (TmLet x xtm xtp tm tp) =
 liftAmb (TmCase tm y cs tp) =
   let tms = splitAmbs (liftAmb tm)
       cs1 = [(x, xps, splitAmbs (liftAmb xtm)) | Case x xps xtm <- cs]
-      cs2 = concatMap (\ (x, xps, xtms) -> [[Case x' xps' (if x == x' then xtm else TmSamp DistFail tp) | Case x' xps' _ <- cs] | xtm <- xtms]) cs1
+      cs2 = concatMap (\ (x, xps, xtms) -> [[Case x' xps' (if x == x' then xtm else TmAmb [] tp) | Case x' xps' _ <- cs] | xtm <- xtms]) cs1
       cs3 = if any (\ (x, xps, xtms) -> length xtms > 1) cs1 then cs2 else [cs]
   in
     joinAmbs (kronwith (\ tm cs -> TmCase tm y cs tp) tms cs3) tp
-liftAmb (TmSamp d tp) = TmSamp d tp
 liftAmb (TmAmb tms tp) =
   TmAmb (concatMap (splitAmbs . liftAmb) tms) tp
 liftAmb (TmFactor wt tp) =
@@ -93,12 +93,10 @@ liftAmb (TmEqs tms) =
     joinAmbs (map TmEqs (kronall tms')) (TpVar "Bool" [])
 
 liftFail'' :: (Term, Maybe Term) -> Term
-liftFail'' (tm, Nothing) = TmSamp DistFail (typeof tm)
+liftFail'' (tm, Nothing) = TmAmb [] (typeof tm)
 liftFail'' (tm, Just tm') = tm'
 
 liftFail' :: Term -> Maybe Term
-liftFail' (TmSamp DistFail tp) = Nothing
-liftFail' (TmSamp d tp) = pure (TmSamp d tp)
 liftFail' (TmVarL x tp) = pure (TmVarL x tp)
 liftFail' (TmVarG gv x tis as tp) =
   pure (TmVarG gv x tis) <*> mapArgsM liftFail' as <*> pure tp
@@ -120,7 +118,7 @@ liftFail' (TmProd am as)
     pure (TmProd am) <*> mapArgsM liftFail' as
   | otherwise =
     let as' = map (mapArgM liftFail') as in
-      pure (TmProd am [maybe (TmSamp DistFail tp, tp) id ma | ((_, tp), ma) <- zip as as'])
+      pure (TmProd am [maybe (TmAmb [] tp, tp) id ma | ((_, tp), ma) <- zip as as'])
 --liftFail' (TmElimAmp tm tps o) =
 --  pure TmElimAmp <*> liftFail' tm <*> pure tps <*> pure o
 liftFail' (TmElimProd am tm ps tm' tp) =
@@ -168,7 +166,6 @@ safe2sub g x xtm tm =
     noDefsSamps (TmApp tm1 tm2 tp2 tp) = noDefsSamps tm1 && noDefsSamps tm2
     noDefsSamps (TmLet x xtm xtp tm tp) = noDefsSamps xtm && noDefsSamps tm
     noDefsSamps (TmCase tm y cs tp) = noDefsSamps tm && all (\ (Case x xps xtm) -> noDefsSamps xtm) cs
-    noDefsSamps (TmSamp d tp) = False
     noDefsSamps (TmAmb tms tp) = False
     noDefsSamps (TmFactor wt tp) = False
     noDefsSamps (TmProd am as) = all (noDefsSamps . fst) as
@@ -187,7 +184,6 @@ optimizeTerm g (TmLet x xtm xtp tm tp) =
   if safe2sub g x xtm' tm'
     then optimizeTerm g (substWithCtxt g (Map.fromList [(x, SubTm xtm')]) tm')
     else TmLet x xtm' xtp tm' tp
-optimizeTerm g (TmSamp d tp) = TmSamp d tp
 optimizeTerm g (TmFactor wt tp) = TmFactor wt tp
 optimizeTerm g (TmLam x tp tm tp') =
   TmLam x tp (optimizeTerm (ctxtDeclTerm g x tp) tm) tp'

@@ -24,7 +24,6 @@ collectUnfolds rtp (TmCase tm (y, _) cs tp) =
     collectUnfolds rtp tm
       ++ concatMap (\ (Case cx cps ctm) -> collectUnfolds rtp ctm) cs
       ++ this
-collectUnfolds rtp (TmSamp d tp) = []
 collectUnfolds rtp (TmAmb tms tp) = concatMap (collectUnfolds rtp) tms
 collectUnfolds rtp (TmFactor wt tp) = []
 collectUnfolds rtp (TmProd am as) = concatMap (\ (atm, atp) -> collectUnfolds rtp atm) as
@@ -44,7 +43,6 @@ collectFolds rtp (TmLam x tp tm tp') = collectFolds rtp tm
 collectFolds rtp (TmApp tm1 tm2 tp2 tp) = collectFolds rtp tm1 ++ collectFolds rtp tm2
 collectFolds rtp (TmLet x xtm xtp tm tp) = collectFolds rtp xtm ++ collectFolds rtp tm
 collectFolds rtp (TmCase tm y cs tp) = collectFolds rtp tm ++ concatMap (\ (Case cx cps ctm) -> collectFolds rtp ctm) cs
-collectFolds rtp (TmSamp d tp) = []
 collectFolds rtp (TmAmb tms tp) = concatMap (collectFolds rtp) tms
 collectFolds rtp (TmFactor wt tp) = []
 collectFolds rtp (TmProd am as) = concatMap (\ (atm, atp) -> collectFolds rtp atm) as
@@ -151,8 +149,6 @@ disentangleTerm rtp cases = h where
         pure rtm
     | otherwise =
       pure TmCase <*> h tm <*> pure (y, []) <*> mapCasesM (\ _ _ -> h) cs <*> pure tp
-  h (TmSamp d tp) =
-    pure (TmSamp d tp)
   h (TmAmb tms tp) =
     pure TmAmb <*> mapM h tms <*> pure tp
   h (TmFactor wt tp) =
@@ -193,7 +189,6 @@ defoldTerm rtp = h where
   h (TmApp tm1 tm2 tp2 tp) = pure TmApp <*> h tm1 <*> h tm2 <*> pure tp2 <*> pure tp
   h (TmLet x xtm xtp tm tp) = pure (TmLet x) <*> h xtm <*> pure xtp <*> h tm <*> pure tp
   h (TmCase tm y cs tp) = pure TmCase <*> h tm <*> pure y <*> mapCasesM (\ _ _ -> h) cs <*> pure tp
-  h (TmSamp d tp) = pure (TmSamp d tp)
   h (TmAmb tms tp) = pure TmAmb <*> mapM h tms <*> pure tp
   h (TmFactor wt tp) = pure (TmFactor wt tp)
   h (TmProd am as) =
@@ -271,7 +266,6 @@ derefunTerm dr g rtp = fst . h where
             cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> typeof xtm in
           TmCase tm1' (tp1', []) cs' tp2'
-  h' (TmSamp d tp) = TmSamp d tp
   h' (TmAmb tms tp) =
     let tms' = map h tms
         tp' = if null tms' then sub tp else snd (head tms') in

@@ -15,7 +15,6 @@ toUsTm (TmLet x xtm xtp tm tp) = UsLet x xtp (toUsTm xtm) (toUsTm tm)
 --toUsTm (TmCase tm "Bool" [Case "True" [] thentm, Case "False" [] elsetm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
 toUsTm (TmCase tm ("Bool", []) [Case "False" [] elsetm, Case "True" [] thentm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
-toUsTm (TmSamp d tp) = UsSamp d tp
 toUsTm (TmAmb [] tp) = UsFail tp
 toUsTm (TmAmb tms tp) = UsAmb [toUsTm tm | tm <- tms]
 toUsTm (TmFactor wt tp) = UsFactor wt
@@ -54,8 +53,6 @@ showTermParens (UsIf _ _ _     ) ShowAppR = True
 showTermParens (UsIf _ _ _     ) ShowCase = True
 showTermParens (UsEqs _        ) ShowAppL = True
 showTermParens (UsEqs _        ) ShowAppR = True
-showTermParens (UsSamp _ _     ) ShowAppL = True
-showTermParens (UsSamp _ _     ) ShowAppR = True
 showTermParens (UsLet _ _ _ _  ) ShowAppL = True
 showTermParens (UsLet _ _ _ _  ) ShowAppR = True
 showTermParens (UsLet _ _ _ _  ) ShowCase = True
@@ -93,7 +90,6 @@ showTermh (UsApp tm1 tm2) = showTerm tm1 ShowAppL ++ " " ++ showTerm tm2 ShowApp
 showTermh (UsCase tm cs) = "case " ++ showTerm tm ShowCase ++ " of " ++ showCasesCtors cs
 showTermh (UsIf tm1 tm2 tm3) = "if " ++ showTerm tm1 ShowCase ++ " then " ++ showTerm tm2 ShowCase ++ " else " ++ showTerm tm3 ShowCase
 showTermh (UsTmBool b) = if b then "True" else "False"
-showTermh (UsSamp d tp) = "sample " ++ show d ++ showTpAnn tp
 showTermh (UsLet x tp tm tm') = "let " ++ x ++ showTpAnn tp ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
 showTermh (UsAmb tms) = foldl (\ s tm -> s ++ " " ++ showTerm tm ShowAppR) "amb" tms
 showTermh (UsFactor wt) = "factor " ++ show wt
@@ -129,11 +125,6 @@ showCasesCtors (c : []) = show c
 showCasesCtors (c : cs) = show c ++ " | " ++ showCasesCtors cs
 
 -- Actual show instances
-instance Show Dist where
-  show DistFail = "fail"
-  show DistAmb = "amb"
-  show DistUni = "uniform"
-
 instance Show CaseUs where
   show (CaseUs x as tm) = foldl (\ x a -> x ++ " " ++ a) x as ++ " -> " ++ showTerm tm ShowCase
 instance Show Case where

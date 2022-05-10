@@ -198,10 +198,6 @@ affLin (TmCase tm y cs tp) =
   affLinBranches affLinCase
     (\ xs (Case x as tm) -> fmap (Case x as) (discards xs tm)) cs >>= \ cs' ->
   affLinTp tp >>= return . TmCase tm' y cs'
-affLin (TmSamp d tp) =
-  -- L(sample d : tp) => sample d : L(tp)
-  affLinTp tp >>= \ tp' ->
-  return (TmSamp d tp')
 affLin (TmAmb tms tp) =
   -- L(amb tm1 tm2 ... tmn : tp) => amb L*(tm1) L*(tm2) ... L*(tmn) : L(tp)
   -- where L*(tm) = let _ = Z((FV(tm1) ∪ FV(tm2) ∪ ... ∪ FV(tmn)) - FV(tm)) in L(tm)

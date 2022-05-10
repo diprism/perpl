@@ -53,19 +53,11 @@ type IsTag = Bool
 data Scheme = Forall [Var] [Var] Type
   deriving (Eq, Ord)
 
--- Different kinds of supported distributions
-data Dist =
-    DistFail
-  | DistUni
-  | DistAmb
-  deriving (Eq, Ord)
-
 data UsTm = -- User-level Term
     UsVar Var -- x
   | UsLam Var Type UsTm                -- \ x : tp. tm
   | UsApp UsTm UsTm                    -- tm1 tm2
   | UsCase UsTm [CaseUs]               -- case tm of case*
-  | UsSamp Dist Type                   -- sample fail/uniform/amb : tp
   | UsLet Var Type UsTm UsTm           -- let x : tp = tm1 in tm2
   | UsAmb [UsTm]                       -- amb tm1 tm2 ... tmn
   | UsFactor Double                    -- factor wt
@@ -93,7 +85,6 @@ data Term =
   | TmApp Term Term Type {- -> -} Type        -- (tm1 : (tp1 -> tp2)) (tm2  : tp1) : tp2
   | TmLet Var Term Type Term Type             -- let x : tp1 = tm1 in tp2 : tp2
   | TmCase Term (Var, [Type]) [Case] Type     -- (case tm : y [tis] of case*) : tp
-  | TmSamp Dist Type                          -- sample fail/uniform/amb : tp
   | TmAmb [Term] Type                         -- amb tm1 tm2 ... tmn : tp
   | TmFactor Double Type                      -- factor wt : tp
   | TmProd AddMult [Arg]                      -- (tm1 : tp1, tm2 : tp2, ..., tmn : tpn) / <...>

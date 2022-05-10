@@ -382,13 +382,6 @@ infer' (UsTmBool b) =
   -- Translate True/False into a constructor var
   return (TmVarG CtorVar (if b then "True" else "False") [] [] (TpVar "Bool" []))
 
-infer' (UsSamp d tp) =
-  -- Check the annotation tp
-  annTp tp >>= \ tp' ->
-  -- Constraint: tp' must be robust
-  constrain (Robust tp') >>
-  return (TmSamp d tp')
-
 infer' (UsLet x xtp xtm tm) =
   -- Check the annotation xtp'
   annTp xtp >>= \ xtp' ->

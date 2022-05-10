@@ -11,11 +11,9 @@ data Token =
   | TkParenL -- "("
   | TkParenR -- ")"
   | TkEq -- "="
-  | TkSample -- "sample"
   | TkFail -- "fail"
   | TkAmb -- "amb"
   | TkFactor -- "factor"
-  | TkUni -- "uniform"
   | TkCase -- "case"
   | TkOf -- "of"
   | TkLet -- "let"
@@ -62,11 +60,9 @@ instance Show Token where
   show TkSemicolon = ";"
   show TkDoubleEq = "=="
   -- Keyword tokens
-  show TkSample = "sample"
   show TkFail = "fail"
   show TkAmb = "amb"
   show TkFactor = "factor"
-  show TkUni = "uniform"
   show TkCase = "case"
   show TkOf = "of"
   show TkLet = "let"
@@ -97,7 +93,7 @@ next (line, column) = (succ line, 0)
 -- List of punctuation tokens
 punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkLeftArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkStar, TkAmp, TkLangle, TkRangle]
 -- List of keyword tokens (use alphanumeric chars)
-keywords = [TkFactor, TkFail, TkAmb, TkUni, TkCase, TkOf, TkLet, TkIn, TkUni, TkSample, TkFun, TkExtern, TkData, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
+keywords = [TkFactor, TkFail, TkAmb, TkCase, TkOf, TkLet, TkIn, TkFun, TkExtern, TkData, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
 
 -- Tries to lex s as punctuation, otherwise lexing s as a keyword or a var
 lexPunctuation :: String -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
