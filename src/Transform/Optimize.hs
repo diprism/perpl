@@ -71,6 +71,8 @@ liftAmb (TmCase tm y cs tp) =
 liftAmb (TmSamp d tp) = TmSamp d tp
 liftAmb (TmAmb tms tp) =
   TmAmb (concatMap (splitAmbs . liftAmb) tms) tp
+liftAmb (TmFactor wt tp) =
+  TmFactor wt tp
 liftAmb (TmProd am as)
   | am == Multiplicative =
     let as' = [[(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
@@ -112,6 +114,7 @@ liftFail' (TmCase tm y cs tp) =
 liftFail' (TmAmb tms tp) =
   let tms' = concatMap (maybe [] (\ tm -> [tm]) . liftFail') tms in
     if null tms' then Nothing else pure (joinAmbs tms' tp)
+liftFail' (TmFactor wt tp) = pure (TmFactor wt tp)
 liftFail' (TmProd am as)
   | am == Multiplicative =
     pure (TmProd am) <*> mapArgsM liftFail' as
@@ -148,7 +151,7 @@ peelLams g ps tm =
 
 -- Returns whether or not it is safe to substitute a term into another
 -- More specifically, returns true when there are no global vars (excluding ctors),
--- no free vars that aren't also free in the other term, and no ambs/fails/uniforms
+-- no free vars that aren't also free in the other term, and no effects
 safe2sub :: Ctxt -> Var -> Term -> Term -> Bool
 safe2sub g x xtm tm =
   isLin' x tm || (noDefsSamps xtm && fvsOkay (freeVars xtm))
@@ -167,6 +170,7 @@ safe2sub g x xtm tm =
     noDefsSamps (TmCase tm y cs tp) = noDefsSamps tm && all (\ (Case x xps xtm) -> noDefsSamps xtm) cs
     noDefsSamps (TmSamp d tp) = False
     noDefsSamps (TmAmb tms tp) = False
+    noDefsSamps (TmFactor wt tp) = False
     noDefsSamps (TmProd am as) = all (noDefsSamps . fst) as
 --    noDefsSamps (TmElimAmp tm tps o) = noDefsSamps tm
     noDefsSamps (TmElimProd am tm ps tm' tp) = noDefsSamps tm && noDefsSamps tm'
@@ -184,6 +188,7 @@ optimizeTerm g (TmLet x xtm xtp tm tp) =
     then optimizeTerm g (substWithCtxt g (Map.fromList [(x, SubTm xtm')]) tm')
     else TmLet x xtm' xtp tm' tp
 optimizeTerm g (TmSamp d tp) = TmSamp d tp
+optimizeTerm g (TmFactor wt tp) = TmFactor wt tp
 optimizeTerm g (TmLam x tp tm tp') =
   TmLam x tp (optimizeTerm (ctxtDeclTerm g x tp) tm) tp'
 optimizeTerm g (TmApp tm1 tm2 tp2 tp) =

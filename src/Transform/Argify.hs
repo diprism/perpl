@@ -45,6 +45,7 @@ argify (TmLet x xtm xtp tm tp) = TmLet x (argify xtm) xtp (argify tm) tp
 argify (TmCase tm y cs tp) = TmCase (argify tm) y (fmap (\ (Case x ps tm') -> Case x ps (argify tm')) cs) tp
 argify (TmSamp d tp) = TmSamp d tp
 argify (TmAmb tms tp) = TmAmb (argify <$> tms) tp
+argify (TmFactor wt tp) = TmFactor wt tp
 argify (TmProd am as) = TmProd am [(argify tm, tp) | (tm, tp) <- as]
 argify (TmElimProd am ptm ps tm tp) = TmElimProd am (argify ptm) ps (argify tm) tp
 argify (TmEqs tms) = TmEqs (argify <$> tms)

@@ -68,6 +68,8 @@ data UsTm = -- User-level Term
   | UsSamp Dist Type                   -- sample fail/uniform/amb : tp
   | UsLet Var Type UsTm UsTm           -- let x : tp = tm1 in tm2
   | UsAmb [UsTm]                       -- amb tm1 tm2 ... tmn
+  | UsFactor Double                    -- factor wt
+  | UsFail Type                        -- fail : tp
   | UsProd AddMult [UsTm]              -- (tm1, ..., tmn)/<tm1, ..., tmn>
   | UsElimProd AddMult UsTm [Var] UsTm -- let (x,y,z)/<x,y,z> = tm1 in tm2
   | UsTmBool Bool                      -- True / False
@@ -93,6 +95,7 @@ data Term =
   | TmCase Term (Var, [Type]) [Case] Type     -- (case tm : y [tis] of case*) : tp
   | TmSamp Dist Type                          -- sample fail/uniform/amb : tp
   | TmAmb [Term] Type                         -- amb tm1 tm2 ... tmn : tp
+  | TmFactor Double Type                      -- factor wt : tp
   | TmProd AddMult [Arg]                      -- (tm1 : tp1, tm2 : tp2, ..., tmn : tpn) / <...>
   | TmElimProd AddMult Term [Param] Term Type -- let (x:X,y:Y,z:Z)/<...> = tm1 in tm2 : tp
   | TmEqs [Term]                              -- tm1 == tm2 == ...

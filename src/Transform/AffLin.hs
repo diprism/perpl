@@ -210,6 +210,10 @@ affLin (TmAmb tms tp) =
   affLinTp tp >>= \ tp' ->
   --  (if null tms' then affLinTp tp else return (typeof (head tms'))) >>= \ tp' ->
   return (TmAmb tms' tp')
+affLin (TmFactor wt tp) =
+  -- L(factor wt : tp) => factor wt : L(tp)
+  affLinTp tp >>= \ tp' ->
+  return (TmFactor wt tp')
 affLin (TmProd am as)
   | am == Additive =
     -- L(<tm1, tm2, ..., tmn>) => <L*(tm1), L*(tm2), ..., L*(tmn), L*(unit)>,

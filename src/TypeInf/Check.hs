@@ -408,6 +408,15 @@ infer' (UsAmb tms) =
   mapM (constrain . Unify itp . typeof) tms' >>
   return (TmAmb tms' itp)
 
+infer' (UsFactor wt) =
+  return (TmFactor wt (TpProd Multiplicative []))
+
+infer' (UsFail tp) =
+  annTp tp >>= \ tp' ->
+  -- Constraint: tp' must be robust
+  constrain (Robust tp') >>
+  return (TmAmb [] tp')
+
 infer' (UsProd am tms) =
   mapM infer tms >>= \ tms' ->
   return (TmProd am [(tm, typeof tm) | tm <- tms'])

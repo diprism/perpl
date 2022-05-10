@@ -13,6 +13,7 @@ typeof (TmLet x xtm xtp tm tp) = tp
 typeof (TmCase ctm y cs tp) = tp
 typeof (TmSamp d tp) = tp
 typeof (TmAmb tms tp) = tp
+typeof (TmFactor wt tp) = tp
 typeof (TmProd am as) = TpProd am (snds as)
 typeof (TmElimProd am tm ps tm' tp) = tp
 typeof (TmEqs tms) = TpVar "Bool" []

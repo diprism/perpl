@@ -155,17 +155,22 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 TERM2 :=
   | sample DIST : TYPE1
   | amb TERM5*
+  | factor weight
+  | fail : TYPE1
   | TERM3
 
  -}
 
--- Sample
 parseTerm2 :: ParseM UsTm
 parseTerm2 = parsePeek >>= \ t -> case t of
 -- sample dist : type
   TkSample -> parseEat *> pure UsSamp <*> parseDist <*> parseTpAnn
 -- amb tm*
   TkAmb -> parseEat *> parseAmbs []
+-- factor wt
+  TkFactor -> parseEat *> pure UsFactor <*> parseNum
+-- fail : type
+  TkFail -> parseEat *> pure UsFail <*> parseTpAnn
   _ -> parseTerm3
 
 -- Parse tok-delimited terms
@@ -175,8 +180,8 @@ parseTmsDelim tok tms = parsePeek >>= \ t ->
     then parseEat >> parseTerm1 >>= \ tm -> parseTmsDelim tok (tm : tms)
     else return (reverse tms)
 
--- Parses an integer (is this used anymore?)
-parseNum :: ParseM Int
+-- Parses a (floating-point) number
+parseNum :: ParseM Double
 parseNum = parsePeek >>= \ t -> case t of
   TkNum o -> parseEat >> return o
   _ -> parseErr "Expected a number here"

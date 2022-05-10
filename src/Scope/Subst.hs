@@ -148,6 +148,8 @@ instance Substitutable Term where
     pure (TmSamp d) <*> substM tp
   substM (TmAmb tms tp) =
     pure TmAmb <*> substM tms <*> substM tp
+  substM (TmFactor wt tp) =
+    pure TmFactor <*> pure wt <*> substM tp
   substM (TmProd am as) =
     pure (TmProd am) <*> mapArgsM substM as
 --  substM (TmElimAmp tm i tp) =
@@ -165,6 +167,7 @@ instance Substitutable Term where
   freeVars (TmCase tm y cs tp) = Map.union (freeVars tm) (freeVars cs)
   freeVars (TmSamp d tp) = Map.empty
   freeVars (TmAmb tms tp) = freeVars tms
+  freeVars (TmFactor wt tp) = Map.empty
   freeVars (TmProd am as) = freeVars (fsts as)
 --  freeVars (TmElimAmp tm i tp) = freeVars tm
   freeVars (TmElimProd am ptm ps tm tp) = Map.union (freeVars ptm) (foldr (Map.delete . fst) (freeVars tm) ps)
@@ -217,6 +220,10 @@ instance Substitutable UsTm where
     pure (UsLet x') <*> substM xtp <*> substM xtm <*> bind x x' (substM tm)
   substM (UsAmb tms) =
     pure UsAmb <*> substM tms
+  substM (UsFactor wt) =
+    pure UsFactor <*> pure wt
+  substM (UsFail tp) =
+    pure UsFail <*> substM tp
   substM (UsProd am tms) =
     pure (UsProd am) <*> substM tms
   substM (UsElimProd am tm xs tm') =
@@ -244,6 +251,10 @@ instance Substitutable UsTm where
     Map.union (freeVars xtm) (Map.delete x (freeVars tm))
   freeVars (UsAmb tms) =
     freeVars tms
+  freeVars (UsFactor wt) =
+    Map.empty
+  freeVars (UsFail tp) =
+    Map.empty
 --  freeVars (UsElimAmp tm o) =
 --    freeVars tm
   freeVars (UsProd am tms) =
