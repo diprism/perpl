@@ -57,11 +57,9 @@ define products =
     True;
 
 
-define samples : (Bool -> Bool -> Bool -> Bool -> Bool) -> Bool =
+define samples : (Bool -> Bool -> Bool) -> Bool =
   \ f. f
-    (sample fail)             -- p(False) = 0,   p(True) = 0   (all members get p = 0)
-    (sample amb)              -- p(False) = 1,   p(True) = 1   (all members get p = 1)
-    (sample uniform)          -- p(False) = 0.5, p(True) = 0.5 (split p between all members)
+    (fail)                    -- p(False) = 0,   p(True) = 0   (all members get p = 0)
     (amb False True False);   -- p(False) = 2,   p(True) = 1   (all branches get p = 1)
 
 -- You can also define polymorphic functions:

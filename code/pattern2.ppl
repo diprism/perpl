@@ -22,7 +22,7 @@ define pattern = (H, T, H);
 
 data Unit = unit;
 extern tick: Unit; 
-define flip = let _ = tick in sample uniform: Flip;
+define flip = let _ = tick in amb (let _ = factor 0.5 in H) (let _ = factor 0.5 in T);
 
 define run = \f1: Flip. \f2: Flip.
   let f3 = flip in

@@ -1,4 +1,4 @@
-define coin : Bool = sample uniform;
+define coin : Bool = amb (let _ = factor 0.5 in True) (let _ = factor 0.5 in False);
 
 (coin, coin)
 

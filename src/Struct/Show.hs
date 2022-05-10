@@ -93,7 +93,7 @@ showTermh (UsTmBool b) = if b then "True" else "False"
 showTermh (UsLet x tp tm tm') = "let " ++ x ++ showTpAnn tp ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
 showTermh (UsAmb tms) = foldl (\ s tm -> s ++ " " ++ showTerm tm ShowAppR) "amb" tms
 showTermh (UsFactor wt) = "factor " ++ show wt
-showTermh (UsFail tp) = "fail " ++ showTpAnn tp
+showTermh (UsFail tp) = "fail" ++ showTpAnn tp
 showTermh (UsProd am tms) =
   let (l, r) = amParens am in
     l ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ r

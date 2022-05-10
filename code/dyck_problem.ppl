@@ -4,8 +4,7 @@
 data List a = Nil | Cons a (List a); -- D
 data Nat = Zero | Succ Nat; -- R
 
-define symbol = sample amb : Bool; -- unexpectedly low weights
---define symbol = sample uniform : Bool; -- expected weights
+define symbol = amb False True; -- unexpectedly low weights
 
 -- Generates a random Word of length 2n
 define randomList = \ n. case n of

@@ -5,7 +5,7 @@
    https://en.wikipedia.org/wiki/Penney%27s_game -}
 
 data Flip = H | T;
-define flip = sample uniform: Flip;
+define flip = amb (let _ = factor 0.5 in H) (let _ = factor 0.5 in T);
 
 {- The patterns chosen by the two players. -}
 define pattern_a = (H, T, H);
