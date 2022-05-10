@@ -19,7 +19,6 @@ data Flip = H | T;
 define pattern = (H, T, H);
 
 data Nat = Zero | Succ Nat;
-data Unit = unit;
 define flip = sample uniform: Flip;
 
 define run = \f1: Flip. \f2: Flip.
@@ -27,10 +26,10 @@ define run = \f1: Flip. \f2: Flip.
     if (f1, f2, f3) == pattern then (Succ (Succ (Succ Zero)))
     else Succ (run f2 f3);
 
-{- weigh n returns the distribution {unit: n}. -}
+{- weigh n returns the distribution {(): n}. -}
 define weigh = \n.
   case n of Zero -> sample fail
-          | Succ n -> amb unit (weigh n);
+          | Succ n -> amb () (weigh n);
 
 weigh (run flip flip)
 
