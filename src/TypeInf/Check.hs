@@ -406,8 +406,6 @@ infer' (UsFactor wt) =
 
 infer' (UsFail tp) =
   annTp tp >>= \ tp' ->
-  -- Constraint: tp' must be robust
-  constrain (Robust tp') >>
   return (TmAmb [] tp')
 
 infer' (UsProd am tms) =
