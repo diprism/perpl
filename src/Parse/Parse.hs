@@ -156,7 +156,7 @@ TERM2 :=
   | amb TERM5*
   | factor weight
   | fail : TYPE1
-  | TERM3
+  | TERM4
 
  -}
 
@@ -168,7 +168,7 @@ parseTerm2 = parsePeek >>= \ t -> case t of
   TkFactor -> parseEat *> pure UsFactor <*> parseNum
 -- fail : type
   TkFail -> parseEat *> pure UsFail <*> parseTpAnn
-  _ -> parseTerm3
+  _ -> parseTerm4
 
 -- Parse tok-delimited terms
 parseTmsDelim :: Token -> [UsTm] -> ParseM [UsTm]
@@ -183,10 +183,6 @@ parseNum = parsePeek >>= \ t -> case t of
   TkNum o -> parseEat >> return o
   _ -> parseErr "Expected a number here"
 
-
--- No longer needed, directly calls parseTerm4
-parseTerm3 :: ParseM UsTm
-parseTerm3 = parseTerm4
 
 {-
 
