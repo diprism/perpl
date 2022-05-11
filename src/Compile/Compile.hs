@@ -195,8 +195,8 @@ term2fgg g (TmAmb tms tp) =
     bindCases (Map.toList fvs) (map (uncurry $ ambRule g fvs tms tp) (collectDups tms))
     
 term2fgg g (TmFactor wt tp) =
-  let dvs = domainValues g tp in
-    addFactor (show $ TmFactor wt tp) (vector [wt])
+  addFactor (show $ TmFactor wt tp) (vector [wt]) +>
+  type2fgg g tp
   
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm +>= \ xtmxs ->
