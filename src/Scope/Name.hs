@@ -60,8 +60,8 @@ affLinName x = '_' : x
 
 -- Constructors and case-ofs for affLin-generated datatypes
 
-tmUnit = TmProd Additive []
-tpUnit = TpProd Additive []
+tmUnit = TmProd Multiplicative []
+tpUnit = TpProd Multiplicative []
 
 tpBoolName = "Bool"
 tmTrueName = "True"
