@@ -40,7 +40,7 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccs (UsTmBool b) = Map.empty
     countOccs (UsLet x tp tm tm') = Map.unionWith max (countOccs tm) (Map.delete x $ countOccs tm')
     countOccs (UsAmb tms) = Map.unionsWith max (map countOccs tms)
-    countOccs (UsFactor wt) = Map.empty
+    countOccs (UsFactor wt tm) = countOccs tm
     countOccs (UsFail tp) = Map.empty
 --    countOccs (UsElimAmp tm o) = countOccs tm
     countOccs (UsProd am tms) = Map.unionsWith (if am == Additive then max else (+)) (map countOccs tms)
@@ -73,7 +73,7 @@ isLin x tm = h tm == LinYes where
   h (UsLet x' tp tm tm') =
     if x == x' then h tm else h_as LinErr [tm, tm']
   h (UsAmb tms) = h_as LinYes tms
-  h (UsFactor wt) = LinNo
+  h (UsFactor wt tm) = h tm
   h (UsFail tp) = LinNo
 --  h (UsElimAmp tm o) = h tm
   h (UsProd am tms) = h_as (if am == Additive then LinYes else LinErr) tms
@@ -101,7 +101,7 @@ isLin' x = (LinYes ==) . h where
     -- make sure x is linear in all the cases, or in none of the cases
     (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
   h (TmAmb tms tp) = h_as LinYes tms
-  h (TmFactor wt tp) = LinNo
+  h (TmFactor wt tm tp) = h tm
   h (TmProd am as) = h_as (if am == Additive then LinYes else LinErr) (fsts as)
 --  h (TmElimAmp tm tps o) = h tm
   h (TmElimProd am tm ps tm' tp) =

@@ -25,7 +25,7 @@ collectUnfolds rtp (TmCase tm (y, _) cs tp) =
       ++ concatMap (\ (Case cx cps ctm) -> collectUnfolds rtp ctm) cs
       ++ this
 collectUnfolds rtp (TmAmb tms tp) = concatMap (collectUnfolds rtp) tms
-collectUnfolds rtp (TmFactor wt tp) = []
+collectUnfolds rtp (TmFactor wt tm tp) = collectUnfolds rtp tm
 collectUnfolds rtp (TmProd am as) = concatMap (\ (atm, atp) -> collectUnfolds rtp atm) as
 --collectUnfolds rtp (TmElimAmp tm o tps) = collectUnfolds rtp tm
 collectUnfolds rtp (TmElimProd am tm ps tm' tp) = collectUnfolds rtp tm ++ collectUnfolds rtp tm'
@@ -44,7 +44,7 @@ collectFolds rtp (TmApp tm1 tm2 tp2 tp) = collectFolds rtp tm1 ++ collectFolds r
 collectFolds rtp (TmLet x xtm xtp tm tp) = collectFolds rtp xtm ++ collectFolds rtp tm
 collectFolds rtp (TmCase tm y cs tp) = collectFolds rtp tm ++ concatMap (\ (Case cx cps ctm) -> collectFolds rtp ctm) cs
 collectFolds rtp (TmAmb tms tp) = concatMap (collectFolds rtp) tms
-collectFolds rtp (TmFactor wt tp) = []
+collectFolds rtp (TmFactor wt tm tp) = collectFolds rtp tm
 collectFolds rtp (TmProd am as) = concatMap (\ (atm, atp) -> collectFolds rtp atm) as
 --collectFolds rtp (TmElimAmp tm o tp) = collectFolds rtp tm
 collectFolds rtp (TmElimProd am tm ps tm' tp) = collectFolds rtp tm ++ collectFolds rtp tm'
@@ -151,8 +151,8 @@ disentangleTerm rtp cases = h where
       pure TmCase <*> h tm <*> pure (y, []) <*> mapCasesM (\ _ _ -> h) cs <*> pure tp
   h (TmAmb tms tp) =
     pure TmAmb <*> mapM h tms <*> pure tp
-  h (TmFactor wt tp) =
-    pure (TmFactor wt tp)
+  h (TmFactor wt tm tp) =
+    pure (TmFactor wt) <*> h tm <*> pure tp
   h (TmProd am as) =
     pure (TmProd am) <*> mapArgsM h as
 --  h (TmElimAmp tm tps o) =
@@ -190,7 +190,7 @@ defoldTerm rtp = h where
   h (TmLet x xtm xtp tm tp) = pure (TmLet x) <*> h xtm <*> pure xtp <*> h tm <*> pure tp
   h (TmCase tm y cs tp) = pure TmCase <*> h tm <*> pure y <*> mapCasesM (\ _ _ -> h) cs <*> pure tp
   h (TmAmb tms tp) = pure TmAmb <*> mapM h tms <*> pure tp
-  h (TmFactor wt tp) = pure (TmFactor wt tp)
+  h (TmFactor wt tm tp) = pure (TmFactor wt) <*> h tm <*> pure tp
   h (TmProd am as) =
     pure (TmProd am) <*> mapArgsM h as
 --  h (TmElimAmp tm tps o) =
@@ -270,7 +270,7 @@ derefunTerm dr g rtp = fst . h where
     let tms' = map h tms
         tp' = if null tms' then sub tp else snd (head tms') in
       TmAmb (fsts tms') tp'
-  h' (TmFactor wt tp) = TmFactor wt tp
+  h' (TmFactor wt tm tp) = let (tm', tp') = h tm in TmFactor wt tm' tp'
   h' (TmProd am as) =
     TmProd am [h tm | (tm, _) <- as]
 --  h' (TmElimAmp tm o tp) =

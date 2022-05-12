@@ -71,8 +71,8 @@ liftAmb (TmCase tm y cs tp) =
     joinAmbs (kronwith (\ tm cs -> TmCase tm y cs tp) tms cs3) tp
 liftAmb (TmAmb tms tp) =
   TmAmb (concatMap (splitAmbs . liftAmb) tms) tp
-liftAmb (TmFactor wt tp) =
-  TmFactor wt tp
+liftAmb (TmFactor wt tm tp) =
+  TmFactor wt (liftAmb tm) tp
 liftAmb (TmProd am as)
   | am == Multiplicative =
     let as' = [[(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
@@ -112,7 +112,7 @@ liftFail' (TmCase tm y cs tp) =
 liftFail' (TmAmb tms tp) =
   let tms' = concatMap (maybe [] (\ tm -> [tm]) . liftFail') tms in
     if null tms' then Nothing else pure (joinAmbs tms' tp)
-liftFail' (TmFactor wt tp) = pure (TmFactor wt tp)
+liftFail' (TmFactor wt tm tp) = pure (TmFactor wt) <*> liftFail' tm <*> pure tp
 liftFail' (TmProd am as)
   | am == Multiplicative =
     pure (TmProd am) <*> mapArgsM liftFail' as
@@ -167,7 +167,7 @@ safe2sub g x xtm tm =
     noDefsSamps (TmLet x xtm xtp tm tp) = noDefsSamps xtm && noDefsSamps tm
     noDefsSamps (TmCase tm y cs tp) = noDefsSamps tm && all (\ (Case x xps xtm) -> noDefsSamps xtm) cs
     noDefsSamps (TmAmb tms tp) = False
-    noDefsSamps (TmFactor wt tp) = False
+    noDefsSamps (TmFactor wt tm tp) = False
     noDefsSamps (TmProd am as) = all (noDefsSamps . fst) as
 --    noDefsSamps (TmElimAmp tm tps o) = noDefsSamps tm
     noDefsSamps (TmElimProd am tm ps tm' tp) = noDefsSamps tm && noDefsSamps tm'
@@ -184,7 +184,7 @@ optimizeTerm g (TmLet x xtm xtp tm tp) =
   if safe2sub g x xtm' tm'
     then optimizeTerm g (substWithCtxt g (Map.fromList [(x, SubTm xtm')]) tm')
     else TmLet x xtm' xtp tm' tp
-optimizeTerm g (TmFactor wt tp) = TmFactor wt tp
+optimizeTerm g (TmFactor wt tm tp) = TmFactor wt (optimizeTerm g tm) tp
 optimizeTerm g (TmLam x tp tm tp') =
   TmLam x tp (optimizeTerm (ctxtDeclTerm g x tp) tm) tp'
 optimizeTerm g (TmApp tm1 tm2 tp2 tp) =

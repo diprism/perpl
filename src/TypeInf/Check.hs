@@ -401,8 +401,8 @@ infer' (UsAmb tms) =
   mapM (constrain . Unify itp . typeof) tms' >>
   return (TmAmb tms' itp)
 
-infer' (UsFactor wt) =
-  return (TmFactor wt (TpProd Multiplicative []))
+infer' (UsFactor wt tm) =
+  infer tm >>= \ tm' -> return (TmFactor wt tm' (typeof tm'))
 
 infer' (UsFail tp) =
   annTp tp >>= \ tp' ->

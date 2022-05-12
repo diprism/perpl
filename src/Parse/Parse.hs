@@ -154,7 +154,7 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 
 TERM2 :=
   | amb TERM5*
-  | factor weight
+  | factor weight in TERM2
   | fail : TYPE1
   | TERM4
 
@@ -165,7 +165,7 @@ parseTerm2 = parsePeek >>= \ t -> case t of
 -- amb tm*
   TkAmb -> parseEat *> parseAmbs []
 -- factor wt
-  TkFactor -> parseEat *> pure UsFactor <*> parseNum
+  TkFactor -> parseEat *> pure UsFactor <*> parseNum <* parseDrop TkIn <*> parseTerm2
 -- fail : type
   TkFail -> parseEat *> pure UsFail <*> parseTpAnn
   _ -> parseTerm4

@@ -20,7 +20,7 @@ define pattern = (H, T, H);
 
 data Nat = Zero | Succ Nat;
 data Unit = unit;
-define flip = amb (let _ = factor 0.5 in H) (let _ = factor 0.5 in T);
+define flip = amb (factor 0.5 in H) (factor 0.5 in T);
 
 define run = \f1: Flip. \f2: Flip.
   let f3 = flip in

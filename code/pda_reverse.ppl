@@ -18,7 +18,7 @@ define pda : String -> Stack = \str.
   | Snoc str last ->
       (let stk = pda str in
         case stk of
-          NilStack -> (fail: Stack)
+          NilStack -> fail
         | Cons top stk ->
             (case transition (Config last top) of
               Pop -> stk
