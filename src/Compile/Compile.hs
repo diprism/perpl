@@ -197,8 +197,8 @@ term2fgg g (TmAmb tms tp) =
 term2fgg g (TmFactor wt tm tp) =
   term2fgg g tm +>= \ xs ->
   let [vtp] = newNames [tp] in
-  addFactor (show wt) (vector [wt]) +>
-  mkRule (TmFactor wt tm tp) (xs ++ [vtp]) [Edge' (vtp : xs) (show tm)] (xs ++ [vtp])
+  addFactor ("factor " ++ show wt) (Scalar wt) +>
+  mkRule (TmFactor wt tm tp) (xs ++ [vtp]) [Edge' [] ("factor " ++ show wt), Edge' (vtp : xs) (show tm)] (xs ++ [vtp])
   
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm +>= \ xtmxs ->
