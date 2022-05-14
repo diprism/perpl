@@ -185,6 +185,20 @@ makeInstantiations xis (SProgData y tgs ps cs) =
                | Ctor x tps <- cs])
       tiss
 
+
+-- See issue #59.
+-- Overrides constructor instantiations, setting them to the instantiations
+-- of their datatype. This avoids generating mismatched/confusing datatypes
+-- and constructors like:
+--   data Nat_inst0 = Zero_inst5 | Succ_inst2
+overrideCtorInsts :: Map Var (Map [Type] Int) -> [SProg] -> Map Var (Map [Type] Int)
+overrideCtorInsts m [] = m
+overrideCtorInsts m (SProgData y tgs pms cs : sps) =
+  let yis = m Map.! y
+      m' = foldr (\ (Ctor x _) -> Map.insert x yis) m cs in
+    overrideCtorInsts m' sps
+overrideCtorInsts m (_ : sps) = overrideCtorInsts m sps
+
 -- Duplicates polymorphic defs for each instantiation they have,
 -- returning a monomorphic program
 monomorphizeFile :: SProgs -> Progs
@@ -194,5 +208,6 @@ monomorphizeFile (SProgs sps stm) =
       xis = makeEmptyInsts sps
       xis' = foldr (\ (x, tis) xis -> addInsts dm tpms xis x tis) xis (collectCalls stm)
       xis'' = fmap (\ tiss -> Map.fromList (zip (Set.toList tiss) [0..])) (semimap xis')
+      xis''' = overrideCtorInsts xis'' sps
   in
-    Progs (concat (makeInstantiations xis'' <$> sps)) (renameCalls xis'' stm)
+    Progs (concat (makeInstantiations xis''' <$> sps)) (renameCalls xis''' stm)
