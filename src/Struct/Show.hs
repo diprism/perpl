@@ -107,6 +107,7 @@ showTypeh :: Type -> String
 showTypeh (TpVar y as) = delimitWith " " (y : [show a | a <- as])
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
 --showTypeh (TpAmp tps) = delimitWith " & " [showType tp ShowTypeArg | tp <- tps]
+showTypeh (TpProd Multiplicative []) = "Unit"
 showTypeh (TpProd am tps) = delimitWith (if am == Additive then " & " else " * ") [showType tp ShowTypeArg | tp <- tps]
 showTypeh NoTp = ""
 

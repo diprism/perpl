@@ -57,23 +57,11 @@ unfoldCtorArgNames y n = [unfoldCtorArgName y i | i <- [0..n-1]]
 
 -- Names used for affLin
 affLinName x = '_' : x
-tpUnitName = "_Unit_"
-tmUnitName = "_unit_"
---tmNothingName i = "_nothing" ++ show i ++ "_"
---tmJustName i = "_just" ++ show i ++ "_"
---tpMaybeName i = "_Maybe" ++ show i ++ "_"
 
 -- Constructors and case-ofs for affLin-generated datatypes
---tmNothing :: Int -> Term
---tmNothing i = TmVarG CtorVar (tmNothingName i) [] (tpMaybe i)
 
---tmJust :: Int -> Term -> Type -> Term
---tmJust i tm tp = TmVarG CtorVar (tmJustName i) [(tm, tp)] (tpMaybe i)
-
---tpMaybe i = TpVar (tpMaybeName i)
-
-tmUnit = TmVarG CtorVar tmUnitName [] [] tpUnit
-tpUnit = TpVar tpUnitName []
+tmUnit = TmProd Multiplicative []
+tpUnit = TpProd Multiplicative []
 
 tpBoolName = "Bool"
 tmTrueName = "True"
@@ -82,22 +70,10 @@ tpBool = TpVar tpBoolName []
 tmTrue = TmVarG CtorVar tmTrueName [] [] tpBool
 tmFalse = TmVarG CtorVar tmFalseName [] [] tpBool
 
---tmElimMaybe :: Int -> Term -> Type -> Term -> (Var, Term) -> Type -> Term
---tmElimMaybe i tm tp ntm (jx, jtm) tp' =
---  TmCase tm (tpMaybeName i)
---    [Case (tmNothingName i) [] ntm,
---     Case (tmJustName i) [(jx, tp)] jtm] tp'
-
-tmElimUnit :: Term -> Term -> Type -> Term
-tmElimUnit utm tm tp = TmCase utm (tpUnitName, []) [Case tmUnitName [] tm] tp
-
-unitCtors = [Ctor tmUnitName []]
---maybeCtors i tp = [Ctor (tmNothingName i) [], Ctor (tmJustName i) [tp]]
 
 builtins :: [UsProg]
 builtins = [
-  UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []],
-  UsProgData tpUnitName [] unitCtors
+  UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []]
   ]
 
 progBuiltins :: UsProgs -> UsProgs

@@ -1,10 +1,8 @@
 {- Probability of extinction of a (patronymic) surname if each man has zero or two sons. -}
 
-data Unit = unit;
-
 extern p: Bool; -- false = 0 sons, true = 2 sons
 
 define extinct: Unit =
-  if p then (let u1 = extinct in let u2 = extinct in unit) else unit;
+  if p then (let u1 = extinct in let u2 = extinct in ()) else ();
 
-extinct -- Should be {unit: min(0, (1-p)/p)}
+extinct -- Should be {(): min(0, (1-p)/p)}

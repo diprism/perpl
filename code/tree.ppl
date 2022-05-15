@@ -1,5 +1,3 @@
-data Unit = unit;
-
 data Tree =
     Leaf
   | Node Children;
@@ -16,12 +14,12 @@ define produce_children: Children =
 
 define consume_tree: Tree -> Unit = \t: Tree.
   case t of
-      Leaf -> unit
+      Leaf -> ()
     | Node c -> consume_children c;
 
 define consume_children: Children -> Unit = \c: Children.
   case c of
-      Nil -> unit
+      Nil -> ()
     | Cons t c -> (let _ = consume_tree t in consume_children c);
 
 consume_tree produce_tree

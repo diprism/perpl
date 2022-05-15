@@ -20,13 +20,12 @@ data Flip = H | T;
 {- The pattern to search for. -}
 define pattern = (H, T, H);
 
-data Unit = unit;
 extern tick: Unit; 
 define flip = let _ = tick in amb (factor 0.5 in H) (factor 0.5 in T);
 
 define run = \f1: Flip. \f2: Flip.
   let f3 = flip in
-    if (f1, f2, f3) == pattern then unit
+    if (f1, f2, f3) == pattern then ()
     else run f2 f3;
 
 run flip flip

@@ -3,11 +3,10 @@
    Each time you can either climb 1 or 2 steps. In how many distinct ways can you climb to the top? -}
 
 data Nat = Zero | Succ Nat;
-data Unit = unit;
 
 define climb = \stairs.
   case stairs of
-  | Zero -> unit
+  | Zero -> ()
   | Succ stairs -> 
     amb (climb stairs)   -- take one step
         (case stairs of  -- take two steps

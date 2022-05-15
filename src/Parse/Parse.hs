@@ -101,11 +101,11 @@ parseVars = parsePeek >>= \ t -> case t of
   _ -> pure []
 
 -- Parse comma-delimited symbols
-parseVarsCommas :: ParseM [Var]
-parseVarsCommas = parsePeeks 2 >>= \ ts -> case ts of
-  [TkVar v, TkComma] -> parseEat *> parseEat *> pure ((:) v) <*> parseVarsCommas
-  [TkVar v, _] -> parseEat *> pure [v]
-  _ -> parseErr "expecting a variable name here"
+parseVarsCommas :: Bool -> Bool -> ParseM [Var]
+parseVarsCommas allow0 allow1 = parsePeeks 2 >>= \ ts -> case ts of
+  [TkVar v, TkComma] -> parseEat *> parseEat *> pure ((:) v) <*> parseVarsCommas allow1 True
+  [TkVar v, _] -> if allow1 then parseEat *> pure [v] else parseErr "unary tuple of variables not allowed here"
+  _ -> if allow0 then pure [] else parseErr "0-ary tuple of variables not allowed here"
 
 -- Parse a branch of a case expression.
 parseCase :: ParseM CaseUs
@@ -141,9 +141,9 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- \ x : type. term
   [TkLam, _] -> parseEat *> pure UsLam <*> parseVar <*> parseTpAnn <* parseDrop TkDot <*> parseTerm1
 -- let (x, y, ...) = term in term
-  [TkLet, TkParenL] -> parseEat *> parseEat *> pure (flip (UsElimProd Multiplicative)) <*> parseVarsCommas <* parseDrop TkParenR <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
+  [TkLet, TkParenL] -> parseEat *> parseEat *> pure (flip (UsElimProd Multiplicative)) <*> parseVarsCommas True False <* parseDrop TkParenR <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- let <..., _, x, _, ...> = term in term
-  [TkLet, TkLangle] -> parseEat *> parseEat *> pure (flip (UsElimProd Additive)) <*> parseVarsCommas <* parseDrop TkRangle <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
+  [TkLet, TkLangle] -> parseEat *> parseEat *> pure (flip (UsElimProd Additive)) <*> parseVarsCommas False False <* parseDrop TkRangle <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- let x = term in term
   [TkLet, _] -> parseEat *> pure UsLet <*> parseVar <*> parseTpAnn <* parseDrop TkEq
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
@@ -170,7 +170,7 @@ parseTerm2 = parsePeek >>= \ t -> case t of
   TkFail -> parseEat *> pure UsFail <*> parseTpAnn
   _ -> parseTerm4
 
--- Parse tok-delimited terms
+-- Parse one or more tok-delimited terms
 parseTmsDelim :: Token -> [UsTm] -> ParseM [UsTm]
 parseTmsDelim tok tms = parsePeek >>= \ t ->
   if t == tok
@@ -213,10 +213,12 @@ parseTermApp acc =
 {-
 
 TERM5 :=
-  | VAR
-  | (TERM1)
-  | <TERM1, ...>
-  | fail           (without type annotation)
+  | VAR                      variable
+  | (TERM1)                  grouping
+  | ()                       multiplicative tuple of zero terms
+  | (TERM1, ...)             multiplicative tuple of two or more terms
+  | <TERM1> | <TERM1, ...>   additive tuple of one or more terms
+  | fail                     (without type annotation)
   | error
 
  -}
@@ -225,7 +227,11 @@ TERM5 :=
 parseTerm5 :: ParseM UsTm
 parseTerm5 = parsePeek >>= \ t -> case t of
   TkVar v -> parseEat *> pure (UsVar v)
-  TkParenL -> parseEat *> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd Multiplicative tms)) <* parseDrop TkParenR -- TODO: product
+  TkParenL -> parseEat *> (
+    parsePeek >>= \ t -> case t of
+        TkParenR -> pure (UsProd Multiplicative [])
+        _ -> parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd Multiplicative tms)
+    ) <* parseDrop TkParenR
   TkLangle -> parseEat *> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm]) <* parseDrop TkRangle
   TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
@@ -297,8 +303,9 @@ parseType3 = parsePeek >>= \ t -> case t of
 {-
 
 TYPE4 :=
-  | VAR
-  | (TYPE1)
+  | VAR                         type variable
+  | (TYPE1)                     grouping
+  | Bool | Unit                 built-in type names
   | error
 
 -}
@@ -307,6 +314,7 @@ parseType4 :: ParseM Type
 parseType4 = parsePeek >>= \ t -> case t of
   TkVar v -> parseEat *> pure (TpVar v [])
   TkBool -> parseEat *> pure (TpVar "Bool" [])
+  TkUnit -> parseEat *> pure (TpProd Multiplicative [])
   TkParenL -> parseEat *> parseType1 <* parseDrop TkParenR
   _ -> parseErr "couldn't parse a type here; perhaps add parentheses?"
 
