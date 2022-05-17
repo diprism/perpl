@@ -119,6 +119,12 @@ parseCases = (*>) (parseDropSoft TkBar) $ parsePeek >>= \ t -> case t of
   TkVar _ -> pure (:) <*> parseCase <*> parseCases
   _ -> pure []
 
+-- Parses a (floating-point) number
+parseNum :: ParseM Double
+parseNum = parsePeek >>= \ t -> case t of
+  TkNum o -> parseEat >> return o
+  _ -> parseErr "Expected a number here"
+  
 {-
 
 TERM1 :=
@@ -127,6 +133,7 @@ TERM1 :=
   | \ VAR [: TYPE1]. TERM1
   | let (VAR, ...) = TERM1 in TERM1
   | let VAR = TERM1 in TERM1
+  | factor weight in TERM1
   | TERM2
 
  -}
@@ -147,6 +154,8 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- let x = term in term
   [TkLet, _] -> parseEat *> pure UsLet <*> parseVar <*> parseTpAnn <* parseDrop TkEq
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
+-- factor wt
+  [TkFactor, _] -> parseEat *> pure UsFactor <*> parseNum <* parseDrop TkIn <*> parseTerm1
   _ -> parseTerm2
 
 
@@ -154,7 +163,6 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 
 TERM2 :=
   | amb TERM5*
-  | factor weight in TERM2
   | fail : TYPE1
   | TERM4
 
@@ -164,8 +172,6 @@ parseTerm2 :: ParseM UsTm
 parseTerm2 = parsePeek >>= \ t -> case t of
 -- amb tm*
   TkAmb -> parseEat *> parseAmbs []
--- factor wt
-  TkFactor -> parseEat *> pure UsFactor <*> parseNum <* parseDrop TkIn <*> parseTerm2
 -- fail : type
   TkFail -> parseEat *> pure UsFail <*> parseTpAnn
   _ -> parseTerm4
@@ -176,12 +182,6 @@ parseTmsDelim tok tms = parsePeek >>= \ t ->
   if t == tok
     then parseEat >> parseTerm1 >>= \ tm -> parseTmsDelim tok (tm : tms)
     else return (reverse tms)
-
--- Parses a (floating-point) number
-parseNum :: ParseM Double
-parseNum = parsePeek >>= \ t -> case t of
-  TkNum o -> parseEat >> return o
-  _ -> parseErr "Expected a number here"
 
 
 {-
