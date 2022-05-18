@@ -339,7 +339,7 @@ derefunThese ps recs = foldl (\ ps (rtp, dr) -> ps >>= derefunThis' dr rtp) (ret
 
 insertProgs' :: Var -> Prog -> Prog -> [Prog] -> [Prog]
 insertProgs' rtp dat fun [] = []
-insertProgs' rtp dat fun (ProgData y cs : ds) = if y == rtp then ProgData y cs : dat : fun : ds else ProgData y cs : insertProgs' rtp dat fun ds
+insertProgs' rtp dat fun (ProgData y cs : ds) | y == rtp = ProgData y cs : dat : fun : ds
 insertProgs' rtp dat fun (d : ds) = d : insertProgs' rtp dat fun ds
 
 -- Inserts new Fold/Unfold progs right after the datatype they correspond to
