@@ -414,7 +414,14 @@ spanGraphError res chosen =
 -- Greedily pops nodes from the graph that satisfy tryPickDR until none remain,
 -- returning the recursive datatype names and whether to de- or refunctionalize them
 spanGraph :: [(Var, DeRe)] -> RecEdges -> Either String [(Var, DeRe)]
-spanGraph explicit_drs = h [] where
+spanGraph explicit_drs res =
+  case [ rtp | (rtp,_) <- explicit_drs, Map.notMember rtp res ] of
+    [] -> h [] res
+    extras -> Left $ "No recursive datatype named " ++ intercalate " or " extras ++
+                     case [ rtp | rtp <- Map.keys res, any (`isPrefixOf` rtp) extras ] of
+                       [] -> ""
+                       actuals -> " (did you mean " ++ intercalate " or " actuals ++ "?)"
+ where
   h :: [(Var, DeRe)] -> RecEdges -> Either String [(Var, DeRe)]
   h chosen res
     | null res = return (reverse chosen)
