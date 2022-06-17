@@ -72,7 +72,10 @@ liftAmb (TmCase tm y cs tp) =
 liftAmb (TmAmb tms tp) =
   TmAmb (concatMap (splitAmbs . liftAmb) tms) tp
 liftAmb (TmFactor wt tm tp) =
-  TmFactor wt (liftAmb tm) tp
+  let tms = splitAmbs (liftAmb tm)
+      tms' = [TmFactor wt atm tp | atm <- tms]
+  in
+    joinAmbs tms' tp
 liftAmb (TmProd am as)
   | am == Multiplicative =
     let as' = [[(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
