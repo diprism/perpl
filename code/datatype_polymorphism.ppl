@@ -5,7 +5,7 @@ define concat = \ xs. \ ys. case xs of
   | Cons x xs' -> Cons x (concat xs' ys);
 
 define head = \ xs. case xs of
-  | Nil -> sample fail
+  | Nil -> fail
   | Cons x xs' -> x;
 
 define tail = \ xs. case xs of

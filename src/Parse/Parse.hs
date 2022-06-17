@@ -119,6 +119,12 @@ parseCases = (*>) (parseDropSoft TkBar) $ parsePeek >>= \ t -> case t of
   TkVar _ -> pure (:) <*> parseCase <*> parseCases
   _ -> pure []
 
+-- Parses a (floating-point) number
+parseNum :: ParseM Double
+parseNum = parsePeek >>= \ t -> case t of
+  TkNum o -> parseEat >> return o
+  _ -> parseErr "Expected a number here"
+  
 {-
 
 TERM1 :=
@@ -127,6 +133,7 @@ TERM1 :=
   | \ VAR [: TYPE1]. TERM1
   | let (VAR, ...) = TERM1 in TERM1
   | let VAR = TERM1 in TERM1
+  | factor weight in TERM1
   | TERM2
 
  -}
@@ -147,26 +154,27 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- let x = term in term
   [TkLet, _] -> parseEat *> pure UsLet <*> parseVar <*> parseTpAnn <* parseDrop TkEq
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
+-- factor wt
+  [TkFactor, _] -> parseEat *> pure UsFactor <*> parseNum <* parseDrop TkIn <*> parseTerm1
   _ -> parseTerm2
 
 
 {-
 
 TERM2 :=
-  | sample DIST : TYPE1
   | amb TERM5*
-  | TERM3
+  | fail : TYPE1
+  | TERM4
 
  -}
 
--- Sample
 parseTerm2 :: ParseM UsTm
 parseTerm2 = parsePeek >>= \ t -> case t of
--- sample dist : type
-  TkSample -> parseEat *> pure UsSamp <*> parseDist <*> parseTpAnn
 -- amb tm*
   TkAmb -> parseEat *> parseAmbs []
-  _ -> parseTerm3
+-- fail : type
+  TkFail -> parseEat *> pure UsFail <*> parseTpAnn
+  _ -> parseTerm4
 
 -- Parse one or more tok-delimited terms
 parseTmsDelim :: Token -> [UsTm] -> ParseM [UsTm]
@@ -175,16 +183,6 @@ parseTmsDelim tok tms = parsePeek >>= \ t ->
     then parseEat >> parseTerm1 >>= \ tm -> parseTmsDelim tok (tm : tms)
     else return (reverse tms)
 
--- Parses an integer (is this used anymore?)
-parseNum :: ParseM Int
-parseNum = parsePeek >>= \ t -> case t of
-  TkNum o -> parseEat >> return o
-  _ -> parseErr "Expected a number here"
-
-
--- No longer needed, directly calls parseTerm4
-parseTerm3 :: ParseM UsTm
-parseTerm3 = parseTerm4
 
 {-
 
@@ -220,6 +218,7 @@ TERM5 :=
   | ()                       multiplicative tuple of zero terms
   | (TERM1, ...)             multiplicative tuple of two or more terms
   | <TERM1> | <TERM1, ...>   additive tuple of one or more terms
+  | fail                     (without type annotation)
   | error
 
  -}
@@ -234,6 +233,7 @@ parseTerm5 = parsePeek >>= \ t -> case t of
         _ -> parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd Multiplicative tms)
     ) <* parseDrop TkParenR
   TkLangle -> parseEat *> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm]) <* parseDrop TkRangle
+  TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
 -- Parses tok-delimited types
@@ -326,14 +326,6 @@ parseCtors = ParseM $ \ ts -> case ts of
 parseCtorsH = parsePeek >>= \ t -> case t of
   TkBar -> parseEat *> pure (:) <*> (pure Ctor <*> parseVar <*> parseTypes) <*> parseCtorsH
   _ -> pure []
-
--- Dist
-parseDist :: ParseM Dist
-parseDist = parsePeek >>= \ t -> case t of
-  TkAmb  -> parseEat *> pure DistAmb
-  TkFail -> parseEat *> pure DistFail
-  TkUni  -> parseEat *> pure DistUni
-  _ -> parseErr ("expected one of " ++ show TkAmb ++ ", " ++ show TkFail ++ ", or " ++ show TkUni ++ " here")
 
 -- List of Types
 parseTypes :: ParseM [Type]

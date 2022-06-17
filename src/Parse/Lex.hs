@@ -6,15 +6,14 @@ import Struct.Lib
 -- Possible tokens
 data Token =
     TkVar Var -- "x"
-  | TkNum Int -- not sure if this is used anymore...
+  | TkNum Double -- floating-point literal
   | TkLam -- "\"
   | TkParenL -- "("
   | TkParenR -- ")"
   | TkEq -- "="
-  | TkSample -- "sample"
   | TkFail -- "fail"
   | TkAmb -- "amb"
-  | TkUni -- "uniform"
+  | TkFactor -- "factor"
   | TkCase -- "case"
   | TkOf -- "of"
   | TkLet -- "let"
@@ -62,10 +61,9 @@ instance Show Token where
   show TkSemicolon = ";"
   show TkDoubleEq = "=="
   -- Keyword tokens
-  show TkSample = "sample"
   show TkFail = "fail"
   show TkAmb = "amb"
-  show TkUni = "uniform"
+  show TkFactor = "factor"
   show TkCase = "case"
   show TkOf = "of"
   show TkLet = "let"
@@ -97,13 +95,13 @@ next (line, column) = (succ line, 0)
 -- List of punctuation tokens
 punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkLeftArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkStar, TkAmp, TkLangle, TkRangle]
 -- List of keyword tokens (use alphanumeric chars)
-keywords = [TkFail, TkAmb, TkUni, TkCase, TkOf, TkLet, TkIn, TkUni, TkSample, TkFun, TkExtern, TkData, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse, TkUnit]
+keywords = [TkAmb, TkFactor, TkFail, TkCase, TkOf, TkLet, TkIn, TkFun, TkExtern, TkData, TkUnit, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
 
 -- Tries to lex s as punctuation, otherwise lexing s as a keyword or a var
 lexPunctuation :: String -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
 lexPunctuation s =
   foldr (\ t owise -> maybe owise (flip (lexAdd (show t)) t) (prefix (show t) s))
-        (lexKeywordOrVar s)
+        (lexNum s)
         punctuation
   where
     prefix (tc : tcs) (c : cs) =
@@ -134,33 +132,49 @@ lexComment (Just n) ('{' : '-' : s) = lexComment (Just (succ n)) s . forward' 2
 lexComment multiline (_ : s) = lexComment multiline s . forward
 lexComment _ "" = \ _ ts -> Right ts
 
+lexNum :: String -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
+lexNum s = case reads s :: [(Double, String)] of
+  [] -> lexKeywordOrVar s
+  [(n, rest)] -> lexAdd (take ((length s)-(length rest)) s) rest (TkNum n)
+  _ -> error "this shouldn't happen"
+
 -- Consumes characters until a non-variable character is reached
 lexVar :: String -> (String, String)
-lexVar = h "" where
-  h v (c : s) = if isVarChar c then h (c : v) s else (reverse v, (c : s))
-  h v "" = (reverse v, "")
+lexVar "" = ("", "")
+lexVar (c : s)
+  | isVarFirstChar c = h [c] s
+  | otherwise = ("", (c : s))
+  where
+    h v "" = (reverse v, "")
+    h v (c : s)
+      | isVarChar c = h (c : v) s
+      | otherwise = (reverse v, (c : s))
 
 -- Determines if c is a valid character for a variable name
---varChars = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['\'', '_']
+isVarFirstChar :: Char -> Bool
+isVarFirstChar c = ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('_' == c)
+  
 isVarChar :: Char -> Bool
-isVarChar c =
-  ('a' <= c && c <= 'z') ||
-  ('A' <= c && c <= 'Z') ||
-  ('0' <= c && c <= '9') ||
-  ('\'' == c) || ('_' == c)
+isVarChar c = isVarFirstChar c || ('0' <= c && c <= '9') || ('\'' == c) 
 
 -- Lex a keyword or a variable name
 lexKeywordOrVar :: String -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
 lexKeywordOrVar s p ts =
   let (v, rest) = lexVar s in
-    if length v > 0 then trynum v rest (trykw keywords v rest) p ts else Left p
+    if length v > 0 then trykw keywords v rest p ts else Left p
   where
-    trynum v s kw = if all (\ c -> '0' <= c && c <= '9') v then lexAdd v s (TkNum (read v :: Int)) else kw
     trykw (kwtok : kws) v s =
       if show kwtok == v then lexAdd v s kwtok else trykw kws v s
     trykw [] v s = lexAdd v s (TkVar v)
 
--- Add a token, and continue lexing
+{- Add a token to output token list and continue lexing
+
+- t_s: new token as string
+- s: rest of string after t_s
+- t: new token as Token
+- p: position of t
+- ts: token list -}
+
 lexAdd :: String -> String -> Token -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
 lexAdd t_s s t p ts = lexStrh s (forward' (length t_s) p) ((p, t) : ts)
 

@@ -19,7 +19,7 @@ data Flip = H | T;
 define pattern = (H, T, H);
 
 data Nat = Zero | Succ Nat;
-define flip = sample uniform: Flip;
+define flip = amb (factor 0.5 in H) (factor 0.5 in T);
 
 define run = \f1: Flip. \f2: Flip.
   let f3 = flip in
@@ -28,7 +28,7 @@ define run = \f1: Flip. \f2: Flip.
 
 {- weigh n returns the distribution {(): n}. -}
 define weigh = \n.
-  case n of Zero -> sample fail
+  case n of Zero -> fail
           | Succ n -> amb () (weigh n);
 
 weigh (run flip flip)

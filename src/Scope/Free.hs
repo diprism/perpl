@@ -38,9 +38,10 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccs (UsCase tm cs) = foldr (Map.unionWith max . countOccsCase) (countOccs tm) cs
     countOccs (UsIf tm1 tm2 tm3) = Map.unionWith (+) (countOccs tm1) (Map.unionWith max (countOccs tm2) (countOccs tm3))
     countOccs (UsTmBool b) = Map.empty
-    countOccs (UsSamp d tp) = Map.empty
     countOccs (UsLet x tp tm tm') = Map.unionWith max (countOccs tm) (Map.delete x $ countOccs tm')
     countOccs (UsAmb tms) = Map.unionsWith max (map countOccs tms)
+    countOccs (UsFactor wt tm) = countOccs tm
+    countOccs (UsFail tp) = Map.empty
 --    countOccs (UsElimAmp tm o) = countOccs tm
     countOccs (UsProd am tms) = Map.unionsWith (if am == Additive then max else (+)) (map countOccs tms)
     countOccs (UsElimProd am tm xs tm') = Map.unionWith (+) (countOccs tm) (foldr Map.delete (countOccs tm') xs)
@@ -69,10 +70,11 @@ isLin x tm = h tm == LinYes where
     (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
   h (UsIf tm1 tm2 tm3) = linIf' (h tm1) (h_as LinErr [tm2, tm3]) (h_as LinYes [tm2, tm3])
   h (UsTmBool b) = LinNo
-  h (UsSamp d tp) = LinNo
   h (UsLet x' tp tm tm') =
     if x == x' then h tm else h_as LinErr [tm, tm']
   h (UsAmb tms) = h_as LinYes tms
+  h (UsFactor wt tm) = h tm
+  h (UsFail tp) = LinNo
 --  h (UsElimAmp tm o) = h tm
   h (UsProd am tms) = h_as (if am == Additive then LinYes else LinErr) tms
   h (UsElimProd am tm xs tm') = if x `elem` xs then h tm else h_as LinErr [tm, tm']
@@ -98,8 +100,8 @@ isLin' x = (LinYes ==) . h where
     (foldr (\ c -> linIf' (linCase c) LinErr) LinYes cs)
     -- make sure x is linear in all the cases, or in none of the cases
     (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
-  h (TmSamp d tp) = LinNo
   h (TmAmb tms tp) = h_as LinYes tms
+  h (TmFactor wt tm tp) = h tm
   h (TmProd am as) = h_as (if am == Additive then LinYes else LinErr) (fsts as)
 --  h (TmElimAmp tm tps o) = h tm
   h (TmElimProd am tm ps tm' tp) =

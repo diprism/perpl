@@ -187,22 +187,19 @@ term2fgg g (TmCase tm (y, _) cs tp) =
   let fvs = freeVars cs in
     bindCases (Map.toList (Map.union (freeVars tm) fvs)) (map (caseRule g fvs xs tm y cs tp) cs)
 
-term2fgg g (TmSamp d tp) =
-  let dvs = domainValues g tp in
-  case d of
-    DistFail ->
-      addFactor (show $ TmSamp d tp)
-        (vector [0.0 | _ <- [0..length dvs - 1]])
-    DistUni  ->
-      addFactor (show $ TmSamp d tp)
-        (vector [1.0 / fromIntegral (length dvs) | _ <- [0..length dvs - 1]])
-    DistAmb  -> -- TODO: is this fine, or do we need to add a rule with one node and one edge (that has the factor below)?
-      addFactor (show $ TmSamp d tp) (vector [1.0 | _ <- [0..length dvs - 1]])
-
+-- fail (i.e., amb with no arguments) doesn't generate any rules, but
+-- should still generate the left-hand side nonterminal
+term2fgg g (TmAmb [] tp) = addNonterm (show (TmAmb [] tp)) tp
 term2fgg g (TmAmb tms tp) =
   let fvs = Map.unions (map freeVars tms) in
     bindCases (Map.toList fvs) (map (uncurry $ ambRule g fvs tms tp) (collectDups tms))
-
+    
+term2fgg g (TmFactor wt tm tp) =
+  term2fgg g tm +>= \ xs ->
+  let [vtp] = newNames [tp] in
+  addFactor ("factor " ++ show wt) (Scalar wt) +>
+  mkRule (TmFactor wt tm tp) (xs ++ [vtp]) [Edge' [] ("factor " ++ show wt), Edge' (vtp : xs) (show tm)] (xs ++ [vtp])
+  
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm +>= \ xtmxs ->
   bindExt True x xtp $

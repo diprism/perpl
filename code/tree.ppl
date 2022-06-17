@@ -7,16 +7,10 @@ data Children =
   | Cons Tree Children;
 
 define produce_tree: Tree =
-  if sample uniform : Bool then
-    Leaf
-  else
-    Node produce_children;
+  amb (factor 0.5 in Leaf) (factor 0.5 in Node produce_children);
 
 define produce_children: Children =
-  if sample uniform : Bool then
-    Nil
-  else
-    Cons produce_tree produce_children;
+  amb (factor 0.5 in Nil) (factor 0.5 in Cons produce_tree produce_children);
 
 define consume_tree: Tree -> Unit = \t: Tree.
   case t of

@@ -7,13 +7,11 @@ data Nat = Zero | Succ Nat;
 define climb = \stairs.
   case stairs of
   | Zero -> ()
-  | Succ stairs -> (
-    case sample amb of
-    | False -> climb stairs -- take one step
-    | True -> (             -- take two steps
-      case stairs of
-      | Zero -> sample fail
-      | Succ stairs -> climb stairs));
+  | Succ stairs -> 
+    amb (climb stairs)   -- take one step
+        (case stairs of  -- take two steps
+         | Zero -> fail
+         | Succ stairs -> climb stairs);
 
 define foo = \stairs. True;
 

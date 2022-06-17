@@ -382,13 +382,6 @@ infer' (UsTmBool b) =
   -- Translate True/False into a constructor var
   return (TmVarG CtorVar (if b then "True" else "False") [] [] (TpVar "Bool" []))
 
-infer' (UsSamp d tp) =
-  -- Check the annotation tp
-  annTp tp >>= \ tp' ->
-  -- Constraint: tp' must be robust
-  constrain (Robust tp') >>
-  return (TmSamp d tp')
-
 infer' (UsLet x xtp xtm tm) =
   -- Check the annotation xtp'
   annTp xtp >>= \ xtp' ->
@@ -407,6 +400,13 @@ infer' (UsAmb tms) =
   -- Constraint: for each tm in tms', itp = (typeof tm)
   mapM (constrain . Unify itp . typeof) tms' >>
   return (TmAmb tms' itp)
+
+infer' (UsFactor wt tm) =
+  infer tm >>= \ tm' -> return (TmFactor wt tm' (typeof tm'))
+
+infer' (UsFail tp) =
+  annTp tp >>= \ tp' ->
+  return (TmAmb [] tp')
 
 infer' (UsProd am tms) =
   mapM infer tms >>= \ tms' ->

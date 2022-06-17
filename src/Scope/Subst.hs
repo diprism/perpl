@@ -144,10 +144,10 @@ instance Substitutable Term where
     pure (TmLet x') <*> substM xtm <*> substM xtp <*> bind x x' (substM tm) <*> substM tp
   substM (TmCase tm (y, as) cs tp) =
     pure TmCase <*> substM tm <*> (pure ((,) y) <*> substM as) <*> substM cs <*> substM tp
-  substM (TmSamp d tp) =
-    pure (TmSamp d) <*> substM tp
   substM (TmAmb tms tp) =
     pure TmAmb <*> substM tms <*> substM tp
+  substM (TmFactor wt tm tp) =
+    pure TmFactor <*> pure wt <*> substM tm <*> substM tp
   substM (TmProd am as) =
     pure (TmProd am) <*> mapArgsM substM as
 --  substM (TmElimAmp tm i tp) =
@@ -163,8 +163,8 @@ instance Substitutable Term where
   freeVars (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars tm1) (freeVars tm2)
   freeVars (TmLet x xtm xtp tm tp) = Map.union (freeVars xtm) (Map.delete x (freeVars tm))
   freeVars (TmCase tm y cs tp) = Map.union (freeVars tm) (freeVars cs)
-  freeVars (TmSamp d tp) = Map.empty
   freeVars (TmAmb tms tp) = freeVars tms
+  freeVars (TmFactor wt tm tp) = freeVars tm
   freeVars (TmProd am as) = freeVars (fsts as)
 --  freeVars (TmElimAmp tm i tp) = freeVars tm
   freeVars (TmElimProd am ptm ps tm tp) = Map.union (freeVars ptm) (foldr (Map.delete . fst) (freeVars tm) ps)
@@ -210,13 +210,15 @@ instance Substitutable UsTm where
     pure UsIf <*> substM tm1 <*> substM tm2 <*> substM tm3
   substM (UsTmBool b) =
     pure (UsTmBool b)
-  substM (UsSamp d tp) =
-    pure (UsSamp d) <*> substM tp
   substM (UsLet x xtp xtm tm) =
     freshen x >>= \ x' ->
     pure (UsLet x') <*> substM xtp <*> substM xtm <*> bind x x' (substM tm)
   substM (UsAmb tms) =
     pure UsAmb <*> substM tms
+  substM (UsFactor wt tm) =
+    pure UsFactor <*> pure wt <*> substM tm
+  substM (UsFail tp) =
+    pure UsFail <*> substM tp
   substM (UsProd am tms) =
     pure (UsProd am) <*> substM tms
   substM (UsElimProd am tm xs tm') =
@@ -238,12 +240,14 @@ instance Substitutable UsTm where
     Map.unions [freeVars tm1, freeVars tm2, freeVars tm3]
   freeVars (UsTmBool b) =
     Map.empty
-  freeVars (UsSamp d tp) =
-    Map.empty
   freeVars (UsLet x xtp xtm tm) =
     Map.union (freeVars xtm) (Map.delete x (freeVars tm))
   freeVars (UsAmb tms) =
     freeVars tms
+  freeVars (UsFactor wt tm) =
+    freeVars tm
+  freeVars (UsFail tp) =
+    Map.empty
 --  freeVars (UsElimAmp tm o) =
 --    freeVars tm
   freeVars (UsProd am tms) =
