@@ -1,0 +1,32 @@
+{- In Penney's game, Player A and Player B choose patterns of three
+   (ordered) coin flips, then flip a fair coin until one player's
+   pattern occurs. That player is the winner.
+
+   https://en.wikipedia.org/wiki/Penney%27s_game -}
+
+data Flip = H | T;
+define fair = amb (factor 0.5 in H) (factor 0.5 in T);
+
+data Flips = Nil | Cons Flip Flips;
+
+{- The pattern to stop at. -}
+define pattern1 = (H, T, H);
+
+{- The pattern to search for. -}
+define pattern2 = (H, H, T);
+
+define gen = \f1: Flip. \f2: Flip.
+  let f3 = fair in
+    if (f1, f2, f3) == pattern1
+    then Cons f1 (Cons f2 (Cons f3 Nil))
+    else Cons f1 (gen f2 f3);
+
+define search = \f1: Flip. \f2: Flip. \fs: Flips.
+  case fs of Nil -> False | Cons f3 fs ->
+    if (f1, f2, f3) == pattern2
+    then True
+    else search f2 f3 fs;
+
+let f1 = fair in
+let f2 = fair in
+search f1 f2 (gen f1 f2)
