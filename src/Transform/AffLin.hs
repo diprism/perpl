@@ -8,6 +8,8 @@ import Scope.Name
 import Scope.Free
 import Scope.Subst
 
+import Debug.Trace
+
 {- ====== Affine to Linear Functions ====== -}
 -- These functions convert affine terms to
 -- linear ones, where an affine term is one where
@@ -21,10 +23,16 @@ import Scope.Subst
 -- rewriting terms so that they have the new transformed type:
 --   1. L(tp1 -> tp2 -> ... -> tpn) = (L(tp1) -> L(tp2) -> ... -> L(tpn)) & Unit
 --   2. L(tp1 &  tp2 *  ... &  tpn) =  L(tp1) &  L(tp2) &  ... &  L(tpn)  & Unit
+--   3. L(μ tv. tp)                 =  L(tp)                              & Unit
 -- Then for terms, we basically apply these two transformations to match the new types:
---   1. L(tm a1 a2 ... an) = let <f, _> = L(tm) in f L(a1) L(a2) ... L(an)
---   2. L(<tm1, tm2, ..., tmn>) => <L*(tm1), L*(tm2), ..., L*(tmn), L*(unit)>
+--   1. L(\x1. ... tm) = <\x1. ... L(tm), L*(unit)>
+--      L(tm a1 a2 ... an) = L(tm).1 L(a1) L(a2) ... L(an)
+--   2. L(<tm1, tm2, ..., tmn>) = <L*(tm1), L*(tm2), ..., L*(tmn), L*(unit)>
 --        (where L* denotes L but with calls to Z to ensure all branches have same FVs)
+--      L(tm.i) = L(tm).i
+--   3. L(fold tm) = <fold L(tm), L*(unit)>
+--      L(unfold tm) = unfold L(tm).1
+
 
 -- Reader, Writer, State monad
 type AffLinM a = RWS Ctxt FreeVars () a
@@ -274,4 +282,4 @@ runAffLin ps = case runRWS (affLinProgs ps) emptyCtxt () of
 
 -- Make an affine file linear
 affLinFile :: Progs -> Either String Progs
-affLinFile = return . runAffLin
+affLinFile ps = return (runAffLin ps)

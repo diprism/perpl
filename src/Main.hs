@@ -88,9 +88,8 @@ alphaRenameProgs gf a = return (alphaRename (gf a) a)
 
 --process :: Show a => CmdArgs -> String -> a
 processContents (CmdArgs ifn ofn c m e dr l o) s =
-  let e' = e && m
-      l' = l && e'
-      c' = c && l'
+  let e' = e && m && l
+      c' = c && l
   in
   return s
   -- String to UsProgs
@@ -101,18 +100,15 @@ processContents (CmdArgs ifn ofn c m e dr l o) s =
   >>= Right . progBuiltins
   -- Type check the file (:: UsProgs -> Progs)
   >>= infer
---  >>= return . show
   >>= if not m then return . show else (\ x -> (Right . monomorphizeFile) x
   >>= Right . argifyFile
 --  >>= alphaRenameProgs (const emptyCtxt)
---  >>= return . show
   -- Apply various optimizations
   >>= doIf o optimizeFile
+  -- Convert terms from affine to linear
+  >>= doIf l affLinFile
   -- Eliminate recursive types (de/refunctionalization)
   >>= doIf e' (elimRecTypes dr)
---  >>= return . show
-  -- Convert terms from affine to linear
-  >>= doIf l' affLinFile
   -- Apply various optimizations (again) (disabled for now; joinApps problem after aff2lin introduces maybe types)
   >>= doIf o optimizeFile
   -- Pick a unique name for each bound var (again)
