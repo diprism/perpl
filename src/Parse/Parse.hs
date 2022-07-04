@@ -132,7 +132,7 @@ TERM1 ::=
   | if TERM1 then TERM1 else TERM1
   | \ VAR [: TYPE1]. TERM1
   | let (VAR, ...) = TERM1 in TERM1
-  | let VAR [: TYPE1] = TERM1 in TERM1
+  | let VAR = TERM1 in TERM1
   | factor weight in TERM1
   | TERM2
 
@@ -152,7 +152,7 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- let <..., _, x, _, ...> = term in term
   [TkLet, TkLangle] -> parseEat *> parseEat *> pure (flip (UsElimProd Additive)) <*> parseVarsCommas False False <* parseDrop TkRangle <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- let x = term [: type] in term
-  [TkLet, _] -> parseEat *> pure UsLet <*> parseVar <*> parseTpAnn <* parseDrop TkEq
+  [TkLet, _] -> parseEat *> pure UsLet <*> parseVar <* parseDrop TkEq
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- factor wt
   [TkFactor, _] -> parseEat *> pure UsFactor <*> parseNum <* parseDrop TkIn <*> parseTerm1

@@ -382,12 +382,13 @@ infer' (UsTmBool b) =
   -- Translate True/False into a constructor var
   return (TmVarG CtorVar (if b then "True" else "False") [] [] (TpVar "Bool" []))
 
-infer' (UsLet x xtp xtm tm) =
+infer' (UsLet x xtm tm) =
   -- Check the annotation xtp'
-  annTp xtp >>= \ xtp' ->
+  --annTp xtp >>= \ xtp' ->
   infer xtm >>= \ xtm' ->
   -- Constraint: xtp' = (typeof xtm')
-  constrain (Unify xtp' (typeof xtm')) >>
+  --constrain (Unify xtp' (typeof xtm')) >>
+  let xtp' = typeof xtm' in
   -- If x is used more than affinely (2+ times), constrain xtp' to be robust
   constrainIf (not $ isAff x tm) (Robust xtp') >>
   inEnv x xtp' (infer tm) >>= \ tm' ->

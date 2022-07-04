@@ -11,7 +11,7 @@ toUsTm (TmVarG gv x tis as tp) =
   foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar {- x -} (foldl (\ x tp -> x ++ " [" ++ show tp ++ "]") x tis)) as
 toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
-toUsTm (TmLet x xtm xtp tm tp) = UsLet x xtp (toUsTm xtm) (toUsTm tm)
+toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
 --toUsTm (TmCase tm "Bool" [Case "True" [] thentm, Case "False" [] elsetm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
 toUsTm (TmCase tm ("Bool", []) [Case "False" [] elsetm, Case "True" [] thentm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
@@ -53,9 +53,9 @@ showTermParens (UsIf _ _ _     ) ShowAppR = True
 showTermParens (UsIf _ _ _     ) ShowCase = True
 showTermParens (UsEqs _        ) ShowAppL = True
 showTermParens (UsEqs _        ) ShowAppR = True
-showTermParens (UsLet _ _ _ _  ) ShowAppL = True
-showTermParens (UsLet _ _ _ _  ) ShowAppR = True
-showTermParens (UsLet _ _ _ _  ) ShowCase = True
+showTermParens (UsLet _ _ _    ) ShowAppL = True
+showTermParens (UsLet _ _ _    ) ShowAppR = True
+showTermParens (UsLet _ _ _    ) ShowCase = True
 showTermParens (UsAmb _        ) ShowAppL = True
 showTermParens (UsAmb _        ) ShowAppR = True
 showTermParens (UsFactor _ _   ) ShowAppL = True
@@ -90,7 +90,7 @@ showTermh (UsApp tm1 tm2) = showTerm tm1 ShowAppL ++ " " ++ showTerm tm2 ShowApp
 showTermh (UsCase tm cs) = "case " ++ showTerm tm ShowCase ++ " of " ++ showCasesCtors cs
 showTermh (UsIf tm1 tm2 tm3) = "if " ++ showTerm tm1 ShowCase ++ " then " ++ showTerm tm2 ShowCase ++ " else " ++ showTerm tm3 ShowCase
 showTermh (UsTmBool b) = if b then "True" else "False"
-showTermh (UsLet x tp tm tm') = "let " ++ x ++ showTpAnn tp ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
+showTermh (UsLet x tm tm') = "let " ++ x ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
 showTermh (UsAmb tms) = foldl (\ s tm -> s ++ " " ++ showTerm tm ShowAppR) "amb" tms
 showTermh (UsFactor wt tm) = "factor " ++ show wt ++ " in " ++ show tm
 showTermh (UsFail tp) = "fail" ++ showTpAnn tp

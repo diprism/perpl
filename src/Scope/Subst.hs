@@ -210,9 +210,9 @@ instance Substitutable UsTm where
     pure UsIf <*> substM tm1 <*> substM tm2 <*> substM tm3
   substM (UsTmBool b) =
     pure (UsTmBool b)
-  substM (UsLet x xtp xtm tm) =
+  substM (UsLet x xtm tm) =
     freshen x >>= \ x' ->
-    pure (UsLet x') <*> substM xtp <*> substM xtm <*> bind x x' (substM tm)
+    pure (UsLet x') <*> substM xtm <*> bind x x' (substM tm)
   substM (UsAmb tms) =
     pure UsAmb <*> substM tms
   substM (UsFactor wt tm) =
@@ -240,7 +240,7 @@ instance Substitutable UsTm where
     Map.unions [freeVars tm1, freeVars tm2, freeVars tm3]
   freeVars (UsTmBool b) =
     Map.empty
-  freeVars (UsLet x xtp xtm tm) =
+  freeVars (UsLet x xtm tm) =
     Map.union (freeVars xtm) (Map.delete x (freeVars tm))
   freeVars (UsAmb tms) =
     freeVars tms

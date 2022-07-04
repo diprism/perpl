@@ -58,7 +58,7 @@ data UsTm = -- User-level Term
   | UsLam Var Type UsTm                -- \ x : tp. tm
   | UsApp UsTm UsTm                    -- tm1 tm2
   | UsCase UsTm [CaseUs]               -- case tm of case*
-  | UsLet Var Type UsTm UsTm           -- let x : tp = tm1 in tm2
+  | UsLet Var UsTm UsTm                -- let x = tm1 in tm2
   | UsAmb [UsTm]                       -- amb tm1 tm2 ... tmn
   | UsFactor Double UsTm               -- factor wt in tm
   | UsFail Type                        -- fail : tp
