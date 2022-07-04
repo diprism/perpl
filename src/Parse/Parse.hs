@@ -113,11 +113,12 @@ parseCase = (*>) (parseDropSoft TkBar) $ parsePeek >>= \ t -> case t of
   TkVar c -> parseEat *> pure (CaseUs c) <*> parseVars <* parseDrop TkArr <*> parseTerm1
   _ -> parseErr "expecting another case"
 
--- Parse zero or more branches of a case expression.
-parseCases :: ParseM [CaseUs]
-parseCases = (*>) (parseDropSoft TkBar) $ parsePeek >>= \ t -> case t of
-  TkVar _ -> pure (:) <*> parseCase <*> parseCases
-  _ -> pure []
+-- Parse one or more branches of a case expression.
+parseCases :: Bool -> ParseM [CaseUs]
+parseCases allow0 = (*>) (parseDropSoft TkBar) $ parsePeek >>= \ t -> case t of
+  TkVar _ -> pure (:) <*> parseCase <*> parseCases True
+  _ | allow0 -> pure []
+  _ -> parseErr "case expression must have at least one case"
 
 -- Parses a (floating-point) number
 parseNum :: ParseM Double
@@ -142,7 +143,7 @@ TERM1 ::=
 parseTerm1 :: ParseM UsTm
 parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- case term of term
-  [TkCase, _] -> parseEat *> pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
+  [TkCase, _] -> parseEat *> pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases False
 -- if term then term else term
   [TkIf, _] -> parseEat *> pure UsIf <*> parseTerm1 <* parseDrop TkThen <*> parseTerm1 <* parseDrop TkElse <*> parseTerm1
 -- \ x [: type] . term
