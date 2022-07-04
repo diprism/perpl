@@ -320,12 +320,15 @@ parseType4 = parsePeek >>= \ t -> case t of
 
 -- List of Constructors
 parseCtors :: ParseM [Ctor]
-parseCtors = ParseM $ \ ts -> case ts of
-  ((p, TkVar _) : _) -> parseMt ((p, TkBar) : ts) parseCtorsH -- insert leading |
-  _ -> parseMt ts parseCtorsH
-parseCtorsH = parsePeek >>= \ t -> case t of
-  TkBar -> parseEat *> pure (:) <*> (pure Ctor <*> parseVar <*> parseTypes) <*> parseCtorsH
-  _ -> pure []
+parseCtors = ParseM $ \ ts ->
+  let ts' = case ts of
+              (p, TkVar _) : _ -> (p, TkBar) : ts -- insert leading |
+              _ -> ts
+  in parseMt ts' (parseCtorsH False)
+parseCtorsH allow0 = parsePeek >>= \ t -> case t of
+  TkBar -> parseEat *> pure (:) <*> (pure Ctor <*> parseVar <*> parseTypes) <*> parseCtorsH True
+  _ | allow0 -> pure []
+  _ -> parseErr "a datatype must have at least one constructor"
 
 -- List of Types
 parseTypes :: ParseM [Type]
