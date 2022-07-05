@@ -1,0 +1,3 @@
+data nat = Zero | Succ nat;
+extern foo: nat;
+()

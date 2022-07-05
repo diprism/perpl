@@ -309,7 +309,7 @@ derefun dr rtp new_ps (Progs ps end) =
       --emsg = "Failed to " ++ dr' ++ " " ++ rtp
   in
     return (Progs rps rtm)
---    maybe (return (Progs rps rtm)) (\ datahist -> Left (emsg ++ ":\n" ++ delimitWith "\n" [show (UsProgData y cs) | (y, cs) <- datahist])) (typeIsRecursive' (ctxtDefProgs (Progs (rps ++ new_ps) rtm)) (TpVar rtp)) -- then Left emsg else return (Progs rps rtm)
+--    maybe (return (Progs rps rtm)) (\ datahist -> Left (emsg ++ ":\n" ++ delimitWith "\n" [show (UsProgData y cs) | (y, cs) <- datahist])) (isInfiniteType' (ctxtDefProgs (Progs (rps ++ new_ps) rtm)) (TpVar rtp)) -- then Left emsg else return (Progs rps rtm)
 
 derefunThis :: DeRe -> Var -> Progs -> (Progs, Prog, Prog)
 derefunThis Defun rtp ps =
