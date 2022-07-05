@@ -111,18 +111,22 @@ isLin' x = (LinYes ==) . h where
 
 {- searchType g pred tp
 
-Search through type tp's AST, looking for a node for which pred is true.
+Search through type tp's tree, looking for a node for which pred is true.
 g maps a datatype name to its list of constructors, if any.
-pred takes two arguments, a list of visited type names and a node. -}
+pred takes two arguments, a list of visited nodes and a node. -}
 
-searchType :: ([(Var, [Type])] -> Type -> Bool) -> (Var -> Maybe [Ctor]) -> Type -> Bool
+searchType :: ([Type] -> Type -> Bool) -> (Var -> Maybe [Ctor]) -> Type -> Bool
 searchType pred g = h [] where
-  h :: [(Var, [Type])] -> Type -> Bool
+  h :: [Type] -> Type -> Bool
   h visited tp = pred visited tp || case tp of
-    TpVar y as -> 
-      not ((y, as) `elem` visited) &&
-      (any (h ((y, as) : visited)) as -- don't push?
-        || maybe False (any $ \ (Ctor _ tps) -> any (h ((y, as) : visited)) tps) (g y))
+    TpVar y as ->
+      -- Don't search the same type twice (that would cause infinite recursion)
+      not (tp `elem` visited) &&
+      -- The type arguments (as) are not substituted into the type parameters of tps.
+      -- (Currently, (g y) does not contain enough information to do that anyway.)
+      (maybe False (any $ \ (Ctor _ tps) -> any (h (tp : visited)) tps) (g y)
+      -- Instead, search the type arguments now.
+       || any (h (tp : visited)) as)
     TpArr tp1 tp2 -> h visited tp1 || h visited tp2
     TpProd am tps -> any (h visited) tps
     NoTp -> False
@@ -130,7 +134,7 @@ searchType pred g = h [] where
 -- Returns if a type has an arrow, ampersand, or recursive datatype anywhere in it
 robust :: (Var -> Maybe [Ctor]) -> Type -> Bool
 robust g tp = not (searchType p g tp) where
-  p visited (TpVar y as) = (y, as) `elem` visited
+  p visited (TpVar y as) = TpVar y as `elem` visited
   p visited (TpArr _ _) = True -- right?
   p visited (TpProd am _) = am == Additive
   p visited NoTp = False
@@ -140,7 +144,7 @@ robust g tp = not (searchType p g tp) where
 -- where isRecType asks if a specific var is recursive
 isInfiniteType :: (Var -> Maybe [Ctor]) -> Type -> Bool
 isInfiniteType = searchType p where
-  p visited (TpVar y as) = (y, as) `elem` visited
+  p visited (TpVar y as) = TpVar y as `elem` visited
   p _ _ = False
 
 --------------------------------------------------
