@@ -203,15 +203,11 @@ inferFuns fs m =
 inferData :: [[(Var, [Var], [Ctor])]] -> CheckM SProgs -> CheckM SProgs
 inferData dsccs cont = foldr h cont dsccs
   where
-    -- Collects recursive datatypes in dsccs
-    recs :: [Var]
-    recs = getRecTypes' (concat [[(y, [], ps, cs) | (y, ps, cs) <- dscc] | dscc <- dsccs])
-
     -- Returns if an scc (strongly-connected component) is (mutually) recursive
     -- Non-recursive only if the scc is a singleton that is itself non-recursive
     -- If the scc has 2+ datatypes, they must be mutually recursive
     sccIsRec :: [(Var, [Var], [Ctor])] -> Bool
-    sccIsRec [(y, ps, cs)] = y `elem` recs
+    sccIsRec [(y, ps, cs)] = y `elem` (Map.keys (freeVars cs))
     sccIsRec _ = True -- Mutually-recursive datatypes are recursive
 
     -- Checks a constructor's type args

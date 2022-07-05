@@ -113,7 +113,11 @@ isLin' x = (LinYes ==) . h where
 
 Search through type tp's tree, looking for a node for which pred is true.
 g maps a datatype name to its list of constructors, if any.
-pred takes two arguments, a list of visited nodes and a node. -}
+pred takes two arguments, a list of visited nodes and a node.
+
+It's okay if tp = TpVar y as and as does not have the same number of
+arguments that y actually takes.
+-}
 
 searchType :: ([Type] -> Type -> Bool) -> (Var -> Maybe [Ctor]) -> Type -> Bool
 searchType pred g = h [] where
@@ -134,7 +138,7 @@ searchType pred g = h [] where
 -- Returns if a type has an arrow, ampersand, or recursive datatype anywhere in it
 robust :: (Var -> Maybe [Ctor]) -> Type -> Bool
 robust g tp = not (searchType p g tp) where
-  p visited (TpVar y as) = TpVar y as `elem` visited
+  p visited tp@(TpVar y as) = tp `elem` visited
   p visited (TpArr _ _) = True -- right?
   p visited (TpProd am _) = am == Additive
   p visited NoTp = False
@@ -144,43 +148,24 @@ robust g tp = not (searchType p g tp) where
 -- where isRecType asks if a specific var is recursive
 isInfiniteType :: (Var -> Maybe [Ctor]) -> Type -> Bool
 isInfiniteType = searchType p where
-  p visited (TpVar y as) = TpVar y as `elem` visited
+  p visited tp@(TpVar y as) = tp `elem` visited
   p _ _ = False
 
---------------------------------------------------
+-- Returns if a type is a (mutually) recursive datatype
+isRecursiveType :: (Var -> Maybe [Ctor]) -> Type -> Bool
+isRecursiveType g tp = searchType p g tp where
+  p visited tp'@(TpVar y as) = tp' `elem` visited && tp' == tp
+  p _ _ = False
 
--- Returns if any of a list of types end up referencing a var
-isRecType' :: Map Var [Ctor] -> Var -> [Type] -> Bool
-isRecType' g y = h [] where
-  h :: [Var] -> [Type] -> Bool
-  h hist [] = False
-  h hist (TpArr tp1 tp2 : tps) = h hist (tp1 : tp2 : tps)
-  h hist (TpProd am tps' : tps) = h hist (tps' ++ tps)
-  h hist (TpVar y' as : tps)
-    | y == y' = True
-    | y' `elem` hist = h hist tps -- don't keep expanding the same datatype over and over
-    | otherwise =
-      maybe
-        (h hist (as ++ tps))
-        (\ cs -> h (y' : hist) (foldr (\ (Ctor x as') tps -> as' ++ tps) (as ++ tps) cs))
-        (g Map.!? y')
-  h hist (NoTp : tps) = h hist tps
-
--- Returns if y is a recursive datatype
-isRecDatatype :: Map Var [Ctor] -> Var -> Bool
-isRecDatatype g y =
-  maybe False (isRecType' g y . concatMap (\ (Ctor _ tps) -> tps)) (g Map.!? y)
-
--- Returns if a type is a recursive datatype var
-isRecType :: Map Var [Ctor] -> Type -> Bool
-isRecType g (TpVar y _) = isRecDatatype g y
-isRecType g _ = False
+isRecursiveTypeName :: Map Var [Ctor] -> Var -> Bool
+isRecursiveTypeName g y =
+  isRecursiveType (g Map.!?) (TpVar y []) -- even if y takes arguments, it's okay not to provide them
 
 -- Returns the recursive datatypes in a file
 getRecTypes' :: [(Var, [Var], [Var], [Ctor])] -> [Var]
 getRecTypes' ds =
   let g = foldr (\ (y, tgs, xs, cs) -> Map.insert y cs) mempty ds in
-    concat [if isRecDatatype g y then [y] else [] | (y, tgs, xs, cs) <- ds]
+    concat [if isRecursiveTypeName g y then [y] else [] | (y, tgs, xs, cs) <- ds]
 
 getDataSProgs :: [SProg] -> [(Var, [Var], [Var], [Ctor])]
 getDataSProgs ps = concat [h p | p <- ps] where
