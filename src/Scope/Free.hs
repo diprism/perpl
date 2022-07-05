@@ -139,13 +139,11 @@ searchType pred g = h [] where
 robust :: (Var -> Maybe [Ctor]) -> Type -> Bool
 robust g tp = not (searchType p g tp) where
   p visited tp@(TpVar y as) = tp `elem` visited
-  p visited (TpArr _ _) = True -- right?
+  p visited (TpArr _ _) = True
   p visited (TpProd am _) = am == Additive
   p visited NoTp = False
 
 -- Returns if a type has an infinite domain (i.e. it contains (mutually) recursive datatypes anywhere in it)
--- Differs from isRecType below in that this asks if any vars in a type are recursive,
--- where isRecType asks if a specific var is recursive
 isInfiniteType :: (Var -> Maybe [Ctor]) -> Type -> Bool
 isInfiniteType = searchType p where
   p visited tp@(TpVar y as) = tp `elem` visited
@@ -161,7 +159,6 @@ isRecursiveTypeName :: Map Var [Ctor] -> Var -> Bool
 isRecursiveTypeName g y =
   isRecursiveType (g Map.!?) (TpVar y []) -- even if y takes arguments, it's okay not to provide them
 
--- Returns the recursive datatypes in a file
 getRecTypes' :: [(Var, [Var], [Var], [Ctor])] -> [Var]
 getRecTypes' ds =
   let g = foldr (\ (y, tgs, xs, cs) -> Map.insert y cs) mempty ds in
