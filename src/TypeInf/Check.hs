@@ -179,7 +179,7 @@ guardExternRec :: Type -> CheckM ()
 guardExternRec tp =
   askEnv >>= \ env ->
   let g = fmap (\ (_, _, cs) -> cs) (typeEnv env) in
-  guardM (not (typeIsRecursive ((Map.!?) g) tp)) ExternRecData
+  guardM (not (isInfiniteType ((Map.!?) g) tp)) ExternRecData
 
 -- Defines a global function
 defTerm :: Var -> GlobalVar -> Scheme -> CheckM a -> CheckM a
