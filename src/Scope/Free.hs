@@ -155,14 +155,14 @@ isRecursiveType g tp = searchType p g tp where
   p visited tp'@(TpVar y as) = tp' `elem` visited && tp' == tp
   p _ _ = False
 
-isRecursiveTypeName :: Map Var [Ctor] -> Var -> Bool
+isRecursiveTypeName :: (Var -> Maybe [Ctor]) -> Var -> Bool
 isRecursiveTypeName g y =
-  isRecursiveType (g Map.!?) (TpVar y []) -- even if y takes arguments, it's okay not to provide them
+  isRecursiveType g (TpVar y []) -- even if y takes arguments, it's okay not to provide them
 
 getRecTypes' :: [(Var, [Var], [Var], [Ctor])] -> [Var]
 getRecTypes' ds =
   let g = foldr (\ (y, tgs, xs, cs) -> Map.insert y cs) mempty ds in
-    concat [if isRecursiveTypeName g y then [y] else [] | (y, tgs, xs, cs) <- ds]
+    concat [if isRecursiveTypeName (g Map.!?) y then [y] else [] | (y, tgs, xs, cs) <- ds]
 
 getDataSProgs :: [SProg] -> [(Var, [Var], [Var], [Ctor])]
 getDataSProgs ps = concat [h p | p <- ps] where
