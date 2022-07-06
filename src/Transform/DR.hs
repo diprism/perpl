@@ -9,7 +9,6 @@ import Scope.Subst
 import Scope.Ctxt
 import Scope.Name
 
-
 -- Collects the free variables of all the cases in
 -- a case-of over something with type rtp
 collectUnfolds :: Var -> Term -> [(FreeVars, Type)]

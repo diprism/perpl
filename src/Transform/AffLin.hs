@@ -8,8 +8,6 @@ import Scope.Name
 import Scope.Free
 import Scope.Subst
 
-import Debug.Trace
-
 {- ====== Affine to Linear Functions ====== -}
 -- These functions convert affine terms to
 -- linear ones, where an affine term is one where
@@ -200,7 +198,8 @@ affLinPerhapsUnfold tm (yname, yparams) =
     let z = freshVar g "_u" in
       affLin tm >>= \tm' ->
       affLinTp (TpVar yname yparams) >>= \tp' ->
-      return (TmElimProd Additive tm' [(z, tp'), ("_", tpUnit)] (TmVarL z tp') tp')
+      let TpProd Additive [tp1, tpUnit] = tp' in
+      return (TmElimProd Additive tm' [(z, tp1), ("_", tpUnit)] (TmVarL z tp1) tp1)
   else
     affLin tm
 
