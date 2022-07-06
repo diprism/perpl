@@ -211,23 +211,28 @@ term2fgg g (TmLet x xtm xtp tm tp) =
        Edge' (tmxs ++ [vtp]) (show tm)]
       (xtmxs ++ delete vxtp tmxs ++ [vtp])
 
-term2fgg g (TmProd am as)
-  | am == Additive =
-    let (tms, tps) = unzip as
-        fvs = freeVars tms in
-      addAmpFactors g tps +>
-      bindCases (Map.toList fvs) [ampRule g fvs as i atm tp | (i, (atm, tp)) <- enumerate as]
-  | otherwise =
-    [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
-    let tps = snds as
-        ptp = TpProd am tps
-        (vptp : vtps) = newNames (ptp : tps)
-    in
-      addProdFactors g tps +>
-      mkRule (TmProd am as) (vptp : vtps ++ concat xss)
-        (Edge' (vtps ++ [vptp]) (prodFactorName (snds as)) :
-          [Edge' (tmxs ++ [vtp]) (show atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
-        (concat xss ++ [vptp])
+-- A 0-ary additive product (<>) gets a rule with empty rhs.
+term2fgg g tm@(TmProd Additive []) =
+  let [vtp] = newNames [TpProd Additive []] in
+    mkRule tm [vtp] [] [vtp]
+    
+term2fgg g (TmProd Additive as) =
+  let (tms, tps) = unzip as
+      fvs = freeVars tms in
+    addAmpFactors g tps +>
+    bindCases (Map.toList fvs) [ampRule g fvs as i atm tp | (i, (atm, tp)) <- enumerate as]
+    
+term2fgg g (TmProd am@Multiplicative as) =
+  [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
+  let tps = snds as
+      ptp = TpProd am tps
+      (vptp : vtps) = newNames (ptp : tps)
+  in
+    addProdFactors g tps +>
+    mkRule (TmProd am as) (vptp : vtps ++ concat xss)
+      (Edge' (vtps ++ [vptp]) (prodFactorName (snds as)) :
+        [Edge' (tmxs ++ [vtp]) (show atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
+      (concat xss ++ [vptp])
 
 term2fgg g (TmElimProd Additive ptm ps tm tp) =
   term2fgg g ptm +>= \ ptmxs ->
@@ -335,12 +340,12 @@ domainValues g = tpVals where
       concat [foldl (kronwith $ \ d da -> d ++ " " ++ parens da) [x] (map tpVals as)
              | (Ctor x as) <- cs]
   tpVals (TpArr tp1 tp2) = uncurry arrVals (splitArrows (TpArr tp1 tp2))
-  tpVals (TpProd am tps)
-    | am == Additive =
-      let tpvs = map tpVals tps in
-        concatMap (\ (i, vs) -> ["<" ++ delimitWith ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
-    | otherwise =
-      [prodValName' tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
+  tpVals (TpProd Additive []) = ["<>"]
+  tpVals (TpProd Additive tps) =
+    let tpvs = map tpVals tps in
+      concatMap (\ (i, vs) -> ["<" ++ delimitWith ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
+  tpVals (TpProd Multiplicative tps) =
+    [prodValName' tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
   tpVals NoTp = error ("Enumerating values of a NoTp: " ++ show (Map.keys g))
 
 domainSize :: Ctxt -> Type -> Int
