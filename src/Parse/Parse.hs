@@ -233,8 +233,8 @@ TERM5 ::=
   | VAR                      variable
   | (TERM1)                  grouping
   | ()                       multiplicative tuple of zero terms
-  | (TERM1, ...)             multiplicative tuple of two or more terms
-  | <TERM1> | <TERM1, ...>   additive tuple of one or more terms
+  | (TERM1+)                 multiplicative tuple of two or more terms
+  | <TERM1*>                 additive tuple of zero or more terms
   | fail                     (without type annotation)
   | error
 
@@ -249,7 +249,10 @@ parseTerm5 = parsePeek >>= \ t -> case t of
         TkParenR -> pure (UsProd Multiplicative [])
         _ -> parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd Multiplicative tms)
     ) <* parseDrop TkParenR
-  TkLangle -> parseEat *> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm]) <* parseDrop TkRangle
+  TkLangle -> parseEat *> (
+    parsePeek >>= \ t -> case t of
+        TkRangle -> pure (UsProd Additive [])
+        _ -> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm])) <* parseDrop TkRangle
   TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
@@ -326,6 +329,7 @@ parseType4 = parsePeek >>= \ t -> case t of
   TkVar v -> parseEat *> pure (TpVar v [])
   TkBool -> parseEat *> pure (TpVar "Bool" [])
   TkUnit -> parseEat *> pure (TpProd Multiplicative [])
+  TkAdditiveUnit -> parseEat *> pure (TpProd Additive [])
   TkParenL -> parseEat *> parseType1 <* parseDrop TkParenR
   _ -> parseErr "couldn't parse a type here; perhaps add parentheses?"
 
