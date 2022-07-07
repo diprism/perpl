@@ -12,11 +12,10 @@ sumProduct fgg = (iterate (step fgg) (zero fgg)) !! 20 Map.! (start fgg)
 
 zero :: FGG Domain -> MultiTensor
 zero fgg =
-  Map.fromList [(x, zeros (nonterminalShape x)) | x <- Map.keys (nonterminals fgg)]
-  where
-    nonterminalShape :: String -> [Int]
-    nonterminalShape x =
-      [length ((domains fgg) Map.! nl) | nl <- (nonterminals fgg) Map.! x]
+  Map.fromList [(x, zeros (nonterminalShape fgg x)) | x <- Map.keys (nonterminals fgg)]
+
+nonterminalShape :: FGG Domain -> String -> [Int]
+nonterminalShape fgg x = [length ((domains fgg) Map.! nl) | nl <- (nonterminals fgg) Map.! x]
 
 repRules :: FGG d -> [Rule Label]
 repRules fgg = concat [ replicate c r | (c, r) <- rules fgg ]
@@ -28,7 +27,7 @@ step fgg z =
 
     stepNonterminal :: String -> Tensor Prob
     stepNonterminal x =
-      foldr1 tensorAdd [stepRHS rhs | Rule lhs rhs <- repRules fgg, lhs == x]
+      foldr tensorAdd (zeros (nonterminalShape fgg x)) [stepRHS rhs | Rule lhs rhs <- repRules fgg, lhs == x]
 
     stepRHS :: HGF Label -> Tensor Prob
     stepRHS rhs = h [] nodes
@@ -52,14 +51,14 @@ step fgg z =
             if length asst < length (hgf_exts rhs) then
               Vector sub -- external: don't contract
             else
-              foldr1 tensorAdd sub -- internal: contract
+              foldr tensorAdd (Scalar 0.0) sub -- internal: contract
 
         h asst [] =
           let
             asst_rev = reverse asst
             asst_unperm = fmap (asst_rev !!) unperm
           in
-            Scalar (foldr1 (*) [edgeWeight (edge_label e) (fmap (asst_unperm !!) (edge_atts e)) | e <- hgf_edges rhs])
+            Scalar (foldr (*) 1.0 [edgeWeight (edge_label e) (fmap (asst_unperm !!) (edge_atts e)) | e <- hgf_edges rhs])
             
     -- weight of edge with label el under assignment asst to edge's attachment nodes
     edgeWeight :: String -> [Int] -> Prob
