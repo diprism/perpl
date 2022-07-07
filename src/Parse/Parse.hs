@@ -325,8 +325,11 @@ parseType4 = parsePeek >>= \ t -> case t of
   _ -> parseErr "couldn't parse a type here; perhaps add parentheses?"
 
 -- List of Constructors
-parseCtors :: ParseM [Ctor]
-parseCtors = parseBranches (pure Ctor <*> parseVar <*> parseTypes)
+parseEqCtors :: ParseM [Ctor]
+parseEqCtors = parsePeek >>= \t -> case t of
+  TkEq -> parseDrop TkEq *> parseBranches (pure Ctor <*> parseVar <*> parseTypes)
+  TkSemicolon -> return []
+  _ -> parseErr "expected = or ;"
 
 -- List of Types
 parseTypes :: ParseM [Type]
@@ -351,8 +354,8 @@ parseProg = parsePeek >>= \ t -> case t of
   TkExtern -> parseEat *> pure Just <*> (pure UsProgExtern <*> parseVar <*> parseTpAnn
                 <* parseDrop TkSemicolon)
 -- data Y vars = ctors; ...
-  TkData -> parseEat *> pure Just <*> (pure UsProgData <*> parseVar <*> parseVars <* parseDrop TkEq
-              <*> parseCtors <* parseDrop TkSemicolon)
+  TkData -> parseEat *> pure Just <*> (pure UsProgData <*> parseVar <*> parseVars 
+              <*> parseEqCtors <* parseDrop TkSemicolon)
   _ -> pure Nothing
 
 parseProgsUntil :: ParseM [UsProg]
