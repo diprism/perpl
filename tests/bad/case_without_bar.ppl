@@ -1,0 +1,1 @@
+case True of True -> fail False -> fail
