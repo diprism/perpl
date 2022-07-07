@@ -1,0 +1,2 @@
+data foo = Bar;
+case Bar of 
