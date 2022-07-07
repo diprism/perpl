@@ -149,6 +149,7 @@ instance Show Scheme where
 instance Show UsProg where
   show (UsProgFun x tp tm) = "define " ++ x ++ showTpAnn tp ++ " = " ++ show tm ++ ";"
   show (UsProgExtern x tp) = "extern " ++ x ++ showTpAnn tp ++ ";"
+  show (UsProgData y ps []) = "data " ++ delimitWith " " (y : ps) ++ ";"
   show (UsProgData y ps cs) = "data " ++ delimitWith " " (y : ps) ++ " = " ++ showCasesCtors cs ++ ";"
 instance Show UsProgs where
   show (UsProgs ps end) = delimitWith "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"

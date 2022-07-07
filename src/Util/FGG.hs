@@ -145,7 +145,7 @@ emptyFGG s = FGG Map.empty Map.empty Map.empty s []
 
 -- Construct an FGG from a list of rules, a start symbol,
 -- and a function that gives the possible values of each type
-rulesToFGG :: Show d => (d -> Domain) -> String -> [(Int, Rule d)] -> [(Label, d)] -> [Factor] -> FGG Domain
+rulesToFGG :: Show d => (d -> Domain) -> String -> [(Int, Rule d)] -> [(Label, [d])] -> [Factor] -> FGG Domain
 rulesToFGG dom start rs nts facs =
   FGG ds fs nts' start rsdom
   where
@@ -160,10 +160,11 @@ rulesToFGG dom start rs nts facs =
       ("Conflicting domains for nonterminal " ++ x ++ ": " ++
         show d1 ++ " vs " ++ show d2)
 
-    nts'' = fmap dom (Map.fromList nts)
+    -- Nonterminals that were added directly by addNonterm(s)
+    nts'' = fmap (\ds -> fmap show ds) (Map.fromList nts)
 
     nts' = foldr (\ (Rule lhs (HGF ns _ xs)) ->
-                    Map.insertWith (domsEq lhs) lhs [show (node_domain (ns !! i)) {-node_label (ns !! i)-} | i <- xs]) nts'' rs''
+                    Map.insertWith (domsEq lhs) lhs [show (node_domain (ns !! i)) | i <- xs]) nts'' rs''
 
     getFac = \ l lhs -> maybe (error ("In the rule " ++ lhs ++ ", no factor named " ++ l))
                       id $ lookup l facs

@@ -87,6 +87,14 @@ parseDropSoft t = ParseM $ \ ts -> case ts of
   ((_, t') : ts') -> parseMr () (if t == t' then ts' else ts)
   [] -> parseMr () ts
 
+-- Pipe-delimited list (the first pipe is optional)
+parseBranches :: ParseM a -> ParseM [a]
+parseBranches branch = parseDropSoft TkBar *> oneOrMore
+  where oneOrMore = (:) <$> branch <*> zeroOrMore
+        zeroOrMore = parsePeek >>= \ t -> case t of
+          TkBar -> parseEat *> oneOrMore
+          _ -> pure []
+
 -- Parse a symbol.
 parseVar :: ParseM Var
 parseVar = parsePeek >>= \ t -> case t of
@@ -109,15 +117,13 @@ parseVarsCommas allow0 allow1 = parsePeeks 2 >>= \ ts -> case ts of
 
 -- Parse a branch of a case expression.
 parseCase :: ParseM CaseUs
-parseCase = (*>) (parseDropSoft TkBar) $ parsePeek >>= \ t -> case t of
+parseCase = parsePeek >>= \ t -> case t of
   TkVar c -> parseEat *> pure (CaseUs c) <*> parseVars <* parseDrop TkArr <*> parseTerm1
-  _ -> parseErr "expecting another case"
+  _ -> parseErr "expecting a case"
 
--- Parse zero or more branches of a case expression.
+-- Parse one or more branches of a case expression.
 parseCases :: ParseM [CaseUs]
-parseCases = (*>) (parseDropSoft TkBar) $ parsePeek >>= \ t -> case t of
-  TkVar _ -> pure (:) <*> parseCase <*> parseCases
-  _ -> pure []
+parseCases = parseBranches parseCase
 
 -- Parses a (floating-point) number
 parseNum :: ParseM Double
@@ -319,13 +325,11 @@ parseType4 = parsePeek >>= \ t -> case t of
   _ -> parseErr "couldn't parse a type here; perhaps add parentheses?"
 
 -- List of Constructors
-parseCtors :: ParseM [Ctor]
-parseCtors = ParseM $ \ ts -> case ts of
-  ((p, TkVar _) : _) -> parseMt ((p, TkBar) : ts) parseCtorsH -- insert leading |
-  _ -> parseMt ts parseCtorsH
-parseCtorsH = parsePeek >>= \ t -> case t of
-  TkBar -> parseEat *> pure (:) <*> (pure Ctor <*> parseVar <*> parseTypes) <*> parseCtorsH
-  _ -> pure []
+parseEqCtors :: ParseM [Ctor]
+parseEqCtors = parsePeek >>= \t -> case t of
+  TkEq -> parseDrop TkEq *> parseBranches (pure Ctor <*> parseVar <*> parseTypes)
+  TkSemicolon -> return []
+  _ -> parseErr "expected = or ;"
 
 -- List of Types
 parseTypes :: ParseM [Type]
@@ -350,8 +354,8 @@ parseProg = parsePeek >>= \ t -> case t of
   TkExtern -> parseEat *> pure Just <*> (pure UsProgExtern <*> parseVar <*> parseTpAnn
                 <* parseDrop TkSemicolon)
 -- data Y vars = ctors; ...
-  TkData -> parseEat *> pure Just <*> (pure UsProgData <*> parseVar <*> parseVars <* parseDrop TkEq
-              <*> parseCtors <* parseDrop TkSemicolon)
+  TkData -> parseEat *> pure Just <*> (pure UsProgData <*> parseVar <*> parseVars 
+              <*> parseEqCtors <* parseDrop TkSemicolon)
   _ -> pure Nothing
 
 parseProgsUntil :: ParseM [UsProg]

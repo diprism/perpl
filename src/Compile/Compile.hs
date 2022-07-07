@@ -189,7 +189,7 @@ term2fgg g (TmCase tm (y, _) cs tp) =
 
 -- fail (i.e., amb with no arguments) doesn't generate any rules, but
 -- should still generate the left-hand side nonterminal
-term2fgg g (TmAmb [] tp) = addNonterm (show (TmAmb [] tp)) tp
+term2fgg g (TmAmb [] tp) = addNonterm (show (TmAmb [] tp)) [tp]
 term2fgg g (TmAmb tms tp) =
   let fvs = Map.unions (map freeVars tms) in
     bindCases (Map.toList fvs) (map (uncurry $ ambRule g fvs tms tp) (collectDups tms))
