@@ -25,8 +25,6 @@ do
         echo "Success"
     else
         echo "Failure"
-        my_errs+="Error in ${file}: ${my_err}
-"
     fi
 done
 
