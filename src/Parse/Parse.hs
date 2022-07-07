@@ -87,6 +87,14 @@ parseDropSoft t = ParseM $ \ ts -> case ts of
   ((_, t') : ts') -> parseMr () (if t == t' then ts' else ts)
   [] -> parseMr () ts
 
+-- Pipe-delimited list (the first pipe is optional)
+parseBranches :: ParseM a -> ParseM [a]
+parseBranches branch = parseDropSoft TkBar *> oneOrMore
+  where oneOrMore = (:) <$> branch <*> zeroOrMore
+        zeroOrMore = parsePeek >>= \ t -> case t of
+          TkBar -> parseEat *> oneOrMore
+          _ -> pure []
+
 -- Parse a symbol.
 parseVar :: ParseM Var
 parseVar = parsePeek >>= \ t -> case t of
@@ -109,16 +117,13 @@ parseVarsCommas allow0 allow1 = parsePeeks 2 >>= \ ts -> case ts of
 
 -- Parse a branch of a case expression.
 parseCase :: ParseM CaseUs
-parseCase = (*>) (parseDropSoft TkBar) $ parsePeek >>= \ t -> case t of
+parseCase = parsePeek >>= \ t -> case t of
   TkVar c -> parseEat *> pure (CaseUs c) <*> parseVars <* parseDrop TkArr <*> parseTerm1
-  _ -> parseErr "expecting another case"
+  _ -> parseErr "expecting a case"
 
 -- Parse one or more branches of a case expression.
-parseCases :: Bool -> ParseM [CaseUs]
-parseCases allow0 = (*>) (parseDropSoft TkBar) $ parsePeek >>= \ t -> case t of
-  TkVar _ -> pure (:) <*> parseCase <*> parseCases True
-  _ | allow0 -> pure []
-  _ -> parseErr "case expression must have at least one case"
+parseCases :: ParseM [CaseUs]
+parseCases = parseBranches parseCase
 
 -- Parses a (floating-point) number
 parseNum :: ParseM Double
@@ -143,7 +148,7 @@ TERM1 ::=
 parseTerm1 :: ParseM UsTm
 parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- case term of term
-  [TkCase, _] -> parseEat *> pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases False
+  [TkCase, _] -> parseEat *> pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
 -- if term then term else term
   [TkIf, _] -> parseEat *> pure UsIf <*> parseTerm1 <* parseDrop TkThen <*> parseTerm1 <* parseDrop TkElse <*> parseTerm1
 -- \ x [: type] . term
@@ -321,15 +326,7 @@ parseType4 = parsePeek >>= \ t -> case t of
 
 -- List of Constructors
 parseCtors :: ParseM [Ctor]
-parseCtors = ParseM $ \ ts ->
-  let ts' = case ts of
-              (p, TkVar _) : _ -> (p, TkBar) : ts -- insert leading |
-              _ -> ts
-  in parseMt ts' (parseCtorsH False)
-parseCtorsH allow0 = parsePeek >>= \ t -> case t of
-  TkBar -> parseEat *> pure (:) <*> (pure Ctor <*> parseVar <*> parseTypes) <*> parseCtorsH True
-  _ | allow0 -> pure []
-  _ -> parseErr "a datatype must have at least one constructor"
+parseCtors = parseBranches (pure Ctor <*> parseVar <*> parseTypes)
 
 -- List of Types
 parseTypes :: ParseM [Type]
