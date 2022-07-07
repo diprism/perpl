@@ -6,6 +6,8 @@ compiler.exe: src/*.hs src/*/*.hs
 	mkdir -p .objects
 	cd src && ghc Main.hs --make -odir ../.objects -hidir ../.objects -o ../compiler.exe $(GHCFLAGS)
 
+.PHONY: tests clean
+
 tests:
 	./run_tests.sh
 
