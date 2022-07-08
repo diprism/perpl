@@ -7,8 +7,17 @@ import Util.Helpers
 
 type MultiTensor = Map String (Tensor Prob)
 
+multiTensorDistance :: MultiTensor -> MultiTensor -> Prob
+multiTensorDistance mt1 mt2 =
+  let diff = Map.differenceWith (\t1 t2 -> Just (tensorSub t1 t2)) mt1 mt2 in
+    foldr max 0.0 (fmap (foldr max 0.0 . tensorFlatten) diff)
+
 sumProduct :: FGG Domain -> Tensor Prob
-sumProduct fgg = (iterate (step fgg) (zero fgg)) !! 20 Map.! (start fgg)
+sumProduct fgg = h (zero fgg) where
+  h prev =
+    let cur = step fgg prev
+        diff = multiTensorDistance cur prev
+    in if diff < 1e-3 then cur Map.! (start fgg) else h cur
 
 zero :: FGG Domain -> MultiTensor
 zero fgg =
