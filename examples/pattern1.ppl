@@ -33,4 +33,4 @@ define weigh = \n.
 
 weigh (run flip flip)
 
-
+-- correct: [10.0]

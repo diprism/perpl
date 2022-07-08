@@ -40,10 +40,10 @@ data HGF' d = HGF' { hgf_nodes' :: [(Label, d)], hgf_edges' :: [Edge' d], hgf_ex
 data Rule d = Rule String (HGF d)
   deriving Eq
 data FGG d = FGG {
-  domains :: Map String d,
-  factors :: Map String (d, Maybe Weights),
-  nonterminals :: Map String d,
-  start :: String,
+  domains :: Map String d,                  -- node label to values
+  factors :: Map String (d, Maybe Weights), -- edge label to att node labels, weights
+  nonterminals :: Map String d,             -- nt name to attachment node labels
+  start :: String,                          -- nt name
   rules :: [(Int, Rule Label)]
 }
 

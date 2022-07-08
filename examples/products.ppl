@@ -14,3 +14,5 @@ define use_amp  : Bool & Color & Direction -> Direction =
   \ a. let <x, _, z> = a in z; -}
 
 use_amp amp;
+
+-- correct: [0.0, 0.0, 1.0, 0.0]
