@@ -2,7 +2,6 @@
 
 module Util.Tensor where
 import Util.Helpers
-import Text.Printf
 
 -- Prelude's `zip` doesn't throw an error when the lists
 -- have different lengths, dropping from the longer list
