@@ -2,10 +2,4 @@ define coin : Bool = amb (factor 0.5 in True) (factor 0.5 in False);
 
 (coin, coin)
 
-{- Should be { (False, False): 0.25,
-               (False, True): 0.25,
-               (True, False): 0.25,
-               (True, True): 0.25 }
- -}
-
-
+-- correct: [0.25, 0.25, 0.25, 0.25]

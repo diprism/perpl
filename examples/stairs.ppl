@@ -14,3 +14,5 @@ define climb = \stairs.
          | Succ stairs -> climb stairs);
 
 climb (Succ (Succ (Succ (Succ (Succ (Succ (Succ Zero))))))) -- Should return the (n+1)'st Fibonacci number (21)
+
+-- correct: [21.0]

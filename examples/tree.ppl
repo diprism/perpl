@@ -24,3 +24,4 @@ define consume_children: Children -> Unit = \c: Children.
 
 consume_tree produce_tree
 
+-- correct: [1.0]
