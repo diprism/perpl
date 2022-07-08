@@ -33,7 +33,7 @@ do
     fi
 done
 
-for file in tests/bad/{case_of_zero_cases.ppl,case_without_bar,data_with_zero_cons,data_without_bar}.ppl
+for file in tests/bad/{case_of_zero_cases.ppl,case_without_bar,data_with_zero_cons,data_without_bar,polymorphic_recursion}.ppl
 do
     printf '%-40s' "Compiling ${file}... "
     my_err=$(./compiler.exe $file -o /dev/null 2>&1 > /dev/null)

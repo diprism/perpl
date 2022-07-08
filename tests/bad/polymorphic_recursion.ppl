@@ -1,0 +1,3 @@
+data Nat = Zero | Succ Nat;
+define f = \n. case n of Zero -> () | Succ m -> f (m, m);
+f (Succ (Succ Zero))
