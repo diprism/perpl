@@ -25,3 +25,5 @@ define bothzero_better =
 define dont_defun_nat = \ n. succ n;
 
 bothzero_better zero (succ zero);
+
+-- correct: [1.0, 0.0]

@@ -14,3 +14,5 @@ define equal = \m: Nat. \n: Nat.
 
 equal (double (double (Succ Zero)))
       (Succ (Succ (Succ (Succ Zero))))
+      
+-- correct: [0.0, 1.0]

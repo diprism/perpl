@@ -14,6 +14,8 @@ import Transform.Argify
 import Scope.Subst
 import Scope.Ctxt
 import Scope.Name
+import Util.FGG
+import Util.SumProduct
 
 data CmdArgs = CmdArgs {
   optInfile :: String,
@@ -23,7 +25,8 @@ data CmdArgs = CmdArgs {
   optElimRecs :: Bool,
   optDerefun :: [(Var, DeRe)],
   optLin :: Bool,
-  optOptimize :: Bool
+  optOptimize :: Bool,
+  optSumProduct :: Bool
 }
 
 optionsDefault = CmdArgs {
@@ -34,7 +37,8 @@ optionsDefault = CmdArgs {
   optElimRecs = True,
   optDerefun = [],
   optLin = True,
-  optOptimize = True
+  optOptimize = True,
+  optSumProduct = False
 }
 
 putStrLnErr :: String -> IO ()
@@ -46,14 +50,16 @@ help =
   die (name ++
         " [options] filename.ppl\n" ++
         "Options:\n" ++
-        "  -o OUTFILE\tOutput to OUTFILE\n" ++
-        "  -O0 -O1\tOptimization level (0 = off, 1 = on, for now)\n" ++
-        "  -c\t\tCompile only to PPL code (not to FGG)\n" ++
-        "  -m\t\tDon't monomorphize\n" ++
-        "  -e\t\t Don't eliminate recursive datatypes\n" ++
-        "  -l\t\tDon't linearize the file (implies -c)\n" ++
-        "  -d DTYPES\tDefunctionalize recursive datatypes DTYPES\n" ++
-        "  -r DTYPES\tRefunctionalize recursive datatypes DTYPES")
+        "  -o OUTFILE  Output to OUTFILE\n" ++
+        "  -O0 -O1     Optimization level (0 = off, 1 = on, for now)\n" ++
+        "  -c          Compile only to PPL code (not to FGG)\n" ++
+        "  -m          Don't monomorphize\n" ++
+        "  -e          Don't eliminate recursive datatypes\n" ++
+        "  -l          Don't linearize the file (implies -c)\n" ++
+        "  -d DTYPES   Defunctionalize recursive datatypes DTYPES\n" ++
+        "  -r DTYPES   Refunctionalize recursive datatypes DTYPES\n" ++
+        "  -z          Compute sum-product")
+        
 
 processArgs' :: CmdArgs -> [String] -> Maybe CmdArgs
 processArgs' o ("-o" : fn : as) = processArgs' (o {optOutfile = fn}) as
@@ -67,6 +73,7 @@ processArgs' o ("-d" : a : as) =
   processArgs' (o {optDerefun = map (flip (,) Defun) (words a) ++ optDerefun o}) as
 processArgs' o ("-r" : a : as) =
   processArgs' (o {optDerefun = map (flip (,) Refun) (words a) ++ optDerefun o}) as
+processArgs' o ("-z" : as) = processArgs' (o {optSumProduct = True}) as  
 processArgs' o (('-' : _) : _) = Nothing
 processArgs' o (fn : as) = processArgs' (o {optInfile = fn}) as
 processArgs' o [] = Just o
@@ -87,9 +94,9 @@ alphaRenameProgs gf a = return (alphaRename (gf a) a)
 --ctxtDefProgs
 
 --process :: Show a => CmdArgs -> String -> a
-processContents (CmdArgs ifn ofn c m e dr l o) s =
+processContents (CmdArgs ifn ofn c m e dr l o z) s =
   let e' = e && m && l
-      c' = c && l
+      c' = c && e
   in
   return s
   -- String to UsProgs
@@ -114,8 +121,15 @@ processContents (CmdArgs ifn ofn c m e dr l o) s =
   -- Pick a unique name for each bound var (again)
   >>= alphaRenameProgs ctxtDefProgs
   -- Compile to FGG
-  >>= if c' then compileFile else showFile
-  )
+  >>= if c' then
+        \ps -> compileFile ps
+               >>= if z then
+                     Right . show . sumProduct
+                   else
+                     Right . showFGG
+      else
+        showFile
+                                       )
 
 -- Parse a file, check and elaborate it, then compile to FGG and output it
 main :: IO ()

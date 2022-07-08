@@ -13,6 +13,6 @@ define climb = \stairs.
          | Zero -> fail
          | Succ stairs -> climb stairs);
 
-define foo = \stairs. True;
-
 climb (Succ (Succ (Succ (Succ (Succ (Succ (Succ Zero))))))) -- Should return the (n+1)'st Fibonacci number (21)
+
+-- correct: [21.0]

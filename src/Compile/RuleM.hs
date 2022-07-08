@@ -11,7 +11,7 @@ import Scope.Name
 
 -- RuleM monad-like datatype and functions
 type External = (Var, Type)
-type Nonterminal = (Var, Type)
+type Nonterminal = (Var, [Type])
 -- RuleM stores the following:
 --   1. [(Int, Rule Type)]: a list of rules and how many times to duplicate them
 --                            (so amb True False True => p(True) = **2**, p(False) = 1)
@@ -51,13 +51,13 @@ addExts xs = RuleM [] xs [] []
 addExt :: Var -> Type -> RuleM
 addExt x tp = addExts [(x, tp)]
 
--- Add a list of nonterminals
+-- Add a list of nonterminals with the types of their attachment nodes
 addNonterms :: [Nonterminal] -> RuleM
 addNonterms nts = RuleM [] [] nts []
 
--- Add a single nonterminal
-addNonterm :: Var -> Type -> RuleM
-addNonterm x tp = addNonterms [(x, tp)]
+-- Add a single nonterminal with the types of its attachment nodes
+addNonterm :: Var -> [Type] -> RuleM
+addNonterm x tps = addNonterms [(x, tps)]
 
 -- Add a list of rules
 addRules :: [(Int, Rule Type)] -> RuleM
