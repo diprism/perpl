@@ -1,3 +1,5 @@
 define testAmb = amb True False True False False;
 
-testAmb;
+testAmb
+
+-- correct: [3.0, 2.0]

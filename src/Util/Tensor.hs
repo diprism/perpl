@@ -66,6 +66,16 @@ tensorShape (Scalar a) = []
 tensorShape (Vector []) = [0]
 tensorShape (Vector ts) = length ts : tensorShape (head ts)
 
+tensorAdd :: Num a => Tensor a -> Tensor a -> Tensor a
+tensorAdd ta tb = pure (+) <*> ta <*> tb
+
+tensorSub :: Num a => Tensor a -> Tensor a -> Tensor a
+tensorSub ta tb = pure (-) <*> ta <*> tb
+
+tensorFlatten :: Tensor a -> [a]
+tensorFlatten (Scalar a) = [a]
+tensorFlatten (Vector ts) = concat (fmap tensorFlatten ts)
+
 vector :: [a] -> Tensor a
 vector = Vector . map Scalar
 matrix :: [[a]] -> Tensor a

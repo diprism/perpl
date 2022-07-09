@@ -189,7 +189,7 @@ term2fgg g (TmCase tm (y, _) cs tp) =
 
 -- fail (i.e., amb with no arguments) doesn't generate any rules, but
 -- should still generate the left-hand side nonterminal
-term2fgg g (TmAmb [] tp) = addNonterm (show (TmAmb [] tp)) tp
+term2fgg g (TmAmb [] tp) = addNonterm (show (TmAmb [] tp)) [tp]
 term2fgg g (TmAmb tms tp) =
   let fvs = Map.unions (map freeVars tms) in
     bindCases (Map.toList fvs) (map (uncurry $ ambRule g fvs tms tp) (collectDups tms))
@@ -360,13 +360,11 @@ fggFactors (FGG_JSON _ fs _ _ _) = avg (map tensorSize (getJusts (fmap snd (Map.
 -}
 
 -- Converts an elaborated program into an FGG
-compileFile :: Progs -> Either String String
+compileFile :: Progs -> Either String (FGG Domain)
 compileFile ps =
   let g = ctxtDefProgs ps
       Progs _ end = ps
       rm = progs2fgg g ps
       (end', RuleM rs xs nts fs) = addStartRuleIfNecessary end rm
-      fgg = rulesToFGG (domainValues g) end' (reverse rs) nts fs
   in
---    Left (show (fggFactors fgg))
-    return (showFGG fgg)
+      return (rulesToFGG (domainValues g) end' (reverse rs) nts fs)
