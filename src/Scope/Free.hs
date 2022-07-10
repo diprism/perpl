@@ -135,7 +135,7 @@ searchType pred g = h [] where
     TpProd am tps -> any (h visited) tps
     NoTp -> False
 
--- Returns if a type has an arrow, ampersand, or recursive datatype anywhere in it
+-- Returns if a type has no arrow, ampersand, or recursive datatype anywhere in it
 robust :: (Var -> Maybe [Ctor]) -> Type -> Bool
 robust g tp = not (searchType p g tp) where
   p visited tp@(TpVar y as) = tp `elem` visited
