@@ -37,7 +37,9 @@ toUsProgs (Progs ps tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 
 {- Show Instances -}
 
-data ShowHist = ShowAppL | ShowAppR | ShowCase | ShowArrL | ShowTypeArg | ShowNone
+data ShowHist = ShowAppL | ShowAppR | ShowCase
+              | ShowArrL | ShowTypeProd | ShowTypeArg
+              | ShowNone
   deriving Eq
 
 -- Should we add parens to this term, given its parent term?
@@ -69,8 +71,10 @@ showTermParens _                 _        = False
 -- Should we add parens to this type, given its parent type?
 showTypeParens :: Type -> ShowHist -> Bool
 showTypeParens (TpArr _ _) ShowArrL = True
+showTypeParens (TpArr _ _) ShowTypeProd = True
 showTypeParens (TpArr _ _) ShowTypeArg = True
-showTypeParens (TpProd _ _ ) ShowTypeArg = True
+showTypeParens (TpProd _ (_ : _ : _)) ShowTypeProd = True
+showTypeParens (TpProd _ (_ : _ : _)) ShowTypeArg = True
 showTypeParens (TpVar _ (_ : _)) ShowTypeArg = True
 showTypeParens _ _ = False
 
@@ -92,7 +96,7 @@ showTermh (UsIf tm1 tm2 tm3) = "if " ++ showTerm tm1 ShowCase ++ " then " ++ sho
 showTermh (UsTmBool b) = if b then "True" else "False"
 showTermh (UsLet x tm tm') = "let " ++ x ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
 showTermh (UsAmb tms) = foldl (\ s tm -> s ++ " " ++ showTerm tm ShowAppR) "amb" tms
-showTermh (UsFactor wt tm) = "factor " ++ show wt ++ " in " ++ show tm
+showTermh (UsFactor wt tm) = "factor " ++ show wt ++ " in " ++ showTerm tm ShowNone
 showTermh (UsFail tp) = "fail" ++ showTpAnn tp
 showTermh (UsProd am tms) =
   let (l, r) = amParens am in
@@ -104,9 +108,8 @@ showTermh (UsEqs tms) = delimitWith " == " [showTerm tm ShowAppL | tm <- tms]
 
 -- Type show helper (ignoring parentheses)
 showTypeh :: Type -> String
-showTypeh (TpVar y as) = delimitWith " " (y : [show a | a <- as])
+showTypeh (TpVar y as) = delimitWith " " (y : [showType a ShowTypeArg | a <- as])
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
---showTypeh (TpAmp tps) = delimitWith " & " [showType tp ShowTypeArg | tp <- tps]
 showTypeh (TpProd Multiplicative []) = "Unit"
 showTypeh (TpProd am tps) = delimitWith (if am == Additive then " & " else " * ") [showType tp ShowTypeArg | tp <- tps]
 showTypeh NoTp = ""
