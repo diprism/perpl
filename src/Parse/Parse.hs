@@ -314,7 +314,7 @@ parseType3 = parsePeek >>= \ t -> case t of
 TYPE4 ::=
   | VAR                         type variable
   | (TYPE1)                     grouping
-  | Bool | Unit                 built-in type names
+  | Bool | Unit | AdditiveUnit  built-in type names
   | error
 
 -}
