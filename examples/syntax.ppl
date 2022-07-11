@@ -79,5 +79,4 @@ define use_compose3 =
 
 -- You must then end the program with something to run, like
 --let foo = use_compose1 in let bar = use_compose2 in use_compose3;
-use_compose3;
---string_eq (gen q0) (gen q0)
+string_eq (gen q0) (gen q0)

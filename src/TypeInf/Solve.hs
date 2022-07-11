@@ -282,7 +282,9 @@ inferExtern (x, tp) m =
 -- Checks the end term (start term? Should be consistent with name...)
 inferEnd :: UsTm -> CheckM SProgs
 inferEnd end =
-  solveM (infer end) >>= \ (end', tp, tgs) ->
+  -- Answer type must be robust
+  let m = infer end >>= \tm -> constrain (Robust (typeof tm)) >> return tm in
+  solveM m >>= \ (end', tp, tgs) ->
   return (SProgs [] end')
 
 -- Infers an entire program, returning a schemified, elaborated one
