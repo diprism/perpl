@@ -17,5 +17,6 @@ define length = \ l. scott_elim (const (compose S length)) Z l;
 
 define t = \ a. \ b. u a b b;
 define u = \ x. \ y. \ z. if y then t x y else Cons Z Nil;
+define v = t (const length) True;
 
-t (const length) True;
+()
