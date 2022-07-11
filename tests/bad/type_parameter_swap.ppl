@@ -1,0 +1,7 @@
+{- A parameterized datatype can include itself with its parameters permuted, and should be considered recursive. -}
+data weirdlist a b = Nil | Cons a (weirdlist b a);
+define copy_mono = \x: weirdlist. (x, x);
+define copy_poly = \x. (x, x);
+extern e: weirdlist Unit Bool;
+let x = (Cons () (Cons True (Cons () (Cons False Nil)))) in (copy_mono x, copy_poly x)
+

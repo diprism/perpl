@@ -207,7 +207,7 @@ inferData dsccs cont = foldr h cont dsccs
     -- Non-recursive only if the scc is a singleton that is itself non-recursive
     -- If the scc has 2+ datatypes, they must be mutually recursive
     sccIsRec :: [(Var, [Var], [Ctor])] -> Bool
-    sccIsRec [(y, ps, cs)] = y `elem` (Map.keys (freeVars cs))
+    sccIsRec [(y, ps, cs)] = Map.member y (freeVars cs)
     sccIsRec _ = True -- Mutually-recursive datatypes are recursive
 
     -- Checks a constructor's type args
