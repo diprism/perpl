@@ -1,12 +1,14 @@
 {- Test all combinations of types -}
 
 define x001: Unit = ();
-define x002: AdditiveUnit = <>;
+--define x002: AdditiveUnit = <>;
 define x003: Bool = False;
+-- arrows
 define x004: Unit -> Unit = \x: Unit. x;
 define x005: Unit -> Unit -> Unit = \x: Unit. \y: Unit. ();
 define x005a: Unit -> (Unit -> Unit) = \x: Unit. \y: Unit. ();
 define x005b: (Unit -> Unit) -> Unit = \x: Unit->Unit. ();
+-- products
 -- bug: no way to write 1-ary multiplicative tuples or their types
 define x006: Unit * Unit = ((), ());
 define x007: Unit * Unit * Unit = ((), (), ());
@@ -15,6 +17,7 @@ define x009: Unit & Unit = <(), ()>;
 define x010: Unit & Unit & Unit = <(), (), ()>;
 define x011: Unit * Unit -> Unit = \x: Unit * Unit. ();
 define x012: (Unit * Unit) -> Unit = \x: Unit * Unit. ();
+-- products and arrows
 define x013: Unit * (Unit -> Unit) = ((), \x: Unit. ());
 define x014: Unit -> Unit * Unit = \x: Unit . ((), ());
 define x015: Unit -> (Unit * Unit) = \x: Unit . ((), ());
@@ -27,6 +30,7 @@ data Tree = Leaf | Unary Tree | Binary Tree Tree;
 -- to do: test datatypes
 
 let x = (
-  x001, x002, x003, x004, x005, x005a, x005b, x006, x007, x008, x009, x010,
+  x001, -- x002,
+  x003, x004, x005, x005a, x005b, x006, x007, x008, x009, x010,
   x011, x012, x013, x014, x015, x016, x017, x018
 ) in ()
