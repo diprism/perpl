@@ -52,20 +52,18 @@ showTermParens (UsCase _ _     ) ShowAppR = True
 showTermParens (UsCase _ _     ) ShowCase = True
 showTermParens (UsIf _ _ _     ) ShowAppL = True
 showTermParens (UsIf _ _ _     ) ShowAppR = True
-showTermParens (UsIf _ _ _     ) ShowCase = True
 showTermParens (UsEqs _        ) ShowAppL = True
 showTermParens (UsEqs _        ) ShowAppR = True
 showTermParens (UsLet _ _ _    ) ShowAppL = True
 showTermParens (UsLet _ _ _    ) ShowAppR = True
-showTermParens (UsLet _ _ _    ) ShowCase = True
 showTermParens (UsAmb _        ) ShowAppL = True
 showTermParens (UsAmb _        ) ShowAppR = True
 showTermParens (UsFactor _ _   ) ShowAppL = True
 showTermParens (UsFactor _ _   ) ShowAppR = True
 showTermParens (UsFail _       ) ShowAppL = True
 showTermParens (UsFail _       ) ShowAppR = True
---showTermParens (UsProdIn _     ) _        = False -- todo
-showTermParens (UsElimProd _ _ _ _) _     = False -- todo
+showTermParens (UsElimProd _ _ _ _) ShowAppL = True
+showTermParens (UsElimProd _ _ _ _) ShowAppR = True
 showTermParens _                 _        = False
 
 -- Should we add parens to this type, given its parent type?
@@ -91,8 +89,8 @@ showTermh :: UsTm -> String
 showTermh (UsVar x) = x
 showTermh (UsLam x tp tm) = "\\ " ++ x ++ showTpAnn tp ++ ". " ++ showTerm tm ShowNone
 showTermh (UsApp tm1 tm2) = showTerm tm1 ShowAppL ++ " " ++ showTerm tm2 ShowAppR
-showTermh (UsCase tm cs) = "case " ++ showTerm tm ShowCase ++ " of " ++ showCasesCtors cs
-showTermh (UsIf tm1 tm2 tm3) = "if " ++ showTerm tm1 ShowCase ++ " then " ++ showTerm tm2 ShowCase ++ " else " ++ showTerm tm3 ShowCase
+showTermh (UsCase tm cs) = "case " ++ showTerm tm ShowNone ++ " of " ++ showCasesCtors cs
+showTermh (UsIf tm1 tm2 tm3) = "if " ++ showTerm tm1 ShowNone ++ " then " ++ showTerm tm2 ShowNone ++ " else " ++ showTerm tm3 ShowNone
 showTermh (UsTmBool b) = if b then "True" else "False"
 showTermh (UsLet x tm tm') = "let " ++ x ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
 showTermh (UsAmb tms) = foldl (\ s tm -> s ++ " " ++ showTerm tm ShowAppR) "amb" tms
@@ -100,10 +98,10 @@ showTermh (UsFactor wt tm) = "factor " ++ show wt ++ " in " ++ showTerm tm ShowN
 showTermh (UsFail tp) = "fail" ++ showTpAnn tp
 showTermh (UsProd am tms) =
   let (l, r) = amParens am in
-    l ++ delimitWith ", " [showTerm tm ShowAppL | tm <- tms] ++ r
+    l ++ delimitWith ", " [showTerm tm ShowNone | tm <- tms] ++ r
 showTermh (UsElimProd am tm xs tm') =
   let (l, r) = amParens am in
-    "let " ++ l ++ delimitWith ", " xs ++ r ++ " = " ++ showTerm tm ShowCase ++ " in " ++ showTerm tm' ShowCase
+    "let " ++ l ++ delimitWith ", " xs ++ r ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
 showTermh (UsEqs tms) = delimitWith " == " [showTerm tm ShowAppL | tm <- tms]
 
 -- Type show helper (ignoring parentheses)

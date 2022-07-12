@@ -134,7 +134,7 @@ parseNum = parsePeek >>= \ t -> case t of
 {-
 
 TERM1 ::=
-  | case TERM1 of VAR VAR* -> TERM2 \| ...
+  | case TERM1 of VAR VAR* -> TERM1 \| ...
   | if TERM1 then TERM1 else TERM1
   | \ VAR [: TYPE1]. TERM1
   | let (VAR, ...) = TERM1 in TERM1
@@ -147,7 +147,7 @@ TERM1 ::=
 -- CaseOf, Lam, Let
 parseTerm1 :: ParseM UsTm
 parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
--- case term of term
+-- case term of c term ... \| ...
   [TkCase, _] -> parseEat *> pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
 -- if term then term else term
   [TkIf, _] -> parseEat *> pure UsIf <*> parseTerm1 <* parseDrop TkThen <*> parseTerm1 <* parseDrop TkElse <*> parseTerm1
