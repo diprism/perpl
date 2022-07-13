@@ -1,0 +1,66 @@
+define id_u = \x: Unit. x;
+define id_f = \x: Unit->Unit. x;
+define id_b = \x: Bool. x;
+data UnitType = UnitTerm;
+data MyBool = MyFalse | MyTrue;
+-- lambda over lambda
+define x001: Unit -> Unit -> Unit = \x. \y. ();
+define x002: Unit -> Unit -> Unit = \x. (\y. ());
+-- app over app
+define x003: Unit = id_f id_u ();
+define x004: Unit = (id_f id_u) ();
+define x005: Unit = id_u (id_u ());
+-- lambda over app
+define x006: Unit -> Unit = \x: Unit. id_u ();
+define x007: Unit -> Unit = \x: Unit. (id_u ());
+define x008: Unit -> Unit = (\x: Unit. id_u) ();
+-- case over if
+define x009 = case if True then UnitTerm else UnitTerm of UnitTerm -> ();
+define x010 = case UnitTerm of UnitTerm -> if True then UnitTerm else UnitTerm;
+-- if over case
+define x011 = if case UnitTerm of UnitTerm -> True then () else ();
+define x012 = if True then case UnitTerm of UnitTerm -> () else ();
+define x013 = if True then () else case UnitTerm of UnitTerm -> ();
+-- case over case
+define x014 = case case UnitTerm of UnitTerm -> UnitTerm of UnitTerm -> ();
+define x015 = case MyFalse of MyFalse -> (case MyFalse of MyFalse -> () | MyTrue -> ()) | MyTrue -> ();
+-- define error = case MyFalse of MyFalse -> case MyFalse of MyFalse -> () | MyTrue -> () | MyTrue -> ();
+define x016 = case MyFalse of MyFalse -> () | MyTrue -> (case MyFalse of MyFalse -> () | MyTrue -> ());
+define x017 = case MyFalse of MyFalse -> () | MyTrue -> case MyFalse of MyFalse -> () | MyTrue -> (); -- to do: should this be an error?
+-- let over app
+define x018 = let x = id_u () in ();
+define x019 = let x = () in id_u ();
+-- app over let
+define x020 = (let x = () in id_u) ();
+-- app over amb
+define x021 = (amb id_u id_u) ();
+define x022 = id_u (amb () ());
+-- amb over app
+define x023 = amb () (id_u ());
+define x024 = amb (id_u ()) ();
+-- tuple
+define x025 = (id_u (), ());
+define x026 = (if True then () else (), ());
+-- ==
+define x027 = id_u () == ();
+define x028 = () == id_u ();
+define x029 = id_b (() == ());
+define x030 = amb () () == ();
+define x031 = () == amb () ();
+define x032 = amb (True == True);
+define x033 = (True == True) == True;
+define x034 = True == (True == True);
+-- fail
+define x035 = fail == False;
+define x036 = False == fail;
+define x037 = (fail:Bool) == False;
+define x038 = False == (fail:Bool);
+define x039 = if True then () else fail;
+define x040 = if True then () else fail:Unit;
+
+let x = (
+  x001, x002, x003, x004, x005, x006, x007, x008, x009, x010,
+  x011, x012, x013, x014, x015, x016, x017, x018, x019, x020,
+  x021, x022, x023, x024, x025, x026, x027, x028, x029, x030,
+  x031, x032, x033, x034, x035, x036, x037, x038, x039, x040
+) in ()
