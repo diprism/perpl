@@ -37,7 +37,7 @@ toUsProgs (Progs ps tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 
 {- Show Instances -}
 
-data ShowHist = ShowAppL | ShowAppR | ShowCase
+data ShowHist = ShowAppL | ShowAppR | ShowEqs | ShowCase
               | ShowArrL | ShowTypeProd | ShowTypeArg
               | ShowNone
   deriving Eq
@@ -46,24 +46,32 @@ data ShowHist = ShowAppL | ShowAppR | ShowCase
 showTermParens :: UsTm -> ShowHist -> Bool
 showTermParens (UsLam _ _ _    ) ShowAppL = True
 showTermParens (UsLam _ _ _    ) ShowAppR = True
+showTermParens (UsLam _ _ _    ) ShowEqs  = True
 showTermParens (UsApp _ _      ) ShowAppR = True
 showTermParens (UsCase _ _     ) ShowAppL = True
 showTermParens (UsCase _ _     ) ShowAppR = True
 showTermParens (UsCase _ _     ) ShowCase = True
+showTermParens (UsCase _ _     ) ShowEqs  = True
 showTermParens (UsIf _ _ _     ) ShowAppL = True
 showTermParens (UsIf _ _ _     ) ShowAppR = True
+showTermParens (UsIf _ _ _     ) ShowEqs  = True
 showTermParens (UsEqs _        ) ShowAppL = True
 showTermParens (UsEqs _        ) ShowAppR = True
+showTermParens (UsEqs _        ) ShowEqs  = True
 showTermParens (UsLet _ _ _    ) ShowAppL = True
 showTermParens (UsLet _ _ _    ) ShowAppR = True
+showTermParens (UsLet _ _ _    ) ShowEqs  = True
 showTermParens (UsAmb _        ) ShowAppL = True
 showTermParens (UsAmb _        ) ShowAppR = True
 showTermParens (UsFactor _ _   ) ShowAppL = True
 showTermParens (UsFactor _ _   ) ShowAppR = True
+showTermParens (UsFail NoTp    ) ShowAppL = False
 showTermParens (UsFail _       ) ShowAppL = True
 showTermParens (UsFail _       ) ShowAppR = True
+showTermParens (UsFail _       ) ShowEqs  = True
 showTermParens (UsElimProd _ _ _ _) ShowAppL = True
 showTermParens (UsElimProd _ _ _ _) ShowAppR = True
+showTermParens (UsElimProd _ _ _ _) ShowEqs  = True
 showTermParens _                 _        = False
 
 -- Should we add parens to this type, given its parent type?
@@ -102,7 +110,7 @@ showTermh (UsProd am tms) =
 showTermh (UsElimProd am tm xs tm') =
   let (l, r) = amParens am in
     "let " ++ l ++ delimitWith ", " xs ++ r ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
-showTermh (UsEqs tms) = delimitWith " == " [showTerm tm ShowAppL | tm <- tms]
+showTermh (UsEqs tms) = delimitWith " == " [showTerm tm ShowEqs | tm <- tms]
 
 -- Type show helper (ignoring parentheses)
 showTypeh :: Type -> String

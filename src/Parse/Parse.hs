@@ -168,43 +168,54 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 {-
 
 TERM2 ::=
-  | amb TERM5*
-  | fail [: TYPE1]
-  | TERM4
+  | TERM3 [: TYPE1]
+
+Currently the only term that can have a type annotation is "fail".
 
  -}
 
 parseTerm2 :: ParseM UsTm
-parseTerm2 = parsePeek >>= \ t -> case t of
--- amb tm*
-  TkAmb -> parseEat *> parseAmbs []
--- fail : type
-  TkFail -> parseEat *> pure UsFail <*> parseTpAnn
-  _ -> parseTerm4
+parseTerm2 = parseTerm3 >>= \ tm ->
+  case tm of
+    UsFail NoTp -> pure UsFail <*> parseTpAnn
+    _ -> return tm
+
+{-
+
+TERM3 ::=
+  | TERM4 == TERM4 == ...
+
+-}
 
 -- Parse one or more tok-delimited terms
-parseTmsDelim :: Token -> [UsTm] -> ParseM [UsTm]
-parseTmsDelim tok tms = parsePeek >>= \ t ->
+parseDelim :: (ParseM UsTm) -> Token -> [UsTm] -> ParseM [UsTm]
+parseDelim m tok tms = parsePeek >>= \ t ->
   if t == tok
-    then parseEat >> parseTerm1 >>= \ tm -> parseTmsDelim tok (tm : tms)
+    then parseEat >> m >>= \ tm -> parseDelim m tok (tm : tms)
     else return (reverse tms)
+         
+
+parseTerm3 :: ParseM UsTm
+parseTerm3 = parseTerm4 >>= \ tm ->
+  parsePeek >>= \ t -> case t of
+    TkDoubleEq -> UsEqs <$> parseDelim parseTerm4 TkDoubleEq [tm]
+    _ -> return tm
 
 
 {-
 
 TERM4 ::=
-  | TERM5 == TERM5 == ...
   | TERM5 TERM5*
+  | amb TERM5*
   | TERM5
 
  -}
 
 parseTerm4 :: ParseM UsTm
-parseTerm4 =
-  parseTerm5 >>= \ tm ->
-  parsePeek >>= \ t -> case t of
-    TkDoubleEq -> UsEqs <$> parseTmsDelim TkDoubleEq [tm]
-    _ -> parseTermApp tm
+parseTerm4 = parsePeek >>= \ t -> case t of
+-- amb tm*
+  TkAmb -> parseEat *> parseAmbs []
+  _ -> parseTerm5 >>= \ tm -> parseTermApp tm
 
 -- Parses the "tm*" part of "amb tm*"
 parseAmbs :: [UsTm] -> ParseM UsTm
@@ -236,9 +247,9 @@ parseTerm5 = parsePeek >>= \ t -> case t of
   TkParenL -> parseEat *> (
     parsePeek >>= \ t -> case t of
         TkParenR -> pure (UsProd Multiplicative [])
-        _ -> parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd Multiplicative tms)
+        _ -> parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd Multiplicative tms)
     ) <* parseDrop TkParenR
-  TkLangle -> parseEat *> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseTmsDelim TkComma [tm]) <* parseDrop TkRangle
+  TkLangle -> parseEat *> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm]) <* parseDrop TkRangle
   TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
