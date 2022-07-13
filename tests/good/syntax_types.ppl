@@ -1,7 +1,7 @@
 {- Test all combinations of types -}
 
 define x001: Unit = ();
---define x002: AdditiveUnit = <>;
+define x002: AdditiveUnit = <>;
 define x003: Bool = False;
 -- arrows
 define x004: Unit -> Unit = \x: Unit. x;
@@ -30,7 +30,6 @@ data Tree = Leaf | Unary Tree | Binary Tree Tree;
 -- to do: test datatypes
 
 let x = (
-  x001, -- x002,
-  x003, x004, x005, x005a, x005b, x006, x007, x008, x009, x010,
+  x001, x002, x003, x004, x005, x005a, x005b, x006, x007, x008, x009, x010,
   x011, x012, x013, x014, x015, x016, x017, x018
 ) in ()
