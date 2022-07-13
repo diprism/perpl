@@ -187,6 +187,7 @@ parseTerm2 = parseTerm3 >>= \ tm ->
     UsFail NoTp -> pure UsFail <*> parseTpAnn
     _ -> return tm
 
+
 {-
 
 TERM3 ::=
