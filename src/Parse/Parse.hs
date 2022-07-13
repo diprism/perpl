@@ -87,6 +87,13 @@ parseDropSoft t = ParseM $ \ ts -> case ts of
   ((_, t') : ts') -> parseMr () (if t == t' then ts' else ts)
   [] -> parseMr () ts
 
+-- Parse one or more tok-delimited terms/types
+parseDelim :: (ParseM a) -> Token -> [a] -> ParseM [a]
+parseDelim m tok acc = parsePeek >>= \ t ->
+  if t == tok
+    then parseEat >> m >>= \ a -> parseDelim m tok (a : acc)
+    else return (reverse acc)
+         
 -- Pipe-delimited list (the first pipe is optional)
 parseBranches :: ParseM a -> ParseM [a]
 parseBranches branch = parseDropSoft TkBar *> oneOrMore
@@ -187,13 +194,6 @@ TERM3 ::=
 
 -}
 
--- Parse one or more tok-delimited terms
-parseDelim :: (ParseM UsTm) -> Token -> [UsTm] -> ParseM [UsTm]
-parseDelim m tok tms = parsePeek >>= \ t ->
-  if t == tok
-    then parseEat >> m >>= \ tm -> parseDelim m tok (tm : tms)
-    else return (reverse tms)
-         
 
 parseTerm3 :: ParseM UsTm
 parseTerm3 = parseTerm4 >>= \ tm ->
@@ -253,13 +253,6 @@ parseTerm5 = parsePeek >>= \ t -> case t of
   TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
--- Parses tok-delimited types
-parseTpsDelim :: Token -> [Type] -> ParseM [Type]
-parseTpsDelim tok acc = parsePeek >>= \ t ->
-  if t == tok
-    then (parseEat >> parseType3 >>= \ tp' -> parseTpsDelim tok (tp' : acc))
-    else pure (reverse acc)
-
 
 {- Type Annotation
 
@@ -299,9 +292,10 @@ TYPE2 ::=
 -- Product, Ampersand
 parseType2 :: ParseM Type
 parseType2 = parseType3 >>= \ tp -> parsePeek >>= \ t -> case t of
-  TkStar  -> pure (TpProd Multiplicative) <*> parseTpsDelim TkStar [tp]
-  TkAmp   -> pure (TpProd Additive) <*> parseTpsDelim TkAmp [tp]
+  TkStar  -> pure (TpProd Multiplicative) <*> parseDelim parseType3 TkStar [tp]
+  TkAmp   -> pure (TpProd Additive) <*> parseDelim parseType3 TkAmp [tp]
   _ -> pure tp
+
 
 {-
 
