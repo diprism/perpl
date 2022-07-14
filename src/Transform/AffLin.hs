@@ -21,15 +21,12 @@ import Scope.Subst
 -- rewriting terms so that they have the new transformed type:
 --   1. L(tp1 -> tp2 -> ... -> tpn) = (L(tp1) -> L(tp2) -> ... -> L(tpn)) & Unit
 --   2. L(tp1 &  tp2 *  ... &  tpn) =  L(tp1) &  L(tp2) &  ... &  L(tpn)  & Unit
---   3. L(μ tv. tp)                 =  L(tp)                              & Unit
 -- Then for terms, we basically apply these two transformations to match the new types:
 --   1. L(\x1. ... tm) = <\x1. ... L(tm), L*(unit)>
 --      L(tm a1 a2 ... an) = L(tm).1 L(a1) L(a2) ... L(an)
 --   2. L(<tm1, tm2, ..., tmn>) = <L*(tm1), L*(tm2), ..., L*(tmn), L*(unit)>
 --        (where L* denotes L but with calls to Z to ensure all branches have same FVs)
 --      L(tm.i) = L(tm).i
---   3. L(fold tm) = <fold L(tm), L*(unit)>
---      L(unfold tm) = unfold L(tm).1
 
 
 -- Reader, Writer, State monad
@@ -115,11 +112,7 @@ discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm
 
 -- See definition of L(tp) above
 affLinTp :: Type -> AffLinM Type
-affLinTp tp@(TpVar y _) = ask >>= \ g ->
-  if isRecursiveTypeName (ctxtLookupType g) y then
-    return (TpProd Additive [tp, tpUnit])
-  else
-    return tp
+affLinTp (TpVar y _) = return (TpVar y [])
 affLinTp (TpProd am tps) = pure (TpProd am) <*> mapM affLinTp (tps ++ (if am == Additive then [tpUnit] else []))
 affLinTp (TpArr tp1 tp2) =
   let (tps, end) = splitArrows (TpArr tp1 tp2) in
@@ -173,35 +166,6 @@ affLinBranches alf dscrd als =
   listen (mapM (listen . alf) als) >>= \ (alxs, xsAny) ->
   mapM (\ (b, xs) -> dscrd (Map.difference xsAny xs) b) alxs
 
-affLinPerhapsFold :: Term -> AffLinM Term
-affLinPerhapsFold (TmVarG CtorVar x tis as y@(TpVar yname yparams)) =
-  mapM affLinTp tis >>= \ tis' ->
-  mapArgsM affLin as >>= \ as' ->
-  affLinTp y >>= \ y' ->
-  -- trick: y' is a TpProd Additive iff y is recursive
-  case y' of 
-    TpProd Additive [y, tpUnit] ->
-      ask >>= \ g ->
-      let z = freshVar g "_f"
-          tm = (TmVarG CtorVar x tis' as' y)
-      in
-        discards (freeVars tm) tmUnit >>= \ntm ->
-        return (TmLet z tm y
-                (TmProd Additive [(TmVarL z y, y), (ntm, tpUnit)]) y')
-    _ -> return (TmVarG CtorVar x tis' as' y')
-affLinPerhapsFold _ = error "this shouldn't happen"
-
-affLinPerhapsUnfold :: Term -> (Var, [Type]) -> AffLinM Term
-affLinPerhapsUnfold tm (yname, yparams) =
-  ask >>= \ g ->
-  if isRecursiveTypeName (ctxtLookupType g) yname then
-    let z = freshVar g "_u" in
-      affLin tm >>= \tm' ->
-      affLinTp (TpVar yname yparams) >>= \tp' ->
-      let TpProd Additive [tp1, tpUnit] = tp' in
-      return (TmElimProd Additive tm' [(z, tp1), ("_", tpUnit)] (TmVarL z tp1) tp1)
-  else
-    affLin tm
 
 -- Make a term linear, returning the local vars that occur free in it
 affLin :: Term -> AffLinM Term
@@ -210,17 +174,14 @@ affLin (TmVarL x tp) =
   affLinTp tp >>= \ ltp ->
   tell (Map.singleton x ltp) >>
   return (TmVarL x ltp)
-affLin (TmVarG DefVar x [] as y) =
-  -- x is a global var with type y
+affLin (TmVarG gv x tis as y) =
+  -- x is a global var with args as
+  -- or a constructor with type args tis and args as
   -- L(x a1 ...) => x L(a1) ...
   mapArgsM affLin as >>= \ as' ->
   affLinTp y >>= \ y' ->
-  return (TmVarG DefVar x [] as' y')
-affLin (TmVarG DefVar x tis as y) = error "this shouldn't happen"
-affLin tm@(TmVarG CtorVar x tis as y) =
-  -- x is constructor with type parameters tis and arguments as
-  -- L(x a1 ...) => <x L(a1) ..., Z(FV(a1, ...))>
-  affLinPerhapsFold tm
+  mapM affLinTp tis >>= \ tis' ->
+  return (TmVarG gv x tis' as' y')
 affLin (TmLam x tp tm tp') =
   -- L(\ x : tp. tm) => <\ x : L(tp). L(tm), Z(FV(tm) - {x})>
   listen (affLinLams (TmLam x tp tm tp')) >>= \ ((lps, body), fvs) ->
@@ -239,7 +200,7 @@ affLin (TmLet x xtm xtp tm tp) =
 affLin (TmCase tm y cs tp) =
   -- L(case tm of C1 | C2 | ... | Cn) => case L(tm) of L*(C1) | L*(C2) | ... | L*(Cn),
   -- where L*(C) = let _ = Z((FV(C1) ∪ FV(C2) ∪ ... ∪ FV(Cn)) - FV(C)) in L(C)
-  affLinPerhapsUnfold tm y >>= \ tm' ->
+  affLin tm >>= \ tm' ->
   affLinBranches affLinCase
     (\ xs (Case x as tm) -> fmap (Case x as) (discards xs tm)) cs >>= \ cs' ->
   affLinTp tp >>= return . TmCase tm' y cs'
