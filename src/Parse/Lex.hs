@@ -38,7 +38,7 @@ data Token =
   | TkElse -- "else"
   | TkDoubleEq -- "=="
   | TkUnit -- "Unit"
-  | TkAdditiveUnit -- "AdditiveUnit"
+  | TkTop -- "Top"
   deriving Eq
 
 instance Show Token where
@@ -77,7 +77,7 @@ instance Show Token where
   show TkThen = "then"
   show TkElse = "else"
   show TkUnit = "Unit"
-  show TkAdditiveUnit = "AdditiveUnit"
+  show TkTop = "Top"
 
 
 type Pos = (Int, Int) -- Line, column
@@ -97,7 +97,7 @@ next (line, column) = (succ line, 0)
 -- List of punctuation tokens
 punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkLeftArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkStar, TkAmp, TkLangle, TkRangle]
 -- List of keyword tokens (use alphanumeric chars)
-keywords = [TkAmb, TkFactor, TkFail, TkCase, TkOf, TkLet, TkIn, TkFun, TkExtern, TkData, TkUnit, TkAdditiveUnit, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
+keywords = [TkAmb, TkFactor, TkFail, TkCase, TkOf, TkLet, TkIn, TkFun, TkExtern, TkData, TkUnit, TkTop, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
 
 -- Tries to lex s as punctuation, otherwise lexing s as a keyword or a var
 lexPunctuation :: String -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
