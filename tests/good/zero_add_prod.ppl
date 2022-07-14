@@ -1,2 +1,2 @@
-define u: AdditiveUnit = <>;
-u
+define u: Top = <>;
+()
