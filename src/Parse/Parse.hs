@@ -319,7 +319,7 @@ parseType3 = parsePeek >>= \ t -> case t of
 TYPE4 ::=
   | VAR                         type variable
   | (TYPE1)                     grouping
-  | Bool | Unit | AdditiveUnit  built-in type names
+  | Bool | Unit | Top           built-in type names
   | error
 
 -}
@@ -329,7 +329,7 @@ parseType4 = parsePeek >>= \ t -> case t of
   TkVar v -> parseEat *> pure (TpVar v [])
   TkBool -> parseEat *> pure (TpVar "Bool" [])
   TkUnit -> parseEat *> pure (TpProd Multiplicative [])
-  TkAdditiveUnit -> parseEat *> pure (TpProd Additive [])
+  TkTop -> parseEat *> pure (TpProd Additive [])
   TkParenL -> parseEat *> parseType1 <* parseDrop TkParenR
   _ -> parseErr "couldn't parse a type here; perhaps add parentheses?"
 
