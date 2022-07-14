@@ -6,7 +6,7 @@ data Nat = Zero | Succ Nat; -- R
 
 define symbol = amb False True; -- unexpectedly low weights
 
--- Generates a random Word of length 2n
+-- Generates a random List of length n
 define randomList = \ n. case n of
   | Zero -> Nil
   | Succ n' -> Cons symbol (randomList n');
@@ -21,6 +21,8 @@ define run : List Bool -> Nat -> Bool =
       | False -> run ps (Succ c)
       | True -> (case c of Zero -> False | Succ c -> run ps c));
 
-define length = Succ (Succ (Succ (Succ (Succ (Succ Zero))))); -- 6
+define length = Succ (Succ Zero);
 
 recognize (randomList length);
+
+-- correct: [3.0, 1.0]
