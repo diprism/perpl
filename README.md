@@ -16,19 +16,20 @@ To run tests:
     
 To compile a PERPL program to an FGG (JSON-formatted):
 
-    ./compiler.exe [options] FILE.ppl -o OUTPUT.json
+    ./perplc [options] FILE.ppl -o OUTPUT.json
 
 For more about the language, see [language.md](language.md).
 
 Options:
         
-	-o OUTFILE	Output to OUTFILE
-	-O0 -O1		Optimization level (0 = off, 1 = on, for now)
+	-O0 -O1		Optimization level (0 = off, 1 = on)
 	-l		Don't linearize the file (implies -c -e)
         -e              Don't eliminate recursive datatypes (implies -c)
-	-c		Compile only to PPL code (not to FGG)
 	-d DTYPES	Defunctionalize recursive datatypes DTYPES
 	-r DTYPES	Refunctionalize recursive datatypes DTYPES
+	-c		Compile only to PPL code (not to FGG)
+        -z              Compute sum-product
+	-o OUTFILE	Output to OUTFILE
 
 ## Credits
 
