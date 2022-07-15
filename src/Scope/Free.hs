@@ -127,12 +127,13 @@ searchType pred g = h [] where
     TpVar y as ->
       -- Don't search the same type twice (that would cause infinite recursion)
       not (tp `elem` visited) &&
-      -- The type arguments (as) are not substituted into the type parameters of tps.
-      (case ctxtLookupType2 g y of
-          Nothing -> False
-          Just (ps, cs) -> any (\ (Ctor _ tps) -> any (h (tp : visited)) tps) cs
-      -- Instead, search the type arguments now.
-       || any (h (tp : visited)) as)
+      case ctxtLookupType2 g y of
+        Nothing -> False
+        Just (ps, cs) ->
+          -- Substitute actual type parameters (as) for datatype's type parameters (ps)
+          -- and recurse on each constructor
+          let s = Map.fromList (zip ps (fmap SubTp as)) in
+          any (\ (Ctor _ tps) -> any (h (tp : visited) . subst s) tps) cs
     TpArr tp1 tp2 -> h visited tp1 || h visited tp2
     TpProd am tps -> any (h visited) tps
     NoTp -> False
