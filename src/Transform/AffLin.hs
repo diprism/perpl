@@ -85,6 +85,7 @@ discard' x (TpProd am tps) rtm
 discard' x xtp@(TpVar y _) rtm =
   ask >>= \ g ->
   if isRecursiveTypeName (ctxtLookupType g) y then
+    -- let () = discard x in rtm
     return (TmElimProd Multiplicative (TmVarG DefVar (discardName y) [] [(x, xtp)] tpUnit) [] rtm (typeof rtm))
   else
     maybe2 (ctxtLookupType g y)
@@ -245,12 +246,14 @@ affLin (TmEqs tms) =
   --   L(tm1) == L(tm2) == ... == L(tmn)
   pure TmEqs <*> mapM affLin tms
 
--- Generate discard functions for recursive types
+-- Generate a discard function for each recursive type
 affLinDiscards :: [Prog] -> AffLinM [Prog]
 affLinDiscards (p@(ProgData y cs) : ps) =
   ask >>= \ g ->
   if isRecursiveTypeName (ctxtLookupType g) y then
     let
+      -- define _discardy_ = \x. case x of Con1 a11 a12 ... -> () | ...
+      -- Linearizing this will generate recursive calls to discard as needed
       ytp = TpVar y []
       defDiscard = ProgFun (discardName y) [("x", ytp)] body tpUnit
       body = TmCase (TmVarL "x" ytp) (y, []) cases tpUnit
