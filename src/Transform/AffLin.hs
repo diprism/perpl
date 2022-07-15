@@ -170,7 +170,6 @@ affLinBranches alf dscrd als =
   listen (mapM (listen . alf) als) >>= \ (alxs, xsAny) ->
   mapM (\ (b, xs) -> dscrd (Map.difference xsAny xs) b) alxs
 
-
 -- Make a term linear, returning the local vars that occur free in it
 affLin :: Term -> AffLinM Term
 affLin (TmVarL x tp) =
@@ -269,7 +268,7 @@ affLinDiscards [] = return []
 -- Make an affine Prog linear
 affLinProg :: Prog -> AffLinM Prog
 affLinProg (ProgData y cs) =
-  pure (ProgData y) <*> mapCtorsM affLinTp cs           
+  pure (ProgData y) <*> mapCtorsM affLinTp cs
 affLinProg (ProgFun x as tm tp) =
   mapParamsM affLinTp as >>= \ as' ->
   pure (ProgFun x as') <*> alBinds as' (affLin tm) <*> affLinTp tp
@@ -304,4 +303,4 @@ runAffLin ps = case runRWS (affLinProgs ps) emptyCtxt () of
 
 -- Make an affine file linear
 affLinFile :: Progs -> Either String Progs
-affLinFile ps = return (runAffLin ps)
+affLinFile = return . runAffLin
