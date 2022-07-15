@@ -362,12 +362,12 @@ freshVar = freshVar' . Map.mapWithKey (const . SubVar)
 
 instance Substitutable CtxtDef where
   substM (DefTerm sc tp) = pure (DefTerm sc) <*> substM tp
-  substM (DefData [] cs) = pure DefData <*> pure [] <*> substM cs
-  substM (DefData ps cs) = error "not implemented"
+  substM (DefData [] [] cs) = pure DefData <*> pure [] <*> pure [] <*> substM cs
+  substM (DefData tgs ps cs) = error "not implemented"
   
   freeVars (DefTerm sc tp) = freeVars tp
-  freeVars (DefData [] cs) = freeVars cs
-  freeVars (DefData ps cs) = error "not implemented"
+  freeVars (DefData [] [] cs) = freeVars cs
+  freeVars (DefData tgs ps cs) = error "not implemented"
 
 instance Substitutable Scheme where
   substM (Forall tgs xs tp) =
