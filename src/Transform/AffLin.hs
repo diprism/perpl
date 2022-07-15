@@ -82,15 +82,18 @@ discard' x (TpProd am tps) rtm
   | otherwise = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in
       discards (Map.fromList ps) rtm >>= \ rtm' ->
       return (TmElimProd Multiplicative x ps rtm' (typeof rtm'))
-discard' x (TpVar y _) rtm =
+discard' x xtp@(TpVar y _) rtm =
   ask >>= \ g ->
-  maybe2 (ctxtLookupType g y)
-    (error ("In Free.hs/discard, unknown type var " ++ y))
-    (mapM (\ (Ctor x' as) ->
-               let as' = nameParams x' as in
-                 alBinds as' (return tmUnit) >>= \ tm ->
-                 return (Case x' as' tm))) >>= \ cs' ->
-  return (TmLet "_" (TmCase x (y, []) cs' tpUnit) tpUnit rtm (typeof rtm))
+  if isRecursiveTypeName (ctxtLookupType g) y then
+    return (TmElimProd Multiplicative (TmVarG DefVar (discardName y) [] [(x, xtp)] tpUnit) [] rtm (typeof rtm))
+  else
+    maybe2 (ctxtLookupType g y)
+      (error ("In Free.hs/discard, unknown type var " ++ y))
+      (mapM (\ (Ctor x' as) ->
+                 let as' = nameParams x' as in
+                   alBinds as' (return tmUnit) >>= \ tm ->
+                   return (Case x' as' tm))) >>= \ cs' ->
+    return (TmLet "_" (TmCase x (y, []) cs' tpUnit) tpUnit rtm (typeof rtm))
 discard' x NoTp rtm = error "Trying to discard a NoTp"
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard
@@ -242,10 +245,28 @@ affLin (TmEqs tms) =
   --   L(tm1) == L(tm2) == ... == L(tmn)
   pure TmEqs <*> mapM affLin tms
 
+-- Generate discard functions for recursive types
+affLinDiscards :: [Prog] -> AffLinM [Prog]
+affLinDiscards (p@(ProgData y cs) : ps) =
+  ask >>= \ g ->
+  if isRecursiveTypeName (ctxtLookupType g) y then
+    let
+      ytp = TpVar y []
+      defDiscard = ProgFun (discardName y) [("x", ytp)] body tpUnit
+      body = TmCase (TmVarL "x" ytp) (y, []) cases tpUnit
+      cases = [Case c [(freshVar g "a", atp) | atp <- atps] tmUnit | Ctor c atps <- cs]
+    in
+      affLinDiscards ps >>= \ ps' ->
+      return (defDiscard : p : ps')
+  else
+    pure (p :) <*> affLinDiscards ps
+affLinDiscards (p : ps) = pure (p :) <*> affLinDiscards ps
+affLinDiscards [] = return []
+
 -- Make an affine Prog linear
 affLinProg :: Prog -> AffLinM Prog
 affLinProg (ProgData y cs) =
-  pure (ProgData y) <*> mapCtorsM affLinTp cs
+  pure (ProgData y) <*> mapCtorsM affLinTp cs           
 affLinProg (ProgFun x as tm tp) =
   mapParamsM affLinTp as >>= \ as' ->
   pure (ProgFun x as') <*> alBinds as' (affLin tm) <*> affLinTp tp
@@ -271,7 +292,7 @@ affLinDefines (Progs ps end) =
 affLinProgs :: Progs -> AffLinM Progs
 affLinProgs (Progs ps end) =
   affLinDefines (Progs ps end) >>= \ g ->
-  local (const g) (pure Progs <*> mapM affLinProg ps <*> affLin end)
+  local (const g) (affLinDiscards ps >>= \ ps' -> pure Progs <*> mapM affLinProg ps' <*> affLin end)
 
 -- Runs the AffLin monad
 runAffLin :: Progs -> Progs
