@@ -54,8 +54,8 @@ ctxtLookupType g x = Map.lookup x g >>= \ vd -> case vd of
   DefData _ cs -> error "this shouldn't happen"
   _ -> Nothing
 
-ctxtLookupType2 :: Ctxt -> Var -> [Type] -> Maybe ([Var], [Ctor])
-ctxtLookupType2 g x as = Map.lookup x g >>= \ vd -> case vd of
+ctxtLookupType2 :: Ctxt -> Var -> Maybe ([Var], [Ctor])
+ctxtLookupType2 g x = Map.lookup x g >>= \ vd -> case vd of
   DefData ps cs -> Just (ps, cs)
   _ -> Nothing
 
