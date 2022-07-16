@@ -50,7 +50,7 @@ define products =
     -- let <b', q'> = amp in ...
     -- Nor can you use use amp twice
     
-    -- To make a multiplicate product:
+    -- To make a multiplicative product:
     let prod' = (False, q1) in
     -- To make an additive product:
     let amp' = <False, q1> in
