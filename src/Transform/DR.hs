@@ -309,7 +309,7 @@ derefun dr rtp new_ps (Progs ps end) =
       --emsg = "Failed to " ++ dr' ++ " " ++ rtp
   in
     return (Progs rps rtm)
---    maybe (return (Progs rps rtm)) (\ datahist -> Left (emsg ++ ":\n" ++ delimitWith "\n" [show (UsProgData y cs) | (y, cs) <- datahist])) (isInfiniteType' (ctxtDefProgs (Progs (rps ++ new_ps) rtm)) (TpVar rtp)) -- then Left emsg else return (Progs rps rtm)
+--    maybe (return (Progs rps rtm)) (\ datahist -> Left (emsg ++ ":\n" ++ intercalate "\n" [show (UsProgData y cs) | (y, cs) <- datahist])) (isInfiniteType' (ctxtDefProgs (Progs (rps ++ new_ps) rtm)) (TpVar rtp)) -- then Left emsg else return (Progs rps rtm)
 
 derefunThis :: DeRe -> Var -> Progs -> (Progs, Prog, Prog)
 derefunThis Defun rtp ps =
@@ -400,7 +400,7 @@ pickNextDR explicit_drs res drs = Map.foldrWithKey (\ rtp rds dr_else -> tryPick
 spanGraphError :: RecEdges -> [(Var, DeRe)] -> Either String a
 spanGraphError res chosen =
   Left $ "Failed to resolve the following dependencies:\n" ++
-    (delimitWith "\n" $ uncurry depmsg <$> Map.toList res)
+    (intercalate "\n" $ uncurry depmsg <$> Map.toList res)
     where
       depmsg :: Var -> RecDeps -> String
       depmsg rtp (RecDeps defs refs) = depstr 'D' rtp defs ++ "\n" ++ depstr 'R' rtp refs
@@ -409,7 +409,7 @@ spanGraphError res chosen =
       relevantDeps = filter $ flip Map.member res
       
       depstr :: Char -> Var -> [Var] -> String
-      depstr dr name deps = dr : "[" ++ name ++ "] <- " ++ delimitWith ", " (relevantDeps deps)
+      depstr dr name deps = dr : "[" ++ name ++ "] <- " ++ intercalate ", " (relevantDeps deps)
 
 -- Greedily pops nodes from the graph that satisfy tryPickDR until none remain,
 -- returning the recursive datatype names and whether to de- or refunctionalize them
