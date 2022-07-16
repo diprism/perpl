@@ -22,14 +22,14 @@ For more about the language, see [language.md](language.md).
 
 Options:
         
-	-O0 -O1		Optimization level (0 = off, 1 = on)
-	-l		Don't linearize the file (implies -c -e)
-        -e              Don't eliminate recursive datatypes (implies -c)
-	-d DTYPES	Defunctionalize recursive datatypes DTYPES
-	-r DTYPES	Refunctionalize recursive datatypes DTYPES
-	-c		Compile only to PPL code (not to FGG)
-        -z              Compute sum-product
-	-o OUTFILE	Output to OUTFILE
+    -O0 -O1     Optimization level (0 = off, 1 = on)
+    -l          Don't linearize the file (implies -c -e)
+    -e          Don't eliminate recursive datatypes (implies -c)
+    -d DTYPES   Defunctionalize recursive datatypes DTYPES
+    -r DTYPES   Refunctionalize recursive datatypes DTYPES
+    -c          Compile only to PPL code (not to FGG)
+    -z          Compute sum-product
+    -o OUTFILE  Output to OUTFILE
 
 ## Credits
 
