@@ -211,12 +211,10 @@ term2fgg g (TmLet x xtm xtp tm tp) =
        Edge' (tmxs ++ [vtp]) (show tm)]
       (xtmxs ++ delete vxtp tmxs ++ [vtp])
 
--- A 0-ary additive product (<>) gets a rule with empty rhs.
-term2fgg g tm@(TmProd Additive []) =
-  let [vtp] = newNames [TpProd Additive []] in
-    mkRule tm [vtp] [] [vtp]
-    
 term2fgg g (TmProd Additive as) =
+  -- Technically a 0-ary additive product (<>) can be constructed but not destructed.
+  -- But linearity requires that every additive product be destructed exactly once,
+  -- so don't bother creating any FGG rules for <>.
   let (tms, tps) = unzip as
       fvs = freeVars tms in
     addAmpFactors g tps +>
@@ -340,10 +338,11 @@ domainValues g = tpVals where
       concat [foldl (kronwith $ \ d da -> d ++ " " ++ parens da) [x] (map tpVals as)
              | (Ctor x as) <- cs]
   tpVals (TpArr tp1 tp2) = uncurry arrVals (splitArrows (TpArr tp1 tp2))
-  tpVals (TpProd Additive []) = ["<>"]
   tpVals (TpProd Additive tps) =
+    -- The type of 0-ary additive tuples has no values, but this
+    -- is never going to happen anyway.
     let tpvs = map tpVals tps in
-      concatMap (\ (i, vs) -> ["<" ++ delimitWith ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
+      concatMap (\ (i, vs) -> ["<" ++ intercalate ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
   tpVals (TpProd Multiplicative tps) =
     [prodValName' tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
   tpVals NoTp = error ("Enumerating values of a NoTp: " ++ show (Map.keys g))

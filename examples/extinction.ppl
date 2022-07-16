@@ -2,7 +2,7 @@
 
 extern p: Bool; -- false = 0 sons, true = 2 sons
 
-define extinct: Unit =
+define extinct =
   if p then (let u1 = extinct in let u2 = extinct in ()) else ();
 
 extinct -- Should be {(): min(0, (1-p)/p)}

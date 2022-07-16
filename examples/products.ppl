@@ -1,16 +1,16 @@
 data Color = R | G | B;
 data Direction = N | E | S | W;
 
-define prod : Bool * Color * Direction = (True, G, S);
-define amp  : Bool & Color & Direction = <True, G, S>;
+define prod : (Bool, Color, Direction) = (True, G, S);
+define amp  : <Bool, Color, Direction> = <True, G, S>;
 
-define use_prod : Bool * Color * Direction -> Direction =
+define use_prod : (Bool, Color, Direction) -> Direction =
   \ p. let (x, y, z) = p in z;
 
-define use_amp  : Bool & Color & Direction -> Direction =
+define use_amp  : <Bool, Color, Direction> -> Direction =
   \ a. let <_, _, z> = a in z;
   
-{- define use_amp_error  : Bool & Color & Direction -> Direction =
+{- define use_amp_error  : <Bool, Color, Direction> -> Direction =
   \ a. let <x, _, z> = a in z; -}
 
 use_amp amp;

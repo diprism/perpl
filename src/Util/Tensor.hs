@@ -1,7 +1,7 @@
 {- Tensor code for FGG factor generation -}
 
 module Util.Tensor where
-import Util.Helpers
+import Data.List (intercalate)
 
 -- Prelude's `zip` doesn't throw an error when the lists
 -- have different lengths, dropping from the longer list
@@ -16,7 +16,7 @@ data Tensor a = Scalar a | Vector [Tensor a]
 -- Tensor instances:
 instance Show a => Show (Tensor a) where
   show (Scalar a) = show a
-  show (Vector ts) = '[' : delimitWith ", " [show v | v <- ts] ++ "]"
+  show (Vector ts) = '[' : intercalate ", " [show v | v <- ts] ++ "]"
 
 instance Functor Tensor where
   fmap f (Scalar a) = Scalar (f a)

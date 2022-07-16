@@ -1,19 +1,19 @@
-define id_u = \x: Unit. x;
-define id_f = \x: Unit->Unit. x;
+define id_u = \x: (). x;
+define id_f = \x: ()->(). x;
 define id_b = \x: Bool. x;
 data UnitType = UnitTerm;
 data MyBool = MyFalse | MyTrue;
 -- lambda over lambda
-define x001: Unit -> Unit -> Unit = \x. \y. ();
-define x002: Unit -> Unit -> Unit = \x. (\y. ());
+define x001: () -> () -> () = \x. \y. ();
+define x002: () -> () -> () = \x. (\y. ());
 -- app over app
-define x003: Unit = id_f id_u ();
-define x004: Unit = (id_f id_u) ();
-define x005: Unit = id_u (id_u ());
+define x003: () = id_f id_u ();
+define x004: () = (id_f id_u) ();
+define x005: () = id_u (id_u ());
 -- lambda over app
-define x006: Unit -> Unit = \x: Unit. id_u ();
-define x007: Unit -> Unit = \x: Unit. (id_u ());
-define x008: Unit -> Unit = (\x: Unit. id_u) ();
+define x006: () -> () = \x: (). id_u ();
+define x007: () -> () = \x: (). (id_u ());
+define x008: () -> () = (\x: (). id_u) ();
 -- case over if
 define x009 = case if True then UnitTerm else UnitTerm of UnitTerm -> ();
 define x010 = case UnitTerm of UnitTerm -> if True then UnitTerm else UnitTerm;
@@ -56,7 +56,7 @@ define x036 = False == fail;
 define x037 = (fail:Bool) == False;
 define x038 = False == (fail:Bool);
 define x039 = if True then () else fail;
-define x040 = if True then () else fail:Unit;
+define x040 = if True then () else fail:();
 
 let x = (
   x001, x002, x003, x004, x005, x006, x007, x008, x009, x010,

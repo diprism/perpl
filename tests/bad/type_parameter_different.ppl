@@ -2,6 +2,6 @@
 data weirdlist a = Nil | Cons a (weirdlist Bool);
 define copy_mono = \x: weirdlist. (x, x);
 define copy_poly = \x. (x, x);
-extern e: weirdlist Unit;
+extern e: weirdlist ();
 let x = (Cons () (Cons True Nil)) in (copy_mono x, copy_poly x)
 
