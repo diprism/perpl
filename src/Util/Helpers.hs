@@ -68,13 +68,6 @@ okay = return ()
 foldlM :: Monad m => (b -> a -> m b) -> m b -> [a] -> m b
 foldlM f = foldl (\ mb a -> mb >>= \ b -> f b a)
 
--- Concats a list of lists, adding a delimiter
--- Example: delimitWith ", " ["item 1", "item 2", "item 3"] = "item 1, item 2, item 3"
-delimitWith :: [a] -> [[a]] -> [a]
-delimitWith del [] = []
-delimitWith del [as] = as
-delimitWith del (h : t) = h ++ del ++ delimitWith del t
-
 parens :: String -> String
 parens s = "(" ++ s ++ ")"
 

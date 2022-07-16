@@ -2,6 +2,7 @@
 {- Code for Hindley-Milner type inference and type checking -}
 
 module TypeInf.Check where
+import Data.List (intercalate)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.RWS.Lazy
@@ -43,7 +44,7 @@ instance Show TypeError where
   show NoCases = "Can't have case-of with no cases"
   show ExpNonUnderscoreVar = "Expected non-underscore variable here"
   show ExpOneNonUnderscoreVar = "Expected exactly one non-underscore variable"
-  show (MissingCases xs) = "Missing cases: " ++ delimitWith ", " xs
+  show (MissingCases xs) = "Missing cases: " ++ intercalate ", " xs
   show (WrongNumCases exp act) = "Expected " ++ show exp ++ " cases, but got " ++ show act
   show (WrongNumArgs exp act) = "Expected " ++ show exp ++ " args, but got " ++ show act
   show (MultipleDefs x) = "Multiple definitions of " ++ show x
@@ -86,7 +87,7 @@ type SolveVars = Map Var IsTag
 data Loc = Loc { curDef :: String, curExpr :: String }
 
 instance Show Loc where
-  show l = delimitWith ", " ((if null (curDef l) then [] else ["in the definition " ++ curDef l]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
+  show l = intercalate ", " ((if null (curDef l) then [] else ["in the definition " ++ curDef l]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
 
 -- Reader part of the RWST monad for inference/checking
 data CheckR = CheckR { checkEnv :: Env, checkLoc :: Loc }

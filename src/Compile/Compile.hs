@@ -342,7 +342,7 @@ domainValues g = tpVals where
     -- The type of 0-ary additive tuples has no values, but this
     -- is never going to happen anyway.
     let tpvs = map tpVals tps in
-      concatMap (\ (i, vs) -> ["<" ++ delimitWith ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
+      concatMap (\ (i, vs) -> ["<" ++ intercalate ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
   tpVals (TpProd Multiplicative tps) =
     [prodValName' tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
   tpVals NoTp = error ("Enumerating values of a NoTp: " ++ show (Map.keys g))
