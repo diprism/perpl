@@ -179,7 +179,7 @@ anyDupDefs (UsProgs ps etm) =
 guardExternRec :: Type -> CheckM ()
 guardExternRec tp =
   askEnv >>= \ env ->
-  let g = fmap (\ (tgs, ps, cs) -> DefData tgs ps cs) (typeEnv env) in
+  let g = fmap (\ (tgs, ps, cs) -> DefData (tgs++ps) cs) (typeEnv env) in
   guardM (not (isInfiniteType g tp)) ExternRecData
 
 -- Defines a global function

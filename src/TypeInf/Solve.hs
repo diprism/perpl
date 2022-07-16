@@ -63,7 +63,7 @@ unifyAll =
 -- Makes sure that robust-constrained solved type vars have robust solutions
 solvedWell :: Env -> Subst -> [(Constraint, Loc)] -> Either (TypeError, Loc) ()
 solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
-  robust' = robust (fmap (\ (tgs, ps, cs) -> DefData tgs ps cs) (typeEnv e))
+  robust' = robust (fmap (\ (tgs, ps, cs) -> DefData (tgs++ps) cs) (typeEnv e))
 
   h (Unify tp1 tp2) l -- Not sure if checking tp1 == tp2 is necessary, but better be safe?
     | tp1 /= tp2 = Left (ConflictingTypes tp1 tp2, l)

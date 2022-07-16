@@ -166,5 +166,5 @@ isRecursiveTypeName g y =
 getRecursiveTypeNames :: Ctxt -> [Var]
 getRecursiveTypeNames g = concat $ fmap h (Map.toList g)
   where
-    h (y, DefData tgs ps cs) | isRecursiveTypeName g y = [y]
+    h (y, DefData ps cs) | isRecursiveTypeName g y = [y]
     h _ = []
