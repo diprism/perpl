@@ -2,8 +2,8 @@ data Symbol = Sym0 | Sym1;
 data State = q1 | q2 | q3;
 data String = Nil | Cons Symbol String;
 
-extern transition : State -> Symbol * State;
-extern transition' : Symbol * State -> State;
+extern transition : State -> (Symbol, State);
+extern transition' : (Symbol, State) -> State;
 extern in_accept : State -> Bool;
 extern in_accept' : State -> Bool;
 extern q0 : State;

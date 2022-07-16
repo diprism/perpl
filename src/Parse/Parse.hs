@@ -284,54 +284,47 @@ parseType1 = parseType2 >>= \ tp -> parsePeek >>= \ t -> case t of
   TkArr -> parseEat *> pure (TpArr tp) <*> parseType1
   _ -> pure tp
 
+
 {-
 
 TYPE2 ::=
-  | TYPE3 * TYPE3 * ...         multiplicative product
-  | TYPE3 & TYPE3 & ...         additive product
+  | VAR TYPE3 ...               type application (e.g., List Nat)
   | TYPE3
 
  -}
 
--- Product, Ampersand
+-- TypeVar
 parseType2 :: ParseM Type
-parseType2 = parseType3 >>= \ tp -> parsePeek >>= \ t -> case t of
-  TkStar  -> pure (TpProd Multiplicative) <*> parseDelim parseType3 TkStar [tp]
-  TkAmp   -> pure (TpProd Additive) <*> parseDelim parseType3 TkAmp [tp]
-  _ -> pure tp
+parseType2 = parsePeek >>= \ t -> case t of
+  TkVar v -> parseEat *> pure (TpVar v) <*> parseTypes
+  _ -> parseType3
 
 
 {-
 
 TYPE3 ::=
-  | VAR TYPE4 ...               type application (e.g., List Nat)
-  | TYPE4
+  | ()                          multiplicative product
+  | (TYPE1)                     grouping
+  | (TYPE1, TYPE1, TYPE1*)      multiplicative product
+  | <TYPE1*>                    additive product
+  | Bool                        built-in type names
+  | VAR                         datatype without argument
 
  -}
 
--- TypeVar
 parseType3 :: ParseM Type
 parseType3 = parsePeek >>= \ t -> case t of
-  TkVar v -> parseEat *> pure (TpVar v) <*> parseTypes
-  _ -> parseType4
-
-{-
-
-TYPE4 ::=
-  | VAR                         type variable
-  | (TYPE1)                     grouping
-  | Bool | Unit | Top           built-in type names
-  | error
-
--}
-
-parseType4 :: ParseM Type
-parseType4 = parsePeek >>= \ t -> case t of
-  TkVar v -> parseEat *> pure (TpVar v [])
+  TkParenL -> parseEat *> (
+    parsePeek >>= \ t -> case t of
+        TkParenR -> pure (TpProd Multiplicative [])
+        _ -> parseType1 >>= \ tp -> parseDelim parseType1 TkComma [tp] >>= \ tps -> pure (if length tps == 1 then tp else TpProd Multiplicative tps)
+    ) <* parseDrop TkParenR
+  TkLangle -> parseEat *> (
+    parsePeek >>= \ t -> case t of
+        TkRangle -> pure (TpProd Additive [])
+        _ -> pure (TpProd Additive) <*> (parseType1 >>= \ tp -> parseDelim parseType1 TkComma [tp])) <* parseDrop TkRangle
   TkBool -> parseEat *> pure (TpVar "Bool" [])
-  TkUnit -> parseEat *> pure (TpProd Multiplicative [])
-  TkTop -> parseEat *> pure (TpProd Additive [])
-  TkParenL -> parseEat *> parseType1 <* parseDrop TkParenR
+  TkVar v -> parseEat *> pure (TpVar v [])
   _ -> parseErr "couldn't parse a type here; perhaps add parentheses?"
 
 -- List of Constructors
@@ -343,7 +336,7 @@ parseEqCtors = parsePeek >>= \t -> case t of
 
 -- List of Types
 parseTypes :: ParseM [Type]
-parseTypes = parseElse [] (parseType4 >>= \ tp -> fmap ((:) tp) parseTypes)
+parseTypes = parseElse [] (parseType3 >>= \ tp -> fmap ((:) tp) parseTypes)
 
 {-
 

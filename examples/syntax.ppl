@@ -33,26 +33,26 @@ define string_eq = \ w1. \ w2 : String. -- optional `: type` annotations on lamb
   -- Note the closing semicolon ^
 
 -- You can declare external distributions like this:
-extern transition : State -> Bool * State;
+extern transition : State -> (Bool, State);
 extern accept : State -> Bool;
 
 define gen : State -> String =
   \ q. if accept q then Nil else (let (a, r) = transition q in Cons a (gen r));
 
 define products =
-  \ prod : Bool * State. \ amp : Bool & State.
-    -- With *-types, you can access both parts like this:
+  \ prod : (Bool, State). \ amp : <Bool, State>.
+    -- With multiplicative products, you can access both parts like this:
     let (b, q) = prod in
-    -- But with &-types, you can only access ONE part:
+    -- But with additive products, you can only access ONE part:
     let <b', _> = amp in
     -- or: let <_, q'> = amp in ...
     -- You CANNOT do
     -- let <b', q'> = amp in ...
     -- Nor can you use use amp twice
     
-    -- To make a *-product:
+    -- To make a multiplicate product:
     let prod' = (False, q1) in
-    -- To make a &-product:
+    -- To make an additive product:
     let amp' = <False, q1> in
     True;
 

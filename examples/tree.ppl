@@ -12,12 +12,12 @@ define produce_tree: Tree =
 define produce_children: Children =
   amb (factor 0.5 in Nil) (factor 0.5 in Cons produce_tree produce_children);
 
-define consume_tree: Tree -> Unit = \t: Tree.
+define consume_tree: Tree -> () = \t: Tree.
   case t of
       Leaf -> ()
     | Node c -> consume_children c;
 
-define consume_children: Children -> Unit = \c: Children.
+define consume_children: Children -> () = \c: Children.
   case c of
       Nil -> ()
     | Cons t c -> (let _ = consume_tree t in consume_children c);

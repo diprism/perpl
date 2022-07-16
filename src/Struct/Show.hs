@@ -38,7 +38,7 @@ toUsProgs (Progs ps tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 {- Show Instances -}
 
 data ShowHist = ShowAppL | ShowAppR | ShowEqs | ShowCase
-              | ShowArrL | ShowTypeProd | ShowTypeArg
+              | ShowArrL | ShowTypeArg
               | ShowNone
   deriving Eq
 
@@ -77,9 +77,7 @@ showTermParens _                 _        = False
 -- Should we add parens to this type, given its parent type?
 showTypeParens :: Type -> ShowHist -> Bool
 showTypeParens (TpArr _ _) ShowArrL = True
-showTypeParens (TpArr _ _) ShowTypeProd = True
 showTypeParens (TpArr _ _) ShowTypeArg = True
-showTypeParens (TpProd _ (_ : _ : _)) ShowTypeProd = True
 showTypeParens (TpProd _ (_ : _ : _)) ShowTypeArg = True
 showTypeParens (TpVar _ (_ : _)) ShowTypeArg = True
 showTypeParens _ _ = False
@@ -116,9 +114,8 @@ showTermh (UsEqs tms) = delimitWith " == " [showTerm tm ShowEqs | tm <- tms]
 showTypeh :: Type -> String
 showTypeh (TpVar y as) = delimitWith " " (y : [showType a ShowTypeArg | a <- as])
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
-showTypeh (TpProd Multiplicative []) = "Unit"
-showTypeh (TpProd Additive []) = "Top"
-showTypeh (TpProd am tps) = delimitWith (if am == Additive then " & " else " * ") [showType tp ShowTypeArg | tp <- tps]
+showTypeh (TpProd am tps) = let (l, r) = amParens am in
+  l ++ delimitWith ", " [showType tp ShowNone | tp <- tps] ++ r
 showTypeh NoTp = ""
 
 -- Show a term, given its parent for parentheses
