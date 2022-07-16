@@ -68,6 +68,11 @@ okay = return ()
 foldlM :: Monad m => (b -> a -> m b) -> m b -> [a] -> m b
 foldlM f = foldl (\ mb a -> mb >>= \ b -> f b a)
 
+-- Delimit a list of ShowS's with String
+delimitWith :: String -> [ShowS] -> ShowS
+delimitWith del [] = id
+delimitWith del ss = foldr1 (\h t -> h . showString del . t) ss
+
 parens :: String -> String
 parens s = "(" ++ s ++ ")"
 
