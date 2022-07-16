@@ -38,17 +38,6 @@ toUsProgs (Progs ps tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 
 {- Show Instances -}
 
-data ShowHist = ShowArrL | ShowTypeArg
-              | ShowNone
-  deriving Eq
-
--- Should we add parens to this type, given its parent type?
-showTypeParens :: Type -> ShowHist -> Bool
-showTypeParens (TpArr _ _) ShowTypeArg = True
-showTypeParens (TpArr _ _) ShowArrL = True
-showTypeParens (TpVar _ (_ : _)) ShowTypeArg = True
-showTypeParens _ _ = False
-
 showTpAnn :: Type -> String
 showTpAnn NoTp = ""
 showTpAnn tp = " : " ++ show tp
@@ -57,32 +46,13 @@ amParens :: AddMult -> (String, String)
 amParens Additive = ("<", ">")
 amParens Multiplicative = ("(", ")")
 
--- Type show helper (ignoring parentheses)
-showTypeh :: Type -> String
-showTypeh (TpVar y as) = intercalate " " (y : [showType a ShowTypeArg | a <- as])
-showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
-showTypeh (TpProd am tps) = let (l, r) = amParens am in
-  l ++ intercalate ", " [showType tp ShowNone | tp <- tps] ++ r
-showTypeh NoTp = ""
-
--- Show a type, given its parent for parentheses
-showType :: Type -> ShowHist -> String
-showType tp h = parensIf (showTypeParens tp h) (showTypeh tp)
-
--- Generic case/ctor show function
---showCases :: [Case v Ctor] -> String
-showCasesCtors [] = ""
-showCasesCtors (c : []) = show c
-showCasesCtors (c : cs) = show c ++ " | " ++ showCasesCtors cs
-
--- Actual show instances
 instance Show CaseUs where
   showsPrec p (CaseUs x as tm) = delimitWith " " (map showString (x:as)) . showString " -> " . showsPrec p tm
 instance Show Case where
   showsPrec p = showsPrec p . toCaseUs
 
 instance Show Ctor where
-  show (Ctor x as) = foldl (\ x a -> x ++ " " ++ showType a ShowTypeArg) x as
+  showsPrec p (Ctor x as) = showParen (p > 10) (delimitWith " " (showString x : map (showsPrec 11) as))
 
 instance Show UsTm where
   showsPrec _ (UsVar x) = showString x
@@ -102,7 +72,10 @@ instance Show Term where
   showsPrec p = showsPrec p . toUsTm
 
 instance Show Type where
-  show = flip showType ShowNone
+  showsPrec p (TpVar y as) = showParen (p > 10) (delimitWith " " (showString y : map (showsPrec 11) as))
+  showsPrec p (TpArr tp1 tp2) = showParen (p > 0) (showsPrec 1 tp1 . showString " -> " . shows tp2)
+  showsPrec _ (TpProd am tps) = let (l, r) = amParens am in showString l . delimitWith ", " (map shows tps) . showString r
+  showsPrec _ NoTp = id
 
 instance Show Scheme where
   show (Forall [] [] tp) = show tp
@@ -112,7 +85,7 @@ instance Show UsProg where
   show (UsProgFun x tp tm) = "define " ++ x ++ showTpAnn tp ++ " = " ++ show tm ++ ";"
   show (UsProgExtern x tp) = "extern " ++ x ++ showTpAnn tp ++ ";"
   show (UsProgData y ps []) = "data " ++ intercalate " " (y : ps) ++ ";"
-  show (UsProgData y ps cs) = "data " ++ intercalate " " (y : ps) ++ " = " ++ showCasesCtors cs ++ ";"
+  show (UsProgData y ps cs) = "data " ++ intercalate " " (y : ps) ++ " = " ++ intercalate " | " (map show cs) ++ ";"
 instance Show UsProgs where
   show (UsProgs ps end) = intercalate "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
 instance Show Progs where
