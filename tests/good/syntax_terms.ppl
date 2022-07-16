@@ -57,10 +57,16 @@ define x037 = (fail:Bool) == False;
 define x038 = False == (fail:Bool);
 define x039 = if True then () else fail;
 define x040 = if True then () else fail:();
+define x041 = case fail of MyFalse -> \x. (case fail of MyFalse -> MyTrue
+                                                      | MyTrue -> MyFalse)
+                         | MyTrue -> \x. x;
+define x042 = (factor 0.5 in MyFalse) == (factor 0.5 in MyTrue);
+define x043 = factor 0.5 in MyFalse == MyTrue;
 
 let x = (
   x001, x002, x003, x004, x005, x006, x007, x008, x009, x010,
   x011, x012, x013, x014, x015, x016, x017, x018, x019, x020,
   x021, x022, x023, x024, x025, x026, x027, x028, x029, x030,
-  x031, x032, x033, x034, x035, x036, x037, x038, x039, x040
+  x031, x032, x033, x034, x035, x036, x037, x038, x039, x040,
+  x041, x042, x043
 ) in ()
