@@ -19,9 +19,6 @@ data Token =
   | TkLet -- "let"
   | TkIn -- "in"
   | TkArr -- "->"
-  | TkLeftArr -- "<-"
-  | TkAmp -- "&"
-  | TkStar -- "*"
   | TkColon -- ":"
   | TkDot -- "."
   | TkComma -- ","
@@ -50,9 +47,6 @@ instance Show Token where
   show TkParenR = ")"
   show TkEq = "="
   show TkArr = "->"
-  show TkLeftArr = "<-"
-  show TkAmp = "&"
-  show TkStar = "*"
   show TkColon = ":"
   show TkDot = "."
   show TkComma = ","
@@ -95,7 +89,7 @@ next :: Pos -> Pos
 next (line, column) = (succ line, 0)
 
 -- List of punctuation tokens
-punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkLeftArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkStar, TkAmp, TkLangle, TkRangle]
+punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkLangle, TkRangle]
 -- List of keyword tokens (use alphanumeric chars)
 keywords = [TkAmb, TkFactor, TkFail, TkCase, TkOf, TkLet, TkIn, TkFun, TkExtern, TkData, TkUnit, TkTop, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
 

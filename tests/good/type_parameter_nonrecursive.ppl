@@ -1,6 +1,6 @@
 {- When a parameterized datatype is applied to itself, we consider it nonrecursive. -}
 data box a = Box a;
-define copy_mono = \x: box (box Unit). (x, x);
+define copy_mono = \x: box (box ()). (x, x);
 define copy_poly = \x. (x, x);
-extern e: box (box Unit);
+extern e: box (box ());
 let x = (Box (Box ())) in (copy_mono x, copy_poly x)
