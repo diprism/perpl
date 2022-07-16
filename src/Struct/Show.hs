@@ -1,4 +1,5 @@
 module Struct.Show where
+import Data.List (intercalate)
 import Util.Helpers
 import Struct.Exprs
 import Struct.Helpers
@@ -38,7 +39,7 @@ toUsProgs (Progs ps tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 {- Show Instances -}
 
 data ShowHist = ShowAppL | ShowAppR | ShowEqs | ShowCase
-              | ShowArrL | ShowTypeProd | ShowTypeArg
+              | ShowArrL | ShowTypeArg
               | ShowNone
   deriving Eq
 
@@ -77,10 +78,7 @@ showTermParens _                 _        = False
 -- Should we add parens to this type, given its parent type?
 showTypeParens :: Type -> ShowHist -> Bool
 showTypeParens (TpArr _ _) ShowArrL = True
-showTypeParens (TpArr _ _) ShowTypeProd = True
 showTypeParens (TpArr _ _) ShowTypeArg = True
-showTypeParens (TpProd _ (_ : _ : _)) ShowTypeProd = True
-showTypeParens (TpProd _ (_ : _ : _)) ShowTypeArg = True
 showTypeParens (TpVar _ (_ : _)) ShowTypeArg = True
 showTypeParens _ _ = False
 
@@ -106,19 +104,18 @@ showTermh (UsFactor wt tm) = "factor " ++ show wt ++ " in " ++ showTerm tm ShowN
 showTermh (UsFail tp) = "fail" ++ showTpAnn tp
 showTermh (UsProd am tms) =
   let (l, r) = amParens am in
-    l ++ delimitWith ", " [showTerm tm ShowNone | tm <- tms] ++ r
+    l ++ intercalate ", " [showTerm tm ShowNone | tm <- tms] ++ r
 showTermh (UsElimProd am tm xs tm') =
   let (l, r) = amParens am in
-    "let " ++ l ++ delimitWith ", " xs ++ r ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
-showTermh (UsEqs tms) = delimitWith " == " [showTerm tm ShowEqs | tm <- tms]
+    "let " ++ l ++ intercalate ", " xs ++ r ++ " = " ++ showTerm tm ShowNone ++ " in " ++ showTerm tm' ShowNone
+showTermh (UsEqs tms) = intercalate " == " [showTerm tm ShowEqs | tm <- tms]
 
 -- Type show helper (ignoring parentheses)
 showTypeh :: Type -> String
-showTypeh (TpVar y as) = delimitWith " " (y : [showType a ShowTypeArg | a <- as])
+showTypeh (TpVar y as) = intercalate " " (y : [showType a ShowTypeArg | a <- as])
 showTypeh (TpArr tp1 tp2) = showType tp1 ShowArrL ++ " -> " ++ showType tp2 ShowNone
-showTypeh (TpProd Multiplicative []) = "Unit"
-showTypeh (TpProd Additive []) = "Top"
-showTypeh (TpProd am tps) = delimitWith (if am == Additive then " & " else " * ") [showType tp ShowTypeArg | tp <- tps]
+showTypeh (TpProd am tps) = let (l, r) = amParens am in
+  l ++ intercalate ", " [showType tp ShowNone | tp <- tps] ++ r
 showTypeh NoTp = ""
 
 -- Show a term, given its parent for parentheses
@@ -154,20 +151,20 @@ instance Show Type where
 
 instance Show Scheme where
   show (Forall [] [] tp) = show tp
-  show (Forall tgs tpms tp) = "Forall " ++ delimitWith ", " (tgs ++ tpms) ++ ". " ++ show tp
+  show (Forall tgs tpms tp) = "Forall " ++ intercalate ", " (tgs ++ tpms) ++ ". " ++ show tp
 
 instance Show UsProg where
   show (UsProgFun x tp tm) = "define " ++ x ++ showTpAnn tp ++ " = " ++ show tm ++ ";"
   show (UsProgExtern x tp) = "extern " ++ x ++ showTpAnn tp ++ ";"
-  show (UsProgData y ps []) = "data " ++ delimitWith " " (y : ps) ++ ";"
-  show (UsProgData y ps cs) = "data " ++ delimitWith " " (y : ps) ++ " = " ++ showCasesCtors cs ++ ";"
+  show (UsProgData y ps []) = "data " ++ intercalate " " (y : ps) ++ ";"
+  show (UsProgData y ps cs) = "data " ++ intercalate " " (y : ps) ++ " = " ++ showCasesCtors cs ++ ";"
 instance Show UsProgs where
-  show (UsProgs ps end) = delimitWith "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
+  show (UsProgs ps end) = intercalate "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
 instance Show Progs where
   show = show . toUsProgs
 instance Show SProgs where
-  show (SProgs ps end) = delimitWith "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
+  show (SProgs ps end) = intercalate "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
 instance Show SProg where
   show (SProgFun x stp tm) = "define " ++ x ++ " : " ++ show stp ++ " = " ++ show tm ++ ";"
   show (SProgExtern x tps tp) = "extern " ++ x ++ " : " ++ show (joinArrows tps tp) ++ ";"
-  show (SProgData y tgs ps cs) = "data " ++ delimitWith " " (y : tgs ++ ps) ++ " = " ++ delimitWith " | " [show c | c <- cs] ++ ";"
+  show (SProgData y tgs ps cs) = "data " ++ intercalate " " (y : tgs ++ ps) ++ " = " ++ intercalate " | " [show c | c <- cs] ++ ";"

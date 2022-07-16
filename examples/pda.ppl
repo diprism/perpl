@@ -5,7 +5,7 @@ data String = WNil | WCons WSymbol String;
 data Stack = ZNil | ZCons ZSymbol Stack;
 data Action = Pop State | Push State ZSymbol;
 
-extern transition : State -> WSymbol * State;
+extern transition : State -> (WSymbol, State);
 extern transition' : State -> WSymbol -> ZSymbol -> Action;
 extern in_accept : State -> Bool;
 extern in_accept' : State -> Bool;

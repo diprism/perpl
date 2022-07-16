@@ -12,7 +12,7 @@ for file in \
     tests/good/{type_parameter_different,type_parameter_nonrecursive,type_parameter_swap,type_parameter_unused,zero_add_prod}.ppl
 do
     printf '%-40s' "Compiling ${file}... "
-    my_err=$(./compiler.exe $file -o /dev/null 2>&1 > /dev/null)
+    my_err=$(./perplc $file -o /dev/null 2>&1 > /dev/null)
     if [ $? = 0 ]
     then
         echo "Success"
@@ -25,7 +25,7 @@ do
     correct=$(perl -ne 'if (/correct: (.*)/) { print $1; }' $file | round)
     if [ -n "$correct" ]; then
         printf '%-40s' "Running ${file}... "
-        out=$(./compiler.exe -z $file 2> /dev/null | round)
+        out=$(./perplc -z $file 2> /dev/null | round)
         if [ "$correct" = "$out" ]; then
             echo "Success"
         else
@@ -38,7 +38,7 @@ done
 for file in tests/bad/{case_of_zero_cases.ppl,case_without_bar,data_with_zero_cons,data_without_bar,infinite_extern,type_parameter_different,type_parameter_swap,polymorphic_recursion,answer_function,answer_recursive,answer_amp,elim_zero_add_prod}.ppl
 do
     printf '%-40s' "Compiling ${file}... "
-    my_err=$(./compiler.exe $file -o /dev/null 2>&1 > /dev/null)
+    my_err=$(./perplc $file -o /dev/null 2>&1 > /dev/null)
     if [ $? != 0 ]
     then
         echo "Success"

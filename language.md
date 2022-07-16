@@ -1,10 +1,11 @@
-# Language
+# The PERPL Language
 
-A program consists of zero or more definitions and declarations, followed by an expression.
+A PERPL program consists of zero or more definitions and declarations,
+followed by an expression.
 
 ## Booleans
 
-The only built-in type is `Bool`:
+The only built-in datatype is `Bool`:
 
     True
     False
@@ -16,17 +17,17 @@ There is a built-in equality operator (`==`) that returns a `Bool`:
     
 ## Functions and local variables
 
-    \x: Bool. x                       -- the variable must be annotated with a type
-    (\x: Bool. x) True                -- application
-    (\x: Bool. \y: Bool. x) True True -- function of two arguments
-    (\x: Bool, y: Bool. x)  True True -- another way of writing the same thing
+    \x: Bool. x                          -- with type annotation
+    \x. x                                -- without type annotation
+    (\x. x) True                         -- application
+    (\x. \y. x) True True                -- function of two arguments
     let x = True in x
 
 Lambdas (`\`) must be used _affinely_, that is, no more than once. So
 it's an error to write
 
 ```
-let f: Bool -> Bool = \x: Bool . x in (f True, f True)
+let f = \x . x in (f True, f True)
 ```
 
 ## Products
@@ -35,19 +36,21 @@ There are two kinds of tuples, which are accessed in different ways:
 
     {- Multiplicative product -}
     (True, False, False)                      -- type Bool * Bool * Bool
-    let (x, y, z) = (True, False, False) in y
+    let (x, y, z) = (True, False, False) in y -- False
+    ()                                        -- type Unit
 
     {- Additive product -}
     <True, False, False>                      -- type Bool & Bool & Bool
-    <True, False, False>.2
+    <True, False, False>.2                    -- False
+    <>                                        -- type Top
 
 When you consume a multiplicative product, you consume all
 its members:
 
 ```
 (\x: Bool. x, True)                     -- type (Bool -> Bool) * Bool
-let f = \x: Bool. x in (f, f)           -- error: f is used twice
-let (f, b) = (\x: Bool. x, True) in f b -- True
+let f = \x. x in (f, f)                 -- error: f is used twice
+let (f, b) = (\x. x, True) in f b       -- True
 ```
 
 On the other hand, when you consume an additive product, you consume
@@ -55,10 +58,10 @@ just one of its members. Additive products must also be used no more
 than once.
 
 ```
-<\x: Bool. x, True>                    -- type (Bool -> Bool) & Bool
-let f = \x: Bool. x in <f, f>          -- type (Bool -> Bool) & (Bool -> Bool)
-let f = \x: Bool. x in <f, f>.1 True   -- True
-let p = <True, True> in (p.1, p.2)     -- error: p is used twice
+<\x: Bool. x, True>                     -- type (Bool -> Bool) & Bool
+let f = \x. x in <f, f>                 -- type (Bool -> Bool) & (Bool -> Bool)
+let f = \x. x in <f, f>.1 True          -- True
+let p = <True, True> in (p.1, p.2)      -- error: p is used twice
 ```
 
 ## Datatypes
@@ -72,7 +75,7 @@ data Bool =
 
 Other common simple datatypes:
 ```
-data Unit = unit; -- type and ctor can't have the same name
+data Unit = unit;                       -- type and ctor can't have the same name
 
 data List =
     Nil
@@ -95,7 +98,7 @@ Expressions of recursive type must also be affinely used, so it's an error to wr
 ```
 data Nat = Zero | Succ Nat;
 extern eq: Nat -> Nat -> Bool;
-let one = Succ Zero in eq one one; -- error: one is used twice
+let one = Succ Zero in eq one one;      -- error: one is used twice
 ```
 
 Infinite (recursive) types are allowed, but the target FGG must have
@@ -120,16 +123,18 @@ of the two conditions above.
 
 ## Probabilistic computation
 
-A `sample` expression nondeterministically samples from a distribution
-(which might or might not sum to one). There are three built-in
-distributions you can sample from: `uniform` (every outcome gets equal
-probability, summing to one), `amb` (every outcome gets a weight of
-one), and `fail` (every outcome gets a weight of zero).
+The expression `amb e1 e2` makes a nondeterministic choice between
+`e1` and `e2`. That is, the computation splits into two branches, one
+in which `e1` is evaluated and one in which `e2` is evaluted. There
+can be any number of expressions.
+
+The expression `factor 0.5 in e` multiplies the weight of the current
+branch of computation by 0.5 and evaluates `e`.
+
+So to simulate a coin flip, we can write
 
 ```
-sample uniform : Bool -- True : 0.5, False : 0.5
-sample amb : Bool     -- True : 1,   False : 1
-sample fail : Bool    -- True : 0,   False : 0
+amb (factor 0.5 in True) (factor 0.5 in False)
 ```
 
 ## Global definitions
@@ -140,13 +145,14 @@ A global definition looks like this:
       \ f : Bool -> Unit -> Nat, b : Unit, a : Bool. f a b;
     
 Notes:
+- The type annotations are all optional.
 - The defined symbol (`flip`) must have a type (`(Bool -> Unit -> Nat) -> Unit -> Bool -> Nat`).
 - The definition must end with a semicolon (`;`).
 - The right-hand side of a definition is usually a lambda expression, but doesn't have to be.
 
 You can use a globally defined symbol any number of times. They are macro-like in the following sense:
 
-    define coin : Bool = (sample uniform : Bool);
+    define coin : Bool = amb (factor 0.5 in True) (factor 0.5 in False);
     (coin, coin)
 
 This flips a fair coin twice, that is, four outcomes with probability 0.25 each.
@@ -158,4 +164,3 @@ An external declaration looks like this:
     extern flip : (Bool -> Unit -> Nat) -> Unit -> Bool -> Nat;
 
 The target FGG will have a nonterminal symbol `flip` whose rules should be added to it.
-
