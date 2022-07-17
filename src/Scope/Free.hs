@@ -164,7 +164,4 @@ isRecursiveTypeName g y =
 
 -- Returns the recursive datatypes in a file
 getRecursiveTypeNames :: Ctxt -> [Var]
-getRecursiveTypeNames g = concat $ fmap h (Map.toList g)
-  where
-    h (y, DefData ps cs) | isRecursiveTypeName g y = [y]
-    h _ = []
+getRecursiveTypeNames g = filter (isRecursiveTypeName g) (Map.keys g)
