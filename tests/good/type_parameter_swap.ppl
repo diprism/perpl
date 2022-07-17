@@ -1,8 +1,0 @@
-{- A parameterized datatype can include itself with its parameters permuted. -}
-data weirdlist a b = Nil | Cons a (weirdlist b a);
-define first = \default. \xs. case xs of Cons x xs -> x | Nil -> default;
-define second = \default. \xs. case xs of Cons x xs -> (case xs of Cons x xs -> x | Nil -> default) | Nil -> default;
-define third = \default. \xs. case xs of Cons x xs -> (case xs of Cons x xs -> (case xs of Cons x xs -> x | Nil -> default) | Nil -> default) | Nil -> default;
-define x = (Cons () (Cons True (Cons () (Cons False Nil))));
-(first () x, second False x, third () x)
-

@@ -33,6 +33,7 @@ data TypeError =
   | WrongNumArgs Int Int -- wrong number of args, in a case (`... | Cons h t bad -> ...`)
   | MultipleDefs Var -- variable is defined multiple times
   | ExternRecData -- externs can't use recursive datatypes
+  | DiffTypeParams Var -- type recursion with different type parameters
 
 instance Show TypeError where
   show (InfiniteType x tp) = "Failed to construct infinite type: " ++ x ++ " := " ++ show tp
@@ -50,6 +51,7 @@ instance Show TypeError where
   show (WrongNumArgs exp act) = "Expected " ++ show exp ++ " args, but got " ++ show act
   show (MultipleDefs x) = "Multiple definitions of " ++ show x
   show ExternRecData = "Extern cannot use recursive datatypes"
+  show (DiffTypeParams x) = "Type recursion with different type parameters not allowed in data type " ++ x
 
 
 {- ===== Constraints ===== -}
@@ -199,6 +201,16 @@ defData y tgs ps cs m =
   foldr
     (\ (Ctor x tps) -> defTerm x CtorVar (Forall tgs ps (joinArrows tps (TpVar y [TpVar p [] | p <- tgs ++ ps]))))
     (defType y tgs ps cs m) cs
+
+guardDiffTypeParams :: Var -> [Var] -> CheckM ()
+guardDiffTypeParams y ps =
+  askEnv >>= \ env ->
+  let g = fmap (\ (tgs, ps, cs) -> DefData ps cs) (typeEnv env)
+      as = (fmap (\p -> TpVar p []) ps)
+      pred _ (TpVar y' as') = y == y' && as' /= as
+      pred _ _ = False
+  in
+    guardM (not (searchType pred g (TpVar y as))) (DiffTypeParams y)
 
 -- For `data List a = Nil | Cons a (List a)`, adds the type var `a` to env
 defParams :: [Var] -> CheckM a -> CheckM a
