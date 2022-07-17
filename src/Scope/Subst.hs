@@ -118,7 +118,9 @@ instance Substitutable Type where
     substVar y
       (\ y' -> TpVar y' as')
       (const (TpVar y as'))
-      id
+      (\ tp' -> if null as' then tp' else
+                case tp' of TpVar y' bs -> TpVar y' (bs ++ as')
+                            _ -> error "kind error")
       (TpVar y as')
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
   substM NoTp = pure NoTp
