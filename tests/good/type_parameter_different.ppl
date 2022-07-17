@@ -1,5 +1,0 @@
-{- A parameterized datatype can include itself with a different parameter. -}
-data weirdlist a = Nil | Cons a (weirdlist Bool);
-define second = \default. \xs. case xs of Cons x xs -> (case xs of Cons x xs -> x | Nil -> default) | Nil -> default;
-second False (Cons () (Cons True Nil))
-

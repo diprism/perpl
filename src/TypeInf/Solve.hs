@@ -195,8 +195,6 @@ inferFuns fs m =
     let ps' = map (\ (x, tm, stp) -> SProgFun x stp tm) xtmstps in
     return (SProgs (ps' ++ ps) end)
 
--- TODO: Make sure type params are same in recursive instantes. So disallow
--- data List a = Nil | Cons a (List Bool);
 -- Infers a strongly-connected set of mutually-recursive datatypes, adding
 -- their defs to env when inferring the rest of the program, and adding
 -- their defs to the returned (schemified) program
@@ -218,6 +216,7 @@ inferData dsccs cont = foldr h cont dsccs
     -- Checks a datatype def
     checkData :: (Var, [Var], [Ctor]) -> CheckM (Var, [Var], [Ctor])
     checkData (y, ps, cs) =
+      guardDiffTypeParams y ps >>
       defParams ps (mapM checkCtor cs) >>= \ cs' ->
       return (y, ps, cs')
 
