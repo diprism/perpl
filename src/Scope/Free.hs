@@ -115,9 +115,6 @@ isLin' x = (LinYes ==) . h where
 Search through type tp's tree, looking for a node for which pred is true.
 g maps a datatype name to its list of constructors, if any.
 pred takes two arguments, a list of visited nodes and a node.
-
-It's okay if tp = TpVar y as and as does not have the same number of
-arguments that y actually takes.
 -}
 
 searchType :: ([Type] -> Type -> Bool) -> Ctxt -> Type -> Bool
@@ -132,7 +129,7 @@ searchType pred g = h [] where
         Just (ps, cs) ->
           -- Substitute actual type parameters (as) for datatype's type parameters (ps)
           -- and recurse on each constructor
-          let s = Map.fromList (zip ps (fmap SubTp as)) in
+          let s = Map.fromList (pickyZipWith (\p a -> (p, SubTp a)) ps as) in
           any (\ (Ctor _ tps) -> any (h (tp : visited) . subst s) tps) cs
     TpArr tp1 tp2 -> h visited tp1 || h visited tp2
     TpProd am tps -> any (h visited) tps
@@ -160,7 +157,7 @@ isRecursiveType g tp = searchType p g tp where
 
 isRecursiveTypeName :: Ctxt -> Var -> Bool
 isRecursiveTypeName g y =
-  isRecursiveType g (TpVar y []) -- even if y takes arguments, it's okay not to provide them
+  isRecursiveType g (TpVar y []) -- this function currently used only after monomorphization, so empty type parameter list okay
 
 -- Returns the recursive datatypes in a file
 getRecursiveTypeNames :: Ctxt -> [Var]
