@@ -1,8 +1,7 @@
-{- A parameterized datatype can include itself with its parameters permuted. -}
+{- A parameterized datatype can include itself with its parameters permuted, and should be considered recursive. -}
 data weirdlist a b = Nil | Cons a (weirdlist b a);
-define first = \default. \xs. case xs of Cons x xs -> x | Nil -> default;
-define second = \default. \xs. case xs of Cons x xs -> (case xs of Cons x xs -> x | Nil -> default) | Nil -> default;
-define third = \default. \xs. case xs of Cons x xs -> (case xs of Cons x xs -> (case xs of Cons x xs -> x | Nil -> default) | Nil -> default) | Nil -> default;
-define x = (Cons () (Cons True (Cons () (Cons False Nil))));
-(first () x, second False x, third () x)
+define copy_mono = \x: weirdlist. (x, x);
+define copy_poly = \x. (x, x);
+extern e: weirdlist () Bool;
+let x = (Cons () (Cons True (Cons () (Cons False Nil)))) in (copy_mono x, copy_poly x)
 

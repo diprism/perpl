@@ -1,2 +1,0 @@
-data WeirdList a = Nil | Cons a (WeirdList (a, a));
-Cons () (Cons ((),()) Nil)
