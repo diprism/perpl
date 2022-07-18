@@ -35,11 +35,11 @@ do
     fi
 done
 
-for file in tests/bad/{case_of_zero_cases.ppl,case_without_bar,data_with_zero_cons,data_without_bar,infinite_extern,type_parameter_{different,swap,copy,double},polymorphic_recursion,answer_function,answer_recursive,answer_amp,elim_zero_add_prod}.ppl
+for file in tests/bad/{type_mismatch,case_of_zero_cases,case_without_bar,data_with_zero_cons,data_without_bar,infinite_extern,type_parameter_{different,swap,copy,double},polymorphic_recursion,answer_function,answer_recursive,answer_amp,elim_zero_add_prod}.ppl
 do
     printf '%-40s' "Compiling ${file}... "
     my_err=$(./perplc $file -o /dev/null 2>&1 > /dev/null)
-    if [ $? != 0 ]
+    if [ $? != 0 -a -f "$file" ]
     then
         echo "Success"
     else
