@@ -59,7 +59,8 @@ collectCalls' (TmEqs tms) =
 
 -- Collects datatype calls in a type
 collectCallsTp :: Type -> GlobalCalls
-collectCallsTp (TpVar y as)    = [(y, as)]
+collectCallsTp (TpVar y)       = []
+collectCallsTp (TpData y as)   = [(y, as)]
 collectCallsTp (TpArr tp1 tp2) = collectCallsTp tp1 <> collectCallsTp tp2
 collectCallsTp (TpProd am tps) = mconcat (map collectCallsTp tps)
 collectCallsTp  NoTp           = []
@@ -97,10 +98,10 @@ renameCalls xis (TmEqs tms) = TmEqs (renameCalls xis <$> tms)
 
 -- Same as renameCalls, but for types
 renameCallsTp :: Map Var (Map [Type] Int) -> Type -> Type
-renameCallsTp xis (TpVar y []) = TpVar y []
-renameCallsTp xis (TpVar y as) =
-  maybe (TpVar y as)
-    (\ m -> let yi = m Map.! as in TpVar (instName y yi) [])
+renameCallsTp xis (TpVar y) = TpVar y
+renameCallsTp xis (TpData y as) =
+  maybe (TpData y as)
+    (\ m -> let yi = m Map.! as in TpData (instName y yi) [])
     (xis Map.!? y)
 renameCallsTp xis (TpArr tp1 tp2) = TpArr (renameCallsTp xis tp1) (renameCallsTp xis tp2)
 renameCallsTp xis (TpProd am tps) = TpProd am (map (renameCallsTp xis) tps)

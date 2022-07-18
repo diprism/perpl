@@ -15,7 +15,7 @@ typeof (TmAmb tms tp) = tp
 typeof (TmFactor wt tm tp) = tp
 typeof (TmProd am as) = TpProd am (snds as)
 typeof (TmElimProd am tm ps tm' tp) = tp
-typeof (TmEqs tms) = TpVar "Bool" []
+typeof (TmEqs tms) = TpData "Bool" []
 
 -- Returns the index of the only non-underscore var
 -- "let <_, _, x, _> in ..."  =>  index of x = 2

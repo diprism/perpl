@@ -113,20 +113,26 @@ freeVarsF = foldr (\ a -> Map.union (freeVars a)) Map.empty
 
 instance Substitutable Type where
   substM (TpArr tp1 tp2) = pure TpArr <*> substM tp1 <*> substM tp2
-  substM (TpVar y as) =
+  substM tp@(TpVar y) =
+    substVar y
+      TpVar
+      (const tp)
+      (\ tp' -> tp')
+      tp
+  substM (TpData y as) =
     substM as >>= \ as' ->
     substVar y
-      (\ y' -> TpVar y' as')
-      (const (TpVar y as'))
-      (\ tp' -> if null as' then tp' else
-                case tp' of TpVar y' bs -> TpVar y' (bs ++ as')
-                            _ -> error "kind error")
-      (TpVar y as')
+      (\ y' -> TpData y' as')
+      (const (TpData y as'))
+      (\ tp' -> case tp' of TpData y' bs -> TpData y' (bs ++ as')
+                            _ -> error ("kind error (" ++ show (TpData y as) ++ " := " ++ show tp' ++ ")"))
+      (TpData y as')
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
   substM NoTp = pure NoTp
 
   freeVars (TpArr tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
-  freeVars (TpVar y as) = Map.singleton y NoTp <> freeVars as
+  freeVars (TpVar y) = Map.singleton y NoTp
+  freeVars (TpData y as) = Map.singleton y NoTp <> freeVars as
   freeVars (TpProd am tps) = Map.unions (freeVars <$> tps)
   freeVars NoTp = Map.empty
 
@@ -335,19 +341,22 @@ instance Substitutable SProgs where
 -- For ad-hoc type var substitution,
 -- rename all occurrences of xi to xf in a type
 substType :: Var -> Var -> Type -> Type
-substType xi xf (TpVar y as) =
-  TpVar (if xi == y then xf else y) (map (substType xi xf) as)
+substType xi xf (TpVar y) =
+  TpVar (if xi == y then xf else y)
+substType xi xf (TpData y as) =
+  TpData (if xi == y then xf else y) (map (substType xi xf) as)
 substType xi xf (TpArr tp1 tp2) =
   TpArr (substType xi xf tp1) (substType xi xf tp2)
 substType xi xf (TpProd am tps) =
   TpProd am [substType xi xf tp | tp <- tps]
 substType xi xf NoTp = NoTp
 
--- Adds tags to type vars
+-- Adds tags to datatypes
 substTags :: Map Var [Var] -> Type -> Type
-substTags ytgs (TpVar y as) =
+substTags ytgs (TpVar y) = TpVar y
+substTags ytgs (TpData y as) =
   let as' = map (substTags ytgs) as in
-    TpVar y (maybe as' (\ tgs -> [TpVar x [] | x <- tgs] ++ as') (ytgs Map.!? y))
+    TpData y (maybe as' (\ tgs -> [TpVar x | x <- tgs] ++ as') (ytgs Map.!? y))
 substTags ytgs (TpArr tp1 tp2) =
   TpArr (substTags ytgs tp1) (substTags ytgs tp2)
 substTags ytgs (TpProd am tps) =

@@ -32,7 +32,7 @@ ctxtDefTerm g x tp = Map.insert x (DefTerm ScopeGlobal tp) g
 -- Add a constructor to the context
 ctxtDefCtor :: Ctxt -> Ctor -> Var -> [Var] -> Ctxt
 ctxtDefCtor g (Ctor x tps) y ps =
-  Map.insert x (DefTerm ScopeCtor (foldr TpArr (TpVar y [TpVar x [] | x <- ps]) tps)) g
+  Map.insert x (DefTerm ScopeCtor (foldr TpArr (TpData y [TpVar x | x <- ps]) tps)) g
 
 -- Add a datatype definition to the context,
 -- and all its constructors

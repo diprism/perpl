@@ -121,7 +121,8 @@ searchType :: ([Type] -> Type -> Bool) -> Ctxt -> Type -> Bool
 searchType pred g = h [] where
   h :: [Type] -> Type -> Bool
   h visited tp = pred visited tp || case tp of
-    TpVar y as ->
+    TpVar y -> False
+    TpData y as ->
       -- Don't search the same type twice (that would cause infinite recursion)
       not (tp `elem` visited) &&
       case ctxtLookupType2 g y of
@@ -138,26 +139,26 @@ searchType pred g = h [] where
 -- Returns if a type has no arrow, ampersand, or recursive datatype anywhere in it
 robust :: Ctxt -> Type -> Bool
 robust g tp = not (searchType p g tp) where
-  p visited tp@(TpVar y as) = tp `elem` visited
+  p visited tp@(TpData y as) = tp `elem` visited
   p visited (TpArr _ _) = True
   p visited (TpProd am _) = am == Additive
-  p visited NoTp = False
+  p visited _ = False
 
 -- Returns if a type has an infinite domain (i.e. it contains (mutually) recursive datatypes anywhere in it)
 isInfiniteType :: Ctxt -> Type -> Bool
 isInfiniteType = searchType p where
-  p visited tp@(TpVar y as) = tp `elem` visited
+  p visited tp@(TpData y as) = tp `elem` visited
   p _ _ = False
 
 -- Returns if a type is a (mutually) recursive datatype
 isRecursiveType :: Ctxt -> Type -> Bool
 isRecursiveType g tp = searchType p g tp where
-  p visited tp'@(TpVar y as) = tp' `elem` visited && tp' == tp
+  p visited tp'@(TpData y as) = tp' `elem` visited && tp' == tp
   p _ _ = False
 
 isRecursiveTypeName :: Ctxt -> Var -> Bool
 isRecursiveTypeName g y =
-  isRecursiveType g (TpVar y []) -- this function currently used only after monomorphization, so empty type parameter list okay
+  isRecursiveType g (TpData y []) -- this function currently used only after monomorphization, so empty type parameter list okay
 
 -- Returns the recursive datatypes in a file
 getRecursiveTypeNames :: Ctxt -> [Var]

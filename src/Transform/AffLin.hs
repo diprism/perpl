@@ -79,15 +79,16 @@ discard' x (TpProd am tps) rtm
   | otherwise = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in
       discards (Map.fromList ps) rtm >>= \ rtm' ->
       return (TmElimProd Multiplicative x ps rtm' (typeof rtm'))
-discard' x (TpVar y _) rtm =
+discard' x (TpData y _) rtm =
   ask >>= \ g ->
   maybe2 (ctxtLookupType g y)
-    (error ("In Free.hs/discard, unknown type var " ++ y))
+    (error ("In Free.hs/discard, unknown datatype " ++ y))
     (mapM (\ (Ctor x' as) ->
                let as' = nameParams x' as in
                  alBinds as' (return tmUnit) >>= \ tm ->
                  return (Case x' as' tm))) >>= \ cs' ->
   return (TmLet "_" (TmCase x (y, []) cs' tpUnit) tpUnit rtm (typeof rtm))
+discard' x (TpVar _) rtm = error "Trying to discard a TpVar"
 discard' x NoTp rtm = error "Trying to discard a NoTp"
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard
@@ -109,13 +110,14 @@ discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm
 
 -- See definition of L(tp) above
 affLinTp :: Type -> AffLinM Type
-affLinTp (TpVar y _) = return (TpVar y [])
+affLinTp (TpData y as) = return (TpData y as)
 affLinTp (TpProd am tps) = pure (TpProd am) <*> mapM affLinTp (tps ++ (if am == Additive then [tpUnit] else []))
 affLinTp (TpArr tp1 tp2) =
   let (tps, end) = splitArrows (TpArr tp1 tp2) in
     mapM affLinTp tps >>= \ tps' ->
     affLinTp end >>= \ end' ->
     return (TpProd Additive [joinArrows tps' end', tpUnit])
+affLinTp (TpVar _) = error "Trying to affLin a TpVar"
 affLinTp NoTp = error "Trying to affLin a NoTp"
 
 -- Make a case linear, returning the local vars that occur free in it

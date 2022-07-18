@@ -15,7 +15,7 @@ import Scope.Ctxt
 bindTp :: Var -> Type -> Either TypeError Subst
 bindTp x tp
   -- Trying to bind x = x, so nothing needs to be done
-  | tp == TpVar x [] = Right Map.empty
+  | tp == TpVar x = Right Map.empty
   -- If x occurs in tp, then substituting would lead to an infinite type
   | occursCheck x tp = Left (InfiniteType x tp)
   -- Add (x := tp) to substitution
@@ -23,11 +23,9 @@ bindTp x tp
 
 -- Try to unify two types
 unify :: Type -> Type -> Either TypeError Subst
-unify (TpVar y@('?' : _) []) tp = bindTp y tp -- Only substitute tag/type inst vars
-unify (TpVar y@('#' : _) []) tp = bindTp y tp -- Same ^
-unify tp (TpVar y@('?' : _) []) = bindTp y tp -- Same ^
-unify tp (TpVar y@('#' : _) []) = bindTp y tp -- Same ^
-unify tp1@(TpVar y1 as1) tp2@(TpVar y2 as2)
+unify (TpVar y) tp = bindTp y tp
+unify tp (TpVar y) = bindTp y tp
+unify tp1@(TpData y1 as1) tp2@(TpData y2 as2)
   | y1 == y2 && length as1 == length as2 =
       unifyAll' (zip as1 as2)
   | otherwise = Left (UnificationError tp1 tp2)
@@ -127,7 +125,7 @@ solvesM ms =
             s' = foldr (\ (fx, Forall tgs' xs' tp') ->
                           Map.insert fx
                             (SubTm (TmVarG DefVar fx
-                                    (map (\ x -> TpVar x []) (tgs' ++ xs')) [] tp')))
+                                    (map TpVar (tgs' ++ xs')) [] tp')))
                        s (zip fs stps)
         in
           return (zip3 fs (subst s' as) stps))

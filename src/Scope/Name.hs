@@ -67,7 +67,7 @@ tpUnit = TpProd Multiplicative []
 tpBoolName = "Bool"
 tmTrueName = "True"
 tmFalseName = "False"
-tpBool = TpVar tpBoolName []
+tpBool = TpData tpBoolName []
 tmTrue = TmVarG CtorVar tmTrueName [] [] tpBool
 tmFalse = TmVarG CtorVar tmFalseName [] [] tpBool
 

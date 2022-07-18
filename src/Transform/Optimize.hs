@@ -93,7 +93,7 @@ liftAmb (TmElimProd am ptm ps tm tp) =
              (splitAmbs (liftAmb tm))) tp
 liftAmb (TmEqs tms) =
   let tms' = [splitAmbs (liftAmb tm) | tm <- tms] in
-    joinAmbs (map TmEqs (kronall tms')) (TpVar "Bool" [])
+    joinAmbs (map TmEqs (kronall tms')) tpBool
 
 liftFail'' :: (Term, Maybe Term) -> Term
 liftFail'' (tm, Nothing) = TmAmb [] (typeof tm)
