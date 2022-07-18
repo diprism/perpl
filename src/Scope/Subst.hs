@@ -118,7 +118,9 @@ instance Substitutable Type where
     substVar y
       (\ y' -> TpVar y' as')
       (const (TpVar y as'))
-      id
+      (\ tp' -> if null as' then tp' else
+                case tp' of TpVar y' bs -> TpVar y' (bs ++ as')
+                            _ -> error "kind error")
       (TpVar y as')
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
   substM NoTp = pure NoTp
@@ -362,10 +364,12 @@ freshVar = freshVar' . Map.mapWithKey (const . SubVar)
 
 instance Substitutable CtxtDef where
   substM (DefTerm sc tp) = pure (DefTerm sc) <*> substM tp
-  substM (DefData cs) = pure DefData <*> substM cs
+  substM (DefData [] cs) = pure DefData <*> pure [] <*> substM cs
+  substM (DefData ps cs) = error "not implemented"
   
   freeVars (DefTerm sc tp) = freeVars tp
-  freeVars (DefData cs) = freeVars cs
+  freeVars (DefData [] cs) = freeVars cs
+  freeVars (DefData ps cs) = error "not implemented"
 
 instance Substitutable Scheme where
   substM (Forall tgs xs tp) =

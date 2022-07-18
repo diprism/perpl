@@ -433,7 +433,8 @@ spanGraph explicit_drs res =
 -- Given some explicit datatypes to de- or refun, compute which to do on the rest
 whichDR :: [(Var, DeRe)] -> Progs -> Either String [(Var, DeRe)]
 whichDR explicit_drs ps =
-  spanGraph explicit_drs (initGraph (ctxtDefProgs ps) ps (getRecTypes ps))
+  let g = ctxtDefProgs ps in
+    spanGraph explicit_drs (initGraph g ps (getRecursiveTypeNames g))
 
 
 --------------------------------------------------

@@ -84,7 +84,7 @@ discard' x (TpProd am tps) rtm
       return (TmElimProd Multiplicative x ps rtm' (typeof rtm'))
 discard' x xtp@(TpVar y _) rtm =
   ask >>= \ g ->
-  if isRecursiveTypeName (ctxtLookupType g) y then
+  if isRecursiveTypeName g y then
     -- let () = discard x in rtm
     return (TmElimProd Multiplicative (TmVarG DefVar (discardName y) [] [(x, xtp)] tpUnit) [] rtm (typeof rtm))
   else
@@ -105,7 +105,7 @@ discard' x NoTp rtm = error "Trying to discard a NoTp"
 discard :: Var -> Type -> Term -> AffLinM Term
 discard x tp tm =
   ask >>= \ g ->
-  if robust (ctxtLookupType g) tp
+  if robust g tp
     then return tm
     else (discard' (TmVarL x tp) tp tm){- >>= \ dtm ->
           return (TmLet "_" dtm tpUnit tm (typeof tm)))-}
@@ -249,7 +249,7 @@ affLin (TmEqs tms) =
 affLinDiscards :: [Prog] -> AffLinM [Prog]
 affLinDiscards (p@(ProgData y cs) : ps) =
   ask >>= \ g ->
-  if isRecursiveTypeName (ctxtLookupType g) y then
+  if isRecursiveTypeName g y then
     let
       -- define _discardy_ = \x. case x of Con1 a11 a12 ... -> () | ...
       -- Linearizing this will generate recursive calls to discard as needed

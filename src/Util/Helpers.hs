@@ -80,6 +80,12 @@ parensIf :: Bool -> String -> String
 parensIf True = parens
 parensIf False = id
 
+-- zipWith enforcing length equal
+pickyZipWith :: (a -> b -> c) -> [a] -> [b] -> [c]
+pickyZipWith f = go where
+  go []     []     = []
+  go (a:as) (b:bs) = f a b : go as bs
+  go _      _      = error "pickyZipWith: list lengths don't match"
 
 -- Collects duplicates, counting how many
 -- collectDups ['a', 'b', 'c', 'b', 'c', 'b'] = [('a', 1), ('b', 3), ('c', 2)]

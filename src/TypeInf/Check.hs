@@ -13,6 +13,7 @@ import Scope.Fresh
 import Scope.Subst
 import Scope.Free
 import Scope.Name
+import Scope.Ctxt
 
 -- Convention: expected type, then actual type
 -- TODO: Enforce this convention
@@ -179,8 +180,8 @@ anyDupDefs (UsProgs ps etm) =
 guardExternRec :: Type -> CheckM ()
 guardExternRec tp =
   askEnv >>= \ env ->
-  let g = fmap (\ (_, _, cs) -> cs) (typeEnv env) in
-  guardM (not (isInfiniteType ((Map.!?) g) tp)) ExternRecData
+  let g = fmap (\ (tgs, ps, cs) -> DefData ps cs) (typeEnv env) in
+  guardM (not (isInfiniteType g tp)) ExternRecData
 
 -- Defines a global function
 defTerm :: Var -> GlobalVar -> Scheme -> CheckM a -> CheckM a

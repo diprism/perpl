@@ -6,6 +6,7 @@ module Scope.Free where
 import Struct.Lib
 import Util.Helpers
 import Scope.Subst
+import Scope.Ctxt
 import qualified Data.Map as Map
 
 -- For checking linearity, vars can appear:
@@ -114,29 +115,28 @@ isLin' x = (LinYes ==) . h where
 Search through type tp's tree, looking for a node for which pred is true.
 g maps a datatype name to its list of constructors, if any.
 pred takes two arguments, a list of visited nodes and a node.
-
-It's okay if tp = TpVar y as and as does not have the same number of
-arguments that y actually takes.
 -}
 
-searchType :: ([Type] -> Type -> Bool) -> (Var -> Maybe [Ctor]) -> Type -> Bool
+searchType :: ([Type] -> Type -> Bool) -> Ctxt -> Type -> Bool
 searchType pred g = h [] where
   h :: [Type] -> Type -> Bool
   h visited tp = pred visited tp || case tp of
     TpVar y as ->
       -- Don't search the same type twice (that would cause infinite recursion)
       not (tp `elem` visited) &&
-      -- The type arguments (as) are not substituted into the type parameters of tps.
-      -- (Currently, (g y) does not contain enough information to do that anyway.)
-      (maybe False (any $ \ (Ctor _ tps) -> any (h (tp : visited)) tps) (g y)
-      -- Instead, search the type arguments now.
-       || any (h (tp : visited)) as)
+      case ctxtLookupType2 g y of
+        Nothing -> False
+        Just (ps, cs) ->
+          -- Substitute actual type parameters (as) for datatype's type parameters (ps)
+          -- and recurse on each constructor
+          let s = Map.fromList (pickyZipWith (\p a -> (p, SubTp a)) ps as) in
+          any (\ (Ctor _ tps) -> any (h (tp : visited) . subst s) tps) cs
     TpArr tp1 tp2 -> h visited tp1 || h visited tp2
     TpProd am tps -> any (h visited) tps
     NoTp -> False
 
 -- Returns if a type has no arrow, ampersand, or recursive datatype anywhere in it
-robust :: (Var -> Maybe [Ctor]) -> Type -> Bool
+robust :: Ctxt -> Type -> Bool
 robust g tp = not (searchType p g tp) where
   p visited tp@(TpVar y as) = tp `elem` visited
   p visited (TpArr _ _) = True
@@ -144,39 +144,21 @@ robust g tp = not (searchType p g tp) where
   p visited NoTp = False
 
 -- Returns if a type has an infinite domain (i.e. it contains (mutually) recursive datatypes anywhere in it)
-isInfiniteType :: (Var -> Maybe [Ctor]) -> Type -> Bool
+isInfiniteType :: Ctxt -> Type -> Bool
 isInfiniteType = searchType p where
   p visited tp@(TpVar y as) = tp `elem` visited
   p _ _ = False
 
 -- Returns if a type is a (mutually) recursive datatype
-isRecursiveType :: (Var -> Maybe [Ctor]) -> Type -> Bool
+isRecursiveType :: Ctxt -> Type -> Bool
 isRecursiveType g tp = searchType p g tp where
   p visited tp'@(TpVar y as) = tp' `elem` visited && tp' == tp
   p _ _ = False
 
-isRecursiveTypeName :: (Var -> Maybe [Ctor]) -> Var -> Bool
+isRecursiveTypeName :: Ctxt -> Var -> Bool
 isRecursiveTypeName g y =
-  isRecursiveType g (TpVar y []) -- even if y takes arguments, it's okay not to provide them
-
-getRecTypes' :: [(Var, [Var], [Var], [Ctor])] -> [Var]
-getRecTypes' ds =
-  let g = foldr (\ (y, tgs, xs, cs) -> Map.insert y cs) mempty ds in
-    concat [if isRecursiveTypeName (g Map.!?) y then [y] else [] | (y, tgs, xs, cs) <- ds]
-
-getDataSProgs :: [SProg] -> [(Var, [Var], [Var], [Ctor])]
-getDataSProgs ps = concat [h p | p <- ps] where
-  h (SProgData y tgs xs cs) = [(y, tgs, xs, cs)]
-  h _ = []
-
-getDataProgs :: [Prog] -> [(Var, [Var], [Var], [Ctor])]
-getDataProgs ps = concat [h p | p <- ps] where
-  h (ProgData y cs) = [(y, [], [], cs)]
-  h _ = []
+  isRecursiveType g (TpVar y []) -- this function currently used only after monomorphization, so empty type parameter list okay
 
 -- Returns the recursive datatypes in a file
-getRecTypes :: Progs -> [Var]
-getRecTypes (Progs ds end) = getRecTypes' (getDataProgs ds)
-
-getRecTypesS :: SProgs -> [Var]
-getRecTypesS (SProgs ds end) = getRecTypes' (getDataSProgs ds)
+getRecursiveTypeNames :: Ctxt -> [Var]
+getRecursiveTypeNames g = filter (isRecursiveTypeName g) (Map.keys g)
