@@ -8,7 +8,7 @@ import Util.Helpers
 
 data CtxtDef =
     DefTerm Scope Type
-  | DefData [Ctor]
+  | DefData [Var] [Ctor]
   deriving Show
 
 type Ctxt = Map Var CtxtDef
@@ -39,18 +39,24 @@ ctxtDefCtor g (Ctor x tps) y ps =
 ctxtDeclType :: Ctxt -> Var -> [Var] -> [Ctor] -> Ctxt
 ctxtDeclType g y ps ctors =
   foldr (\ c g -> ctxtDefCtor g c y ps)
-    (Map.insert y (DefData ctors) g) ctors
+    (Map.insert y (DefData ps ctors) g) ctors
 
 -- Lookup a term in the context
 ctxtLookupTerm :: Ctxt -> Var -> Maybe (Scope, Type)
 ctxtLookupTerm g x = Map.lookup x g >>= \ vd -> case vd of
   DefTerm sc tp -> Just (sc, tp)
-  DefData cs -> Nothing
+  DefData ps cs -> Nothing
 
 -- Lookup a datatype in the context
 ctxtLookupType :: Ctxt -> Var -> Maybe [Ctor]
 ctxtLookupType g x = Map.lookup x g >>= \ vd -> case vd of
-  DefData cs -> Just cs
+  DefData [] cs -> Just cs
+  DefData _ cs -> error "this shouldn't happen"
+  _ -> Nothing
+
+ctxtLookupType2 :: Ctxt -> Var -> Maybe ([Var], [Ctor])
+ctxtLookupType2 g x = Map.lookup x g >>= \ vd -> case vd of
+  DefData ps cs -> Just (ps, cs)
   _ -> Nothing
 
 -- Is this var bound in this context?
