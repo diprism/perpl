@@ -57,7 +57,7 @@ unfoldCtorArgNames y n = [unfoldCtorArgName y i | i <- [0..n-1]]
 
 
 -- Names used for affLin
-affLinName x = '_' : x
+discardName y = "_discard" ++ y ++ "_"
 
 -- Constructors and case-ofs for affLin-generated datatypes
 

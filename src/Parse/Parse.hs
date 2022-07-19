@@ -116,11 +116,12 @@ parseVars = parsePeek >>= \ t -> case t of
   _ -> pure []
 
 -- Parse comma-delimited symbols
-parseVarsCommas :: Bool -> Bool -> ParseM [Var]
-parseVarsCommas allow0 allow1 = parsePeeks 2 >>= \ ts -> case ts of
-  [TkVar v, TkComma] -> parseEat *> parseEat *> pure ((:) v) <*> parseVarsCommas allow1 True
-  [TkVar v, _] -> if allow1 then parseEat *> pure [v] else parseErr "unary tuple of variables not allowed here"
-  _ -> if allow0 then pure [] else parseErr "0-ary tuple of variables not allowed here"
+parseVarsCommas :: Token -> Bool -> Bool -> ParseM [Var]
+parseVarsCommas close allow0 allow1 = parsePeeks 2 >>= \ ts -> case ts of
+  [TkVar v, TkComma] -> parseEat *> parseEat *> pure ((:) v) <*> parseVarsCommas close allow1 True
+  [TkVar v, t] | t==close -> if allow1 then parseEat *> parseEat *> pure [v] else parseErr "unary tuple of variables not allowed here"
+  [t, _] | t==close -> if allow0 then parseEat *> pure [] else parseErr "0-ary tuple of variables not allowed here"
+  _ -> parseErr "expecting a tuple of variables"
 
 -- Parse a branch of a case expression.
 parseCase :: ParseM CaseUs
@@ -161,9 +162,9 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- \ x [: type] . term
   [TkLam, _] -> parseEat *> pure UsLam <*> parseVar <*> parseTpAnn <* parseDrop TkDot <*> parseTerm1
 -- let (x, y, ...) = term in term
-  [TkLet, TkParenL] -> parseEat *> parseEat *> pure (flip (UsElimProd Multiplicative)) <*> parseVarsCommas True False <* parseDrop TkParenR <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
+  [TkLet, TkParenL] -> parseEat *> parseEat *> pure (flip (UsElimProd Multiplicative)) <*> parseVarsCommas TkParenR True False <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- let <..., _, x, _, ...> = term in term
-  [TkLet, TkLangle] -> parseEat *> parseEat *> pure (flip (UsElimProd Additive)) <*> parseVarsCommas False False <* parseDrop TkRangle <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
+  [TkLet, TkLangle] -> parseEat *> parseEat *> pure (flip (UsElimProd Additive)) <*> parseVarsCommas TkRangle False True <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- let x = term [: type] in term
   [TkLet, _] -> parseEat *> pure UsLet <*> parseVar <* parseDrop TkEq
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
