@@ -34,8 +34,6 @@ data Token =
   | TkThen -- "then"
   | TkElse -- "else"
   | TkDoubleEq -- "=="
-  | TkUnit -- "Unit"
-  | TkTop -- "Top"
   deriving Eq
 
 instance Show Token where
@@ -70,8 +68,6 @@ instance Show Token where
   show TkIf = "if"
   show TkThen = "then"
   show TkElse = "else"
-  show TkUnit = "Unit"
-  show TkTop = "Top"
 
 
 type Pos = (Int, Int) -- Line, column
@@ -91,10 +87,10 @@ next (line, column) = (succ line, 0)
 -- List of punctuation tokens
 punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkLangle, TkRangle]
 -- List of keyword tokens (use alphanumeric chars)
-keywords = [TkAmb, TkFactor, TkFail, TkCase, TkOf, TkLet, TkIn, TkFun, TkExtern, TkData, TkUnit, TkTop, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
+keywords = [TkAmb, TkFactor, TkFail, TkCase, TkOf, TkLet, TkIn, TkFun, TkExtern, TkData, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
 
 -- Tries to lex s as punctuation, otherwise lexing s as a keyword or a var
-lexPunctuation :: String -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
+lexPunctuation :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
 lexPunctuation s =
   foldr (\ t owise -> maybe owise (flip (lexAdd (show t)) t) (prefix (show t) s))
         (lexNum s)
@@ -107,19 +103,20 @@ lexPunctuation s =
 
 
 -- Lex a string, returning a list of tokens
-lexStrh :: String -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
+lexStrh :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
 lexStrh (' ' : s) = lexStrh s . forward
+lexStrh ('\t' : s) = lexStrh s . forward
 lexStrh ('\n' : s) = lexStrh s . next
 lexStrh ('-' : '-' : s) = lexComment Nothing s
 lexStrh ('{' : '-' : s) = lexComment (Just 0) s
-lexStrh ('-' : '}' : s) = \ p _ -> Left p
+lexStrh ('-' : '}' : s) = \ p _ -> Left (p, "unexpected end-of-comment '-}'")
 lexStrh "" = \ _ ts -> Right ts
 lexStrh s = lexPunctuation s
 
 -- Lex a comment.
 -- lexComment Nothing scans a comment from -- to the end of the line.
 -- lexComment (Just n) scans a nested comment (inside {- and -}).
-lexComment :: Maybe Integer -> String -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
+lexComment :: Maybe Integer -> String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
 lexComment Nothing  ('\n' : s) = lexStrh s . next
 lexComment (Just n) ('\n' : s) = lexComment (Just n) s . next
 lexComment (Just 0) ('-' : '}' : s) = lexStrh s . forward' 2
@@ -128,7 +125,7 @@ lexComment (Just n) ('{' : '-' : s) = lexComment (Just (succ n)) s . forward' 2
 lexComment multiline (_ : s) = lexComment multiline s . forward
 lexComment _ "" = \ _ ts -> Right ts
 
-lexNum :: String -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
+lexNum :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
 lexNum s = case reads s :: [(Double, String)] of
   [] -> lexKeywordOrVar s
   [(n, rest)] -> lexAdd (take ((length s)-(length rest)) s) rest (TkNum n)
@@ -154,10 +151,12 @@ isVarChar :: Char -> Bool
 isVarChar c = isVarFirstChar c || ('0' <= c && c <= '9') || ('\'' == c) 
 
 -- Lex a keyword or a variable name
-lexKeywordOrVar :: String -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
+lexKeywordOrVar :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
 lexKeywordOrVar s p ts =
-  let (v, rest) = lexVar s in
-    if length v > 0 then trykw keywords v rest p ts else Left p
+  case lexVar s of
+    (v@(_:_), rest) -> trykw keywords v rest p ts
+    ("", next:_) -> Left (p, "unexpected character '" ++ [next] ++ "'")
+    ("", "") -> Left (p, "unexpected end of file (this shouldn't happen)")
   where
     trykw (kwtok : kws) v s =
       if show kwtok == v then lexAdd v s kwtok else trykw kws v s
@@ -171,15 +170,16 @@ lexKeywordOrVar s p ts =
 - p: position of t
 - ts: token list -}
 
-lexAdd :: String -> String -> Token -> Pos -> [(Pos, Token)] -> Either Pos [(Pos, Token)]
+lexAdd :: String -> String -> Token -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
 lexAdd t_s s t p ts = lexStrh s (forward' (length t_s) p) ((p, t) : ts)
 
 -- Format for a lex error
-lexErr (line, col) = Left $ "Lex error at line " ++ show line ++ ", column " ++ show col
+lexErr :: (Pos, String) -> String
+lexErr ((line, col), msg) = "error at line " ++ show (line+1) ++ ", column " ++ show (col+1) ++ ": " ++ msg
 
 -- Lex a string.
 lexStr :: String -> Either String [(Pos, Token)]
-lexStr s = either lexErr (Right . reverse) $ lexStrh s (1, 0) []
+lexStr s = either (Left . lexErr) (Right . reverse) $ lexStrh s (0, 0) []
 
 -- Synonym for lexStr
 lexFile = lexStr
