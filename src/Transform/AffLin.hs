@@ -89,11 +89,11 @@ discard' x xtp@(TpVar y _) rtm =
     return (TmElimProd Multiplicative (TmVarG DefVar (discardName y) [] [(x, xtp)] tpUnit) [] rtm (typeof rtm))
   else
     maybe2 (ctxtLookupType g y)
-      (error ("In Free.hs/discard, unknown type var " ++ y))
-      (mapM (\ (Ctor x' as) ->
-                 let as' = nameParams x' as in
-                   alBinds as' (return tmUnit) >>= \ tm ->
-                   return (Case x' as' tm))) >>= \ cs' ->
+      (error ("In Transform.AffLin.discard', unknown type var " ++ y))
+      (mapM (\ (Ctor c atps) ->
+                 let atps' = nameParams c atps in
+                   alBinds atps' (return tmUnit) >>= \ tm ->
+                   return (Case c atps' tm))) >>= \ cs' ->
     return (TmLet "_" (TmCase x (y, []) cs' tpUnit) tpUnit rtm (typeof rtm))
 discard' x NoTp rtm = error "Trying to discard a NoTp"
 
@@ -256,7 +256,7 @@ affLinDiscards (p@(ProgData y cs) : ps) =
       ytp = TpVar y []
       defDiscard = ProgFun (discardName y) [("x", ytp)] body tpUnit
       body = TmCase (TmVarL "x" ytp) (y, []) cases tpUnit
-      cases = [Case c [(freshVar g "a", atp) | atp <- atps] tmUnit | Ctor c atps <- cs]
+      cases = [let atps' = nameParams c atps in Case c atps' tmUnit | Ctor c atps <- cs]
     in
       affLinDiscards ps >>= \ ps' ->
       return (defDiscard : p : ps')
