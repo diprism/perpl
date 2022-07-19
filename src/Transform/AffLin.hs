@@ -115,20 +115,20 @@ discards :: FreeVars -> Term -> AffLinM Term
 discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm) fvs
 
 -- See definition of L(tp) above
-affLinTp :: Type -> AffLinM Type
-affLinTp (TpVar y _) = return (TpVar y [])
-affLinTp (TpProd am tps) = pure (TpProd am) <*> mapM affLinTp (tps ++ (if am == Additive then [tpUnit] else []))
+affLinTp :: Type -> Type
+affLinTp (TpVar y _) = TpVar y []
+affLinTp (TpProd am tps) = TpProd am $ map affLinTp tps ++ [tpUnit | am == Additive]
 affLinTp (TpArr tp1 tp2) =
-  let (tps, end) = splitArrows (TpArr tp1 tp2) in
-    mapM affLinTp tps >>= \ tps' ->
-    affLinTp end >>= \ end' ->
-    return (TpProd Additive [joinArrows tps' end', tpUnit])
+  let (tps, end) = splitArrows (TpArr tp1 tp2)
+      tps' = map affLinTp tps
+      end' = affLinTp end
+  in TpProd Additive [joinArrows tps' end', tpUnit]
 affLinTp NoTp = error "Trying to affLin a NoTp"
 
 -- Make a case linear, returning the local vars that occur free in it
 affLinCase :: Case -> AffLinM Case
 affLinCase (Case x ps tm) =
-  mapParamsM affLinTp ps >>= \ ps' ->
+  let ps' = mapParams affLinTp ps in
   alBinds ps' (affLin tm) >>=
   return . Case x ps'
 
@@ -156,7 +156,7 @@ ambElim tm =
 -- Linearizes params and also a body term
 affLinParams :: [Param] -> Term -> AffLinM ([Param], Term)
 affLinParams ps body =
-  mapParamsM affLinTp ps >>= \ lps ->
+  let lps = mapParams affLinTp ps in
   listen (alBinds lps (affLin body)) >>= \ (body', fvs) ->
     return (lps, body')
 
@@ -174,7 +174,7 @@ affLinBranches alf dscrd als =
 affLin :: Term -> AffLinM Term
 affLin (TmVarL x tp) =
   -- L(x) => x    (x is a local var)
-  affLinTp tp >>= \ ltp ->
+  let ltp = affLinTp tp in
   tell (Map.singleton x ltp) >>
   return (TmVarL x ltp)
 affLin (TmVarG gv x tis as y) =
@@ -182,9 +182,9 @@ affLin (TmVarG gv x tis as y) =
   -- or a constructor with type args tis and args as
   -- L(x a1 ...) => x L(a1) ...
   mapArgsM affLin as >>= \ as' ->
-  affLinTp y >>= \ y' ->
-  mapM affLinTp tis >>= \ tis' ->
-  return (TmVarG gv x tis' as' y')
+  let y'   = affLinTp y
+      tis' = map affLinTp tis
+  in return (TmVarG gv x tis' as' y')
 affLin (TmLam x tp tm tp') =
   -- L(\ x : tp. tm) => <\ x : L(tp). L(tm), Z(FV(tm) - {x})>
   listen (affLinLams (TmLam x tp tm tp')) >>= \ ((lps, body), fvs) ->
@@ -206,19 +206,19 @@ affLin (TmCase tm y cs tp) =
   affLin tm >>= \ tm' ->
   affLinBranches affLinCase
     (\ xs (Case x as tm) -> fmap (Case x as) (discards xs tm)) cs >>= \ cs' ->
-  affLinTp tp >>= return . TmCase tm' y cs'
+  return (TmCase tm' y cs' (affLinTp tp))
 affLin (TmAmb tms tp) =
   -- L(amb tm1 tm2 ... tmn : tp) => amb L*(tm1) L*(tm2) ... L*(tmn) : L(tp)
   -- where L*(tm) = let _ = Z((FV(tm1) ∪ FV(tm2) ∪ ... ∪ FV(tmn)) - FV(tm)) in L(tm)
   affLinBranches affLin discards tms >>= \ tms' ->
   -- Same as in TmCase above, I think the below should work; if not, use type of first tm
-  affLinTp tp >>= \ tp' ->
-  --  (if null tms' then affLinTp tp else return (typeof (head tms'))) >>= \ tp' ->
+  let tp' = affLinTp tp in
+  --  let tp' = if null tms' then affLinTp tp else typeof (head tms') in
   return (TmAmb tms' tp')
 affLin (TmFactor wt tm tp) =
   -- L(factor wt in tm: tp) => factor wt in L(tm): L(tp)
   affLin tm >>= \ tm' ->
-  affLinTp tp >>= \ tp' ->
+  let tp' = affLinTp tp in
   return (TmFactor wt tm' tp')
 affLin (TmProd am as)
   | am == Additive =
@@ -268,32 +268,33 @@ affLinDiscards [] = return []
 -- Make an affine Prog linear
 affLinProg :: Prog -> AffLinM Prog
 affLinProg (ProgData y cs) =
-  pure (ProgData y) <*> mapCtorsM affLinTp cs
+  pure (ProgData y (mapCtors affLinTp cs))
 affLinProg (ProgFun x as tm tp) =
-  mapParamsM affLinTp as >>= \ as' ->
-  pure (ProgFun x as') <*> alBinds as' (affLin tm) <*> affLinTp tp
+  let as' = mapParams affLinTp as
+      tp' = affLinTp tp
+  in pure (\tm' -> ProgFun x as' tm' tp') <*> alBinds as' (affLin tm)
 affLinProg (ProgExtern x ps tp) =
-  pure (ProgExtern x) <*> mapM affLinTp ps <*> affLinTp tp
+  pure (ProgExtern x (map affLinTp ps) (affLinTp tp))
 
 -- Helper that does affLinTp on all the types so that we can add all the definitions to ctxt
-affLinDefine :: Prog -> AffLinM Prog
+affLinDefine :: Prog -> Prog
 affLinDefine (ProgData y cs) =
-  pure (ProgData y) <*> mapCtorsM affLinTp cs
+  ProgData y (mapCtors affLinTp cs)
 affLinDefine (ProgFun x as tm tp) =
-  pure (ProgFun x) <*> mapParamsM affLinTp as <*> pure tm <*> affLinTp tp
+  ProgFun x (mapParams affLinTp as) tm (affLinTp tp)
 affLinDefine (ProgExtern x ps tp) =
-  pure (ProgExtern x) <*> mapM affLinTp ps <*> affLinTp tp
+  ProgExtern x (map affLinTp ps) (affLinTp tp)
 
 -- Adds all the definitions in a file to context, after replacing arrows with <type, Unit>
-affLinDefines :: Progs -> AffLinM Ctxt
+affLinDefines :: Progs -> Ctxt
 affLinDefines (Progs ps end) =
-  mapM affLinDefine ps >>= \ ps' ->
-  return (ctxtDefProgs (Progs ps' end))
+  let ps' = map affLinDefine ps in
+  ctxtDefProgs (Progs ps' end)
 
 -- Applies L to all the defs in a file
 affLinProgs :: Progs -> AffLinM Progs
 affLinProgs (Progs ps end) =
-  affLinDefines (Progs ps end) >>= \ g ->
+  let g = affLinDefines (Progs ps end) in
   local (const g) (affLinDiscards ps >>= \ ps' -> pure Progs <*> mapM affLinProg ps' <*> affLin end)
 
 -- Runs the AffLin monad
