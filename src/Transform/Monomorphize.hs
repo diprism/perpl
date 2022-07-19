@@ -59,11 +59,10 @@ collectCalls' (TmEqs tms) =
 
 -- Collects datatype calls in a type
 collectCallsTp :: Type -> GlobalCalls
-collectCallsTp (TpVar y)       = []
 collectCallsTp (TpData y as)   = [(y, as)]
 collectCallsTp (TpArr tp1 tp2) = collectCallsTp tp1 <> collectCallsTp tp2
 collectCallsTp (TpProd am tps) = mconcat (map collectCallsTp tps)
-collectCallsTp  NoTp           = []
+collectCallsTp  _              = []
 
 -- Substitutes polymorphic calls for their monomorphized version
 -- (So if we instantiate List with Bool and Unit, then `List1 = List Bool` and
@@ -98,7 +97,6 @@ renameCalls xis (TmEqs tms) = TmEqs (renameCalls xis <$> tms)
 
 -- Same as renameCalls, but for types
 renameCallsTp :: Map Var (Map [Type] Int) -> Type -> Type
-renameCallsTp xis (TpVar y) = TpVar y
 renameCallsTp xis (TpData y []) = TpData y [] -- a datatype with no arguments can have only one instantiation, so we don't rename it (see makeInstantiations))
 renameCallsTp xis (TpData y as) =
   maybe (TpData y as)
@@ -106,7 +104,7 @@ renameCallsTp xis (TpData y as) =
     (xis Map.!? y)
 renameCallsTp xis (TpArr tp1 tp2) = TpArr (renameCallsTp xis tp1) (renameCallsTp xis tp2)
 renameCallsTp xis (TpProd am tps) = TpProd am (map (renameCallsTp xis) tps)
-renameCallsTp xis NoTp = NoTp
+renameCallsTp xis tp = tp
 
 -- Set up a map with an empty entry ([]) for each definition
 makeEmptyInsts :: [SProg] -> Insts

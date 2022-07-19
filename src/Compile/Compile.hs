@@ -290,8 +290,7 @@ type2fgg g tp =
     type2fgg' g (TpData y _) = returnRule
     type2fgg' g (TpArr tp1 tp2) = type2fgg g tp1 +> type2fgg g tp2
     type2fgg' g (TpProd am tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
-    type2fgg' g (TpVar y) = error "Compiling TpVar to FGG rule"
-    type2fgg' g NoTp = error "Compiling NoTp to FGG rule"
+    type2fgg' g tp = error ("Compiling a " ++ show tp ++ " to FGG rule")
 
 
 -- Adds the rules for a Prog
@@ -346,8 +345,7 @@ domainValues g = tpVals where
       concatMap (\ (i, vs) -> ["<" ++ intercalate ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
   tpVals (TpProd Multiplicative tps) =
     [prodValName' tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
-  tpVals (TpVar _) = error ("Enumerating values of a TpVar: " ++ show (Map.keys g))
-  tpVals NoTp = error ("Enumerating values of a NoTp: " ++ show (Map.keys g))
+  tpVals tp = error ("Enumerating values of a " ++ show tp)
 
 domainSize :: Ctxt -> Type -> Int
 domainSize g = length . domainValues g

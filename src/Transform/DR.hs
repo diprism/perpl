@@ -362,8 +362,7 @@ recDeps g recs (TpData y _)
       (ctxtLookupType g y)
 recDeps g recs (TpArr tp1 tp2) = nub (recDeps g recs tp1 ++ recDeps g recs tp2)
 recDeps g recs (TpProd am tps) = nub (concatMap (recDeps g recs) tps)
-recDeps g recs (TpVar y) = error "this shouldn't happen"
-recDeps g recs NoTp = []
+recDeps g recs  _ = []
 
 getRefunDeps :: Ctxt -> [Var] -> [(FreeVars, Type)] -> [Var]
 getRefunDeps g recs =

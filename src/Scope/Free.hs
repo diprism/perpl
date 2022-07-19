@@ -121,7 +121,6 @@ searchType :: ([Type] -> Type -> Bool) -> Ctxt -> Type -> Bool
 searchType pred g = h [] where
   h :: [Type] -> Type -> Bool
   h visited tp = pred visited tp || case tp of
-    TpVar y -> False
     TpData y as ->
       -- Don't search the same type twice (that would cause infinite recursion)
       not (tp `elem` visited) &&
@@ -134,7 +133,7 @@ searchType pred g = h [] where
           any (\ (Ctor _ tps) -> any (h (tp : visited) . subst s) tps) cs
     TpArr tp1 tp2 -> h visited tp1 || h visited tp2
     TpProd am tps -> any (h visited) tps
-    NoTp -> False
+    _ -> False
 
 -- Returns if a type has no arrow, ampersand, or recursive datatype anywhere in it
 robust :: Ctxt -> Type -> Bool
