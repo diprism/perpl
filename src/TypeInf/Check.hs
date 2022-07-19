@@ -88,7 +88,7 @@ type SolveVars = Map Var IsTag
 data Loc = Loc { curDef :: String, curExpr :: String }
 
 instance Show Loc where
-  show l = intercalate ", " ((if null (curDef l) then [] else ["in the definition " ++ curDef l]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
+  show l = intercalate ", " ((if null (curDef l) then ["somewhere"] else ["in the definition " ++ curDef l]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
 
 -- Reader part of the RWST monad for inference/checking
 data CheckR = CheckR { checkEnv :: Env, checkLoc :: Loc }
@@ -209,9 +209,9 @@ defParams (x : xs) m = defType x [] [] [] (defParams xs m)
 inEnvs :: [(Var, Type)] -> CheckM a -> CheckM a
 inEnvs = flip $ foldr $ uncurry inEnv
 
--- Lookup a type variable
-lookupTypeVar :: Var -> CheckM ([Var], [Var], [Ctor])
-lookupTypeVar x =
+-- Lookup a datatype
+lookupDatatype :: Var -> CheckM ([Var], [Var], [Ctor])
+lookupDatatype x =
   askEnv >>= \ g ->
   maybe (err (ScopeError x)) return (Map.lookup x (typeEnv g))
 
@@ -228,7 +228,7 @@ lookupCtorType (CaseUs x _ _ : _) =
   lookupTermVar x >>= \ tp ->
   case tp of
     Right (CtorVar, Forall _ _ ctp) -> case splitArrows ctp of
-      (_, TpData y _) -> lookupTypeVar y >>= \ (tgs, xs, cs) -> return (y, tgs, xs, cs)
+      (_, TpData y _) -> lookupDatatype y >>= \ (tgs, xs, cs) -> return (y, tgs, xs, cs)
       (_, etp) -> error "This shouldn't happen"
     Right (DefVar, _) -> err (CtorError x)
     Left loctp -> err (CtorError x)
@@ -288,7 +288,7 @@ checkType :: Type -> CheckM Type
 checkType (TpArr tp1 tp2) =
   pure TpArr <*> checkType tp1 <*> checkType tp2
 checkType (TpData y as) =
-  lookupTypeVar y >>= \ (tgs, ps, _) ->
+  lookupDatatype y >>= \ (tgs, ps, _) ->
   mapM checkType as >>= \ as' ->
   mapM (const freshTag) tgs >>= \ tgs' ->
   guardM (length ps == length as) (WrongNumArgs (length ps) (length as)) >>
@@ -296,7 +296,7 @@ checkType (TpData y as) =
 checkType (TpProd am tps) =
   pure (TpProd am) <*> mapM checkType tps
 checkType (TpVar y) =
-  error "checkType should never see a TpVar!"
+  return (TpVar y)
 checkType NoTp =
   error "checkType should never see a NoTp!"
 

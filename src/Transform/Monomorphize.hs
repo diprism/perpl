@@ -99,6 +99,7 @@ renameCalls xis (TmEqs tms) = TmEqs (renameCalls xis <$> tms)
 -- Same as renameCalls, but for types
 renameCallsTp :: Map Var (Map [Type] Int) -> Type -> Type
 renameCallsTp xis (TpVar y) = TpVar y
+renameCallsTp xis (TpData y []) = TpData y [] -- a datatype with no arguments can have only one instantiation, so we don't rename it (see makeInstantiations))
 renameCallsTp xis (TpData y as) =
   maybe (TpData y as)
     (\ m -> let yi = m Map.! as in TpData (instName y yi) [])
@@ -175,6 +176,7 @@ makeInstantiations xis (SProgExtern x tps rtp) =
   [ProgExtern x tps rtp]
 makeInstantiations xis (SProgData y [] [] cs) =
   -- TODO: maybe delete this as we did in SProgFun x (Forall [] [] tp) tm, if unused?
+  -- a datatype with no arguments can have only one instantiation, so we don't rename it (see renameCallsTp)
   [ProgData y cs]
 makeInstantiations xis (SProgData y tgs ps cs) =
     let tiss = Map.toList (xis Map.! y) in

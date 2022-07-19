@@ -268,7 +268,7 @@ TYPEANN ::=
 
 parseTpAnn :: ParseM Type
 parseTpAnn =
-  parsePeek >>= \ t -> if t == TkColon then (parseEat *> parseType1) else pure NoTp
+  parsePeek >>= \ t -> if t == TkColon then (parseEat *> parseType1 []) else pure NoTp
 
 {-
 
@@ -279,9 +279,9 @@ TYPE1 ::=
  -}
 
 -- Arrow
-parseType1 :: ParseM Type
-parseType1 = parseType2 >>= \ tp -> parsePeek >>= \ t -> case t of
-  TkArr -> parseEat *> pure (TpArr tp) <*> parseType1
+parseType1 :: [Var] -> ParseM Type
+parseType1 ps = parseType2 ps >>= \ tp -> parsePeek >>= \ t -> case t of
+  TkArr -> parseEat *> pure (TpArr tp) <*> parseType1 ps
   _ -> pure tp
 
 
@@ -294,10 +294,10 @@ TYPE2 ::=
  -}
 
 -- TypeVar
-parseType2 :: ParseM Type
-parseType2 = parsePeek >>= \ t -> case t of
-  TkVar v -> parseEat *> pure (TpVar v) <*> parseTypes
-  _ -> parseType3
+parseType2 :: [Var] -> ParseM Type
+parseType2 ps = parsePeek >>= \ t -> case t of
+  TkVar v -> parseEat *> if v `elem` ps then pure (TpVar v) else pure (TpData v) <*> parseTypes ps
+  _ -> parseType3 ps
 
 
 {-
@@ -312,31 +312,31 @@ TYPE3 ::=
 
  -}
 
-parseType3 :: ParseM Type
-parseType3 = parsePeek >>= \ t -> case t of
+parseType3 :: [Var] -> ParseM Type
+parseType3 ps = parsePeek >>= \ t -> case t of
   TkParenL -> parseEat *> (
     parsePeek >>= \ t -> case t of
         TkParenR -> pure (TpProd Multiplicative [])
-        _ -> parseType1 >>= \ tp -> parseDelim parseType1 TkComma [tp] >>= \ tps -> pure (if length tps == 1 then tp else TpProd Multiplicative tps)
+        _ -> parseType1 ps >>= \ tp -> parseDelim (parseType1 ps) TkComma [tp] >>= \ tps -> pure (if length tps == 1 then tp else TpProd Multiplicative tps)
     ) <* parseDrop TkParenR
   TkLangle -> parseEat *> (
     parsePeek >>= \ t -> case t of
         TkRangle -> pure (TpProd Additive [])
-        _ -> pure (TpProd Additive) <*> (parseType1 >>= \ tp -> parseDelim parseType1 TkComma [tp])) <* parseDrop TkRangle
-  TkBool -> parseEat *> pure (TpVar "Bool" [])
-  TkVar v -> parseEat *> pure (TpVar v [])
+        _ -> pure (TpProd Additive) <*> (parseType1 ps >>= \ tp -> parseDelim (parseType1 ps) TkComma [tp])) <* parseDrop TkRangle
+  TkBool -> parseEat *> pure (TpData "Bool" [])
+  TkVar v -> parseEat *> pure (if v `elem` ps then TpVar v else TpData v [])
   _ -> parseErr "couldn't parse a type here; perhaps add parentheses?"
 
 -- List of Constructors
-parseEqCtors :: ParseM [Ctor]
-parseEqCtors = parsePeek >>= \t -> case t of
-  TkEq -> parseDrop TkEq *> parseBranches (pure Ctor <*> parseVar <*> parseTypes)
+parseEqCtors :: [Var] -> ParseM [Ctor]
+parseEqCtors ps = parsePeek >>= \t -> case t of
+  TkEq -> parseDrop TkEq *> parseBranches (pure Ctor <*> parseVar <*> parseTypes ps)
   TkSemicolon -> return []
   _ -> parseErr "expected = or ;"
 
 -- List of Types
-parseTypes :: ParseM [Type]
-parseTypes = parseElse [] (parseType3 >>= \ tp -> fmap ((:) tp) parseTypes)
+parseTypes :: [Var] -> ParseM [Type]
+parseTypes ps = parseElse [] (parseType3 ps >>= \ tp -> fmap ((:) tp) (parseTypes ps))
 
 {-
 
@@ -357,8 +357,10 @@ parseProg = parsePeek >>= \ t -> case t of
   TkExtern -> parseEat *> pure Just <*> (pure UsProgExtern <*> parseVar <*> parseTpAnn
                 <* parseDrop TkSemicolon)
 -- data Y vars = ctors; ...
-  TkData -> parseEat *> pure Just <*> (pure UsProgData <*> parseVar <*> parseVars 
-              <*> parseEqCtors <* parseDrop TkSemicolon)
+  TkData -> parseEat *> pure Just <*>
+    (pure UsProgData <*> parseVar >>= \f ->
+        parseVars >>= \ps ->
+        pure (f ps) <*> (parseEqCtors ps) <* parseDrop TkSemicolon)
   _ -> pure Nothing
 
 parseProgsUntil :: ParseM [UsProg]
