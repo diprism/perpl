@@ -1,1 +1,2 @@
 let z = <> in ()
+-- correct: [1.0]
