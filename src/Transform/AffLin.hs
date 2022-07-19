@@ -74,12 +74,12 @@ discard' :: Term -> Type -> Term -> AffLinM Term
 discard' (TmVarL "_" tp') tp rtm = return rtm -- error ("discard' \"_\" " ++ show tp ++ " in the term " ++ show rtm)
 discard' x (TpArr tp1 tp2) rtm =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
-discard' x (TpProd am tps) rtm
-  | am == Additive =
+discard' x (TpProd Additive tps) rtm =
     return (TmElimProd Additive x
              [(if i == length tps - 1 then "_x" else "_", tp)| (i, tp) <- enumerate tps]
              rtm (typeof rtm))
-  | otherwise = let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in
+discard' x (TpProd Multiplicative tps) rtm =
+    let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in
       discards (Map.fromList ps) rtm >>= \ rtm' ->
       return (TmElimProd Multiplicative x ps rtm' (typeof rtm'))
 discard' x xtp@(TpVar y _) rtm =

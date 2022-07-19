@@ -53,9 +53,9 @@ help =
         "  -o OUTFILE  Output to OUTFILE\n" ++
         "  -O0 -O1     Optimization level (0 = off, 1 = on, for now)\n" ++
         "  -c          Compile only to PPL code (not to FGG)\n" ++
-        "  -m          Don't monomorphize\n" ++
-        "  -e          Don't eliminate recursive datatypes\n" ++
-        "  -l          Don't linearize the file (implies -c)\n" ++
+        "  -e          Don't eliminate recursive datatypes (implies -c)\n" ++
+        "  -m          Don't monomorphize (implies -e)\n" ++
+        "  -l          Don't linearize the file (implies -e)\n" ++
         "  -d DTYPES   Defunctionalize recursive datatypes DTYPES\n" ++
         "  -r DTYPES   Refunctionalize recursive datatypes DTYPES\n" ++
         "  -z          Compute sum-product")
