@@ -82,7 +82,7 @@ discard' x (TpProd Multiplicative tps) rtm =
     let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in
       discards (Map.fromList ps) rtm >>= \ rtm' ->
       return (TmElimProd Multiplicative x ps rtm' (typeof rtm'))
-discard' x xtp@(TpVar y _) rtm =
+discard' x xtp@(TpVar y []) rtm =
   ask >>= \ g ->
   if isRecursiveTypeName g y then
     -- let () = discard x in rtm
@@ -95,6 +95,7 @@ discard' x xtp@(TpVar y _) rtm =
                    alBinds atps' (return tmUnit) >>= \ tm ->
                    return (Case c atps' tm))) >>= \ cs' ->
     return (TmLet "_" (TmCase x (y, []) cs' tpUnit) tpUnit rtm (typeof rtm))
+discard' _ (TpVar y (_:_)) _ = error ("Type constructor " ++ y ++ "? In this economy?")
 discard' x NoTp rtm = error "Trying to discard a NoTp"
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard
@@ -300,7 +301,9 @@ affLinProgs (Progs ps end) =
 -- Runs the AffLin monad
 runAffLin :: Progs -> Progs
 runAffLin ps = case runRWS (affLinProgs ps) emptyCtxt () of
-  (Progs ps' end, mtps, _) -> Progs ps' end
+  (Progs ps' end, (), fvs) ->
+    if Map.null fvs then Progs ps' end
+    else error "affLinProgs leaked bindings"
 
 -- Make an affine file linear
 affLinFile :: Progs -> Either String Progs
