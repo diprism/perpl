@@ -369,7 +369,7 @@ PROGS ::= PROG ... TERM1
 -}
 
 parseProgs :: ParseM UsProgs
-parseProgs = pure UsProgs <*> parseProgsUntil <*> parseTerm1  <* parseDrop TkSemicolon
+parseProgs = pure UsProgs <*> parseProgsUntil <*> parseTerm1 <* parseDrop TkSemicolon
 
 parseFormatErr :: [(Pos, Token)] -> Either (Pos, String) a -> Either String a
 parseFormatErr ts (Left (p, emsg))

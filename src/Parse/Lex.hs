@@ -82,7 +82,7 @@ forward = forward' 1
 
 -- Goes to the next line
 next :: Pos -> Pos
-next (line, column) = (succ line, 0)
+next (line, column) = (succ line, 1)
 
 -- List of punctuation tokens
 punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkLangle, TkRangle]
@@ -105,8 +105,10 @@ lexPunctuation s =
 -- Lex a string, returning a list of tokens
 lexStrh :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
 lexStrh (' ' : s) = lexStrh s . forward
-lexStrh ('\t' : s) = lexStrh s . forward
+lexStrh ('\t' : s) = lexStrh s . (forward' 8)
+lexStrh ('\r' : '\n' : s) = lexStrh s . next
 lexStrh ('\n' : s) = lexStrh s . next
+lexStrh ('\r' : s) = lexStrh s . next
 lexStrh ('-' : '-' : s) = lexComment Nothing s
 lexStrh ('{' : '-' : s) = lexComment (Just 0) s
 lexStrh ('-' : '}' : s) = \ p _ -> Left (p, "unexpected end-of-comment '-}'")
@@ -175,11 +177,11 @@ lexAdd t_s s t p ts = lexStrh s (forward' (length t_s) p) ((p, t) : ts)
 
 -- Format for a lex error
 lexErr :: (Pos, String) -> String
-lexErr ((line, col), msg) = "error at line " ++ show (line+1) ++ ", column " ++ show (col+1) ++ ": " ++ msg
+lexErr ((line, col), msg) = "error at line " ++ show line ++ ", column " ++ show col ++ ": " ++ msg
 
 -- Lex a string.
 lexStr :: String -> Either String [(Pos, Token)]
-lexStr s = either (Left . lexErr) (Right . reverse) $ lexStrh s (0, 0) []
+lexStr s = either (Left . lexErr) (Right . reverse) $ lexStrh s (1, 1) []
 
 -- Synonym for lexStr
 lexFile = lexStr
