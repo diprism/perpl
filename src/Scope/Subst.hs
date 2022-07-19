@@ -356,7 +356,7 @@ substTags :: Map Var [Var] -> Type -> Type
 substTags ytgs (TpVar y) = TpVar y
 substTags ytgs (TpData y as) =
   let as' = map (substTags ytgs) as in
-    TpData y (maybe as' (\ tgs -> [TpVar x | x <- tgs] ++ as') (ytgs Map.!? y))
+    TpData y (maybe as' (\ tgs -> (TpVar <$> tgs) ++ as') (ytgs Map.!? y))
 substTags ytgs (TpArr tp1 tp2) =
   TpArr (substTags ytgs tp1) (substTags ytgs tp2)
 substTags ytgs (TpProd am tps) =

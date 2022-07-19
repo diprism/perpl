@@ -197,7 +197,7 @@ defType y tgs ps cs =
 defData :: Var -> [Var] -> [Var] -> [Ctor] -> CheckM a -> CheckM a
 defData y tgs ps cs m =
   foldr
-    (\ (Ctor x tps) -> defTerm x CtorVar (Forall tgs ps (joinArrows tps (TpData y [TpVar p | p <- tgs ++ ps]))))
+    (\ (Ctor x tps) -> defTerm x CtorVar (Forall tgs ps (joinArrows tps (TpData y (TpVar <$> (tgs ++ ps))))))
     (defType y tgs ps cs m) cs
 
 -- For `data List a = Nil | Cons a (List a)`, adds the type var `a` to env
