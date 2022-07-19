@@ -235,13 +235,10 @@ inferData dsccs cont = foldr h cont dsccs
     sccIsRec [(y, ps, cs)] = Map.member y (freeVars cs)
     sccIsRec _ = True -- Mutually-recursive datatypes are recursive
 
-    -- These two functions extend checkType to Ctors and datatypes
-    checkCtor :: Ctor -> CheckM Ctor
-    checkCtor (Ctor x tps) =
-      pure (Ctor x) <*> mapM checkType tps
+    -- Like checkType for datatypes
     checkData :: (Var, [Var], [Ctor]) -> CheckM (Var, [Var], [Ctor])
     checkData (y, ps, cs) =
-      defParams ps (mapM checkCtor cs) >>= \ cs' ->
+      defParams ps (mapCtorsM checkType cs) >>= \ cs' ->
       return (y, ps, cs')
 
     -- Adds datatype defs and ctors to env, and adds them to returned
@@ -279,19 +276,16 @@ inferData dsccs cont = foldr h cont dsccs
     -- datatypes like
     --     data FullBinaryTree a = Leaf | FullBinaryTree (a, a)
     constrainData :: (Var, [Var], [Ctor]) -> CheckM ()
-    constrainData (y, ps, cs) =
-      localCurDef y $
-      mapM constrainCtor cs >> return ()
-    constrainCtor (Ctor x tps) = mapM constrainTpApps tps >> return ()
-    constrainTpApps (TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2 >> return ()
-    constrainTpApps (TpVar y as) =
+    constrainData (y, ps, cs) = localCurDef y (mapCtorsM constrainTpApps cs >> return ())
+    constrainTpApps tp@(TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2 >> return tp
+    constrainTpApps tp@(TpVar y as) =
       -- to do: if TpVar is split into TpVar and TpData, this can be simplified
       askEnv >>= \ g ->
       case Map.lookup y (typeEnv g) of
-        Nothing -> return () -- unification variable
+        Nothing -> return tp -- unification variable
         Just (tgs, xs, cs) -> -- type application
-          mapM (\ (x, a) -> constrain (Unify (TpVar x []) a)) (zip xs as) >> return ()
-    constrainTpApps (TpProd am tps) = mapM constrainTpApps tps >> return ()
+          mapM (\ (x, a) -> constrain (Unify (TpVar x []) a)) (zip xs as) >> return tp
+    constrainTpApps tp@(TpProd am tps) = mapM constrainTpApps tps >> return tp
     constrainTpApps NoTp = error "this shouldn't happen"
 
     -- Solve constraints, but don't bother actually performing the
@@ -309,10 +303,6 @@ inferData dsccs cont = foldr h cont dsccs
     defDataSCC :: [(Var, [Var], [Ctor])] -> CheckM a -> CheckM a
     defDataSCC dscc m =
       foldl (\ m (y, ps, cs) -> defType y [] ps cs m) m dscc
-
-    -- Adds tags to datatype names in constructors
-    substTagsCtors :: Map Var [Var] -> [Ctor] -> [Ctor]
-    substTagsCtors s = map $ \ (Ctor x tps) -> Ctor x (map (substTags s) tps)
 
     -- Handles checking mutually-recursive datatypes
     -- Input: a list of (datatype name, type param names, constructors)
@@ -333,7 +323,7 @@ inferData dsccs cont = foldr h cont dsccs
       let tgs = Map.keys (Map.filter id vs)
           s = Map.fromList [(y, tgs) | (y, ps, cs) <- dscc']
       in
-        return [(y, tgs, ps, substTagsCtors s cs) | (y, ps, cs) <- dscc']
+        return [(y, tgs, ps, mapCtors (substTags s) cs) | (y, ps, cs) <- dscc']
 
 
 -- Checks an extern declaration
