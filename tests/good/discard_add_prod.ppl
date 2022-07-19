@@ -1,0 +1,2 @@
+let a = amb <amb () () ()> <amb () () () ()> in ()
+-- correct: [2.0]
