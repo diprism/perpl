@@ -261,10 +261,12 @@ inferData dsccs cont = foldr h cont dsccs
 
     -- The remaining functions are for the recursive case.
 
-    -- Make the type variables solvable, but because two datatypes can
-    -- use the same type parameter names, rename them apart.
+    -- Make the type variables solvable.
     freshenTypeParams :: (Var, [Var], [Ctor]) -> CheckM (Var, [Var], [Ctor])
     freshenTypeParams (y, ps, cs) =
+      -- to do: if TpVar is split into TpVar and TpData, can simply do this,
+      -- since type variables have already been renamed apart in alphaRenameProgs.
+      --mapM (\p -> modify (Map.insert p False)) ps >> return (y, ps, cs)
       mapM (const freshTpVar) ps >>= \ ps' ->
       let cs' = subst (Map.fromList (zipWith (\p p' -> (p, SubVar p')) ps ps')) cs in
       return (y, ps', cs')
