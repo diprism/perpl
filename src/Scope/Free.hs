@@ -129,6 +129,7 @@ searchType pred g = h [] where
         Just (ps, cs) ->
           -- Substitute actual type parameters (as) for datatype's type parameters (ps)
           -- and recurse on each constructor
+          if length ps /= length as then error (show ps ++ show as) else
           let s = Map.fromList (pickyZipWith (\p a -> (p, SubTp a)) ps as) in
           any (\ (Ctor _ tps) -> any (h (tp : visited) . subst s) tps) cs
     TpArr tp1 tp2 -> h visited tp1 || h visited tp2
