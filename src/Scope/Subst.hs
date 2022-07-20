@@ -333,17 +333,6 @@ instance Substitutable SProgs where
     Map.union (freeVars ps) (freeVars tm)
 
 
--- Adds tags to type vars
-substTags :: Map Var [Var] -> Type -> Type
-substTags ytgs (TpVar y as) =
-  let as' = map (substTags ytgs) as in
-    TpVar y (maybe as' (\ tgs -> [TpVar x [] | x <- tgs] ++ as') (ytgs Map.!? y))
-substTags ytgs (TpArr tp1 tp2) =
-  TpArr (substTags ytgs tp1) (substTags ytgs tp2)
-substTags ytgs (TpProd am tps) =
-  TpProd am (map (substTags ytgs) tps)
-substTags ytgs NoTp = NoTp
-
 freshVar' :: Subst -> Var -> Var
 freshVar' s x =
   let (x', r', ()) = runRWS (freshen x) () s in x'
