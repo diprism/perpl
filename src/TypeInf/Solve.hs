@@ -88,8 +88,17 @@ solveInternal vs s rtp =
   in
     (s'', Map.keys (Map.intersection utpvs fvs), Map.keys utgs)
 
--- Tries to solve a set of constraints
--- If no error, returns (solution subst, remaining type vars, remaining tag vars)
+{- solve g vs rtp cs
+
+Tries to solve a set of constraints
+  - g:   type environment
+  - vs:  the variables to solve
+  - rtp: type whose free vars are allowed to remain unsolved
+  - cs:  List of constraints
+
+If no error, returns (solution subst, remaining type vars, remaining tag vars)
+-}
+
 solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var], [Var])
 solve g vs rtp cs =
   unifyAll (getUnifications cs) >>= \ s ->
@@ -105,15 +114,16 @@ solveM m =
   listenSolveVars (listen m) >>= \ ((a, cs), vs) ->
   -- Because we use NoTp below, there are no FVs in the type, so all
   -- remaining type vars are seen as internal unsolved and become Unit
-  pure solve <*> askEnv <*> pure vs <*> pure NoTp <*> pure cs >>=
+  askEnv >>= \ g ->
   either throwError (\ (s, [], tgs) -> return (subst s a, subst s (typeof a), tgs))
+    (solve g vs NoTp cs)
 
 -- 
 solvesM :: CheckM [(Var, Term, Type)] -> CheckM [(Var, Term, Scheme)]
 solvesM ms =
   listenSolveVars (listen ms) >>= \ ((atps, cs), vs) ->
   let (fs, as, tps) = unzip3 atps in
-  pure solve <*> askEnv <*> pure vs <*> pure (TpProd Multiplicative tps) <*> pure cs >>=
+  askEnv >>= \ g ->
   either
     throwError
     (\ (s, xs, tgs) ->
@@ -131,6 +141,7 @@ solvesM ms =
                        s (zip fs stps)
         in
           return (zip3 fs (subst s' as) stps))
+    (solve g vs (TpProd Multiplicative tps) cs)
 
 -- Creates graphs of function dependencies and datatype dependencies in a program
 getDeps :: UsProgs -> (Map Var (Set Var), Map Var (Set Var))
@@ -196,39 +207,19 @@ inferFuns fs m =
     let ps' = map (\ (x, tm, stp) -> SProgFun x stp tm) xtmstps in
     return (SProgs (ps' ++ ps) end)
 
--- TODO: Make sure type params are same in recursive instantes. So disallow
--- data List a = Nil | Cons a (List Bool);
--- Infers a strongly-connected set of mutually-recursive datatypes, adding
--- their defs to env when inferring the rest of the program, and adding
--- their defs to the returned (schemified) program
+{- inferData dsccs cont
+
+Infers all datatypes in dsccs:
+
+  - guards against polymorphic type recursion
+  - adds a tag variable to each recursive datatype; this tag variable
+    also propagates to every type that uses it
+  - add each datatype def to env for inferring the rest of the program
+  - add each datatype def to the returned (schemified) program -}
+
 inferData :: [[(Var, [Var], [Ctor])]] -> CheckM SProgs -> CheckM SProgs
 inferData dsccs cont = foldr h cont dsccs
   where
-    -- Returns if an scc (strongly-connected component) is (mutually) recursive
-    -- Non-recursive only if the scc is a singleton that is itself non-recursive
-    -- If the scc has 2+ datatypes, they must be mutually recursive
-    sccIsRec :: [(Var, [Var], [Ctor])] -> Bool
-    sccIsRec [(y, ps, cs)] = Map.member y (freeVars cs)
-    sccIsRec _ = True -- Mutually-recursive datatypes are recursive
-
-    -- Checks a constructor's type args
-    checkCtor :: Ctor -> CheckM Ctor
-    checkCtor (Ctor x tps) =
-      pure (Ctor x) <*> mapM checkType tps
-
-    -- Checks a datatype def
-    checkData :: (Var, [Var], [Ctor]) -> CheckM (Var, [Var], [Ctor])
-    checkData (y, ps, cs) =
-      defParams ps (mapM checkCtor cs) >>= \ cs' ->
-      return (y, ps, cs')
-
-    -- Adds datatype defs and ctors to env, and adds them to returned (schemified) program
-    addDefs :: [(Var, [Var], [Var], [Ctor])] -> CheckM SProgs -> CheckM SProgs
-    addDefs [] cont = cont
-    addDefs ((y, tgs, ps, cs) : ds) cont =
-      defData y tgs ps cs (addDefs ds cont) >>= \ (SProgs sps etm) ->
-      return (SProgs (SProgData y tgs ps cs : sps) etm)
-
     -- Check with hPerhapsRec and add defs to returned (schemified) program
     h :: [(Var, [Var], [Ctor])] -> CheckM SProgs -> CheckM SProgs
     h dscc cont =
@@ -239,35 +230,107 @@ inferData dsccs cont = foldr h cont dsccs
     hPerhapsRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
     hPerhapsRec dscc = if sccIsRec dscc then hRec dscc else hNonRec dscc
 
-    -- Adds tags to datatype names in constructors
-    substTagsCtors :: Map Var [Var] -> [Ctor] -> [Ctor]
-    substTagsCtors s = map $ \ (Ctor x tps) -> Ctor x (map (substTags s) tps)
+    -- Returns if an scc (strongly-connected component) is (mutually) recursive
+    -- Non-recursive only if the scc is a singleton that is itself non-recursive
+    -- If the scc has 2+ datatypes, they must be mutually recursive
+    sccIsRec :: [(Var, [Var], [Ctor])] -> Bool
+    sccIsRec [(y, ps, cs)] = Map.member y (freeVars cs)
+    sccIsRec _ = True -- Mutually-recursive datatypes are recursive
 
-    -- Handles checking mutually-recursive datatypes
-    -- Input: a list of (datatype name, type param names, constructors)
-    -- Return: a list of (datatype name, tags vars, type param names, constructors)
-    hRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
-    hRec dscc =
-      listenSolveVars
-        (foldl
-           (\ m (y, ps, cs) -> defType y [] ps cs m)
-           (freshTagVar >> mapM checkData dscc)
-           dscc)
-        >>= \ (dscc', vs) ->
-      let tgs = Map.keys (Map.filter id vs)
-          s = Map.fromList [(y, tgs) | (y, ps, cs) <- dscc']
-      in
-        return [(y, tgs, ps, substTagsCtors s cs) | (y, ps, cs) <- dscc']
+    -- Like checkType for datatypes
+    checkData :: (Var, [Var], [Ctor]) -> CheckM (Var, [Var], [Ctor])
+    checkData (y, ps, cs) =
+      defParams ps (mapCtorsM checkType cs) >>= \ cs' ->
+      return (y, ps, cs')
+
+    -- Adds datatype defs and ctors to env, and adds them to returned
+    -- (schemified) program
+    addDefs :: [(Var, [Var], [Var], [Ctor])] -> CheckM SProgs -> CheckM SProgs
+    addDefs [] cont = cont
+    addDefs ((y, tgs, ps, cs) : ds) cont =
+      defData y tgs ps cs (addDefs ds cont) >>= \ (SProgs sps etm) ->
+      return (SProgs (SProgData y tgs ps cs : sps) etm)
 
     -- Handles checking a single, non-recursive datatype
     -- Input: a singleton (datatype name, type param names, constructors)
-    -- Return: a singleton (datatype name, tags vars, type param names, constructors)
+    -- Return: a singleton (datatype name, tag vars, type param names, constructors)
     hNonRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
     hNonRec [(y, ps, cs)] =
-      listenSolveVars (defParams ps (mapM checkCtor cs)) >>= \ (cs', vs) ->
+      listenSolveVars (checkData (y, ps, cs)) >>= \ ((_, _, cs'), vs) ->
       let tgs = Map.keys (Map.filter id vs) in
         return [(y, tgs, ps, cs')]
     hNonRec _ = error "this shouldn't happen"
+
+    -- The remaining functions are for the recursive case.
+
+    -- Make the type variables solvable.
+    freshenTypeParams :: (Var, [Var], [Ctor]) -> CheckM (Var, [Var], [Ctor])
+    freshenTypeParams (y, ps, cs) =
+      -- to do: if TpVar is split into TpVar and TpData, can simply do this,
+      -- since type variables have already been renamed apart in alphaRenameProgs.
+      --mapM (\p -> modify (Map.insert p False)) ps >> return (y, ps, cs)
+      mapM (const freshTpVar) ps >>= \ ps' ->
+      let cs' = subst (Map.fromList (zipWith (\p p' -> (p, SubVar p')) ps ps')) cs in
+      return (y, ps', cs')
+
+    -- Each time a datatype in the SCC is used, add a constraint
+    -- unifying the actual type parameters with the formal type
+    -- parameters in the datatype's definition. In other words, the
+    -- types in the SCC are not yet polymorphic. This prevents
+    -- datatypes like
+    --     data FullBinaryTree a = Leaf | FullBinaryTree (a, a)
+    constrainData :: (Var, [Var], [Ctor]) -> CheckM ()
+    constrainData (y, ps, cs) = localCurDef y (mapCtorsM_ constrainTpApps cs)
+    constrainTpApps :: Type -> CheckM ()
+    constrainTpApps tp@(TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2
+    constrainTpApps tp@(TpVar y as) =
+      -- to do: if TpVar is split into TpVar and TpData, this can be simplified
+      askEnv >>= \ g ->
+      case Map.lookup y (typeEnv g) of
+        Nothing -> return () -- unification variable
+        Just (tgs, xs, cs) -> -- type application
+          zipWithM_ (\ x a -> constrain (Unify (TpVar x []) a)) xs as
+    constrainTpApps tp@(TpProd am tps) = mapM_ constrainTpApps tps
+    constrainTpApps NoTp = error "this shouldn't happen"
+
+    -- Solve constraints, but don't actually perform the
+    -- substitutions in the solution.
+    solveDataSCC :: CheckM a -> CheckM ()
+    solveDataSCC m =
+      listenSolveVars (listen m) >>= \ ((dscc, cs), vs) ->
+      askEnv >>= \ g ->
+      either
+        throwError
+        (\ (s, xs, tgs) -> return ())
+        (solve g vs (TpProd Multiplicative [TpVar v [] | v <- Map.keys vs]) cs)
+
+    -- Like defType, but for a list of datatypes. This lets all the
+    -- datatypes in the SCC see one another in the type environment.
+    defDataSCC :: [(Var, [Var], [Ctor])] -> CheckM a -> CheckM a
+    defDataSCC dscc m =
+      foldl (\ m (y, ps, cs) -> defType y [] ps cs m) m dscc
+
+    -- Handles checking mutually-recursive datatypes
+    -- Input: a list of (datatype name, type param names, constructors)
+    -- Return: a list of (datatype name, tag vars, type param names, constructors)
+    hRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
+    hRec dscc =
+      -- Infer type variables, which amounts to just checking that a
+      -- type doesn't recursively use itself with different
+      -- parameters.
+      solveDataSCC (mapM freshenTypeParams dscc >>= \ dscc' ->
+                       defDataSCC dscc' (mapM_ constrainData dscc')) >>
+      -- Check all the datatype definitions.
+      listenSolveVars
+        (defDataSCC dscc
+           (freshTagVar >> mapM checkData dscc))
+        >>= \ (dscc', vs) ->
+      -- Add tag vars in vs to the recursive uses of types in dscc.
+      let tgs = Map.keys (Map.filter id vs)
+          s = Map.fromList [(y, tgs) | (y, ps, cs) <- dscc']
+      in
+        return [(y, tgs, ps, mapCtors (substTags s) cs) | (y, ps, cs) <- dscc']
+
 
 -- Checks an extern declaration
 inferExtern :: (Var, Type) -> CheckM SProgs -> CheckM SProgs

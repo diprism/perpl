@@ -1,0 +1,5 @@
+data Thing a = C1 | C2 (Thing (Thing a));
+
+C1
+
+
