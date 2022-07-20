@@ -338,30 +338,6 @@ instance Substitutable SProgs where
   freeVars (SProgs ps tm) =
     Map.union (freeVars ps) (freeVars tm)
 
--- For ad-hoc type var substitution,
--- rename all occurrences of xi to xf in a type
-substType :: Var -> Var -> Type -> Type
-substType xi xf (TpVar y) =
-  TpVar (if xi == y then xf else y)
-substType xi xf (TpData y as) =
-  TpData (if xi == y then xf else y) (map (substType xi xf) as)
-substType xi xf (TpArr tp1 tp2) =
-  TpArr (substType xi xf tp1) (substType xi xf tp2)
-substType xi xf (TpProd am tps) =
-  TpProd am [substType xi xf tp | tp <- tps]
-substType xi xf NoTp = NoTp
-
--- Adds tags to datatypes
-substTags :: Map Var [Var] -> Type -> Type
-substTags ytgs (TpVar y) = TpVar y
-substTags ytgs (TpData y as) =
-  let as' = map (substTags ytgs) as in
-    TpData y (maybe as' (\ tgs -> (TpVar <$> tgs) ++ as') (ytgs Map.!? y))
-substTags ytgs (TpArr tp1 tp2) =
-  TpArr (substTags ytgs tp1) (substTags ytgs tp2)
-substTags ytgs (TpProd am tps) =
-  TpProd am (map (substTags ytgs) tps)
-substTags ytgs NoTp = NoTp
 
 freshVar' :: Subst -> Var -> Var
 freshVar' s x =

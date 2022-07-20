@@ -314,9 +314,9 @@ inferData dsccs cont = foldr h cont dsccs
         >>= \ (dscc', vs) ->
       -- Add tag vars in vs to the recursive uses of types in dscc.
       let tgs = Map.keys (Map.filter id vs)
-          s = Map.fromList [(y, tgs) | (y, ps, cs) <- dscc']
+          s = Map.fromList [(y, SubTp (TpData y (TpVar <$> tgs))) | (y, ps, cs) <- dscc']
       in
-        return [(y, tgs, ps, mapCtors (substTags s) cs) | (y, ps, cs) <- dscc']
+        return [(y, tgs, ps, mapCtors (subst s) cs) | (y, ps, cs) <- dscc']
 
 
 -- Checks an extern declaration
