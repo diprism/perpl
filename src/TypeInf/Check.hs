@@ -273,8 +273,11 @@ freshTpVar' tg =
 freshTp' :: Bool -> CheckM Type
 freshTp' tg = pure TpVar <*> freshTpVar' tg <*> pure []
 
+freshTpVar, freshTagVar :: CheckM Var
 freshTpVar = freshTpVar' False
 freshTagVar = freshTpVar' True
+
+freshTp, freshTag :: CheckM Type
 freshTp = freshTp' False
 freshTag = freshTp' True
 

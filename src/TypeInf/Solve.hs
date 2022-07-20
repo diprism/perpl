@@ -114,15 +114,16 @@ solveM m =
   listenSolveVars (listen m) >>= \ ((a, cs), vs) ->
   -- Because we use NoTp below, there are no FVs in the type, so all
   -- remaining type vars are seen as internal unsolved and become Unit
-  pure solve <*> askEnv <*> pure vs <*> pure NoTp <*> pure cs >>=
+  askEnv >>= \ g ->
   either throwError (\ (s, [], tgs) -> return (subst s a, subst s (typeof a), tgs))
+    (solve g vs NoTp cs)
 
 -- 
 solvesM :: CheckM [(Var, Term, Type)] -> CheckM [(Var, Term, Scheme)]
 solvesM ms =
   listenSolveVars (listen ms) >>= \ ((atps, cs), vs) ->
   let (fs, as, tps) = unzip3 atps in
-  pure solve <*> askEnv <*> pure vs <*> pure (TpProd Multiplicative tps) <*> pure cs >>=
+  askEnv >>= \ g ->
   either
     throwError
     (\ (s, xs, tgs) ->
@@ -140,6 +141,7 @@ solvesM ms =
                        s (zip fs stps)
         in
           return (zip3 fs (subst s' as) stps))
+    (solve g vs (TpProd Multiplicative tps) cs)
 
 -- Creates graphs of function dependencies and datatype dependencies in a program
 getDeps :: UsProgs -> (Map Var (Set Var), Map Var (Set Var))
@@ -278,27 +280,29 @@ inferData dsccs cont = foldr h cont dsccs
     -- datatypes like
     --     data FullBinaryTree a = Leaf | FullBinaryTree (a, a)
     constrainData :: (Var, [Var], [Ctor]) -> CheckM ()
-    constrainData (y, ps, cs) = localCurDef y (mapCtorsM constrainTpApps cs >> return ())
-    constrainTpApps tp@(TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2 >> return tp
+    constrainData (y, ps, cs) = localCurDef y (mapCtorsM_ constrainTpApps cs)
+    constrainTpApps :: Type -> CheckM ()
+    constrainTpApps tp@(TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2
     constrainTpApps tp@(TpVar y as) =
       -- to do: if TpVar is split into TpVar and TpData, this can be simplified
       askEnv >>= \ g ->
       case Map.lookup y (typeEnv g) of
-        Nothing -> return tp -- unification variable
+        Nothing -> return () -- unification variable
         Just (tgs, xs, cs) -> -- type application
-          mapM (\ (x, a) -> constrain (Unify (TpVar x []) a)) (zip xs as) >> return tp
-    constrainTpApps tp@(TpProd am tps) = mapM constrainTpApps tps >> return tp
+          zipWithM_ (\ x a -> constrain (Unify (TpVar x []) a)) xs as
+    constrainTpApps tp@(TpProd am tps) = mapM_ constrainTpApps tps
     constrainTpApps NoTp = error "this shouldn't happen"
 
-    -- Solve constraints, but don't bother actually performing the
+    -- Solve constraints, but don't actually perform the
     -- substitutions in the solution.
     solveDataSCC :: CheckM a -> CheckM ()
     solveDataSCC m =
       listenSolveVars (listen m) >>= \ ((dscc, cs), vs) ->
-      pure solve <*> askEnv <*> pure vs <*> pure (TpProd Multiplicative [TpVar v [] | v <- Map.keys vs]) <*> pure cs >>=
+      askEnv >>= \ g ->
       either
         throwError
         (\ (s, xs, tgs) -> return ())
+        (solve g vs (TpProd Multiplicative [TpVar v [] | v <- Map.keys vs]) cs)
 
     -- Like defType, but for a list of datatypes. This lets all the
     -- datatypes in the SCC see one another in the type environment.
@@ -315,7 +319,7 @@ inferData dsccs cont = foldr h cont dsccs
       -- type doesn't recursively use itself with different
       -- parameters.
       solveDataSCC (mapM freshenTypeParams dscc >>= \ dscc' ->
-                       defDataSCC dscc' (mapM constrainData dscc')) >>
+                       defDataSCC dscc' (mapM_ constrainData dscc')) >>
       -- Check all the datatype definitions.
       listenSolveVars
         (defDataSCC dscc
