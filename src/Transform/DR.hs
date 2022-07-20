@@ -207,7 +207,7 @@ data DeRe = Defun | Refun
 
 -- Substitute from a type var to its Unfold/Fold datatype
 derefunSubst :: DeRe -> Var -> Type -> Type
-derefunSubst dr rtp = substType rtp (if dr == Defun then foldTypeName rtp else unfoldTypeName rtp)
+derefunSubst dr rtp = subst (Map.fromList [(rtp, SubVar (if dr == Defun then foldTypeName rtp else unfoldTypeName rtp))])
 
 defunTerm = derefunTerm Defun
 refunTerm = derefunTerm Refun
@@ -221,7 +221,7 @@ derefunTerm dr g rtp = fst . h where
   unfoldN = unfoldName rtp
   unfoldTypeN = unfoldTypeName rtp
   
-  sub = substType rtp (if dr == Defun then foldTypeN else unfoldTypeN)
+  sub = derefunSubst dr rtp
 
   h_ps :: [Param] -> [Param]
   h_ps = map (fmap sub)
