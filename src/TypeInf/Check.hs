@@ -258,6 +258,10 @@ isTag x =
   get >>= \ s ->
   return (s Map.! x)
 
+-- Adds a type variable to set of type variables to solve
+addSolveTpVar :: Var -> CheckM ()
+addSolveTpVar x = modify (Map.insert x False)
+
 -- Returns a fresh var that doesn't collide with any in scope
 fresh :: Var -> CheckM Var
 fresh x = newVar x <$> boundVars

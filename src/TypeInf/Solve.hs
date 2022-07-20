@@ -261,16 +261,6 @@ inferData dsccs cont = foldr h cont dsccs
 
     -- The remaining functions are for the recursive case.
 
-    -- Make the type variables solvable.
-    freshenTypeParams :: (Var, [Var], [Ctor]) -> CheckM (Var, [Var], [Ctor])
-    freshenTypeParams (y, ps, cs) =
-      -- to do: if TpVar is split into TpVar and TpData, can simply do this,
-      -- since type variables have already been renamed apart in alphaRenameProgs.
-      --mapM (\p -> modify (Map.insert p False)) ps >> return (y, ps, cs)
-      mapM (const freshTpVar) ps >>= \ ps' ->
-      let cs' = subst (Map.fromList (zipWith (\p p' -> (p, SubVar p')) ps ps')) cs in
-      return (y, ps', cs')
-
     -- Each time a datatype in the SCC is used, add a constraint
     -- unifying the actual type parameters with the formal type
     -- parameters in the datatype's definition. In other words, the
@@ -281,13 +271,11 @@ inferData dsccs cont = foldr h cont dsccs
     constrainData (y, ps, cs) = localCurDef y (mapCtorsM_ constrainTpApps cs)
     constrainTpApps :: Type -> CheckM ()
     constrainTpApps tp@(TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2
-    constrainTpApps tp@(TpVar y as) =
-      -- to do: if TpVar is split into TpVar and TpData, this can be simplified
+    constrainTpApps tp@(TpVar y) = return ()
+    constrainTpApps tp@(TpData y as) =
       askEnv >>= \ g ->
-      case Map.lookup y (typeEnv g) of
-        Nothing -> return () -- unification variable
-        Just (tgs, xs, cs) -> -- type application
-          zipWithM_ (\ x a -> constrain (Unify (TpVar x []) a)) xs as
+      let (_, xs, _) = typeEnv g Map.! y in
+        zipWithM_ (\ x a -> constrain (Unify (TpVar x) a)) xs as
     constrainTpApps tp@(TpProd am tps) = mapM_ constrainTpApps tps
     constrainTpApps NoTp = error "this shouldn't happen"
 
@@ -300,7 +288,7 @@ inferData dsccs cont = foldr h cont dsccs
       either
         throwError
         (\ (s, xs, tgs) -> return ())
-        (solve g vs (TpProd Multiplicative [TpVar v [] | v <- Map.keys vs]) cs)
+        (solve g vs (TpProd Multiplicative [TpVar v | v <- Map.keys vs]) cs)
 
     -- Like defType, but for a list of datatypes. This lets all the
     -- datatypes in the SCC see one another in the type environment.
@@ -316,8 +304,9 @@ inferData dsccs cont = foldr h cont dsccs
       -- Infer type variables, which amounts to just checking that a
       -- type doesn't recursively use itself with different
       -- parameters.
-      solveDataSCC (mapM freshenTypeParams dscc >>= \ dscc' ->
-                       defDataSCC dscc' (mapM_ constrainData dscc')) >>
+      solveDataSCC
+        (mapM_ (\ (y, ps, cs) -> mapM_ addSolveTpVar ps) dscc >>
+         defDataSCC dscc (mapM_ constrainData dscc)) >>
       -- Check all the datatype definitions.
       listenSolveVars
         (defDataSCC dscc
