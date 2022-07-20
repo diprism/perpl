@@ -176,6 +176,9 @@ mapCasesM f = mapM $ \ (Case x ps tm) -> pure (Case x ps) <*> f x ps tm
 mapCtorsM :: Monad m => (Type -> m Type) -> [Ctor] -> m [Ctor]
 mapCtorsM f = mapM $ \ (Ctor x tps) -> pure (Ctor x) <*> mapM f tps
 
+mapCtorsM_ :: Monad m => (Type -> m a) -> [Ctor] -> m ()
+mapCtorsM_ f = mapM_ $ \ (Ctor x tps) -> mapM_ f tps
+
 mapCtors :: (Type -> Type) -> [Ctor] -> [Ctor]
 mapCtors f = map $ \ (Ctor x tps) -> Ctor x (map f tps)
 

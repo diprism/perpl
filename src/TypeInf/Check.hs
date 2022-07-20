@@ -273,8 +273,11 @@ freshTpVar' tg =
 freshTp' :: Bool -> CheckM Type
 freshTp' tg = pure TpVar <*> freshTpVar' tg
 
+freshTpVar, freshTagVar :: CheckM Var
 freshTpVar = freshTpVar' False
 freshTagVar = freshTpVar' True
+
+freshTp, freshTag :: CheckM Type
 freshTp = freshTp' False
 freshTag = freshTp' True
 
@@ -284,6 +287,7 @@ annTp NoTp = freshTp
 annTp tp = checkType tp
 
 -- Ensures that a type is well-kinded (so no `List Bool Bool`, or use of undefined vars)
+-- and adds tag variables to uses of datatypes, instantiating them to fresh variables
 checkType :: Type -> CheckM Type
 checkType (TpArr tp1 tp2) =
   pure TpArr <*> checkType tp1 <*> checkType tp2
