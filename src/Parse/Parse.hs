@@ -4,9 +4,6 @@ module Parse.Parse where
 import Parse.Lex
 import Struct.Lib
 
--- Throws a lexer error message at a certain position
-lexErr (line, col) = Left $ "Lex error at line " ++ show line ++ ", column " ++ show col
-
 -- Throws a parser error message (s) at a certain position (p)
 parseErr' p s = Left (p, s)
 
@@ -374,7 +371,7 @@ PROGS ::= PROG ... TERM1
 -}
 
 parseProgs :: ParseM UsProgs
-parseProgs = pure UsProgs <*> parseProgsUntil <*> parseTerm1  <* parseDrop TkSemicolon
+parseProgs = pure UsProgs <*> parseProgsUntil <*> parseTerm1 <* parseDrop TkSemicolon
 
 parseFormatErr :: [(Pos, Token)] -> Either (Pos, String) a -> Either String a
 parseFormatErr ts (Left (p, emsg))
