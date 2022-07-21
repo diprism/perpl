@@ -9,13 +9,12 @@ import Util.SCC
 import Struct.Lib
 import Scope.Subst
 import Scope.Free
-import Scope.Name
 import Scope.Ctxt
 
 bindTp :: Var -> Type -> Either TypeError Subst
 bindTp x tp
   -- Trying to bind x = x, so nothing needs to be done
-  | tp == TpVar x [] = Right Map.empty
+  | tp == TpVar x = Right Map.empty
   -- If x occurs in tp, then substituting would lead to an infinite type
   | occursCheck x tp = Left (InfiniteType x tp)
   -- Add (x := tp) to substitution
@@ -23,11 +22,9 @@ bindTp x tp
 
 -- Try to unify two types
 unify :: Type -> Type -> Either TypeError Subst
-unify (TpVar y@('?' : _) []) tp = bindTp y tp -- Only substitute tag/type inst vars
-unify (TpVar y@('#' : _) []) tp = bindTp y tp -- Same ^
-unify tp (TpVar y@('?' : _) []) = bindTp y tp -- Same ^
-unify tp (TpVar y@('#' : _) []) = bindTp y tp -- Same ^
-unify tp1@(TpVar y1 as1) tp2@(TpVar y2 as2)
+unify (TpVar y) tp = bindTp y tp
+unify tp (TpVar y) = bindTp y tp
+unify tp1@(TpData y1 as1) tp2@(TpData y2 as2)
   | y1 == y2 && length as1 == length as2 =
       unifyAll' (zip as1 as2)
   | otherwise = Left (UnificationError tp1 tp2)
@@ -137,7 +134,7 @@ solvesM ms =
             s' = foldr (\ (fx, Forall tgs' xs' tp') ->
                           Map.insert fx
                             (SubTm (TmVarG DefVar fx
-                                    (map (\ x -> TpVar x []) (tgs' ++ xs')) [] tp')))
+                                    (map TpVar (tgs' ++ xs')) [] tp')))
                        s (zip fs stps)
         in
           return (zip3 fs (subst s' as) stps))
@@ -263,16 +260,6 @@ inferData dsccs cont = foldr h cont dsccs
 
     -- The remaining functions are for the recursive case.
 
-    -- Make the type variables solvable.
-    freshenTypeParams :: (Var, [Var], [Ctor]) -> CheckM (Var, [Var], [Ctor])
-    freshenTypeParams (y, ps, cs) =
-      -- to do: if TpVar is split into TpVar and TpData, can simply do this,
-      -- since type variables have already been renamed apart in alphaRenameProgs.
-      --mapM (\p -> modify (Map.insert p False)) ps >> return (y, ps, cs)
-      mapM (const freshTpVar) ps >>= \ ps' ->
-      let cs' = subst (Map.fromList (zipWith (\p p' -> (p, SubVar p')) ps ps')) cs in
-      return (y, ps', cs')
-
     -- Each time a datatype in the SCC is used, add a constraint
     -- unifying the actual type parameters with the formal type
     -- parameters in the datatype's definition. In other words, the
@@ -282,15 +269,13 @@ inferData dsccs cont = foldr h cont dsccs
     constrainData :: (Var, [Var], [Ctor]) -> CheckM ()
     constrainData (y, ps, cs) = localCurDef y (mapCtorsM_ constrainTpApps cs)
     constrainTpApps :: Type -> CheckM ()
-    constrainTpApps tp@(TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2
-    constrainTpApps tp@(TpVar y as) =
-      -- to do: if TpVar is split into TpVar and TpData, this can be simplified
+    constrainTpApps (TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2
+    constrainTpApps (TpVar y) = return ()
+    constrainTpApps (TpData y as) =
       askEnv >>= \ g ->
-      case Map.lookup y (typeEnv g) of
-        Nothing -> return () -- unification variable
-        Just (tgs, xs, cs) -> -- type application
-          zipWithM_ (\ x a -> constrain (Unify (TpVar x []) a)) xs as
-    constrainTpApps tp@(TpProd am tps) = mapM_ constrainTpApps tps
+      let (_, xs, _) = typeEnv g Map.! y in
+        zipWithM_ (\ x a -> constrain (Unify (TpVar x) a)) xs as
+    constrainTpApps (TpProd am tps) = mapM_ constrainTpApps tps
     constrainTpApps NoTp = error "this shouldn't happen"
 
     -- Solve constraints, but don't actually perform the
@@ -302,7 +287,7 @@ inferData dsccs cont = foldr h cont dsccs
       either
         throwError
         (\ (s, xs, tgs) -> return ())
-        (solve g vs (TpProd Multiplicative [TpVar v [] | v <- Map.keys vs]) cs)
+        (solve g vs (TpProd Multiplicative [TpVar v | v <- Map.keys vs]) cs)
 
     -- Like defType, but for a list of datatypes. This lets all the
     -- datatypes in the SCC see one another in the type environment.
@@ -318,8 +303,10 @@ inferData dsccs cont = foldr h cont dsccs
       -- Infer type variables, which amounts to just checking that a
       -- type doesn't recursively use itself with different
       -- parameters.
-      solveDataSCC (mapM freshenTypeParams dscc >>= \ dscc' ->
-                       defDataSCC dscc' (mapM_ constrainData dscc')) >>
+      solveDataSCC
+        -- type variables ps have already been renamed apart in alphaRenameProgs
+        (mapM_ (\ (y, ps, cs) -> mapM_ addSolveTpVar ps) dscc >>
+         defDataSCC dscc (mapM_ constrainData dscc)) >>
       -- Check all the datatype definitions.
       listenSolveVars
         (defDataSCC dscc
@@ -327,8 +314,7 @@ inferData dsccs cont = foldr h cont dsccs
         >>= \ (dscc', vs) ->
       -- Add tag vars in vs to the recursive uses of types in dscc.
       let tgs = Map.keys (Map.filter id vs)
-          tgs' = [TpVar v [] | v <- tgs]
-          s = Map.fromList [(y, SubTp (TpVar y tgs')) | (y, ps, cs) <- dscc']
+          s = Map.fromList [(y, SubTp (TpData y (TpVar <$> tgs))) | (y, ps, cs) <- dscc']
       in
         return [(y, tgs, ps, mapCtors (subst s) cs) | (y, ps, cs) <- dscc']
 

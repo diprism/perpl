@@ -20,7 +20,7 @@ compose :: Subst -> Subst -> Subst
 s1 `compose` s2 = Map.map (subst s1) s2 `Map.union` s1
 
 -- State monad, where s = Subst
-type SubstM a = RWS () () Subst a
+type SubstM = RWS () () Subst
 
 -- Returns a map of vars and their types (if a term var)
 -- If a var is a type var, the type will be NoType
@@ -104,29 +104,31 @@ alphaRename g = substWithCtxt g Map.empty
 
 -- Substitutes inside a Functor/Traversable t
 substF :: (Functor t, Traversable t, Substitutable a) => t a -> SubstM (t a)
-substF fa = sequence (fmap substM fa)
+substF = mapM substM
 
 -- Returns all free vars in a foldable
 freeVarsF :: (Foldable f, Substitutable a) => f a -> FreeVars
-freeVarsF = foldr (\ a -> Map.union (freeVars a)) Map.empty
+freeVarsF = foldMap freeVars
 
 
 instance Substitutable Type where
   substM (TpArr tp1 tp2) = pure TpArr <*> substM tp1 <*> substM tp2
-  substM (TpVar y as) =
+  substM tp@(TpVar y) =
+    substVar y TpVar (const tp) id tp
+  substM (TpData y as) =
     substM as >>= \ as' ->
     substVar y
-      (\ y' -> TpVar y' as')
-      (const (TpVar y as'))
-      (\ tp' -> if null as' then tp' else
-                case tp' of TpVar y' bs -> TpVar y' (bs ++ as')
-                            _ -> error "kind error")
-      (TpVar y as')
+      (\ y' -> TpData y' as')
+      (const (TpData y as'))
+      (\ tp' -> case tp' of TpData y' bs -> TpData y' (bs ++ as')
+                            _ -> error ("kind error (" ++ show (TpData y as) ++ " := " ++ show tp' ++ ")"))
+      (TpData y as')
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
   substM NoTp = pure NoTp
 
   freeVars (TpArr tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
-  freeVars (TpVar y as) = Map.singleton y NoTp <> freeVars as
+  freeVars (TpVar y) = Map.singleton y NoTp
+  freeVars (TpData y as) = Map.singleton y NoTp <> freeVars as
   freeVars (TpProd am tps) = Map.unions (freeVars <$> tps)
   freeVars NoTp = Map.empty
 

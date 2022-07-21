@@ -12,7 +12,6 @@ import Util.Helpers
 import Scope.Fresh
 import Scope.Subst
 import Scope.Free
-import Scope.Name
 import Scope.Ctxt
 
 -- Convention: expected type, then actual type
@@ -88,7 +87,7 @@ type SolveVars = Map Var IsTag
 data Loc = Loc { curDef :: String, curExpr :: String }
 
 instance Show Loc where
-  show l = intercalate ", " ((if null (curDef l) then [] else ["in the definition " ++ curDef l]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
+  show l = intercalate ", " ((if null (curDef l) then ["somewhere"] else ["in the definition " ++ curDef l]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
 
 -- Reader part of the RWST monad for inference/checking
 data CheckR = CheckR { checkEnv :: Env, checkLoc :: Loc }
@@ -197,7 +196,7 @@ defType y tgs ps cs =
 defData :: Var -> [Var] -> [Var] -> [Ctor] -> CheckM a -> CheckM a
 defData y tgs ps cs m =
   foldr
-    (\ (Ctor x tps) -> defTerm x CtorVar (Forall tgs ps (joinArrows tps (TpVar y [TpVar p [] | p <- tgs ++ ps]))))
+    (\ (Ctor x tps) -> defTerm x CtorVar (Forall tgs ps (joinArrows tps (TpData y (TpVar <$> (tgs ++ ps))))))
     (defType y tgs ps cs m) cs
 
 -- For `data List a = Nil | Cons a (List a)`, adds the type var `a` to env
@@ -209,9 +208,9 @@ defParams (x : xs) m = defType x [] [] [] (defParams xs m)
 inEnvs :: [(Var, Type)] -> CheckM a -> CheckM a
 inEnvs = flip $ foldr $ uncurry inEnv
 
--- Lookup a type variable
-lookupTypeVar :: Var -> CheckM ([Var], [Var], [Ctor])
-lookupTypeVar x =
+-- Lookup a datatype
+lookupDatatype :: Var -> CheckM ([Var], [Var], [Ctor])
+lookupDatatype x =
   askEnv >>= \ g ->
   maybe (err (ScopeError x)) return (Map.lookup x (typeEnv g))
 
@@ -228,7 +227,7 @@ lookupCtorType (CaseUs x _ _ : _) =
   lookupTermVar x >>= \ tp ->
   case tp of
     Right (CtorVar, Forall _ _ ctp) -> case splitArrows ctp of
-      (_, TpVar y _) -> lookupTypeVar y >>= \ (tgs, xs, cs) -> return (y, tgs, xs, cs)
+      (_, TpData y _) -> lookupDatatype y >>= \ (tgs, xs, cs) -> return (y, tgs, xs, cs)
       (_, etp) -> error "This shouldn't happen"
     Right (DefVar, _) -> err (CtorError x)
     Left loctp -> err (CtorError x)
@@ -258,6 +257,10 @@ isTag x =
   get >>= \ s ->
   return (s Map.! x)
 
+-- Adds a type variable to set of type variables to solve
+addSolveTpVar :: Var -> CheckM ()
+addSolveTpVar x = modify (Map.insert x False)
+
 -- Returns a fresh var that doesn't collide with any in scope
 fresh :: Var -> CheckM Var
 fresh x = newVar x <$> boundVars
@@ -271,7 +274,7 @@ freshTpVar' tg =
 
 -- Wraps TpVar around freshTpVar'
 freshTp' :: Bool -> CheckM Type
-freshTp' tg = pure TpVar <*> freshTpVar' tg <*> pure []
+freshTp' tg = pure TpVar <*> freshTpVar' tg
 
 freshTpVar, freshTagVar :: CheckM Var
 freshTpVar = freshTpVar' False
@@ -291,14 +294,16 @@ annTp tp = checkType tp
 checkType :: Type -> CheckM Type
 checkType (TpArr tp1 tp2) =
   pure TpArr <*> checkType tp1 <*> checkType tp2
-checkType (TpVar y as) =
-  lookupTypeVar y >>= \ (tgs, ps, _) ->
+checkType (TpData y as) =
+  lookupDatatype y >>= \ (tgs, ps, _) ->
   mapM checkType as >>= \ as' ->
   mapM (const freshTag) tgs >>= \ tgs' ->
   guardM (length ps == length as) (WrongNumArgs (length ps) (length as)) >>
-  pure (TpVar y (tgs' ++ as'))
+  pure (TpData y (tgs' ++ as'))
 checkType (TpProd am tps) =
   pure (TpProd am) <*> mapM checkType tps
+checkType (TpVar y) =
+  return (TpVar y)
 checkType NoTp =
   error "checkType should never see a NoTp!"
 
@@ -364,7 +369,7 @@ infer' (UsCase tm cs) =
   guardM (length ctors == length cs) (WrongNumCases (length ctors) (length cs)) >>
   infer tm >>= \ tm' ->
   -- Constraint: (y itgs ips) = (typeof tm')
-  constrain (Unify (TpVar y (itgs ++ ips)) (typeof tm')) >>
+  constrain (Unify (TpData y (itgs ++ ips)) (typeof tm')) >>
   -- itp = cases return type
   freshTp >>= \ itp ->
   -- infer cases
@@ -386,7 +391,7 @@ infer' (UsIf tm1 tm2 tm3) =
 
 infer' (UsTmBool b) =
   -- Translate True/False into a constructor var
-  return (TmVarG CtorVar (if b then "True" else "False") [] [] (TpVar "Bool" []))
+  return (TmVarG CtorVar (if b then tmTrueName else tmFalseName) [] [] tpBool)
 
 infer' (UsLet x xtm tm) =
   -- Check the annotation xtp'

@@ -82,12 +82,11 @@ discard' x (TpProd Multiplicative tps) rtm =
     let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in
       discards (Map.fromList ps) rtm >>= \ rtm' ->
       return (TmElimProd Multiplicative x ps rtm' (typeof rtm'))
-discard' x xtp@(TpVar y []) rtm =
+discard' x xtp@(TpData y []) rtm =
   ask >>= \ g ->
     -- let () = discard x in rtm
     return (TmElimProd Multiplicative (TmVarG DefVar (discardName y) [] [(x, xtp)] tpUnit) [] rtm (typeof rtm))
-discard' _ (TpVar y (_:_)) _ = error ("Type constructor " ++ y ++ "? In this economy?")
-discard' x NoTp rtm = error "Trying to discard a NoTp"
+discard' _ tp _ = error ("Trying to discard a " ++ show tp)
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard
 -- it to maintain correct probabilities, but without changing the value or type
@@ -108,14 +107,14 @@ discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm
 
 -- See definition of L(tp) above
 affLinTp :: Type -> Type
-affLinTp (TpVar y _) = TpVar y []
+affLinTp (TpData y []) = TpData y []
 affLinTp (TpProd am tps) = TpProd am $ map affLinTp tps ++ [tpUnit | am == Additive]
 affLinTp (TpArr tp1 tp2) =
   let (tps, end) = splitArrows (TpArr tp1 tp2)
       tps' = map affLinTp tps
       end' = affLinTp end
   in TpProd Additive [joinArrows tps' end', tpUnit]
-affLinTp NoTp = error "Trying to affLin a NoTp"
+affLinTp tp = error ("Trying to affLin a " ++ show tp)
 
 -- Make a case linear, returning the local vars that occur free in it
 affLinCase :: Case -> AffLinM Case
@@ -241,7 +240,7 @@ affLin (TmEqs tms) =
 affLinDiscards :: [Prog] -> AffLinM [Prog]
 affLinDiscards (p@(ProgData y cs) : ps) =
   ask >>= \ g ->
-  let ytp = TpVar y [] in
+  let ytp = TpData y [] in
   if robust g ytp then
     pure (p :) <*> affLinDiscards ps
   else

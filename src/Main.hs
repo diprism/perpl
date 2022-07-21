@@ -13,7 +13,6 @@ import Transform.Optimize
 import Transform.Argify
 import Scope.Subst
 import Scope.Ctxt
-import Scope.Name
 import Util.FGG
 import Util.SumProduct
 

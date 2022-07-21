@@ -59,27 +59,6 @@ unfoldCtorArgNames y n = [unfoldCtorArgName y i | i <- [0..n-1]]
 -- Names used for affLin
 discardName y = "_discard" ++ y ++ "_"
 
--- Constructors and case-ofs for affLin-generated datatypes
-
-tmUnit = TmProd Multiplicative []
-tpUnit = TpProd Multiplicative []
-
-tpBoolName = "Bool"
-tmTrueName = "True"
-tmFalseName = "False"
-tpBool = TpVar tpBoolName []
-tmTrue = TmVarG CtorVar tmTrueName [] [] tpBool
-tmFalse = TmVarG CtorVar tmFalseName [] [] tpBool
-
-
-builtins :: [UsProg]
-builtins = [
-  UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []]
-  ]
-
-progBuiltins :: UsProgs -> UsProgs
-progBuiltins (UsProgs ps end) =
-  UsProgs (builtins ++ ps) end
-
+-- Names used for monomorphization
 instName :: Var -> Int -> Var
 instName x i = x ++ "_inst" ++ show i

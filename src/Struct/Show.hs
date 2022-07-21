@@ -72,8 +72,9 @@ instance Show Term where
   showsPrec p = showsPrec p . toUsTm
 
 instance Show Type where
-  showsPrec p (TpVar y []) = showString y
-  showsPrec p (TpVar y as) = showParen (p > 10) (delimitWith " " (showString y : map (showsPrec 11) as))
+  showsPrec _ (TpVar y) = showString y
+  showsPrec _ (TpData y []) = showString y
+  showsPrec p (TpData y as) = showParen (p > 10) (delimitWith " " (showString y : map (showsPrec 11) as))
   showsPrec p (TpArr tp1 tp2) = showParen (p > 0) (showsPrec 1 tp1 . showString " -> " . shows tp2)
   showsPrec _ (TpProd am tps) = let (l, r) = amParens am in showString l . delimitWith ", " (map shows tps) . showString r
   showsPrec _ NoTp = id

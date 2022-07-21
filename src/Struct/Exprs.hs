@@ -96,10 +96,11 @@ data AddMult = Additive | Multiplicative
   deriving (Eq, Ord)
 
 data Type =
-    TpArr Type Type -- tp1 -> tp2
-  | TpVar Var [Type] -- y [type instance args (tis)]
-  | TpProd AddMult [Type] -- (tp1 */& tp2 */& ... */& tpn)
-  | NoTp -- nothing
+    TpArr Type Type       -- function
+  | TpData Var [Type]     -- datatype name with type arguments
+  | TpVar Var             -- type variable
+  | TpProd AddMult [Type] -- additive or multiplicative product
+  | NoTp                  -- nothing
   deriving (Eq, Ord)
 
 data CaseUs = CaseUs Var [Var] UsTm --- | x a1 a2 ... an -> tm
