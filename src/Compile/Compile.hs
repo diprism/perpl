@@ -148,16 +148,18 @@ term2fgg g (TmVarL x tp) =
   type2fgg g tp +>
   addExt x tp
 
-term2fgg g (TmVarG gv x _ [] tp) =
+term2fgg g (TmVarG gv x [] [] tp) =
   returnRule -- If this is a ctor/def with no args, we already add its rule when it gets defined
 
-term2fgg g (TmVarG gv x _ as y) =
+term2fgg g (TmVarG gv x [] as y) =
   [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
   let (vy : ps) = newNames (y : snds as) in
     mkRule (TmVarG gv x [] as y) (vy : ps ++ concat xss)
       (Edge' (ps ++ [vy]) (if gv == CtorVar then ctorFactorNameDefault x (snds as) y else x) :
         [Edge' (xs ++ [vtp]) (show atm) | (xs, (atm, atp), vtp) <- zip3 xss as ps])
       (concat xss ++ [vy])
+
+term2fgg _ (TmVarG _ _ (_:_) _ _) = error "Cannot compile polymorphic code"
 
 term2fgg g (TmLam x tp tm tp') =
   bindExt True x tp
@@ -182,10 +184,12 @@ term2fgg g (TmApp tm1 tm2 tp2 tp) =
        Edge' [vtp2, vtp, varr] fac]
       (xs1 ++ xs2 ++ [vtp])    
 
-term2fgg g (TmCase tm (y, _) cs tp) =
+term2fgg g (TmCase tm (y, []) cs tp) =
   term2fgg g tm +>= \ xs ->
   let fvs = freeVars cs in
     bindCases (Map.toList (Map.union (freeVars tm) fvs)) (map (caseRule g fvs xs tm y cs tp) cs)
+
+term2fgg _ (TmCase _ (_, _:_) _ _) = error "Cannot compile polymorphic code"
 
 -- fail (i.e., amb with no arguments) doesn't generate any rules, but
 -- should still generate the left-hand side nonterminal
