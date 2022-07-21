@@ -59,7 +59,7 @@ collectCalls' (TmEqs tms) =
 
 -- Collects datatype calls in a type
 collectCallsTp :: Type -> GlobalCalls
-collectCallsTp (TpData y as)    = [(y, as)] <> mconcat (map collectCallsTp as)
+collectCallsTp (TpData y as)   = [(y, as)] <> mconcat (map collectCallsTp as)
 collectCallsTp (TpArr tp1 tp2) = collectCallsTp tp1 <> collectCallsTp tp2
 collectCallsTp (TpProd am tps) = mconcat (map collectCallsTp tps)
 collectCallsTp  _              = []

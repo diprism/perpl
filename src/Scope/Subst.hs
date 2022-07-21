@@ -20,7 +20,7 @@ compose :: Subst -> Subst -> Subst
 s1 `compose` s2 = Map.map (subst s1) s2 `Map.union` s1
 
 -- State monad, where s = Subst
-type SubstM a = RWS () () Subst a
+type SubstM = RWS () () Subst
 
 -- Returns a map of vars and their types (if a term var)
 -- If a var is a type var, the type will be NoType
@@ -104,21 +104,17 @@ alphaRename g = substWithCtxt g Map.empty
 
 -- Substitutes inside a Functor/Traversable t
 substF :: (Functor t, Traversable t, Substitutable a) => t a -> SubstM (t a)
-substF fa = sequence (fmap substM fa)
+substF = mapM substM
 
 -- Returns all free vars in a foldable
 freeVarsF :: (Foldable f, Substitutable a) => f a -> FreeVars
-freeVarsF = foldr (\ a -> Map.union (freeVars a)) Map.empty
+freeVarsF = foldMap freeVars
 
 
 instance Substitutable Type where
   substM (TpArr tp1 tp2) = pure TpArr <*> substM tp1 <*> substM tp2
   substM tp@(TpVar y) =
-    substVar y
-      TpVar
-      (const tp)
-      (\ tp' -> tp')
-      tp
+    substVar y TpVar (const tp) id tp
   substM (TpData y as) =
     substM as >>= \ as' ->
     substVar y

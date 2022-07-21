@@ -269,13 +269,13 @@ inferData dsccs cont = foldr h cont dsccs
     constrainData :: (Var, [Var], [Ctor]) -> CheckM ()
     constrainData (y, ps, cs) = localCurDef y (mapCtorsM_ constrainTpApps cs)
     constrainTpApps :: Type -> CheckM ()
-    constrainTpApps tp@(TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2
-    constrainTpApps tp@(TpVar y) = return ()
-    constrainTpApps tp@(TpData y as) =
+    constrainTpApps (TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2
+    constrainTpApps (TpVar y) = return ()
+    constrainTpApps (TpData y as) =
       askEnv >>= \ g ->
       let (_, xs, _) = typeEnv g Map.! y in
         zipWithM_ (\ x a -> constrain (Unify (TpVar x) a)) xs as
-    constrainTpApps tp@(TpProd am tps) = mapM_ constrainTpApps tps
+    constrainTpApps (TpProd am tps) = mapM_ constrainTpApps tps
     constrainTpApps NoTp = error "this shouldn't happen"
 
     -- Solve constraints, but don't actually perform the
@@ -304,6 +304,7 @@ inferData dsccs cont = foldr h cont dsccs
       -- type doesn't recursively use itself with different
       -- parameters.
       solveDataSCC
+        -- type variables ps have already been renamed apart in alphaRenameProgs
         (mapM_ (\ (y, ps, cs) -> mapM_ addSolveTpVar ps) dscc >>
          defDataSCC dscc (mapM_ constrainData dscc)) >>
       -- Check all the datatype definitions.

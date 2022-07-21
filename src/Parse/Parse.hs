@@ -356,9 +356,9 @@ parseProg = parsePeek >>= \ t -> case t of
                 <* parseDrop TkSemicolon)
 -- data Y vars = ctors; ...
   TkData -> parseEat *> pure Just <*>
-    (pure UsProgData <*> parseVar >>= \f ->
+       (parseVar >>= \f ->
         parseVars >>= \ps ->
-        pure (f ps) <*> (parseEqCtors ps) <* parseDrop TkSemicolon)
+        pure (UsProgData f ps) <*> parseEqCtors ps <* parseDrop TkSemicolon)
   _ -> pure Nothing
 
 parseProgsUntil :: ParseM [UsProg]
