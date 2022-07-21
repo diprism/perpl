@@ -321,7 +321,7 @@ parseType3 ps = parsePeek >>= \ t -> case t of
     parsePeek >>= \ t -> case t of
         TkRangle -> pure (TpProd Additive [])
         _ -> pure (TpProd Additive) <*> (parseType1 ps >>= \ tp -> parseDelim (parseType1 ps) TkComma [tp])) <* parseDrop TkRangle
-  TkBool -> parseEat *> pure (TpData "Bool" [])
+  TkBool -> parseEat *> pure tpBool
   TkVar v -> parseEat *> pure (if v `elem` ps then TpVar v else TpData v [])
   _ -> parseErr "couldn't parse a type here; perhaps add parentheses?"
 

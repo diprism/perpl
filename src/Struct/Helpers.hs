@@ -15,7 +15,7 @@ typeof (TmAmb tms tp) = tp
 typeof (TmFactor wt tm tp) = tp
 typeof (TmProd am as) = TpProd am (snds as)
 typeof (TmElimProd am tm ps tm' tp) = tp
-typeof (TmEqs tms) = TpData "Bool" []
+typeof (TmEqs tms) = tpBool
 
 -- Returns the index of the only non-underscore var
 -- "let <_, _, x, _> in ..."  =>  index of x = 2
@@ -196,3 +196,23 @@ mapProgsM :: Monad m => (Term -> m Term) -> Progs -> m Progs
 mapProgsM f (Progs ps end) =
   pure Progs <*> mapM (mapProgM f) ps <*> f end
 
+-- Built-in datatype Bool
+
+tmUnit = TmProd Multiplicative []
+tpUnit = TpProd Multiplicative []
+
+tpBoolName = "Bool"
+tmTrueName = "True"
+tmFalseName = "False"
+tpBool = TpData tpBoolName []
+tmTrue = TmVarG CtorVar tmTrueName [] [] tpBool
+tmFalse = TmVarG CtorVar tmFalseName [] [] tpBool
+
+builtins :: [UsProg]
+builtins = [
+  UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []]
+  ]
+
+progBuiltins :: UsProgs -> UsProgs
+progBuiltins (UsProgs ps end) =
+  UsProgs (builtins ++ ps) end

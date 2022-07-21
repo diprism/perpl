@@ -12,7 +12,6 @@ import Util.Helpers
 import Scope.Fresh
 import Scope.Subst
 import Scope.Free
-import Scope.Name
 import Scope.Ctxt
 
 -- Convention: expected type, then actual type

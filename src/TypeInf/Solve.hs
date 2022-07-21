@@ -9,7 +9,6 @@ import Util.SCC
 import Struct.Lib
 import Scope.Subst
 import Scope.Free
-import Scope.Name
 import Scope.Ctxt
 
 bindTp :: Var -> Type -> Either TypeError Subst
