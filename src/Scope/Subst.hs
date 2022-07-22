@@ -113,22 +113,14 @@ freeVarsF = foldMap freeVars
 
 instance Substitutable Type where
   substM (TpArr tp1 tp2) = pure TpArr <*> substM tp1 <*> substM tp2
-  substM tp@(TpVar y) =
-    substVar y TpVar (const tp) id tp
-  substM (TpData y as) =
-    substM as >>= \ as' ->
-    substVar y
-      (\ y' -> TpData y' as')
-      (const (TpData y as'))
-      (\ tp' -> case tp' of TpData y' bs -> TpData y' (bs ++ as')
-                            _ -> error ("kind error (" ++ show (TpData y as) ++ " := " ++ show tp' ++ ")"))
-      (TpData y as')
+  substM tp@(TpVar y) = substVar y TpVar (const tp) id tp
+  substM (TpData y as) = TpData y <$> substM as -- y is a TpData name, not a TpVar name
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
   substM NoTp = pure NoTp
 
   freeVars (TpArr tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
   freeVars (TpVar y) = Map.singleton y NoTp
-  freeVars (TpData y as) = Map.singleton y NoTp <> freeVars as
+  freeVars (TpData y as) = freeVars as -- y is a TpData name, not a TpVar name
   freeVars (TpProd am tps) = Map.unions (freeVars <$> tps)
   freeVars NoTp = Map.empty
 
