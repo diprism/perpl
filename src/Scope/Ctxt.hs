@@ -8,7 +8,9 @@ import Util.Helpers
 
 data CtxtDef =
     DefTerm Scope Type
-  | DefData [Var] [Ctor]
+  | DefSTerm Scope Scheme
+  | DefData [Var] [Ctor]        -- params, ctors
+  | DefSData [Var] [Var] [Ctor] -- tags, params, ctors
   deriving Show
 
 type Ctxt = Map Var CtxtDef
@@ -29,6 +31,9 @@ ctxtDeclArgs = foldl $ uncurry . ctxtDeclTerm
 ctxtDefTerm :: Ctxt -> Var -> Type -> Ctxt
 ctxtDefTerm g x tp = Map.insert x (DefTerm ScopeGlobal tp) g
 
+ctxtDefSTerm :: Ctxt -> Var -> Scheme -> Ctxt
+ctxtDefSTerm g x stp = Map.insert x (DefSTerm ScopeGlobal stp) g
+
 -- Add a constructor to the context
 ctxtDefCtor :: Ctxt -> Ctor -> Var -> [Var] -> Ctxt
 ctxtDefCtor g (Ctor x tps) y ps =
@@ -40,6 +45,11 @@ ctxtDeclType :: Ctxt -> Var -> [Var] -> [Ctor] -> Ctxt
 ctxtDeclType g y ps ctors =
   foldr (\ c g -> ctxtDefCtor g c y ps)
     (Map.insert y (DefData ps ctors) g) ctors
+
+ctxtDeclSType :: Ctxt -> Var -> [Var] -> [Var] -> [Ctor] -> Ctxt
+ctxtDeclSType g y tgs ps ctors =
+  foldr (\ c g -> ctxtDefCtor g c y ps)
+    (Map.insert y (DefSData tgs ps ctors) g) ctors
 
 -- Lookup a term in the context
 ctxtLookupTerm :: Ctxt -> Var -> Maybe (Scope, Type)
@@ -63,6 +73,26 @@ ctxtLookupType2 g x = Map.lookup x g >>= \ vd -> case vd of
 ctxtBinds :: Ctxt -> Var -> Bool
 ctxtBinds = flip Map.member
 
+-- Adds all definitions from a raw file to context
+ctxtDefUsProg :: Ctxt -> UsProg -> Ctxt
+ctxtDefUsProg g (UsProgFun x tp tm) = ctxtDefTerm g x tp
+ctxtDefUsProg g (UsProgExtern x tp) = ctxtDefTerm g x tp
+ctxtDefUsProg g (UsProgData y ps cs) = ctxtDeclType g y ps cs
+
+-- Populates a context with the definitions from a raw file
+ctxtDefUsProgs :: UsProgs -> Ctxt
+ctxtDefUsProgs (UsProgs ps end) = foldl ctxtDefUsProg emptyCtxt ps
+
+-- Adds all definitions from a scheme-ified file to context
+ctxtDefSProg :: Ctxt -> SProg -> Ctxt
+ctxtDefSProg g (SProgFun x stp tm) = ctxtDefSTerm g x stp
+ctxtDefSProg g (SProgExtern x ps tp) = ctxtDefTerm g x (joinArrows ps tp)
+ctxtDefSProg g (SProgData y tgs ps cs) = ctxtDeclSType g y tgs ps cs
+
+-- Populates a context with the definitions from a scheme-ified file
+ctxtDefSProgs :: SProgs -> Ctxt
+ctxtDefSProgs (SProgs ps end) = foldl ctxtDefSProg emptyCtxt ps
+
 -- Adds all definitions from a file to context
 ctxtDefProg :: Ctxt -> Prog -> Ctxt
 ctxtDefProg g (ProgFun x ps tm tp) = ctxtDefTerm g x (joinArrows (map snd ps) tp)
@@ -73,12 +103,3 @@ ctxtDefProg g (ProgData y cs) = ctxtDeclType g y [] cs
 ctxtDefProgs :: Progs -> Ctxt
 ctxtDefProgs (Progs ps end) = foldl ctxtDefProg emptyCtxt ps
 
--- Adds all definitions from a raw file to context
-ctxtDefUsProg :: Ctxt -> UsProg -> Ctxt
-ctxtDefUsProg g (UsProgFun x tp tm) = ctxtDefTerm g x tp
-ctxtDefUsProg g (UsProgExtern x tp) = ctxtDefTerm g x tp
-ctxtDefUsProg g (UsProgData y ps cs) = ctxtDeclType g y ps cs
-
--- Populates a context with the definitions from a raw file
-ctxtDefUsProgs :: UsProgs -> Ctxt
-ctxtDefUsProgs (UsProgs ps end) = foldl ctxtDefUsProg emptyCtxt ps
