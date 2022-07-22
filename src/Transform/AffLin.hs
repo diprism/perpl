@@ -107,7 +107,7 @@ discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm
 
 -- See definition of L(tp) above
 affLinTp :: Type -> Type
-affLinTp (TpData y []) = TpData y []
+affLinTp (TpData y _) = TpData y []
 affLinTp (TpProd am tps) = TpProd am $ map affLinTp tps ++ [tpUnit | am == Additive]
 affLinTp (TpArr tp1 tp2) =
   let (tps, end) = splitArrows (TpArr tp1 tp2)
