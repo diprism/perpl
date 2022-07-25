@@ -199,11 +199,6 @@ defData y tgs ps cs m =
     (\ (Ctor x tps) -> defTerm x CtorVar (Forall tgs ps (joinArrows tps (TpData y (TpVar <$> (tgs ++ ps))))))
     (defType y tgs ps cs m) cs
 
--- For `data List a = Nil | Cons a (List a)`, adds the type var `a` to env
-defParams :: [Var] -> CheckM a -> CheckM a
-defParams [] m = m
-defParams (x : xs) m = defType x [] [] [] (defParams xs m)
-
 -- Add (x1 : tp1), (x2 : tp2), ... to env
 inEnvs :: [(Var, Type)] -> CheckM a -> CheckM a
 inEnvs = flip $ foldr $ uncurry inEnv
