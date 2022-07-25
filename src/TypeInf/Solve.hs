@@ -237,7 +237,10 @@ inferData dsccs cont = foldr h cont dsccs
     -- Like checkType for datatypes
     checkData :: (Var, [Var], [Ctor]) -> CheckM (Var, [Var], [Ctor])
     checkData (y, ps, cs) =
-      defParams ps (mapCtorsM checkType cs) >>= \ cs' ->
+      localCurDef y $
+      -- checkType doesn't look for bound type variables ps,
+      -- so we don't need to add them to the environment
+      mapCtorsM checkType cs >>= \ cs' ->
       return (y, ps, cs')
 
     -- Adds datatype defs and ctors to env, and adds them to returned
@@ -300,6 +303,11 @@ inferData dsccs cont = foldr h cont dsccs
     -- Return: a list of (datatype name, tag vars, type param names, constructors)
     hRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
     hRec dscc =
+      -- Check all the datatype definitions.
+      listenSolveVars
+        (defDataSCC dscc
+           (freshTagVar >> mapM checkData dscc))
+        >>= \ (dscc', vs) ->
       -- Infer type variables, which amounts to just checking that a
       -- type doesn't recursively use itself with different
       -- parameters.
@@ -307,11 +315,6 @@ inferData dsccs cont = foldr h cont dsccs
         -- type variables ps have already been renamed apart in alphaRenameProgs
         (mapM_ (\ (y, ps, cs) -> mapM_ addSolveTpVar ps) dscc >>
          defDataSCC dscc (mapM_ constrainData dscc)) >>
-      -- Check all the datatype definitions.
-      listenSolveVars
-        (defDataSCC dscc
-           (freshTagVar >> mapM checkData dscc))
-        >>= \ (dscc', vs) ->
       -- Add tag vars in vs to the recursive uses of types in dscc.
       let tgs = Map.keys (Map.filter id vs)
           s = Map.fromList [(y, SubTp (TpData y (TpVar <$> tgs))) | (y, ps, cs) <- dscc']
