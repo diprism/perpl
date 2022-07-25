@@ -88,13 +88,20 @@ instance Show UsProg where
   show (UsProgExtern x tp) = "extern " ++ x ++ showTpAnn tp ++ ";"
   show (UsProgData y ps []) = "data " ++ intercalate " " (y : ps) ++ ";"
   show (UsProgData y ps cs) = "data " ++ intercalate " " (y : ps) ++ " = " ++ intercalate " | " (map show cs) ++ ";"
+
 instance Show UsProgs where
   show (UsProgs ps end) = intercalate "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
-instance Show Progs where
-  show = show . toUsProgs
-instance Show SProgs where
-  show (SProgs ps end) = intercalate "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
+
 instance Show SProg where
   show (SProgFun x stp tm) = "define " ++ x ++ " : " ++ show stp ++ " = " ++ show tm ++ ";"
   show (SProgExtern x tps tp) = "extern " ++ x ++ " : " ++ show (joinArrows tps tp) ++ ";"
   show (SProgData y tgs ps cs) = "data " ++ intercalate " " (y : tgs ++ ps) ++ " = " ++ intercalate " | " [show c | c <- cs] ++ ";"
+
+instance Show SProgs where
+  show (SProgs ps end) = intercalate "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
+
+instance Show Prog where
+  show = show . toUsProg
+
+instance Show Progs where
+  show = show . toUsProgs
