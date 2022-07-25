@@ -76,11 +76,23 @@ instance Substitutable Constraint where
   freeVars (Robust tp) = freeVars tp
 
 {- ===== CheckM Monad =====-}
--- Environment, stores info about vars in scope
-data Env = Env { typeEnv :: Map Var ([Var], [Var], [Ctor]),
-                 localEnv :: Map Var Type,
-                 globalEnv :: Map Var (GlobalVar, Scheme) }
 
+typeEnv :: Ctxt -> Map Var ([Var], [Var], [Ctor])
+typeEnv = Map.mapMaybe (\ d -> case d of
+                                 DefSData tgs ps cs -> Just (tgs, ps, cs)
+                                 _ -> Nothing)
+
+localEnv :: Ctxt -> Map Var Type
+localEnv = Map.mapMaybe (\d -> case d of
+                                 DefTerm ScopeLocal tp -> Just tp
+                                 _ -> Nothing)
+
+globalEnv :: Ctxt -> Map Var (GlobalVar, Scheme)
+globalEnv = Map.mapMaybe (\d -> case d of
+                                  DefSTerm ScopeGlobal stp -> Just (DefVar, stp)
+                                  DefSTerm ScopeCtor stp -> Just (CtorVar, stp)
+                                  _ -> Nothing)
+  
 type SolveVars = Map Var IsTag
 
 -- Proxy for location, storing the current definition we're inside and the current expression
@@ -90,23 +102,24 @@ instance Show Loc where
   show l = intercalate ", " ((if null (curDef l) then ["somewhere"] else ["in the definition " ++ curDef l]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
 
 -- Reader part of the RWST monad for inference/checking
-data CheckR = CheckR { checkEnv :: Env, checkLoc :: Loc }
+data CheckR = CheckR { checkEnv :: Ctxt, checkLoc :: Loc }
 
 -- Temporarily modifies the env
-modifyEnv :: (Env -> Env) -> CheckR -> CheckR
+modifyEnv :: (Ctxt -> Ctxt) -> CheckR -> CheckR
 modifyEnv f cr = cr { checkEnv = f (checkEnv cr) }
 
 -- Adds a type definition to env
 typeEnvInsert :: Var -> [Var] -> [Var] -> [Ctor] -> CheckR -> CheckR
-typeEnvInsert y tgs ps cs = modifyEnv $ \ e -> e { typeEnv = Map.insert y (tgs, ps, cs) (typeEnv e) }
+typeEnvInsert y tgs ps cs = modifyEnv $ Map.insert y (DefSData tgs ps cs)
 
 -- Adds a local var binding to the env
 localEnvInsert :: Var -> Type -> CheckR -> CheckR
-localEnvInsert x tp = modifyEnv $ \ e -> e { localEnv = Map.insert x tp (localEnv e) }
+localEnvInsert x tp = modifyEnv $ Map.insert x (DefTerm ScopeLocal tp)
 
 -- Adds a global def to the env
 globalEnvInsert :: Var -> GlobalVar -> Scheme -> CheckR -> CheckR
-globalEnvInsert x gv stp = modifyEnv $ \ e -> e { globalEnv = Map.insert x (gv, stp) (globalEnv e) }
+globalEnvInsert x DefVar stp = modifyEnv $ Map.insert x (DefSTerm ScopeGlobal stp)
+globalEnvInsert x CtorVar stp = modifyEnv $ Map.insert x (DefSTerm ScopeCtor stp)
 
 -- RWST (Reader-Writer-State-Transformer) monad:
 -- R (downwards): CheckR, the environment and current location
@@ -130,7 +143,7 @@ occursCheck :: Substitutable a => Var -> a -> Bool
 occursCheck x t = x `Map.member` (freeVars t)
 
 -- Return the env
-askEnv :: CheckM Env
+askEnv :: CheckM Ctxt
 askEnv = checkEnv <$> ask
 
 -- Return the current location

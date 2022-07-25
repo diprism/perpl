@@ -58,7 +58,7 @@ unifyAll =
     (Right Map.empty)
 
 -- Makes sure that robust-constrained solved type vars have robust solutions
-solvedWell :: Env -> Subst -> [(Constraint, Loc)] -> Either (TypeError, Loc) ()
+solvedWell :: Ctxt -> Subst -> [(Constraint, Loc)] -> Either (TypeError, Loc) ()
 solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
   robust' = robust (fmap (\ (tgs, ps, cs) -> DefData (tgs++ps) cs) (typeEnv e))
 
@@ -96,7 +96,7 @@ Tries to solve a set of constraints
 If no error, returns (solution subst, remaining type vars, remaining tag vars)
 -}
 
-solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var], [Var])
+solve :: Ctxt -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var], [Var])
 solve g vs rtp cs =
   unifyAll (getUnifications cs) >>= \ s ->
   let (s', xs, tgs) = solveInternal vs s rtp in
@@ -369,5 +369,5 @@ inferFile :: UsProgs -> Either String SProgs
 inferFile ps =
   either (\ (e, loc) -> Left (show e ++ ", " ++ show loc)) (\ (a, s, w) -> Right a)
     (runExcept (runRWST (inferProgs ps)
-                        (CheckR (Env mempty mempty mempty) (Loc "" "")) mempty))
+                        (CheckR emptyCtxt (Loc "" "")) mempty))
 
