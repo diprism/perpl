@@ -11,8 +11,6 @@ import Scope.Subst
 import Scope.Free
 import Scope.Ctxt
 
-import Debug.Trace
-
 bindTp :: Var -> Type -> Either TypeError Subst
 bindTp x tp
   -- Trying to bind x = x, so nothing needs to be done
@@ -324,12 +322,13 @@ inferData dsccs cont = foldr h cont dsccs
 -- Checks an extern declaration
 inferExtern :: (Var, Type) -> CheckM SProgs -> CheckM SProgs
 inferExtern (x, tp) m =
-  localCurDef x (listenSolveVars (checkType tp)) >>= \ (tp', vs) ->
-  let tgs = Map.keys (Map.filter id vs) in
+  -- It's possible that checkType tp introduces new tag variables,
+  -- but only within an unused type parameter, so it's safe to ignore them.
+  localCurDef x (checkType tp) >>= \ tp' ->
   -- Make sure tp' doesn't use any recursive datatypes
   localCurDef x (guardExternRec tp') >>
   -- Add (x : tp') to env, checking rest of program
-  defTerm x DefVar (Forall tgs [] tp') m >>= \ (SProgs ps end) ->
+  defTerm x DefVar (Forall [] [] tp') m >>= \ (SProgs ps end) ->
   -- Add (extern x : tp') to returned program
   return (SProgs (SProgExtern x [] tp' : ps) end)
 

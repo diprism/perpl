@@ -4,4 +4,3 @@ define copy_mono = \x: MyBool Nat. (x, x);
 define copy_poly = \x. (x, x);
 extern e: MyBool Nat;
 (copy_mono MyFalse, copy_poly MyFalse)
-

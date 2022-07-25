@@ -216,4 +216,4 @@ monomorphizeFile (SProgs sps stm) =
       xis'' = fmap (\ tiss -> Map.fromList (zip (Set.toList tiss) [0..])) (semimap xis')
       xis''' = overrideCtorInsts xis'' sps
   in
-     Progs (concat (makeInstantiations xis''' <$> sps)) (renameCalls xis''' stm)
+    Progs (concat (makeInstantiations xis''' <$> sps)) (renameCalls xis''' stm)
