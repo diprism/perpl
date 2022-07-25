@@ -8,8 +8,6 @@ import Scope.Name
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import Debug.Trace
-
 -- Semigroup map, where m1 <> m2 applies (<>) to the shared members of
 -- the maps instead of just using m1's, as the default Semigroup instance of Map does
 newtype Semimap a b = Semimap (Map a b) deriving Show
@@ -173,11 +171,16 @@ makeInstantiations xis (SProgFun x (Forall tgs ys tp) tm) =
                (renameCallsTp xis (subst s tp)))
       tiss
 makeInstantiations xis (SProgExtern x tps rtp) =
-  traceShowId $ [ProgExtern x (fmap (renameCallsTp xis) tps) (renameCallsTp xis rtp)]
+  if null (Map.toList (xis Map.! x)) then
+    []
+  else
+    [ProgExtern x (fmap (renameCallsTp xis) tps) (renameCallsTp xis rtp)]
 makeInstantiations xis (SProgData y [] [] cs) =
-  -- TODO: maybe delete this as we did in SProgFun x (Forall [] [] tp) tm, if unused?
-  -- a datatype with no arguments can have only one instantiation, so we don't rename it (see renameCallsTp)
-  [ProgData y cs]
+  if null (Map.toList (xis Map.! y)) then
+    []
+  else
+    -- a datatype with no arguments can have only one instantiation, so we don't rename it (see renameCallsTp)
+    [ProgData y cs]
 makeInstantiations xis (SProgData y tgs ps cs) =
     let tiss = Map.toList (xis Map.! y) in
     map (\ (tis, i) ->
