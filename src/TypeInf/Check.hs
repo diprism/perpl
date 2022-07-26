@@ -77,22 +77,6 @@ instance Substitutable Constraint where
 
 {- ===== CheckM Monad =====-}
 
-typeEnv :: Ctxt -> Map Var ([Var], [Var], [Ctor])
-typeEnv = Map.mapMaybe (\ d -> case d of
-                                 DefSData tgs ps cs -> Just (tgs, ps, cs)
-                                 _ -> Nothing)
-
-localEnv :: Ctxt -> Map Var Type
-localEnv = Map.mapMaybe (\d -> case d of
-                                 DefTerm ScopeLocal tp -> Just tp
-                                 _ -> Nothing)
-
-globalEnv :: Ctxt -> Map Var (GlobalVar, Scheme)
-globalEnv = Map.mapMaybe (\d -> case d of
-                                  DefSTerm ScopeGlobal stp -> Just (DefVar, stp)
-                                  DefSTerm ScopeCtor stp -> Just (CtorVar, stp)
-                                  _ -> Nothing)
-  
 type SolveVars = Map Var IsTag
 
 -- Proxy for location, storing the current definition we're inside and the current expression
@@ -107,19 +91,6 @@ data CheckR = CheckR { checkEnv :: Ctxt, checkLoc :: Loc }
 -- Temporarily modifies the env
 modifyEnv :: (Ctxt -> Ctxt) -> CheckR -> CheckR
 modifyEnv f cr = cr { checkEnv = f (checkEnv cr) }
-
--- Adds a type definition to env
-typeEnvInsert :: Var -> [Var] -> [Var] -> [Ctor] -> CheckR -> CheckR
-typeEnvInsert y tgs ps cs = modifyEnv $ Map.insert y (DefSData tgs ps cs)
-
--- Adds a local var binding to the env
-localEnvInsert :: Var -> Type -> CheckR -> CheckR
-localEnvInsert x tp = modifyEnv $ Map.insert x (DefTerm ScopeLocal tp)
-
--- Adds a global def to the env
-globalEnvInsert :: Var -> GlobalVar -> Scheme -> CheckR -> CheckR
-globalEnvInsert x DefVar stp = modifyEnv $ Map.insert x (DefSTerm ScopeGlobal stp)
-globalEnvInsert x CtorVar stp = modifyEnv $ Map.insert x (DefSTerm ScopeCtor stp)
 
 -- RWST (Reader-Writer-State-Transformer) monad:
 -- R (downwards): CheckR, the environment and current location
@@ -160,14 +131,7 @@ localCurExpr a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curExpr = show a
 
 -- Add (x : tp) to env
 inEnv :: Var -> Type -> CheckM a -> CheckM a
-inEnv x tp = local $ localEnvInsert x tp
-
--- Guard against duplicate definitions of x
-guardDupDef :: Var -> CheckM ()
-guardDupDef x =
-  askEnv >>= \ env ->
-  let isdup = not (x `Map.member` typeEnv env || x `Map.member` globalEnv env) in
-    guardM isdup (MultipleDefs x)
+inEnv x tp = local $ modifyEnv (\ g -> ctxtDeclTerm g x tp)
 
 -- Checks for any duplicate definitions
 anyDupDefs :: UsProgs -> CheckM ()
@@ -192,25 +156,15 @@ anyDupDefs (UsProgs ps etm) =
 guardExternRec :: Type -> CheckM ()
 guardExternRec tp =
   askEnv >>= \ env ->
-  let g = fmap (\ (tgs, ps, cs) -> DefData ps cs) (typeEnv env) in
-  guardM (not (isInfiniteType g tp)) ExternRecData
+  guardM (not (isInfiniteType env tp)) ExternRecData
 
 -- Defines a global function
-defTerm :: Var -> GlobalVar -> Scheme -> CheckM a -> CheckM a
-defTerm x g tp =
-  local (globalEnvInsert x g tp)
-
--- Defines a datatype
-defType :: Var -> [Var] -> [Var] -> [Ctor] -> CheckM a -> CheckM a
-defType y tgs ps cs =
-  local (typeEnvInsert y tgs ps cs)
+defTerm :: Var -> Scheme -> CheckM a -> CheckM a
+defTerm x stp = local $ modifyEnv ( \ g -> ctxtDefSTerm g x stp)
 
 -- Defines a datatype and its constructors
 defData :: Var -> [Var] -> [Var] -> [Ctor] -> CheckM a -> CheckM a
-defData y tgs ps cs m =
-  foldr
-    (\ (Ctor x tps) -> defTerm x CtorVar (Forall tgs ps (joinArrows tps (TpData y (TpVar <$> (tgs ++ ps))))))
-    (defType y tgs ps cs m) cs
+defData y tgs ps cs = local $ modifyEnv (\ g -> ctxtDeclSType g y tgs ps cs)
 
 -- Add (x1 : tp1), (x2 : tp2), ... to env
 inEnvs :: [(Var, Type)] -> CheckM a -> CheckM a
@@ -220,13 +174,19 @@ inEnvs = flip $ foldr $ uncurry inEnv
 lookupDatatype :: Var -> CheckM ([Var], [Var], [Ctor])
 lookupDatatype x =
   askEnv >>= \ g ->
-  maybe (err (ScopeError x)) return (Map.lookup x (typeEnv g))
+  case Map.lookup x g of
+    Just (DefSData tgs ps cs) -> return (tgs, ps, cs)
+    _ -> err (ScopeError x)
 
 -- Lookup a term variable
 lookupTermVar :: Var -> CheckM (Either Type (GlobalVar, Scheme))
 lookupTermVar x =
   askEnv >>= \ g ->
-  maybe (err (ScopeError x)) return ((Left <$> Map.lookup x (localEnv g)) |?| (Right <$> Map.lookup x (globalEnv g)))
+  case Map.lookup x g of
+    Just (DefTerm ScopeLocal tp) -> return (Left tp)
+    Just (DefSTerm ScopeGlobal stp) -> return (Right (DefVar, stp))
+    Just (DefSTerm ScopeCtor stp) -> return (Right (CtorVar, stp))
+    _ -> err (ScopeError x)
 
 -- Lookup the datatype that cases split on
 lookupCtorType :: [CaseUs] -> CheckM (Var, [Var], [Var], [Ctor])
@@ -253,11 +213,8 @@ boundVars :: CheckM (Map Var ())
 boundVars =
   ask >>= \ d ->
   get >>= \ s ->
-  let env = checkEnv d
-      tpe = typeEnv env
-      lce = localEnv env
-      gbe = globalEnv env in
-  return (Map.unions [const () <$> tpe, const () <$> lce, const () <$> gbe, const () <$> s])
+  let env = checkEnv d in
+  return (Map.unions [const () <$> env, const () <$> s])
 
 -- Returns if x is a tag variable
 isTag :: Var -> CheckM Bool

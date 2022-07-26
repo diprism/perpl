@@ -1,5 +1,4 @@
 {- Code for storing information about what is in scope -}
--- TODO: merge with Env (in src/TypeInf.hs)
 
 module Scope.Ctxt where
 import qualified Data.Map as Map
@@ -37,7 +36,11 @@ ctxtDefSTerm g x stp = Map.insert x (DefSTerm ScopeGlobal stp) g
 -- Add a constructor to the context
 ctxtDefCtor :: Ctxt -> Ctor -> Var -> [Var] -> Ctxt
 ctxtDefCtor g (Ctor x tps) y ps =
-  Map.insert x (DefTerm ScopeCtor (foldr TpArr (TpData y (TpVar <$> ps)) tps)) g
+  Map.insert x (DefTerm ScopeCtor (joinArrows tps (TpData y (TpVar <$> ps)))) g
+  
+ctxtDefSCtor :: Ctxt -> Ctor -> Var -> [Var] -> [Var] -> Ctxt
+ctxtDefSCtor g (Ctor x tps) y tgs ps =
+  Map.insert x (DefSTerm ScopeCtor (Forall tgs ps (joinArrows tps (TpData y (TpVar <$> (tgs ++ ps)))))) g
 
 -- Add a datatype definition to the context,
 -- and all its constructors
@@ -48,27 +51,30 @@ ctxtDeclType g y ps ctors =
 
 ctxtDeclSType :: Ctxt -> Var -> [Var] -> [Var] -> [Ctor] -> Ctxt
 ctxtDeclSType g y tgs ps ctors =
-  foldr (\ c g -> ctxtDefCtor g c y ps)
+  foldr (\ c g -> ctxtDefSCtor g c y tgs ps)
     (Map.insert y (DefSData tgs ps ctors) g) ctors
-
+  
 -- Lookup a term in the context
 ctxtLookupTerm :: Ctxt -> Var -> Maybe (Scope, Type)
 ctxtLookupTerm g x = Map.lookup x g >>= \ vd -> case vd of
   DefTerm sc tp -> Just (sc, tp)
-  DefData ps cs -> Nothing
+  DefSTerm _ _ -> error "this shouldn't happen"
+  _ -> Nothing
 
 -- Lookup a datatype in the context
 ctxtLookupType :: Ctxt -> Var -> Maybe [Ctor]
 ctxtLookupType g x = Map.lookup x g >>= \ vd -> case vd of
   DefData [] cs -> Just cs
-  DefData _ cs -> error "this shouldn't happen"
+  DefData _ _ -> error "this shouldn't happen"
+  DefSData _ _ _ -> error "this shouldn't happen"
   _ -> Nothing
 
 ctxtLookupType2 :: Ctxt -> Var -> Maybe ([Var], [Ctor])
 ctxtLookupType2 g x = Map.lookup x g >>= \ vd -> case vd of
   DefData ps cs -> Just (ps, cs)
+  DefSData tgs ps cs -> Just (tgs++ps, cs)
   _ -> Nothing
-
+  
 -- Is this var bound in this context?
 ctxtBinds :: Ctxt -> Var -> Bool
 ctxtBinds = flip Map.member
