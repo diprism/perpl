@@ -118,7 +118,7 @@ makeEmptyInsts = mconcat . map h where
 makeDefMap :: [SProg] -> DefMap
 makeDefMap = semimap . mconcat . map h where  
   h (SProgFun x (Forall tgs ys tp) tm) = Semimap (Map.singleton x (collectCalls tm))
-  h (SProgExtern x tps rtp) = Semimap (Map.singleton x [])
+  h (SProgExtern x tps rtp) = Semimap (Map.singleton x (collectCallsTp (joinArrows tps rtp)))
   h (SProgData y tgs ps cs) =
     let ccs = map (\ (Ctor x tps) -> (x, mconcat (map collectCallsTp tps))) cs in
       Semimap (Map.fromList ((y, mconcat (snds ccs)) : ccs))
@@ -171,11 +171,16 @@ makeInstantiations xis (SProgFun x (Forall tgs ys tp) tm) =
                (renameCallsTp xis (subst s tp)))
       tiss
 makeInstantiations xis (SProgExtern x tps rtp) =
-  [ProgExtern x tps rtp]
+  if null (Map.toList (xis Map.! x)) then
+    []
+  else
+    [ProgExtern x (fmap (renameCallsTp xis) tps) (renameCallsTp xis rtp)]
 makeInstantiations xis (SProgData y [] [] cs) =
-  -- TODO: maybe delete this as we did in SProgFun x (Forall [] [] tp) tm, if unused?
-  -- a datatype with no arguments can have only one instantiation, so we don't rename it (see renameCallsTp)
-  [ProgData y cs]
+  if null (Map.toList (xis Map.! y)) then
+    []
+  else
+    -- a datatype with no arguments can have only one instantiation, so we don't rename it (see renameCallsTp)
+    [ProgData y cs]
 makeInstantiations xis (SProgData y tgs ps cs) =
     let tiss = Map.toList (xis Map.! y) in
     map (\ (tis, i) ->

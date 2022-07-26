@@ -325,6 +325,8 @@ inferData dsccs cont = foldr h cont dsccs
 -- Checks an extern declaration
 inferExtern :: (Var, Type) -> CheckM SProgs -> CheckM SProgs
 inferExtern (x, tp) m =
+  -- It's possible that checkType tp introduces new tag variables,
+  -- but only within an unused type parameter, so it's safe to ignore them.
   localCurDef x (checkType tp) >>= \ tp' ->
   -- Make sure tp' doesn't use any recursive datatypes
   localCurDef x (guardExternRec tp') >>
