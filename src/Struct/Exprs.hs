@@ -5,7 +5,7 @@ module Struct.Exprs where
 {- The program goes through three stages:
 
 1. The parser produces a user-level program (UsProgs, UsTm, UsTp).
-2. Type inference turns it into a scheme-ified program (SProgs, Term, Type/Scheme).
+2. Type inference turns it into a scheme-ified program (SProgs, Term, Type).
 3. Monomorphization turns into an elaborated program (Progs, Term, Type). -}
 
 -- User-level program
@@ -21,7 +21,7 @@ data UsProg =
 
 -- Scheme-ified definition
 data SProg =
-    SProgFun Var Scheme Term            -- lhs, type, rhs
+    SProgFun Var [Var] [Var] Type Term  -- lhs, tags, type params, type, rhs
   | SProgExtern Var [Type] Type         -- lhs, param types, return type
   | SProgData Var [Var] [Var] [Ctor]    -- lhs, tags, type params, constructors
   deriving (Eq, Ord)
@@ -54,9 +54,6 @@ type Param = (Var, Type)
 type Arg = (Term, Type)
 
 type IsTag = Bool
-
-data Scheme = Forall [Var] [Var] Type   -- tags, type params, type
-  deriving (Eq, Ord)
 
 -- User-level term
 data UsTm = 
