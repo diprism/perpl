@@ -6,7 +6,7 @@ module Scope.Free where
 import Struct.Lib
 import Util.Helpers
 import Scope.Subst
-import Scope.Ctxt
+import Scope.Ctxt (Ctxt, ctxtLookupType2)
 import qualified Data.Map as Map
 
 -- For checking linearity, vars can appear:

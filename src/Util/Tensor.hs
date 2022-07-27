@@ -72,6 +72,9 @@ tensorAdd ta tb = pure (+) <*> ta <*> tb
 tensorSub :: Num a => Tensor a -> Tensor a -> Tensor a
 tensorSub ta tb = pure (-) <*> ta <*> tb
 
+tensorTimes :: Num a => Tensor a -> Tensor a -> Tensor a
+tensorTimes ta tb = pure (*) <*> ta <*> tb
+
 tensorFlatten :: Tensor a -> [a]
 tensorFlatten (Scalar a) = [a]
 tensorFlatten (Vector ts) = concat (fmap tensorFlatten ts)

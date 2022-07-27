@@ -1,7 +1,7 @@
 {- Lexer code -}
 
-module Parse.Lex where
-import Struct.Lib
+module Parse.Lex (Token (..), keywords, Pos, lexFile) where
+import Struct.Lib (Var)
 
 -- Possible tokens
 data Token =

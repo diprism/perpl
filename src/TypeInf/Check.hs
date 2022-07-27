@@ -9,10 +9,10 @@ import Control.Monad.RWS.Lazy
 import Control.Monad.Except
 import Struct.Lib
 import Util.Helpers
-import Scope.Fresh
+import Scope.Fresh (newVar)
 import Scope.Subst
-import Scope.Free
-import Scope.Ctxt
+import Scope.Free (isAff, isInfiniteType)
+import Scope.Ctxt (CtxtDef(..))
 
 -- Convention: expected type, then actual type
 -- TODO: Enforce this convention

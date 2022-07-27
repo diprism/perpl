@@ -4,9 +4,9 @@ import qualified Control.Monad.State.Lazy as State
 import Data.List
 import Struct.Lib
 import Util.Helpers
-import Scope.Free
+import Scope.Free (getRecursiveTypeNames)
 import Scope.Subst
-import Scope.Ctxt
+import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtLookupTerm, ctxtLookupType)
 import Scope.Name
 
 
