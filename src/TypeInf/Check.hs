@@ -179,14 +179,13 @@ lookupDatatype x =
     _ -> err (ScopeError x)
 
 -- Lookup a term variable
-lookupTermVar :: Var -> CheckM (Either Type (GlobalVar, Scheme))
+lookupTermVar :: Var -> CheckM CtxtDef
 lookupTermVar x =
   askEnv >>= \ g ->
   case Map.lookup x g of
-    Just (DefLocal tp) -> return (Left tp)
-    Just (DefGlobal tgs ps tp) -> return (Right (DefVar, Forall tgs ps tp))
-    Just (DefCtor tgs ps tp) -> return (Right (CtorVar, Forall tgs ps tp))
-    _ -> err (ScopeError x)
+    Nothing -> err (ScopeError x)
+    Just (DefData _ _ _) -> err (ScopeError x)
+    Just d -> return d
 
 -- Lookup the datatype that cases split on
 lookupCtorType :: [CaseUs] -> CheckM (Var, [Var], [Var], [Ctor])
@@ -194,11 +193,10 @@ lookupCtorType [] = err NoCases
 lookupCtorType (CaseUs x _ _ : _) =
   lookupTermVar x >>= \ tp ->
   case tp of
-    Right (CtorVar, Forall _ _ ctp) -> case splitArrows ctp of
+    DefCtor _ _ ctp -> case splitArrows ctp of
       (_, TpData y _) -> lookupDatatype y >>= \ (tgs, xs, cs) -> return (y, tgs, xs, cs)
       (_, etp) -> error "This shouldn't happen"
-    Right (DefVar, _) -> err (CtorError x)
-    Left loctp -> err (CtorError x)
+    _ -> err (CtorError x)
 
 -- Returns the new type vars introduced by m
 listenSolveVars :: CheckM a -> CheckM (a, SolveVars)
@@ -285,10 +283,12 @@ infer' (UsVar x) =
   -- Lookup the type of x
   lookupTermVar x >>= \ etp ->
   case etp of
-    -- if x is a local var:
-    Left tp -> return (TmVarL x tp)
-    -- if x is a global var:
-    Right (gv, Forall tgs tis tp) ->
+    DefLocal tp -> return (TmVarL x tp)
+    DefGlobal tgs tis tp -> h DefVar tgs tis tp
+    DefCtor tgs tis tp -> h CtorVar tgs tis tp
+    _ -> error "this can't happen"
+  where
+    h gv tgs tis tp =
       -- pick new tags
       mapM (const freshTag) tgs >>= \ tgs' ->
       -- pick new type vars

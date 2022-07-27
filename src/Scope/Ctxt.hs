@@ -7,8 +7,8 @@ import Util.Helpers
 
 data CtxtDef =
     DefLocal Type
-  | DefGlobal [Var] [Var] Type -- scope, tags, params, rhs
-  | DefCtor [Var] [Var] Type   -- scope, tags, params, rhs
+  | DefGlobal [Var] [Var] Type -- tags, params, type
+  | DefCtor [Var] [Var] Type   -- tags, params, type
   | DefData [Var] [Var] [Ctor] -- tags, params, ctors
   deriving Show
 
