@@ -12,7 +12,7 @@ import Util.Helpers
 import Scope.Fresh (newVar)
 import Scope.Subst
 import Scope.Free (isAff, isInfiniteType)
-import Scope.Ctxt (CtxtDef(..))
+import Scope.Ctxt (Ctxt, CtxtDef(..), ctxtDeclTerm, ctxtDefSTerm, ctxtDeclSType)
 
 -- Convention: expected type, then actual type
 -- TODO: Enforce this convention
