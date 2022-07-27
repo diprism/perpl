@@ -59,9 +59,7 @@ argifyProg (ProgFun x [] tm tp) =
       ls_eta = ls ++ etas
   in
     ProgFun x ls_eta etm_eta etp
-argifyProg (ProgExtern x [] tp) =
-  let (tps, etp) = splitArrows tp in
-    ProgExtern x tps etp
+argifyProg (ProgExtern x tp) = ProgExtern x tp
 argifyProg (ProgData y cs) = ProgData y cs
 argifyProg tp = error $ "This shouldn't happen (" ++ show tp ++ ")"
 

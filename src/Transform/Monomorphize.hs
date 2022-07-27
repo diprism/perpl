@@ -174,7 +174,7 @@ makeInstantiations xis (SProgExtern x tp) =
   if null (Map.toList (xis Map.! x)) then
     []
   else
-    [ProgExtern x [] (renameCallsTp xis tp)]
+    [ProgExtern x (renameCallsTp xis tp)]
 makeInstantiations xis (SProgData y [] [] cs) =
   if null (Map.toList (xis Map.! y)) then
     []

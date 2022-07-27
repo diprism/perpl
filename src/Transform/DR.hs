@@ -9,6 +9,7 @@ import Scope.Subst
 import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtLookupTerm, ctxtLookupType)
 import Scope.Name
 
+import Debug.Trace
 
 -- Collects the free variables of all the cases in
 -- a case-of over something with type rtp
@@ -262,7 +263,7 @@ derefunTerm dr g rtp = fst . h where
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> typeof xtm in
           TmCase (TmVarG DefVar applyN [] [(tm1', tp1')] (TpData rtp [])) (rtp, []) cs' tp2'
     | otherwise =
-        let (tm1', TpData tp1' []) = h tm1
+        let (tm1', TpData tp1' []) = traceShowId (h tm1)
             cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> typeof xtm in
           TmCase tm1' (tp1', []) cs' tp2'
@@ -288,7 +289,7 @@ derefunTerm dr g rtp = fst . h where
 
 derefunProgTypes :: DeRe -> Var -> Prog -> Prog
 derefunProgTypes dr rtp (ProgFun x ps tm tp) = ProgFun x (map (fmap (derefunSubst dr rtp)) ps) tm (derefunSubst dr rtp tp)
-derefunProgTypes dr rtp (ProgExtern x ps tp) = ProgExtern x ps tp
+derefunProgTypes dr rtp (ProgExtern x tp) = ProgExtern x tp
 derefunProgTypes dr rtp (ProgData y cs) = ProgData y [Ctor x [derefunSubst dr rtp tp | tp <- tps] | Ctor x tps <- cs]
 
 derefunProgsTypes :: DeRe -> Var -> Progs -> Progs
@@ -297,7 +298,7 @@ derefunProgsTypes dr rtp (Progs ps end) =
 
 derefunProg' :: DeRe -> Ctxt -> Var -> Prog -> Prog
 derefunProg' dr g rtp (ProgFun x ps tm tp) = ProgFun x ps (derefunTerm dr g rtp tm) tp
-derefunProg' dr g rtp (ProgExtern x ps tp) = ProgExtern x ps tp
+derefunProg' dr g rtp (ProgExtern x tp) = ProgExtern x tp
 derefunProg' dr g rtp (ProgData y cs) = ProgData y cs
 
 derefun :: DeRe -> Var -> [Prog] -> Progs -> Either String Progs

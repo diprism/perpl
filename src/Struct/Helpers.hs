@@ -186,8 +186,8 @@ mapCtors f = map $ \ (Ctor x tps) -> Ctor x (map f tps)
 mapProgM :: Monad m => (Term -> m Term) -> Prog -> m Prog
 mapProgM f (ProgFun x ps tm tp) =
   pure (ProgFun x ps) <*> f tm <*> pure tp
-mapProgM mtm (ProgExtern x ps tp) =
-  pure (ProgExtern x ps tp)
+mapProgM mtm (ProgExtern x tp) =
+  pure (ProgExtern x tp)
 mapProgM mtm (ProgData y cs) =
   pure (ProgData y cs)
 

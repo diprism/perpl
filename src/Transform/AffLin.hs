@@ -264,8 +264,10 @@ affLinProg (ProgFun x as tm tp) =
   let as' = mapParams affLinTp as
       tp' = affLinTp tp
   in pure (\tm' -> ProgFun x as' tm' tp') <*> alBinds as' (affLin tm)
-affLinProg (ProgExtern x ps tp) =
-  pure (ProgExtern x (map affLinTp ps) (affLinTp tp))
+affLinProg (ProgExtern x tp) =
+  -- Top-level arrows are not transformed
+  let (ps, rtp) = splitArrows tp in
+  pure (ProgExtern x (joinArrows (fmap affLinTp ps) (affLinTp rtp)))
 
 -- Helper that does affLinTp on all the types so that we can add all the definitions to ctxt
 affLinDefine :: Prog -> Prog
@@ -273,8 +275,8 @@ affLinDefine (ProgData y cs) =
   ProgData y (mapCtors affLinTp cs)
 affLinDefine (ProgFun x as tm tp) =
   ProgFun x (mapParams affLinTp as) tm (affLinTp tp)
-affLinDefine (ProgExtern x ps tp) =
-  ProgExtern x (map affLinTp ps) (affLinTp tp)
+affLinDefine (ProgExtern x tp) =
+  ProgExtern x (affLinTp tp)
 
 -- Adds all the definitions in a file to context, after replacing arrows with <type, Unit>
 affLinDefines :: Progs -> Ctxt

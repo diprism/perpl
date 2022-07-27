@@ -309,9 +309,8 @@ prog2fgg g (ProgFun x ps tm tp) =
     mkRule (TmVarG DefVar x [] [] tp) (vtp : tmxs ++ ps ++ unused_n ++ unused_ps)
       (Edge' (tmxs ++ [vtp]) (show tm) : discardEdges' unused_ps unused_n)
       (ps ++ [vtp])
-prog2fgg g (ProgExtern x ps tp) =
-  let tp' = (joinArrows ps tp) in
-    type2fgg g tp' +>
+prog2fgg g (ProgExtern x tp) =
+    type2fgg g tp +>
     addIncompleteFactor x
 prog2fgg g (ProgData y cs) =
   -- Add constructor factors

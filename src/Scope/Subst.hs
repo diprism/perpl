@@ -293,9 +293,9 @@ instance Substitutable Prog where
   substM (ProgFun x ps tm tp) =
     bind x x okay >>
     pure (ProgFun x) <**> substParams Multiplicative ps (substM tm) <*> substM tp
-  substM (ProgExtern x ps tp) =
+  substM (ProgExtern x tp) =
     bind x x okay >>
-    pure (ProgExtern x) <*> substM ps <*> substM tp
+    pure (ProgExtern x) <*> substM tp
   substM (ProgData y cs) =
     bind y y okay >>
     pure (ProgData y) <*> substM cs
