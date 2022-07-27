@@ -6,7 +6,7 @@ import Util.Tensor
 import Util.FGG
 import Util.Helpers
 import Struct.Lib
-import Scope.Ctxt
+import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtDeclTerm, ctxtLookupType)
 import Scope.Name
 import Scope.Subst
 

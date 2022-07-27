@@ -3,9 +3,9 @@ import qualified Data.Map as Map
 import Control.Monad.RWS
 import Struct.Lib
 import Util.Helpers
-import Scope.Ctxt
+import Scope.Ctxt (Ctxt, ctxtDeclTerm, ctxtDefProgs, emptyCtxt)
 import Scope.Name
-import Scope.Free
+import Scope.Free (robust)
 import Scope.Subst
 
 {- ====== Affine to Linear Functions ====== -}

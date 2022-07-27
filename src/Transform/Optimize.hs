@@ -4,9 +4,9 @@ import qualified Data.Map as Map
 import Struct.Lib
 import Util.Helpers
 import Scope.Name
-import Scope.Free
+import Scope.Free (isLin', robust)
 import Scope.Subst
-import Scope.Ctxt
+import Scope.Ctxt (Ctxt, ctxtDeclArgs, ctxtDeclTerm, ctxtDefProgs)
 
 {- Provides various optimizations:
 1. (case t of C1 a* -> \x. t1 | C2 b* -> \y. t2 | C3 c* -> t3)

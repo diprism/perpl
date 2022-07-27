@@ -8,8 +8,8 @@ import Util.Helpers
 import Util.SCC
 import Struct.Lib
 import Scope.Subst
-import Scope.Free
-import Scope.Ctxt
+import Scope.Free (robust)
+import Scope.Ctxt (CtxtDef(..))
 
 bindTp :: Var -> Type -> Either TypeError Subst
 bindTp x tp

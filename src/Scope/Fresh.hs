@@ -1,4 +1,4 @@
-module Scope.Fresh where
+module Scope.Fresh (newVar) where
 import Util.Helpers
 import Struct.Lib
 import qualified Data.Map as Map

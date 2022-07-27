@@ -5,8 +5,8 @@ module Scope.Subst where
 import qualified Data.Map as Map
 import Control.Monad.RWS.Lazy
 import Util.Helpers
-import Scope.Ctxt
-import Scope.Fresh
+import Scope.Ctxt (Ctxt, CtxtDef(..))
+import Scope.Fresh (newVar)
 import Struct.Lib
 
 ----------------------------------------
