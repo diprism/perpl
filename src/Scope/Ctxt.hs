@@ -6,10 +6,8 @@ import Struct.Lib
 import Util.Helpers
 
 data CtxtDef =
-    DefTerm Scope Type
-  | DefSTerm Scope Scheme
-  | DefData [Var] [Ctor]        -- params, ctors
-  | DefSData [Var] [Var] [Ctor] -- tags, params, ctors
+    DefTerm Scope [Var] [Var] Type -- scope, tags, params, rhs
+  | DefData [Var] [Var] [Ctor]     -- tags, params, ctors
   deriving Show
 
 type Ctxt = Map Var CtxtDef
@@ -20,7 +18,7 @@ emptyCtxt = Map.empty
 
 -- Add a local term to the context
 ctxtDeclTerm :: Ctxt -> Var -> Type -> Ctxt
-ctxtDeclTerm g x tp = Map.insert x (DefTerm ScopeLocal tp) g
+ctxtDeclTerm g x tp = Map.insert x (DefTerm ScopeLocal [] [] tp) g
 
 -- Add params to context
 ctxtDeclArgs :: Ctxt -> [Param] -> Ctxt
@@ -28,51 +26,40 @@ ctxtDeclArgs = foldl $ uncurry . ctxtDeclTerm
 
 -- Add a global term to the context
 ctxtDefTerm :: Ctxt -> Var -> Type -> Ctxt
-ctxtDefTerm g x tp = Map.insert x (DefTerm ScopeGlobal tp) g
+ctxtDefTerm g x tp = Map.insert x (DefTerm ScopeGlobal [] [] tp) g
 
 ctxtDefSTerm :: Ctxt -> Var -> Scheme -> Ctxt
-ctxtDefSTerm g x stp = Map.insert x (DefSTerm ScopeGlobal stp) g
+ctxtDefSTerm g x (Forall tgs ps tp) = Map.insert x (DefTerm ScopeGlobal tgs ps tp) g
 
 -- Add a constructor to the context
-ctxtDefCtor :: Ctxt -> Ctor -> Var -> [Var] -> Ctxt
-ctxtDefCtor g (Ctor x tps) y ps =
-  Map.insert x (DefTerm ScopeCtor (joinArrows tps (TpData y (TpVar <$> ps)))) g
-  
-ctxtDefSCtor :: Ctxt -> Ctor -> Var -> [Var] -> [Var] -> Ctxt
-ctxtDefSCtor g (Ctor x tps) y tgs ps =
-  Map.insert x (DefSTerm ScopeCtor (Forall tgs ps (joinArrows tps (TpData y (TpVar <$> (tgs ++ ps)))))) g
+ctxtDefCtor :: Ctxt -> Ctor -> Var -> [Var] -> [Var] -> Ctxt
+ctxtDefCtor g (Ctor x tps) y tgs ps =
+  Map.insert x (DefTerm ScopeCtor tgs ps (joinArrows tps (TpData y (TpVar <$> (tgs ++ ps))))) g
 
 -- Add a datatype definition to the context,
 -- and all its constructors
-ctxtDeclType :: Ctxt -> Var -> [Var] -> [Ctor] -> Ctxt
-ctxtDeclType g y ps ctors =
-  foldr (\ c g -> ctxtDefCtor g c y ps)
-    (Map.insert y (DefData ps ctors) g) ctors
-
-ctxtDeclSType :: Ctxt -> Var -> [Var] -> [Var] -> [Ctor] -> Ctxt
-ctxtDeclSType g y tgs ps ctors =
-  foldr (\ c g -> ctxtDefSCtor g c y tgs ps)
-    (Map.insert y (DefSData tgs ps ctors) g) ctors
+ctxtDeclType :: Ctxt -> Var -> [Var] -> [Var] -> [Ctor] -> Ctxt
+ctxtDeclType g y tgs ps ctors =
+  foldr (\ c g -> ctxtDefCtor g c y tgs ps)
+    (Map.insert y (DefData tgs ps ctors) g) ctors
   
 -- Lookup a term in the context
 ctxtLookupTerm :: Ctxt -> Var -> Maybe (Scope, Type)
 ctxtLookupTerm g x = Map.lookup x g >>= \ vd -> case vd of
-  DefTerm sc tp -> Just (sc, tp)
-  DefSTerm _ _ -> error "this shouldn't happen"
+  DefTerm sc [] [] tp -> Just (sc, tp)
+  DefTerm _ _ _ _ -> error "this shouldn't happen"
   _ -> Nothing
 
 -- Lookup a datatype in the context
 ctxtLookupType :: Ctxt -> Var -> Maybe [Ctor]
 ctxtLookupType g x = Map.lookup x g >>= \ vd -> case vd of
-  DefData [] cs -> Just cs
-  DefData _ _ -> error "this shouldn't happen"
-  DefSData _ _ _ -> error "this shouldn't happen"
+  DefData [] [] cs -> Just cs
+  DefData _ _ _ -> error "this shouldn't happen"
   _ -> Nothing
 
 ctxtLookupType2 :: Ctxt -> Var -> Maybe ([Var], [Ctor])
 ctxtLookupType2 g x = Map.lookup x g >>= \ vd -> case vd of
-  DefData ps cs -> Just (ps, cs)
-  DefSData tgs ps cs -> Just (tgs++ps, cs)
+  DefData tgs ps cs -> Just (tgs++ps, cs)
   _ -> Nothing
   
 -- Is this var bound in this context?
@@ -83,7 +70,7 @@ ctxtBinds = flip Map.member
 ctxtDefUsProg :: Ctxt -> UsProg -> Ctxt
 ctxtDefUsProg g (UsProgFun x tp tm) = ctxtDefTerm g x tp
 ctxtDefUsProg g (UsProgExtern x tp) = ctxtDefTerm g x tp
-ctxtDefUsProg g (UsProgData y ps cs) = ctxtDeclType g y ps cs
+ctxtDefUsProg g (UsProgData y ps cs) = ctxtDeclType g y [] ps cs
 
 -- Populates a context with the definitions from a raw file
 ctxtDefUsProgs :: UsProgs -> Ctxt
@@ -93,7 +80,7 @@ ctxtDefUsProgs (UsProgs ps end) = foldl ctxtDefUsProg emptyCtxt ps
 ctxtDefSProg :: Ctxt -> SProg -> Ctxt
 ctxtDefSProg g (SProgFun x stp tm) = ctxtDefSTerm g x stp
 ctxtDefSProg g (SProgExtern x ps tp) = ctxtDefTerm g x (joinArrows ps tp)
-ctxtDefSProg g (SProgData y tgs ps cs) = ctxtDeclSType g y tgs ps cs
+ctxtDefSProg g (SProgData y tgs ps cs) = ctxtDeclType g y tgs ps cs
 
 -- Populates a context with the definitions from a scheme-ified file
 ctxtDefSProgs :: SProgs -> Ctxt
@@ -103,7 +90,7 @@ ctxtDefSProgs (SProgs ps end) = foldl ctxtDefSProg emptyCtxt ps
 ctxtDefProg :: Ctxt -> Prog -> Ctxt
 ctxtDefProg g (ProgFun x ps tm tp) = ctxtDefTerm g x (joinArrows (map snd ps) tp)
 ctxtDefProg g (ProgExtern x ps tp) = ctxtDefTerm g x (joinArrows ps tp)
-ctxtDefProg g (ProgData y cs) = ctxtDeclType g y [] cs
+ctxtDefProg g (ProgData y cs) = ctxtDeclType g y [] [] cs
 
 -- Populates a context with the definitions from a file
 ctxtDefProgs :: Progs -> Ctxt
