@@ -63,7 +63,7 @@ argifyProg (ProgExtern x [] tp) =
   let (tps, etp) = splitArrows tp in
     ProgExtern x tps etp
 argifyProg (ProgData y cs) = ProgData y cs
-argifyProg _ = error "This shouldn't happen"
+argifyProg tp = error $ "This shouldn't happen (" ++ show tp ++ ")"
 
 argifyFile :: Progs -> Progs
 argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argify tm)

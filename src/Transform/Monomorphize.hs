@@ -110,7 +110,7 @@ renameCallsTp xis tp = tp
 makeEmptyInsts :: [SProg] -> Insts
 makeEmptyInsts = mconcat . map h where
   h (SProgFun x tgs ys tp tm) = Semimap (Map.singleton x mempty)
-  h (SProgExtern x tps rtp) = Semimap (Map.singleton x mempty)
+  h (SProgExtern x tp) = Semimap (Map.singleton x mempty)
   h (SProgData y tgs ps cs) = Semimap (Map.fromList ((y, mempty) : map (\ (Ctor x tps) -> (x, mempty)) cs))
 
 -- Set up def map with an entry for each definition that stores the calls
@@ -118,7 +118,7 @@ makeEmptyInsts = mconcat . map h where
 makeDefMap :: [SProg] -> DefMap
 makeDefMap = semimap . mconcat . map h where  
   h (SProgFun x tgs ys tp tm) = Semimap (Map.singleton x (collectCalls tm))
-  h (SProgExtern x tps rtp) = Semimap (Map.singleton x (collectCallsTp (joinArrows tps rtp)))
+  h (SProgExtern x tp) = Semimap (Map.singleton x (collectCallsTp tp))
   h (SProgData y tgs ps cs) =
     let ccs = map (\ (Ctor x tps) -> (x, mconcat (map collectCallsTp tps))) cs in
       Semimap (Map.fromList ((y, mconcat (snds ccs)) : ccs))
@@ -127,7 +127,7 @@ makeDefMap = semimap . mconcat . map h where
 makeTypeParams :: [SProg] -> TypeParams
 makeTypeParams = mconcat . map h where
   h (SProgFun x tgs ys tp tm) = Map.singleton x (tgs, ys)
-  h (SProgExtern x tps rtp) = Map.singleton x ([], [])
+  h (SProgExtern x tp) = Map.singleton x ([], [])
   h (SProgData y tgs ps cs) = Map.fromList ((y, (tgs, ps)) : map (\ (Ctor x tps) -> (x, (tgs, ps))) cs)
 
 -- If not visited, insert into Insts and recurse
@@ -170,11 +170,11 @@ makeInstantiations xis (SProgFun x tgs ys tp tm) =
                (renameCalls xis (subst s tm))
                (renameCallsTp xis (subst s tp)))
       tiss
-makeInstantiations xis (SProgExtern x tps rtp) =
+makeInstantiations xis (SProgExtern x tp) =
   if null (Map.toList (xis Map.! x)) then
     []
   else
-    [ProgExtern x (fmap (renameCallsTp xis) tps) (renameCallsTp xis rtp)]
+    [ProgExtern x [] (renameCallsTp xis tp)]
 makeInstantiations xis (SProgData y [] [] cs) =
   if null (Map.toList (xis Map.! y)) then
     []

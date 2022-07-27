@@ -310,9 +310,9 @@ instance Substitutable SProg where
       (freshens tpms >>= \ tpms' ->
        binds tpms tpms'
          (pure (SProgFun x tgs' tpms') <*> substM tp <*> substM tm))
-  substM (SProgExtern x tps tp) =
+  substM (SProgExtern x tp) =
     bind x x okay >>
-    pure (SProgExtern x) <*> substM tps <*> substM tp
+    pure (SProgExtern x) <*> substM tp
   substM (SProgData y tgs ps cs) =
     bind y y okay >>
     freshens tgs >>= \ tgs' ->

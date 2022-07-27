@@ -90,7 +90,7 @@ instance Show UsProgs where
 
 instance Show SProg where
   show (SProgFun x tgs ps tp tm) = "define " ++ x ++ " : Forall " ++ intercalate ", " (tgs ++ ps) ++ ". " ++ show tp ++ " = " ++ show tm ++ ";"
-  show (SProgExtern x tps tp) = "extern " ++ x ++ " : " ++ show (joinArrows tps tp) ++ ";"
+  show (SProgExtern x tp) = "extern " ++ x ++ " : " ++ show tp ++ ";"
   show (SProgData y tgs ps cs) = "data " ++ intercalate " " (y : tgs ++ ps) ++ " = " ++ intercalate " | " [show c | c <- cs] ++ ";"
 
 instance Show SProgs where
