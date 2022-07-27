@@ -3,7 +3,7 @@ import qualified Data.Map as Map
 import Control.Monad.RWS
 import Struct.Lib
 import Util.Helpers
-import Scope.Ctxt (Ctxt, ctxtDeclTerm, ctxtDefProgs, emptyCtxt)
+import Scope.Ctxt (Ctxt, ctxtDefLocal, ctxtDefProgs, emptyCtxt)
 import Scope.Name
 import Scope.Free (robust)
 import Scope.Subst
@@ -58,7 +58,7 @@ type AffLinM a = RWS Ctxt FreeVars () a
 alBind :: Var -> Type -> AffLinM Term -> AffLinM Term
 alBind x tp m =
   censor (Map.delete x) -- Delete x from FVs
-         (listen (local (\ g -> ctxtDeclTerm g x tp) m) >>= \ (tm, fvs) ->
+         (listen (local (\ g -> ctxtDefLocal g x tp) m) >>= \ (tm, fvs) ->
             -- Discard if necessary
             if Map.member x fvs then return tm else discard x tp tm)
 

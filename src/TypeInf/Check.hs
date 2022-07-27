@@ -12,7 +12,7 @@ import Util.Helpers
 import Scope.Fresh (newVar)
 import Scope.Subst
 import Scope.Free (isAff, isInfiniteType)
-import Scope.Ctxt (Ctxt, CtxtDef(..), ctxtDeclTerm, ctxtDefSTerm, ctxtDeclType)
+import Scope.Ctxt (Ctxt, CtxtDef(..), ctxtDefLocal, ctxtDefGlobal, ctxtDefData)
 
 -- Convention: expected type, then actual type
 -- TODO: Enforce this convention
@@ -131,7 +131,7 @@ localCurExpr a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curExpr = show a
 
 -- Add (x : tp) to env
 inEnv :: Var -> Type -> CheckM a -> CheckM a
-inEnv x tp = local $ modifyEnv (\ g -> ctxtDeclTerm g x tp)
+inEnv x tp = local $ modifyEnv (\ g -> ctxtDefLocal g x tp)
 
 -- Checks for any duplicate definitions
 anyDupDefs :: UsProgs -> CheckM ()
@@ -160,11 +160,11 @@ guardExternRec tp =
 
 -- Defines a global function
 defTerm :: Var -> Scheme -> CheckM a -> CheckM a
-defTerm x stp = local $ modifyEnv ( \ g -> ctxtDefSTerm g x stp)
+defTerm x (Forall tgs ps tp) = local $ modifyEnv ( \ g -> ctxtDefGlobal g x tgs ps tp)
 
 -- Defines a datatype and its constructors
 defData :: Var -> [Var] -> [Var] -> [Ctor] -> CheckM a -> CheckM a
-defData y tgs ps cs = local $ modifyEnv (\ g -> ctxtDeclType g y tgs ps cs)
+defData y tgs ps cs = local $ modifyEnv (\ g -> ctxtDefData g y tgs ps cs)
 
 -- Add (x1 : tp1), (x2 : tp2), ... to env
 inEnvs :: [(Var, Type)] -> CheckM a -> CheckM a
@@ -183,9 +183,9 @@ lookupTermVar :: Var -> CheckM (Either Type (GlobalVar, Scheme))
 lookupTermVar x =
   askEnv >>= \ g ->
   case Map.lookup x g of
-    Just (DefTerm ScopeLocal [] [] tp) -> return (Left tp)
-    Just (DefTerm ScopeGlobal tgs ps tp) -> return (Right (DefVar, Forall tgs ps tp))
-    Just (DefTerm ScopeCtor tgs ps tp) -> return (Right (CtorVar, Forall tgs ps tp))
+    Just (DefLocal tp) -> return (Left tp)
+    Just (DefGlobal tgs ps tp) -> return (Right (DefVar, Forall tgs ps tp))
+    Just (DefCtor tgs ps tp) -> return (Right (CtorVar, Forall tgs ps tp))
     _ -> err (ScopeError x)
 
 -- Lookup the datatype that cases split on

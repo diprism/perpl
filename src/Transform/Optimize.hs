@@ -6,7 +6,7 @@ import Util.Helpers
 import Scope.Name
 import Scope.Free (isLin', robust)
 import Scope.Subst
-import Scope.Ctxt (Ctxt, ctxtDeclArgs, ctxtDeclTerm, ctxtDefProgs)
+import Scope.Ctxt (Ctxt, ctxtDeclArgs, ctxtDefLocal, ctxtDefProgs)
 
 {- Provides various optimizations:
 1. (case t of C1 a* -> \x. t1 | C2 b* -> \y. t2 | C3 c* -> t3)
@@ -183,13 +183,13 @@ optimizeTerm g (TmVarG gv x tis as tp) =
   TmVarG gv x tis (optimizeArgs g as) tp
 optimizeTerm g (TmLet x xtm xtp tm tp) =
   let xtm' = optimizeTerm g xtm
-      tm' = optimizeTerm (ctxtDeclTerm g x xtp) tm in
+      tm' = optimizeTerm (ctxtDefLocal g x xtp) tm in
   if safe2sub g x xtm' tm'
     then optimizeTerm g (substWithCtxt g (Map.fromList [(x, SubTm xtm')]) tm')
     else TmLet x xtm' xtp tm' tp
 optimizeTerm g (TmFactor wt tm tp) = TmFactor wt (optimizeTerm g tm) tp
 optimizeTerm g (TmLam x tp tm tp') =
-  TmLam x tp (optimizeTerm (ctxtDeclTerm g x tp) tm) tp'
+  TmLam x tp (optimizeTerm (ctxtDefLocal g x tp) tm) tp'
 optimizeTerm g (TmApp tm1 tm2 tp2 tp) =
   let (body, as) = splitApps (TmApp tm1 tm2 tp2 tp)
       body1 = optimizeTerm g body
@@ -216,7 +216,7 @@ optimizeTerm g (TmCase tm y cs tp) =
             g_ps = foldr (\ (Case x xps xtm) g -> ctxtDeclArgs g xps) g cs
             (_, _, rps') = foldl (\ (e, g', ps') p ->
                                     let e' = freshVar g' e in
-                                      (e', ctxtDeclTerm g' e' p, (e', p) : ps'))
+                                      (e', ctxtDefLocal g' e' p, (e', p) : ps'))
                            (etaName "e" 0, g_ps, []) ps
             ps' = reverse rps'
             cs' = [let g' = ctxtDeclArgs g (ps' ++ xps) in Case x xps (peelLams g' ps' (optimizeTerm g' xtm)) | Case x xps xtm <- cs]

@@ -239,7 +239,7 @@ derefunTerm dr g rtp = fst . h where
     | dr == Defun && gv == DefVar && x == applyN =
       let [(etm, etp)] = as in h' etm
     | otherwise =
-      maybe2 (ctxtLookupTerm g x) (TmVarG gv x [] (h_as as) tp) $ \ (_, tp') ->
+      maybe2 (ctxtLookupTerm g x) (TmVarG gv x [] (h_as as) tp) $ \ tp' ->
       let (tps, end) = splitArrows tp'
           tp'' = joinArrows (drop (length as) tps) end in
         TmVarG gv x [] (h_as as) tp''
