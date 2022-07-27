@@ -1,5 +1,6 @@
 -- Adapted from http://dev.stephendiehl.com/fun/006_hindley_milner.html
 {- Code for Hindley-Milner type inference and type checking -}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleContexts #-}
 
 module TypeInf.Check where
 import Data.List (intercalate)
@@ -17,13 +18,13 @@ import Scope.Ctxt
 -- Convention: expected type, then actual type
 -- TODO: Enforce this convention
 data TypeError =
-    InfiniteType Var Type -- this type becomes infinite
-  | UnificationError Type Type -- couldn't unify two types
-  | ConflictingTypes Type Type -- expected two types to be equal, but they aren't
-  | AffineError Var Term -- used more than affinely
+    InfiniteType Var (Type []) -- this type becomes infinite
+  | UnificationError (Type []) (Type []) -- couldn't unify two types
+  | ConflictingTypes (Type []) (Type []) -- expected two types to be equal, but they aren't
+  | AffineError Var (Term []) -- used more than affinely
   | ScopeError Var -- var is out of scope
   | CtorError Var -- not a constructor
-  | RobustType Type -- expected type to be robust
+  | RobustType (Type []) -- expected type to be robust
   | NoCases -- case-of with no cases
   | ExpNonUnderscoreVar -- expected a non-"_" var
   | ExpOneNonUnderscoreVar -- expected exactly  one non-"_" var (`let <_, x, _> = ... in ...`)
@@ -52,11 +53,11 @@ instance Show TypeError where
 
 
 {- ===== Constraints ===== -}
-data Constraint = Unify Type Type | Robust Type
+data Constraint = Unify (Type []) (Type []) | Robust (Type [])
   deriving Show
 
 -- Discards Robust constraints
-getUnifications :: [(Constraint, Loc)] -> [(Type, Type, Loc)]
+getUnifications :: [(Constraint, Loc)] -> [(Type [], Type [], Loc)]
 getUnifications [] = []
 getUnifications ((Unify tp1 tp2, l) : cs) = (tp1, tp2, l) : getUnifications cs
 getUnifications (_ : cs) = getUnifications cs
@@ -68,7 +69,7 @@ constrainIf :: Bool -> Constraint -> CheckM ()
 constrainIf True c = constrain c
 constrainIf False c = okay
 
-instance Substitutable Constraint where
+instance Substitutable Constraint [] where
   substM (Unify tp1 tp2) = pure Unify <*> substM tp1 <*> substM tp2
   substM (Robust tp) = pure Robust <*> substM tp
 
@@ -86,10 +87,10 @@ instance Show Loc where
   show l = intercalate ", " ((if null (curDef l) then ["somewhere"] else ["in the definition " ++ curDef l]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
 
 -- Reader part of the RWST monad for inference/checking
-data CheckR = CheckR { checkEnv :: Ctxt, checkLoc :: Loc }
+data CheckR = CheckR { checkEnv :: Ctxt [] [] [], checkLoc :: Loc }
 
 -- Temporarily modifies the env
-modifyEnv :: (Ctxt -> Ctxt) -> CheckR -> CheckR
+modifyEnv :: (Ctxt [] [] [] -> Ctxt [] [] []) -> CheckR -> CheckR
 modifyEnv f cr = cr { checkEnv = f (checkEnv cr) }
 
 -- RWST (Reader-Writer-State-Transformer) monad:
@@ -110,11 +111,11 @@ guardM True e = okay
 guardM False e = err e
 
 -- Make sure x doesn't appear in t (guards against infinite type expansions)
-occursCheck :: Substitutable a => Var -> a -> Bool
-occursCheck x t = x `Map.member` (freeVars t)
+occursCheck :: Substitutable a [] => Var -> a -> Bool
+occursCheck x t = x `Map.member` (freeVars t :: FreeVars [])
 
 -- Return the env
-askEnv :: CheckM Ctxt
+askEnv :: CheckM (Ctxt [] [] [])
 askEnv = checkEnv <$> ask
 
 -- Return the current location
@@ -130,7 +131,7 @@ localCurExpr :: Show a => a -> CheckM b -> CheckM b
 localCurExpr a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curExpr = show a } })
 
 -- Add (x : tp) to env
-inEnv :: Var -> Type -> CheckM a -> CheckM a
+inEnv :: Var -> Type [] -> CheckM a -> CheckM a
 inEnv x tp = local $ modifyEnv (\ g -> ctxtDeclTerm g x tp)
 
 -- Checks for any duplicate definitions
@@ -153,7 +154,7 @@ anyDupDefs (UsProgs ps etm) =
       foldlM (\ xs' (Ctor x tps) -> addDef x xs') (addDef y xs) cs
 
 -- Makes sure an extern's type has no recursive datatypes in it
-guardExternRec :: Type -> CheckM ()
+guardExternRec :: Type [] -> CheckM ()
 guardExternRec tp =
   askEnv >>= \ env ->
   guardM (not (isInfiniteType env tp)) ExternRecData
@@ -163,33 +164,33 @@ defTerm :: Var -> Scheme -> CheckM a -> CheckM a
 defTerm x stp = local $ modifyEnv ( \ g -> ctxtDefSTerm g x stp)
 
 -- Defines a datatype and its constructors
-defData :: Var -> [Var] -> [Var] -> [Ctor] -> CheckM a -> CheckM a
+defData :: Var -> [Var] -> [Var] -> [Ctor []] -> CheckM a -> CheckM a
 defData y tgs ps cs = local $ modifyEnv (\ g -> ctxtDeclSType g y tgs ps cs)
 
 -- Add (x1 : tp1), (x2 : tp2), ... to env
-inEnvs :: [(Var, Type)] -> CheckM a -> CheckM a
+inEnvs :: [(Var, Type [])] -> CheckM a -> CheckM a
 inEnvs = flip $ foldr $ uncurry inEnv
 
 -- Lookup a datatype
-lookupDatatype :: Var -> CheckM ([Var], [Var], [Ctor])
+lookupDatatype :: Var -> CheckM ([Var], [Var], [Ctor []])
 lookupDatatype x =
   askEnv >>= \ g ->
   case Map.lookup x g of
-    Just (DefSData tgs ps cs) -> return (tgs, ps, cs)
+    Just (DefData tgs ps cs) -> return (tgs, ps, cs)
     _ -> err (ScopeError x)
 
 -- Lookup a term variable
-lookupTermVar :: Var -> CheckM (Either Type (GlobalVar, Scheme))
+lookupTermVar :: Var -> CheckM (Either (Type []) (GlobalVar, Scheme))
 lookupTermVar x =
   askEnv >>= \ g ->
   case Map.lookup x g of
-    Just (DefTerm ScopeLocal tp) -> return (Left tp)
-    Just (DefSTerm ScopeGlobal stp) -> return (Right (DefVar, stp))
-    Just (DefSTerm ScopeCtor stp) -> return (Right (CtorVar, stp))
+    Just (DefLocalTerm tp) -> return (Left tp)
+    Just (DefGlobalTerm tags tparams tp) -> return (Right (DefVar, Forall tags tparams tp))
+    Just (DefCtorTerm tags tparams tp) -> return (Right (CtorVar, Forall tags tparams tp))
     _ -> err (ScopeError x)
 
 -- Lookup the datatype that cases split on
-lookupCtorType :: [CaseUs] -> CheckM (Var, [Var], [Var], [Ctor])
+lookupCtorType :: [CaseUs []] -> CheckM (Var, [Var], [Var], [Ctor []])
 lookupCtorType [] = err NoCases
 lookupCtorType (CaseUs x _ _ : _) =
   lookupTermVar x >>= \ tp ->
@@ -238,25 +239,25 @@ freshTpVar' tg =
   return x
 
 -- Wraps TpVar around freshTpVar'
-freshTp' :: Bool -> CheckM Type
+freshTp' :: Bool -> CheckM (Type [])
 freshTp' tg = pure TpVar <*> freshTpVar' tg
 
 freshTpVar, freshTagVar :: CheckM Var
 freshTpVar = freshTpVar' False
 freshTagVar = freshTpVar' True
 
-freshTp, freshTag :: CheckM Type
+freshTp, freshTag :: CheckM (Type [])
 freshTp = freshTp' False
 freshTag = freshTp' True
 
 -- If NoTp, return a fresh type to solve; otherwise, check the type
-annTp :: Type -> CheckM Type
+annTp :: Type [] -> CheckM (Type [])
 annTp NoTp = freshTp
 annTp tp = checkType tp
 
 -- Ensures that a type is well-kinded (so no `List Bool Bool`, or use of undefined vars)
 -- and adds tag variables to uses of datatypes, instantiating them to fresh variables
-checkType :: Type -> CheckM Type
+checkType :: Type [] -> CheckM (Type [])
 checkType (TpArr tp1 tp2) =
   pure TpArr <*> checkType tp1 <*> checkType tp2
 checkType (TpData y as) =
@@ -273,11 +274,11 @@ checkType NoTp =
   error "checkType should never see a NoTp!"
 
 -- Wrapper around infer', updating the current expr we are in (for better error messages)
-infer :: UsTm -> CheckM Term
+infer :: UsTm [] -> CheckM (Term [])
 infer tm = localCurExpr tm (infer' tm)
 
 -- Infers/checks a term, elaborating it from a user-term (UsTm) to a full Term
-infer' :: UsTm -> CheckM Term
+infer' :: UsTm [] -> CheckM (Term [])
 
 infer' (UsVar x) =
   -- Disable use of "_"
@@ -413,7 +414,7 @@ infer' (UsEqs tms) =
   constrain (Robust itp) >>
   return (TmEqs tms')
 
-inferCase :: CaseUs -> Ctor -> CheckM Case
+inferCase :: CaseUs [] -> Ctor [] -> CheckM (Case [])
 inferCase (CaseUs x xs tm) (Ctor x' ps) =
   -- Set the current expression to be the case `| x xs -> tm`
   localCurExpr (CaseUs x xs tm) $

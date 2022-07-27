@@ -4,21 +4,22 @@ module Compile.RuleM where
 import Data.List
 import qualified Data.Map as Map
 import Struct.Lib
+import Util.None
 import Util.FGG
 import Util.Helpers
 import Util.Tensor
 import Scope.Name
 
 -- RuleM monad-like datatype and functions
-type External = (Var, Type)
-type Nonterminal = (Var, [Type])
+type External = (Var, Type None)
+type Nonterminal = (Var, [Type None])
 -- RuleM stores the following:
---   1. [(Int, Rule Type)]: a list of rules and how many times to duplicate them
+--   1. [(Int, Rule (Type None))]: a list of rules and how many times to duplicate them
 --                            (so amb True False True => p(True) = **2**, p(False) = 1)
 --   2. [External]: list of external nodes from the expression
 --   3. [Nonterminal]: nonterminal accumulator
 --   4. [Factor]: factor accumulator
-data RuleM = RuleM [(Int, Rule Type)] [External] [Nonterminal] [Factor]
+data RuleM = RuleM [(Int, Rule (Type None))] [External] [Nonterminal] [Factor]
 
 -- RuleM instances of >>= and >= (since not
 -- technically a monad, need to pick new names)
@@ -48,7 +49,7 @@ addExts :: [External] -> RuleM
 addExts xs = RuleM [] xs [] []
 
 -- Add a single external node
-addExt :: Var -> Type -> RuleM
+addExt :: Var -> Type None -> RuleM
 addExt x tp = addExts [(x, tp)]
 
 -- Add a list of nonterminals with the types of their attachment nodes
@@ -56,15 +57,15 @@ addNonterms :: [Nonterminal] -> RuleM
 addNonterms nts = RuleM [] [] nts []
 
 -- Add a single nonterminal with the types of its attachment nodes
-addNonterm :: Var -> [Type] -> RuleM
+addNonterm :: Var -> [Type None] -> RuleM
 addNonterm x tps = addNonterms [(x, tps)]
 
 -- Add a list of rules
-addRules :: [(Int, Rule Type)] -> RuleM
+addRules :: [(Int, Rule (Type None))] -> RuleM
 addRules rs = RuleM rs [] [] []
 
 -- Add a single rule
-addRule :: Int -> Rule Type -> RuleM
+addRule :: Int -> Rule (Type None) -> RuleM
 addRule reps r = addRules [(reps, r)]
 
 -- Adds an "incomplete" factor (extern)
@@ -97,19 +98,19 @@ getPairWeights :: Int -> Int -> Weights
 getPairWeights tp1s tp2s = tensorId [tp1s, tp2s]
 
 -- Computes the weights for a function with params ps and return type tp
-getExternWeights :: (Type -> [String]) -> [Type] -> Type -> Weights
+getExternWeights :: (Type None -> [String]) -> [Type None] -> Type None -> Weights
 getExternWeights dom ps tp =
   zeros ([length (dom tp) | tp <- ps] ++ [length (dom tp)])
 
 -- Computes the weights for a list of constructors
-getCtorWeightsAll :: (Type -> [String]) -> [Ctor] -> Type -> [(String, Weights)]
+getCtorWeightsAll :: (Type None -> [String]) -> [Ctor None] -> Type None -> [(String, Weights)]
 getCtorWeightsAll dom cs y =
   concat [[(ctorFactorName x [(TmVarL x atp, atp) | (x, atp) <- zip as' as] y, ws)
           | (as', ws) <- getCtorWeights dom (Ctor x as) cs]
          | Ctor x as <- cs]
 
 -- Computes the weights for a specific constructor
-getCtorWeights :: (Type -> [String]) -> Ctor -> [Ctor] -> [([String], Weights)]
+getCtorWeights :: (Type None -> [String]) -> Ctor None -> [Ctor None] -> [([String], Weights)]
 getCtorWeights dom (Ctor x as) cs =
   let (cs_before, cs_after) = splitCtorsAt cs x
       csf = \ cs' -> sum [product (map (length . dom) as') | (Ctor x' as') <- cs']
@@ -123,7 +124,7 @@ getCtorWeights dom (Ctor x as) cs =
       foldr (\ (i, o, a) ws -> Vector [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]]) row as'
 
 -- Computes the weights for a specific constructor (can't remember how this is different from getCtorWeights above :P)
-getCtorWeightsFlat :: (Type -> [String]) -> Ctor -> [Ctor] -> Weights
+getCtorWeightsFlat :: (Type None -> [String]) -> Ctor None -> [Ctor None] -> Weights
 getCtorWeightsFlat dom (Ctor x as) cs =
   let (cs_before, cs_after) = splitCtorsAt cs x
       csf = \ cs' -> sum [product (map (length . dom) as') | Ctor x' as' <- cs']

@@ -1,6 +1,8 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Transform.Optimize where
 --import Data.Maybe
 import qualified Data.Map as Map
+import Control.Applicative (Alternative)
 import Struct.Lib
 import Util.Helpers
 import Scope.Name
@@ -47,7 +49,7 @@ Notes:
 -- p(result==x) = p(b==false)
 -- p(result==y) = p(b==true)
 -- p(result==z) = p(b==true)
-liftAmb :: Term -> Term
+liftAmb :: (Alternative dparams) => Term dparams -> Term dparams
 liftAmb (TmVarL x tp) = TmVarL x tp
 liftAmb (TmVarG gv x tis as tp) =
   let as' = [[(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
@@ -95,11 +97,11 @@ liftAmb (TmEqs tms) =
   let tms' = [splitAmbs (liftAmb tm) | tm <- tms] in
     joinAmbs (map TmEqs (kronall tms')) tpBool
 
-liftFail'' :: (Term, Maybe Term) -> Term
+liftFail'' :: (Alternative dparams) => (Term dparams, Maybe (Term dparams)) -> Term dparams
 liftFail'' (tm, Nothing) = TmAmb [] (typeof tm)
 liftFail'' (tm, Just tm') = tm'
 
-liftFail' :: Term -> Maybe Term
+liftFail' :: (Alternative dparams) => Term dparams -> Maybe (Term dparams)
 liftFail' (TmVarL x tp) = pure (TmVarL x tp)
 liftFail' (TmVarG gv x tis as tp) =
   pure (TmVarG gv x tis) <*> mapArgsM liftFail' as <*> pure tp
@@ -132,7 +134,7 @@ liftFail' (TmEqs tms) =
 -- If a term inevitably fails, just replace it with fail.
 -- For example, (sample fail : tp1 -> tp2) tm1 is the same
 -- as just having sample fail : tp2
-liftFail :: Term -> Term
+liftFail :: (Alternative dparams) => Term dparams -> Term dparams
 liftFail tm = liftFail'' (tm, liftFail' tm)
 
 -- TODO: implement these optimizations
@@ -140,7 +142,7 @@ liftFail tm = liftFail'' (tm, liftFail' tm)
 -- Peels off the lams around a term and substitutes their bound variables for others
 -- Example 1: peelLams g [(x, Bool)] (\ z : Bool. and true z) = (and true x)
 -- Example 2: peelLams g [(x, Bool)] (and true) = (and true x)
-peelLams :: Ctxt -> [Param] -> Term -> Term
+peelLams :: (Alternative dparams, Traversable dparams) => Ctxt tags tparams dparams -> [Param dparams] -> Term dparams -> Term dparams
 peelLams g [] tm = tm
 peelLams g ps tm =
   let (ls, body) = splitLams tm
@@ -153,16 +155,15 @@ peelLams g ps tm =
 -- Returns whether or not it is safe to substitute a term into another
 -- More specifically, returns true when there are no global vars (excluding ctors),
 -- no free vars that aren't also free in the other term, and no effects
-safe2sub :: Ctxt -> Var -> Term -> Term -> Bool
+safe2sub :: (Eq (Type dparams), Foldable tags, Alternative dparams, Traversable dparams) => Ctxt tags tparams dparams -> Var -> Term dparams -> Term dparams -> Bool
 safe2sub g x xtm tm =
   isLin' x tm || (noDefsSamps xtm && fvsOkay (freeVars xtm))
   where
-    fvsOkay :: FreeVars -> Bool
     -- TODO: don't need to check isInfiniteType g tp, once we can copy terms with recursive datatypes
     fvsOkay fvs = all (\ (_, tp) -> robust g tp) (Map.toList fvs)
     
     -- Returns if there are no global def vars or ambs/fails/uniforms
-    noDefsSamps :: Term -> Bool
+    noDefsSamps :: Term dparams -> Bool
     noDefsSamps (TmVarL x tp) = True
     noDefsSamps (TmVarG g x _ as tp) = g == CtorVar && all (noDefsSamps . fst) as
     noDefsSamps (TmLam x tp tm tp') = noDefsSamps tm
@@ -177,7 +178,7 @@ safe2sub g x xtm tm =
     noDefsSamps (TmEqs tms) = all noDefsSamps tms
 
 -- Applies various optimizations to a term
-optimizeTerm :: Ctxt -> Term -> Term
+optimizeTerm :: (Eq (Type dparams), Foldable tags, Alternative dparams, Traversable dparams) => Ctxt tags tparams dparams -> Term dparams -> Term dparams
 optimizeTerm g (TmVarL x tp) = TmVarL x tp
 optimizeTerm g (TmVarG gv x tis as tp) =
   TmVarG gv x tis (optimizeArgs g as) tp
@@ -234,7 +235,7 @@ optimizeTerm g (TmEqs tms) =
   TmEqs [optimizeTerm g tm | tm <- tms]
 
 -- Applies various optimizations to a list of args
-optimizeArgs :: Ctxt -> [Arg] -> [Arg]
+optimizeArgs :: (Eq (Type dparams), Foldable tags, Alternative dparams, Traversable dparams) => Ctxt tags tparams dparams -> [Arg dparams] -> [Arg dparams]
 optimizeArgs g as = [(optimizeTerm g atm, atp) | (atm, atp) <- as]
 
 -- Applies the optimizations specified at the BOF to a program

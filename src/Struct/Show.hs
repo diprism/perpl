@@ -1,35 +1,36 @@
 module Struct.Show where
 import Data.List (intercalate)
+import Data.Foldable (toList)
 import Util.Helpers
 import Struct.Exprs
 import Struct.Helpers
 
 {- Convert back from elaborated terms to user terms -}
 
-toUsTm :: Term -> UsTm
+toUsTm :: (Functor dparams, Foldable dparams) => Term dparams -> UsTm []
 toUsTm (TmVarL x _) = UsVar x
 toUsTm (TmVarG gv x tis as tp) =
   foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar {- x -} (foldl (\ x tp -> x ++ " [" ++ show tp ++ "]") x tis)) as
-toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
+toUsTm (TmLam x tp tm _) = UsLam x (toUsTp tp) (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
 --toUsTm (TmCase tm "Bool" [Case "True" [] thentm, Case "False" [] elsetm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
 toUsTm (TmCase tm ("Bool", []) [Case "False" [] elsetm, Case "True" [] thentm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
-toUsTm (TmAmb [] tp) = UsFail tp
+toUsTm (TmAmb [] tp) = UsFail (toUsTp tp)
 toUsTm (TmAmb tms tp) = UsAmb [toUsTm tm | tm <- tms]
 toUsTm (TmFactor wt tm tp) = UsFactor wt (toUsTm tm)
 toUsTm (TmProd am as) = UsProd am [toUsTm tm | (tm, _) <- as]
 toUsTm (TmElimProd am tm ps tm' tp) = UsElimProd am (toUsTm tm) [x | (x, _) <- ps] (toUsTm tm')
 toUsTm (TmEqs tms) = UsEqs [toUsTm tm | tm <- tms]
 
-toCaseUs :: Case -> CaseUs
+toCaseUs :: (Functor dparams, Foldable dparams) => Case dparams -> CaseUs []
 toCaseUs (Case x as tm) = CaseUs x (fsts as) (toUsTm tm)
 
 toUsProg :: Prog -> UsProg
-toUsProg (ProgFun x ps tm tp) = UsProgFun x (joinArrows (snds ps) tp) (toUsTm (joinLams ps tm))
-toUsProg (ProgExtern x ps tp) = UsProgExtern x (joinArrows ps tp)
-toUsProg (ProgData y cs) = UsProgData y [] cs
+toUsProg (ProgFun x ps tm tp) = UsProgFun x (toUsTp (joinArrows (snds ps) tp)) (toUsTm (joinLams ps tm))
+toUsProg (ProgExtern x ps tp) = UsProgExtern x (toUsTp (joinArrows ps tp))
+toUsProg (ProgData y cs) = UsProgData y [] (map toUsTp cs)
 
 toUsProgs :: Progs -> UsProgs
 --toUsProgs (Progs (ProgData "_Unit_" [unit] : ProgData "Bool" [fctor, tctor] : ps) tm) = UsProgs (map toUsProg ps) (toUsTm tm)
@@ -38,7 +39,7 @@ toUsProgs (Progs ps tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 
 {- Show Instances -}
 
-showTpAnn :: Type -> String
+showTpAnn :: (Foldable dparams) => Type dparams -> String
 showTpAnn NoTp = ""
 showTpAnn tp = " : " ++ show tp
 
@@ -46,15 +47,15 @@ amParens :: AddMult -> (String, String)
 amParens Additive = ("<", ">")
 amParens Multiplicative = ("(", ")")
 
-instance Show CaseUs where
+instance (Foldable dparams) => Show (CaseUs dparams) where
   showsPrec p (CaseUs x as tm) = delimitWith " " (map showString (x:as)) . showString " -> " . showsPrec p tm
-instance Show Case where
+instance (Functor dparams, Foldable dparams) => Show (Case dparams) where
   showsPrec p = showsPrec p . toCaseUs
 
-instance Show Ctor where
+instance (Foldable dparams) => Show (Ctor dparams) where
   showsPrec p (Ctor x as) = showParen (p > 10) (delimitWith " " (showString x : map (showsPrec 11) as))
 
-instance Show UsTm where
+instance (Foldable dparams) => Show (UsTm dparams) where
   showsPrec _ (UsVar x) = showString x
   showsPrec p (UsApp tm1 tm2) = showParen (p > 10) (showsPrec 10 tm1 . showChar ' ' . showsPrec 11 tm2)
   showsPrec p (UsLam x tp tm) = showParen (p > 1) (showString "\\ " . showString x . showString (showTpAnn tp) . showString ". " . showsPrec (if p == 1 then 1 else 0) tm)
@@ -64,17 +65,18 @@ instance Show UsTm where
   showsPrec p (UsIf tm1 tm2 tm3) = showParen (p > 1) (showString "if " . shows tm1 . showString " then " . shows tm2 . showString " else " . showsPrec (if p == 1 then 1 else 0) tm3)
   showsPrec p (UsCase tm cs) = showParen (p > 0) (showString "case " . shows tm . showString " of " . delimitWith " | " (map (showsPrec 1) cs))
   showsPrec p (UsAmb tms) = showParen (p > 9) (delimitWith " " (showString "amb" : map (showsPrec 11) tms))
-  showsPrec p (UsFail tp) = showParen (tp /= NoTp && p > 1) (showString "fail" . showString (showTpAnn tp))
+  showsPrec p (UsFail tp) = showParen (case tp of NoTp -> False; _ -> p > 1) (showString "fail" . showString (showTpAnn tp))
   showsPrec _ (UsProd am tms) = let (l, r) = amParens am in showString l . delimitWith ", " (map shows tms) . showString r
   showsPrec _ (UsTmBool b) = showString (if b then "True" else "False")
   showsPrec p (UsEqs tms) = showParen (p > 4) (delimitWith " == " (map (showsPrec 5) tms))
-instance Show Term where
+instance (Functor dparams, Foldable dparams) => Show (Term dparams) where
   showsPrec p = showsPrec p . toUsTm
 
-instance Show Type where
+instance (Foldable dparams) => Show (Type dparams) where
   showsPrec _ (TpVar y) = showString y
-  showsPrec _ (TpData y []) = showString y
-  showsPrec p (TpData y as) = showParen (p > 10) (delimitWith " " (showString y : map (showsPrec 11) as))
+  showsPrec p (TpData y as) = case toList as of
+    [] -> showString y
+    as -> showParen (p > 10) (delimitWith " " (showString y : map (showsPrec 11) as))
   showsPrec p (TpArr tp1 tp2) = showParen (p > 0) (showsPrec 1 tp1 . showString " -> " . shows tp2)
   showsPrec _ (TpProd am tps) = let (l, r) = amParens am in showString l . delimitWith ", " (map shows tps) . showString r
   showsPrec _ NoTp = id

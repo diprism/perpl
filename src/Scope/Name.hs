@@ -13,9 +13,9 @@ eqFactorName tp n = "[" ++ show n ++ "]" ++ "==" ++ show tp
 -- Naming convention for factor v=(v1,v2)
 pairFactorName tp1 tp2 = "v=(" ++ show (TpArr tp1 tp2) ++ ")"
 
-ampFactorName :: [Type] -> Int -> String
+ampFactorName :: Foldable dparams => [Type dparams] -> Int -> String
 --ampFactorName i tps = "v=" ++ show (TpAmp tps) ++ "." ++ show i
-ampFactorName tps i = "v=<" ++ intercalate ", " [show tp | tp <- tps] ++ ">." ++ show i
+ampFactorName tps i = "v=<" ++ intercalate ", " (map show tps) ++ ">." ++ show i
 
 prodFactorName' tps = "v=(" ++ intercalate ", " tps ++ ")"
 prodFactorName tps = prodFactorName' (map show tps)
@@ -25,21 +25,22 @@ prodValName' tms = "(" ++ intercalate ", " tms ++ ")"
 --prodValName :: Show x => [x] -> String
 prodValName xs = prodValName' (map show xs)
 
+internalFactorName :: (Functor dparams, Foldable dparams) => Term dparams -> String
 internalFactorName tm = "v=" ++ show tm
 
 -- Naming convention for constructor factor
-ctorFactorName :: Var -> [(Term, Type)] -> Type -> String
+ctorFactorName :: (Functor dparams, Foldable dparams) => Var -> [(Term dparams, Type dparams)] -> Type dparams -> String
 ctorFactorName x as tp = internalFactorName (TmVarG CtorVar x [] as tp)
 
 -- FGG factor name for the default ctor rule
-ctorFactorNameDefault :: Var -> [Type] -> Type -> String
+ctorFactorNameDefault :: (Functor dparams, Foldable dparams) => Var -> [Type dparams] -> Type dparams -> String
 ctorFactorNameDefault x as = ctorFactorName x [(TmVarL (etaName x i) a, a) | (i, a) <- (enumerate as)]
 
 -- Establishes naming convention for eta-expanding a constructor/global def.
 etaName x i = "_" ++ x ++ show i
 
 -- Returns the names of the args for a constructor
-nameParams :: Var -> [Type] -> [Param]
+nameParams :: Var -> [Type dparams] -> [Param dparams]
 nameParams x = zip (map (etaName x) [0..])
 
 startName = "_start_"

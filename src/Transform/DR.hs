@@ -4,6 +4,7 @@ import qualified Control.Monad.State.Lazy as State
 import Data.List
 import Struct.Lib
 import Util.Helpers
+import Util.None
 import Scope.Free
 import Scope.Subst
 import Scope.Ctxt
@@ -12,7 +13,7 @@ import Scope.Name
 
 -- Collects the free variables of all the cases in
 -- a case-of over something with type rtp
-collectUnfolds :: Var -> Term -> [(FreeVars, Type)]
+collectUnfolds :: Var -> Term None -> [(FreeVars None, Type None)]
 collectUnfolds rtp (TmVarL x tp) = []
 collectUnfolds rtp (TmVarG gv x _ as tp) = concatMap (\ (atm, atp) -> collectUnfolds rtp atm) as
 collectUnfolds rtp (TmLam x tp tm tp') = collectUnfolds rtp tm
@@ -34,10 +35,10 @@ collectUnfolds rtp (TmEqs tms) = concatMap (collectUnfolds rtp) tms
 -- Collects all the usages of constructors for type rtp,
 -- returning the ctor name along with the free vars used
 -- in its args
-collectFolds :: Var -> Term -> [(Var, FreeVars)]
+collectFolds :: Var -> Term None -> [(Var, FreeVars None)]
 collectFolds rtp (TmVarL x tp) = []
 collectFolds rtp (TmVarG gv x _ as tp) =
-  let this = if TpData rtp [] == tp && gv == CtorVar then [(x, freeVars (fsts as))] else [] in
+  let this = if TpData rtp None == tp && gv == CtorVar then [(x, freeVars (fsts as))] else [] in
     concatMap (\ (atm, atp) -> collectFolds rtp atm) as ++ this
 collectFolds rtp (TmLam x tp tm tp') = collectFolds rtp tm
 collectFolds rtp (TmApp tm1 tm2 tp2 tp) = collectFolds rtp tm1 ++ collectFolds rtp tm2
@@ -51,12 +52,12 @@ collectFolds rtp (TmElimProd am tm ps tm' tp) = collectFolds rtp tm ++ collectFo
 collectFolds rtp (TmEqs tms) = concatMap (collectFolds rtp) tms
 
 -- Runs collect[Un]folds on a Prog
-collectProg :: (Term -> [a]) -> Prog -> [a]
+collectProg :: (Term None -> [a]) -> Prog -> [a]
 collectProg f (ProgFun _ _ tm _) = f tm
 collectProg f _ = []
 
 -- Runs collect[Un]folds on a file
-collectFile :: (Term -> [a]) -> Progs -> [a]
+collectFile :: (Term None -> [a]) -> Progs -> [a]
 collectFile f (Progs ps end) = concatMap (collectProg f) ps ++ f end
 
 -- See collectUnfolds
@@ -66,18 +67,18 @@ collectUnfoldsFile = collectFile . collectUnfolds
 collectFoldsFile = collectFile . collectFolds
 
 -- Makes the _UnfoldY_ datatype, given results from collectUnfolds
-makeUnfoldDatatype :: Var -> [(FreeVars, Type)] -> Prog
+makeUnfoldDatatype :: Var -> [(FreeVars None, Type None)] -> Prog
 makeUnfoldDatatype y us = ProgData (unfoldTypeName y) [Ctor (unfoldCtorName y) [TpProd Additive [joinArrows (Map.elems fvs) tp | (fvs, tp) <- us]]]
 
 -- Makes the _FoldY_ datatype, given results from collectFolds
---makeFoldDatatype :: Var -> [(Var, FreeVars)] -> Prog
+--makeFoldDatatype :: Var -> [(Var, FreeVars None)] -> Prog
 --makeFoldDatatype y fs = ProgData (foldTypeName y) [Ctor (foldCtorName y i) (snds (Map.toList fvs)) | (i, (x, fvs)) <- enumerate fs]
 
 -- Makes the "unapply" function and Unfold datatype
-makeDisentangle :: Ctxt -> Var -> [(FreeVars, Type)] -> [[Case]] -> (Prog, Prog)
+makeDisentangle :: Ctxt None None None -> Var -> [(FreeVars None, Type None)] -> [[Case None]] -> (Prog, Prog)
 makeDisentangle g y us css =
-  let ytp = TpData y []
-      utp = TpData (unfoldTypeName y) []
+  let ytp = TpData y None
+      utp = TpData (unfoldTypeName y) None
       dat = makeUnfoldDatatype y us
       x = freshVar g targetName
       sub_ps ps = [(x, derefunSubst Refun y tp) | (x, tp) <- ps]
@@ -94,32 +95,32 @@ makeDisentangle g y us css =
     (dat, fun)
 
 -- Makes the "apply" function and Fold datatype
-makeDefold :: Ctxt  -> Var -> [Term] -> (Prog, Prog)
+makeDefold :: Ctxt None None None -> Var -> [Term None] -> (Prog, Prog)
 makeDefold g y tms =
   let fname = applyName y
       tname = foldTypeName y
       x = freshVar g targetName
-      ftp = TpData tname []
+      ftp = TpData tname None
       ps = [(x, ftp)]
       casesf = \ (i, tm) -> let ps' = Map.toList (freeVars tm) in Case (foldCtorName y i) ps' (derefunTerm Defun (ctxtDeclArgs g ps') y tm)
       cases = map casesf (enumerate tms)
       ctors = [Ctor x (snds ps) | Case x ps tm <- cases]
-      tm = TmCase (TmVarL x ftp) (tname, []) cases (TpData y [])
+      tm = TmCase (TmVarL x ftp) (tname, []) cases (TpData y None)
   in
 --    error (tname ++ " | " ++ show ctors ++ " | " ++ show cases)
     (ProgData tname ctors,
-     ProgFun fname ps tm (TpData y []))
+     ProgFun fname ps tm (TpData y None))
 
 --------------------------------------------------
 
 -- Replaces all case-ofs on a certain datatype with calls to
 -- its "unapply" function
-type DisentangleM a = State.State [[Case]] a
+type DisentangleM a = State.State [[Case None]] a
 
 -- See `disentangleFile`
-disentangleTerm :: Var -> [(FreeVars, Type)] -> Term -> DisentangleM Term
+disentangleTerm :: Var -> [(FreeVars None, Type None)] -> Term None -> DisentangleM (Term None)
 disentangleTerm rtp cases = h where
-  h :: Term -> DisentangleM Term
+  h :: Term None -> DisentangleM (Term None)
   h (TmVarL x tp) = pure (TmVarL x tp)
   h (TmVarG gv x _ as tp) =
     pure (TmVarG gv x []) <*> mapArgsM h as <*> pure tp
@@ -166,24 +167,24 @@ disentangleTerm rtp cases = h where
 
 -- Replaces all constructor calls for a certain datatype with calls
 -- to its "apply" function
-type DefoldM a = State.State [Term] a
+type DefoldM a = State.State [Term None] a
 
-defoldTerm :: Var -> Term -> DefoldM Term
+defoldTerm :: Var -> Term None -> DefoldM (Term None)
 defoldTerm rtp = h where
-  h :: Term -> DefoldM Term
+  h :: Term None -> DefoldM (Term None)
   h (TmVarL x tp) = pure (TmVarL x tp)
   h (TmVarG gv x _ as tp)
-    | gv == CtorVar && tp == TpData rtp [] =
+    | gv == CtorVar && tp == TpData rtp None =
         mapArgsM h as >>= \ as' ->
         State.get >>= \ fs ->
         let fvs = Map.toList (freeVars (fsts as'))
             cname = foldCtorName rtp (length fs)
             tname = foldTypeName rtp
             aname = applyName rtp
-            fld = TmVarG CtorVar cname [] (paramsToArgs fvs) (TpData tname [])
+            fld = TmVarG CtorVar cname [] (paramsToArgs fvs) (TpData tname None)
         in
-          State.put (fs ++ [TmVarG CtorVar x [] as' (TpData rtp [])]) >>
-          return (TmVarG DefVar aname [] [(fld, TpData tname [])] (TpData rtp []))
+          State.put (fs ++ [TmVarG CtorVar x [] as' (TpData rtp None)]) >>
+          return (TmVarG DefVar aname [] [(fld, TpData tname None)] (TpData rtp None))
     | otherwise = pure (TmVarG gv x []) <*> mapArgsM h as <*> pure tp
   h (TmLam x tp tm tp') = pure (TmLam x tp) <*> h tm <*> pure tp'
   h (TmApp tm1 tm2 tp2 tp) = pure TmApp <*> h tm1 <*> h tm2 <*> pure tp2 <*> pure tp
@@ -206,14 +207,16 @@ data DeRe = Defun | Refun
   deriving (Eq, Show)
 
 -- Substitute from a type var to its Unfold/Fold datatype
-derefunSubst :: DeRe -> Var -> Type -> Type
-derefunSubst dr rtp = subst (Map.fromList [(rtp, SubVar (if dr == Defun then foldTypeName rtp else unfoldTypeName rtp))])
+derefunSubst :: DeRe -> Var -> Type None -> Type None
+derefunSubst dr rtp = substType (Map.fromList [(rtp, SubVar (if dr == Defun then foldTypeName rtp else unfoldTypeName rtp))])
+  where substType :: Subst None -> Type None -> Type None
+        substType = subst
 
 defunTerm = derefunTerm Defun
 refunTerm = derefunTerm Refun
 
 -- De- or refunctionalizes a term (see examples at EOF for more info)
-derefunTerm :: DeRe -> Ctxt -> Var -> Term -> Term
+derefunTerm :: DeRe -> Ctxt None None None -> Var -> Term None -> Term None
 derefunTerm dr g rtp = fst . h where
 
   foldTypeN = foldTypeName rtp
@@ -223,19 +226,19 @@ derefunTerm dr g rtp = fst . h where
   
   sub = derefunSubst dr rtp
 
-  h_ps :: [Param] -> [Param]
+  h_ps :: [Param None] -> [Param None]
   h_ps = map (fmap sub)
-  h_as :: [Arg] -> [Arg]
+  h_as :: [Arg None] -> [Arg None]
   h_as = map (h . fst)
 
-  h :: Term -> (Term, Type)
+  h :: Term None -> (Term None, Type None)
   h = toArg . h'
   
-  h' :: Term -> Term
+  h' :: Term None -> Term None
   h' (TmVarL x tp) = let tp' = sub tp in TmVarL x tp'
   h' (TmVarG gv x _ as tp)
-    | dr == Refun && gv == CtorVar && tp == TpData rtp [] =
-      TmVarG DefVar unfoldN [] [(TmVarG gv x [] (h_as as) tp, tp)] (TpData unfoldTypeN [])
+    | dr == Refun && gv == CtorVar && tp == TpData rtp None =
+      TmVarG DefVar unfoldN [] [(TmVarG gv x [] (h_as as) tp, tp)] (TpData unfoldTypeN None)
     | dr == Defun && gv == DefVar && x == applyN =
       let [(etm, etp)] = as in h' etm
     | otherwise =
@@ -260,9 +263,9 @@ derefunTerm dr g rtp = fst . h where
         let (tm1', tp1') = h tm1
             cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> typeof xtm in
-          TmCase (TmVarG DefVar applyN [] [(tm1', tp1')] (TpData rtp [])) (rtp, []) cs' tp2'
+          TmCase (TmVarG DefVar applyN [] [(tm1', tp1')] (TpData rtp None)) (rtp, []) cs' tp2'
     | otherwise =
-        let (tm1', TpData tp1' []) = h tm1
+        let (tm1', TpData tp1' None) = h tm1
             cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> typeof xtm in
           TmCase tm1' (tp1', []) cs' tp2'
@@ -295,7 +298,7 @@ derefunProgsTypes :: DeRe -> Var -> Progs -> Progs
 derefunProgsTypes dr rtp (Progs ps end) =
   Progs (map (derefunProgTypes dr rtp) ps) end
 
-derefunProg' :: DeRe -> Ctxt -> Var -> Prog -> Prog
+derefunProg' :: DeRe -> Ctxt None None None -> Var -> Prog -> Prog
 derefunProg' dr g rtp (ProgFun x ps tm tp) = ProgFun x ps (derefunTerm dr g rtp tm) tp
 derefunProg' dr g rtp (ProgExtern x ps tp) = ProgExtern x ps tp
 derefunProg' dr g rtp (ProgData y cs) = ProgData y cs
@@ -354,7 +357,7 @@ data RecDeps = RecDeps { defunDeps :: [Var], refunDeps :: [Var] }
   deriving Show
 type RecEdges = Map Var RecDeps
 
-recDeps :: Ctxt -> [Var] -> Type -> [Var]
+recDeps :: Ctxt None None None -> [Var] -> Type None -> [Var]
 recDeps g recs (TpData y _)
   | y `elem` recs = [y]
   | otherwise = maybe []
@@ -364,21 +367,21 @@ recDeps g recs (TpArr tp1 tp2) = nub (recDeps g recs tp1 ++ recDeps g recs tp2)
 recDeps g recs (TpProd am tps) = nub (concatMap (recDeps g recs) tps)
 recDeps g recs  _ = []
 
-getRefunDeps :: Ctxt -> [Var] -> [(FreeVars, Type)] -> [Var]
+getRefunDeps :: Ctxt None None None -> [Var] -> [(FreeVars None, Type None)] -> [Var]
 getRefunDeps g recs =
   nub . foldr (\ (fvs, tp) rs -> foldr (\ tp rs -> recDeps g recs tp ++ rs) rs (tp : Map.elems fvs)) []
 
-getDefunDeps :: Ctxt -> [Var] -> [(Var, FreeVars)] -> [Var]
+getDefunDeps :: Ctxt None None None -> [Var] -> [(Var, FreeVars None)] -> [Var]
 getDefunDeps g recs =
   nub . foldr (\ (_, fvs) rs -> foldr (\ tp rs -> recDeps g recs tp ++ rs) rs (Map.elems fvs)) []
 
-getDeps :: Ctxt -> [Var] -> Progs -> Var -> RecDeps
+getDeps :: Ctxt None None None -> [Var] -> Progs -> Var -> RecDeps
 getDeps g recs ps y = RecDeps {
   defunDeps = (getDefunDeps g recs (collectFoldsFile y ps)),
   refunDeps = (getRefunDeps g recs (collectUnfoldsFile y ps))
 }
 
-initGraph :: Ctxt -> Progs -> [Var] -> RecEdges
+initGraph :: Ctxt None None None -> Progs -> [Var] -> RecEdges
 initGraph g ps recs = Map.fromList (zip recs (map (getDeps g recs ps) recs))
 
 -- Tests if all this node's deps are already in the set of chosen nodes

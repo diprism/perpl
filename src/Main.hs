@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Main where
 import System.Exit
 import System.Environment
@@ -88,7 +89,7 @@ doIf False f = return
 showFile :: Progs -> Either String String
 showFile = return . show
 
-alphaRenameProgs :: Substitutable p => (p -> Ctxt) -> p -> Either String p
+alphaRenameProgs :: Substitutable p dparams => (p -> Ctxt tags tparams dparams) -> p -> Either String p
 alphaRenameProgs gf a = return (alphaRename (gf a) a)
 --ctxtDefProgs
 

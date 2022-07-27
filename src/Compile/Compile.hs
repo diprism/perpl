@@ -5,6 +5,7 @@ import Compile.RuleM
 import Util.Tensor
 import Util.FGG
 import Util.Helpers
+import Util.None
 import Struct.Lib
 import Scope.Ctxt
 import Scope.Name
@@ -18,7 +19,7 @@ newNames as = [(" " ++ show j, atp) | (j, atp) <- enumerate as]
 
 -- If the start term is just a factor (has no rule), then we need to
 -- add a rule [%start%]-(v) -> [tm]-(v)
-addStartRuleIfNecessary :: Term -> RuleM -> (String, RuleM)
+addStartRuleIfNecessary :: Term None -> RuleM -> (String, RuleM)
 addStartRuleIfNecessary tm rm =
   let stm = show tm
       tp = typeof tm
@@ -28,14 +29,14 @@ addStartRuleIfNecessary tm rm =
        mkRule (TmVarL startName tp) [vtp] [Edge' [vtp] stm] [vtp] +> rm)
 
 -- Local var rule
-varRule :: Var -> Type -> RuleM
+varRule :: Var -> Type None -> RuleM
 varRule x tp =
   let [v0, v1] = newNames [tp, tp] in
     mkRule (TmVarL x tp) [v0, v1] [Edge' [v0, v1] (typeFactorName tp)] [v0, v1]
 
 -- Bind a list of external nodes, and add rules for them
 -- Usually paired with discardEdges'
-bindExts :: Bool -> [Param] -> RuleM -> RuleM
+bindExts :: Bool -> [Param None] -> RuleM -> RuleM
 bindExts addVarRules xs' (RuleM rs xs nts fs) =
   let keep x = not (elem (fst x) (fsts xs'))
       rm = RuleM rs (filter keep xs) nts fs in
@@ -44,7 +45,7 @@ bindExts addVarRules xs' (RuleM rs xs nts fs) =
       else rm
 
 -- Bind an external node, and add a rule for it
-bindExt :: Bool -> Var -> Type -> RuleM -> RuleM
+bindExt :: Bool -> Var -> Type None -> RuleM -> RuleM
 bindExt addVarRule x tp = bindExts addVarRule [(x, tp)]
 
 -- Only takes the external nodes from one of the cases,
@@ -55,21 +56,21 @@ bindCases xs =
   setExts xs . foldr (\ rm rm' -> rm +> {-resetExts-} rm') returnRule
 
 -- Creates dangling edges that discard a set of nodes
-discardEdges' :: [(Var, Type)] -> [(Var, Type)] -> [Edge' Type]
+discardEdges' :: [(Var, Type None)] -> [(Var, Type None)] -> [Edge' (Type None)]
 discardEdges' d_xs d_ns = [Edge' [(x, tp), vn] x | ((x, tp), vn) <- zip d_xs d_ns]
 
 -- mkRule creates a rule from a lhs term, a list of nodes, and a function that returns the edges and external nodes given a list of the nodes' indices (it does some magic on the nodes, so the indices are not necessarily in the same order as the nodes)
-mkRule :: Term -> [(Var, Type)] -> [Edge' Type] -> [(Var, Type)] -> RuleM
+mkRule :: Term None -> [(Var, Type None)] -> [Edge' (Type None)] -> [(Var, Type None)] -> RuleM
 mkRule = mkRuleReps 1
 
 -- Creates this rule `reps` times
-mkRuleReps :: Int -> Term -> [(Var, Type)] -> [Edge' Type] -> [External] -> RuleM
+mkRuleReps :: Int -> Term None -> [(Var, Type None)] -> [Edge' (Type None)] -> [External] -> RuleM
 mkRuleReps reps lhs ns es xs =
   addRule reps (Rule (show lhs) (castHGF (HGF' (nub ns) es xs)))
 
 
 -- Add rule for a constructor
-ctorRules :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
+ctorRules :: Ctxt None None None -> Ctor None -> Type None -> [Ctor None] -> RuleM
 ctorRules g (Ctor x as) y cs =
   let as' = [(etaName x i, a) | (i, a) <- enumerate as]
       tm = TmVarG CtorVar x [] [(TmVarL a atp, atp) | (a, atp) <- as'] y
@@ -80,14 +81,14 @@ ctorRules g (Ctor x as) y cs =
       mkRule tm (vy : as') [Edge' (as' ++ [vy]) fac] (as' ++ [vy])
 
 -- Add a rule for this particular case in a case-of statement
-caseRule :: Ctxt -> FreeVars -> [External] -> Term -> Var -> [Case] -> Type -> Case -> RuleM
+caseRule :: Ctxt None None None -> FreeVars None -> [External] -> Term None -> Var -> [Case None] -> Type None -> Case None -> RuleM
 caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
   bindExts True as $
   term2fgg (ctxtDeclArgs g as) xtm +>= \ xs_xtm_as ->
   let all_xs = Map.toList all_fvs
       unused_ps = Map.toList (Map.difference all_fvs (Map.fromList xs_xtm_as))
-      vctp : vtp : unused_nps = newNames (TpData y [] : tp : snds unused_ps)
-      fac = ctorFactorName x (paramsToArgs (nameParams x (snds as))) (TpData y [])
+      vctp : vtp : unused_nps = newNames (TpData y None : tp : snds unused_ps)
+      fac = ctorFactorName x (paramsToArgs (nameParams x (snds as))) (TpData y None)
   in
     mkRule (TmCase ctm (y, []) cs tp)
       (vctp : vtp : xs_xtm_as ++ as ++ xs_ctm ++ all_xs ++ unused_ps ++ unused_nps)
@@ -98,7 +99,7 @@ caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
       (xs_ctm ++ all_xs ++ [vtp])
 
 -- Adds rule for the i-th term in an amb tm1 tm2 ... tmn
-ambRule :: Ctxt -> FreeVars -> [Term] -> Type -> Term -> Int -> RuleM
+ambRule :: Ctxt None None None -> FreeVars None -> [Term None] -> Type None -> Term None -> Int -> RuleM
 ambRule g all_fvs tms tp tm reps =
   term2fgg g tm +>= \ tmxs ->
   let all_xs = Map.toList all_fvs
@@ -110,7 +111,7 @@ ambRule g all_fvs tms tp tm reps =
       (all_xs ++ [vtp])
 
 -- Adds rule for the i-th component of an &-product
-ampRule :: Ctxt -> FreeVars -> [Arg] -> Int -> Term -> Type -> RuleM
+ampRule :: Ctxt None None None -> FreeVars None -> [Arg None] -> Int -> Term None -> Type None -> RuleM
 ampRule g all_fvs as i tm tp =
   term2fgg g tm +>= \ tmxs ->
   let tps = snds as
@@ -125,13 +126,13 @@ ampRule g all_fvs as i tm tp =
       (all_xs ++ [vamp])
 
 -- Adds factors for the &-product of tps
-addAmpFactors :: Ctxt -> [Type] -> RuleM
+addAmpFactors :: Ctxt None None None -> [Type None] -> RuleM
 addAmpFactors g tps =
   let ws = getAmpWeights (map (domainValues g) tps) in
     foldr (\ (i, w) r -> r +> addFactor (ampFactorName tps i) w) returnRule (enumerate ws)
 
 -- Adds factors for the *-product of tps
-addProdFactors :: Ctxt -> [Type] -> RuleM
+addProdFactors :: Ctxt None None None -> [Type None] -> RuleM
 addProdFactors g tps =
   let tpvs = [domainValues g tp | tp <- tps] in
     type2fgg g (TpProd Multiplicative tps) +>
@@ -139,11 +140,11 @@ addProdFactors g tps =
     foldr (\ (as', w) r -> r +> addFactor (prodFactorName' as') w) returnRule (getProdWeights tpvs)
 
 -- Adds factor for v=(tp -> tp')
-addPairFactor :: Ctxt -> Type -> Type -> RuleM
+addPairFactor :: Ctxt None None None -> Type None -> Type None -> RuleM
 addPairFactor g tp tp' = addFactor (pairFactorName tp tp') (getPairWeights (domainSize g tp) (domainSize g tp'))
 
 -- Traverse a term and add all rules for subexpressions
-term2fgg :: Ctxt -> Term -> RuleM
+term2fgg :: Ctxt None None None -> Term None -> RuleM
 term2fgg g (TmVarL x tp) =
   type2fgg g tp +>
   addExt x tp
@@ -285,12 +286,12 @@ term2fgg g (TmEqs tms) =
       (concat xss ++ [vbtp])
 
 -- Adds factors for each subexpression in a type
-type2fgg :: Ctxt -> Type -> RuleM
+type2fgg :: Ctxt None None None -> Type None -> RuleM
 type2fgg g tp =
   addFactor (typeFactorName tp) (getCtorEqWeights (domainSize g tp)) +>
   type2fgg' g tp
   where
-    type2fgg' :: Ctxt -> Type -> RuleM
+    type2fgg' :: Ctxt None None None -> Type None -> RuleM
     type2fgg' g (TpData y _) = returnRule
     type2fgg' g (TpArr tp1 tp2) = type2fgg g tp1 +> type2fgg g tp2
     type2fgg' g (TpProd am tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
@@ -298,7 +299,7 @@ type2fgg g tp =
 
 
 -- Adds the rules for a Prog
-prog2fgg :: Ctxt -> Prog -> RuleM
+prog2fgg :: Ctxt None None None -> Prog -> RuleM
 prog2fgg g (ProgFun x ps tm tp) =
   type2fgg g (joinArrows (snds ps) tp) +>= \ _ ->
   bindExts True ps $ term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
@@ -316,27 +317,27 @@ prog2fgg g (ProgExtern x ps tp) =
 prog2fgg g (ProgData y cs) =
   -- Add constructor factors
   foldr (\ (fac, ws) rm -> addFactor fac ws +> rm) returnRule
-    (getCtorWeightsAll (domainValues g) cs (TpData y [])) +>
+    (getCtorWeightsAll (domainValues g) cs (TpData y None)) +>
   -- Add constructor rules
-  foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) (TpData y []) cs) returnRule cs +>
-  type2fgg g (TpData y [])
+  foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) (TpData y None) cs) returnRule cs +>
+  type2fgg g (TpData y None)
 
 -- Goes through a program and adds all the rules for it
-progs2fgg :: Ctxt -> Progs -> RuleM
+progs2fgg :: Ctxt None None None -> Progs -> RuleM
 progs2fgg g (Progs ps tm) =
   foldr (\ p rm -> rm +> prog2fgg g p) (term2fgg g tm) ps
   
 
 -- Computes a list of all the possible inhabitants of a type
-domainValues :: Ctxt -> Type -> [String]
+domainValues :: Ctxt None None None -> Type None -> [String]
 domainValues g = tpVals where
-  arrVals :: [Type] -> Type -> [String]
+  arrVals :: [Type None] -> Type None -> [String]
   arrVals tps tp =
     map (parensIf (not $ null tps)) $
       foldl (\ ds tp -> kronwith (\ da d -> d ++ " -> " ++ da) ds (domainValues g tp))
         (tpVals tp) tps
   
-  tpVals :: Type -> [String]
+  tpVals :: Type None -> [String]
   tpVals (TpData y _) =
     maybe2 (ctxtLookupType g y) [] $ \ cs ->
       concat [foldl (kronwith $ \ d da -> d ++ " " ++ parens da) [x] (map tpVals as)
@@ -351,7 +352,7 @@ domainValues g = tpVals where
     [prodValName' tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
   tpVals tp = error ("Enumerating values of a " ++ show tp)
 
-domainSize :: Ctxt -> Type -> Int
+domainSize :: Ctxt None None None -> Type None -> Int
 domainSize g = length . domainValues g
 
 {- -- Returns average factor size

@@ -1,10 +1,13 @@
 module Struct.Helpers where
 import Struct.Exprs
+import Util.None
 import Util.Helpers
 import Data.List
+import Data.Foldable (traverse_)
+import Control.Applicative (Alternative(empty))
 
 -- Gets the type of an elaborated term in O(1) time
-typeof :: Term -> Type
+typeof :: Alternative dparams => Term dparams -> Type dparams
 typeof (TmVarL x tp) = tp
 typeof (TmVarG gv x tis as tp) = tp
 typeof (TmLam x tp tm tp') = TpArr tp tp'
@@ -28,11 +31,11 @@ injIndex = h . zip [0..] where
 -- Sorts cases according to the order they are appear in the datatype definition
 -- This allows you to do case tm of C2->... | C1->..., which then gets translated to
 -- case tm of C1->... | C2->... for ease of use internally
-sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
+sortCases :: [Ctor dparams1] -> [CaseUs dparams2] -> [CaseUs dparams2]
 sortCases ctors cases = snds $ sortBy (\ (a, _) (b, _) -> compare a b) (label cases) where
-  getIdx :: Int -> Var -> [Ctor] -> Int
+  getIdx :: Int -> Var -> [Ctor dparams] -> Int
   getIdx i x [] = i + 1
-  getIdx i x (Ctor x' tp : cs)
+  getIdx i x (Ctor x' _tp : cs)
     | x == x' = i
     | otherwise = getIdx (succ i) x cs
 
@@ -40,7 +43,7 @@ sortCases ctors cases = snds $ sortBy (\ (a, _) (b, _) -> compare a b) (label ca
 
 -- Returns the ctors to the left and to the right of one named x
 -- (but discards the ctor named x itself)
-splitCtorsAt :: [Ctor] -> Var -> ([Ctor], [Ctor])
+splitCtorsAt :: [Ctor dparams] -> Var -> ([Ctor dparams], [Ctor dparams])
 splitCtorsAt [] x = ([], [])
 splitCtorsAt (Ctor x' as : cs) x
   | x == x' = ([], cs)
@@ -50,151 +53,151 @@ splitCtorsAt (Ctor x' as : cs) x
 
 
 -- Splits tp1 -> tp2 -> ... -> tpn into ([tp1, tp2, ...], tpn)
-splitArrows :: Type -> ([Type], Type)
+splitArrows :: Type dparams -> ([Type dparams], Type dparams)
 splitArrows (TpArr tp1 tp2) = let (tps, end) = splitArrows tp2 in (tp1 : tps, end)
 splitArrows tp = ([], tp)
 
 -- Joins ([tp1, tp2, ...], tpn) into tp1 -> tp2 -> ... -> tpn
-joinArrows :: [Type] -> Type -> Type
+joinArrows :: [Type dparams] -> Type dparams -> Type dparams
 joinArrows tps end = foldr TpArr end tps
 
 -- Splits tm1 tm2 tm3 ... tmn into (tm1, [(tm2, tp2), (tm3, tp3), ..., (tmn, tpn)])
-splitApps :: Term -> (Term, [Arg])
+splitApps :: Term dparams -> (Term dparams, [Arg dparams])
 splitApps = splitAppsh []
   where
-    splitAppsh :: [Arg] -> Term -> (Term, [Arg])
+    splitAppsh :: [Arg dparams] -> Term dparams -> (Term dparams, [Arg dparams])
     splitAppsh acc (TmApp tm1 tm2 tp2 tp) =
       splitAppsh ((tm2, tp2) : acc) tm1
     splitAppsh acc tm = (tm, acc)
 
 -- Joins (tm1, [tm2, tm3, ..., tmn]) into tm1 tm2 tm3 ... tmn
-joinApps' :: Term -> [Term] -> Term
+joinApps' :: Alternative dparams => Term dparams -> [Term dparams] -> Term dparams
 joinApps' tm = h (toArg tm) where
-  h :: (Term, Type) -> [Term] -> Term
+  h :: (Term dparams, Type dparams) -> [Term dparams] -> Term dparams
   h (tm1, tp) [] = tm1
   h (tm1, TpArr tp2 tp) (tm2 : as) = h (TmApp tm1 tm2 tp2 tp, tp) as
   h (tm1, tp) (tm2 : as) = error "internal error: in joinApps', trying to apply to non-arrow type"
 
 -- Joins (tm1, [(tm2, tp2), (tm3, tp3), ..., (tmn, tpn)]) into tm1 tm2 tm3 ... tmn
-joinApps :: Term -> [Arg] -> Term
+joinApps :: Alternative dparams => Term dparams -> [Arg dparams] -> Term dparams
 joinApps tm as = joinApps' tm (fsts as)
 
 -- splitApps, but for UsTms
-splitUsApps :: UsTm -> (UsTm, [UsTm])
+splitUsApps :: UsTm dparams -> (UsTm dparams, [UsTm dparams])
 splitUsApps = h [] where
   h as (UsApp tm1 tm2) = h (tm2 : as) tm1
   h as tm = (tm, as)
 
 -- Splits \ x1 : tp1. \ x2 : tp2. ... \ xn : tpn. tm into ([(x1, tp1), (x2, tp2), ..., (xn, tpn)], tm)
-splitLams :: Term -> ([Param], Term)
+splitLams :: Term dparams -> ([Param dparams], Term dparams)
 splitLams (TmLam x tp tm tp') = let (ls, end) = splitLams tm in ((x, tp) : ls, end)
 splitLams tm = ([], tm)
 
 -- Joins ([(x1, tp1), (x2, tp2), ..., (xn, tpn)], tm) into \ x1 : tp1. \ x2 : tp2. ... \ xn : tpn. tm
-joinLams :: [Param] -> Term -> Term
+joinLams :: Alternative dparams => [Param dparams] -> Term dparams -> Term dparams
 joinLams as tm = fst $ foldr
   (\ (a, atp) (tm, tp) ->
     (TmLam a atp tm tp, TpArr atp tp))
   (toArg tm) as
 
 -- Splits let x2 = tm2 in let x3 = tm3 in ... let xn = tmn in tm1 into ([(x2, tm2, tp2), (x3, tm3, tp3), ..., (xn, tmn, tpn)], tm1)
-splitLets :: Term -> ([(Var, Term, Type)], Term)
+splitLets :: Term dparams -> ([(Var, Term dparams, Type dparams)], Term dparams)
 splitLets (TmLet x xtm xtp tm tp) =
   let (ds, end) = splitLets tm in ((x, xtm, xtp) : ds, end)
 splitLets tm = ([], tm)
 
 -- Joins ([(x2, tm2, tp2), (x3, tm3, tp3), ..., (xn, tmn, tpn)], tm1) into let x2 = tm2 in let x3 = tm3 in ... let xn = tmn in tm1
-joinLets :: [(Var, Term, Type)] -> Term -> Term
+joinLets :: Alternative dparams => [(Var, Term dparams, Type dparams)] -> Term dparams -> Term dparams
 joinLets ds tm = h ds where
   tp = typeof tm
   h [] = tm
   h ((x, xtm, xtp) : ds) = TmLet x xtm xtp (h ds) tp
 
 -- Returns the amb branches, or just a singleton of the term if it is not TmAmb
-splitAmbs :: Term -> [Term]
+splitAmbs :: Term dparams -> [Term dparams]
 splitAmbs (TmAmb tms tp) = tms
 splitAmbs tm = [tm]
 
 -- Joins a list of terms into a TmAmb if there are != 1 branches
 -- If there is only one branch, return it
-joinAmbs :: [Term] -> Type -> Term
+joinAmbs :: [Term dparams] -> Type dparams -> Term dparams
 joinAmbs (tm : []) tp = tm
 joinAmbs tms tp = TmAmb tms tp
 
 -- Converts Params [(Var, Type)] to Args [(Term, Type)]
-paramsToArgs :: [Param] -> [Arg]
+paramsToArgs :: [Param dparams] -> [Arg dparams]
 paramsToArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
 
 -- Turns a constructor into one with all its args applied
-addArgs :: GlobalVar -> Var -> [Type] -> [Arg] -> [Param] -> Type -> Term
+addArgs :: GlobalVar -> Var -> [Type dparams] -> [Arg dparams] -> [Param dparams] -> Type dparams -> Term dparams
 addArgs gv x tis tas vas y =
   TmVarG gv x tis (tas ++ [(TmVarL a atp, atp) | (a, atp) <- vas]) y
 
 -- Eta-expands a constructor with the necessary extra args
-etaExpand :: GlobalVar -> Var -> [Type] -> [Arg] -> [Param] -> Type -> Term
+etaExpand :: Alternative dparams => GlobalVar -> Var -> [Type dparams] -> [Arg dparams] -> [Param dparams] -> Type dparams -> Term dparams
 etaExpand gv x tis tas vas y =
   foldr (\ (a, atp) tm -> TmLam a atp tm (typeof tm))
     (addArgs gv x tis tas vas y) vas
 
-toArg :: Term -> Arg
+toArg :: Alternative dparams => Term dparams -> Arg dparams
 toArg tm = (tm, typeof tm)
 
 -- Maps toArg over a list of terms
-toArgs :: [Term] -> [Arg]
+toArgs :: Alternative dparams => [Term dparams] -> [Arg dparams]
 toArgs = map toArg
 
-mapArgM :: Monad m => (Term -> m Term) -> Arg -> m Arg
-mapArgM f (atm, _) = f atm >>= return . toArg
+mapArgM :: (Applicative m, Alternative dparams2) => (Term dparams1 -> m (Term dparams2)) -> Arg dparams1 -> m (Arg dparams2)
+mapArgM f (atm, _) = toArg <$> f atm
 
-mapArg :: (Term -> Term) -> Arg -> Arg
+mapArg :: Alternative dparams2 => (Term dparams1 -> Term dparams2) -> Arg dparams1 -> Arg dparams2
 mapArg f (atm, _) = toArg (f atm)
 
-mapArgs :: (Term -> Term) -> [Arg] -> [Arg]
+-- Maps over the terms in a list of args
+mapArgs :: Alternative dparams2 => (Term dparams1 -> Term dparams2) -> [Arg dparams1] -> [Arg dparams2]
 mapArgs = map . mapArg
 
--- Maps over the terms in a list of args
-mapArgsM :: Monad m => (Term -> m Term) -> [Arg] -> m [Arg]
-mapArgsM = mapM . mapArgM
+mapArgsM :: (Applicative m, Alternative dparams2) => (Term dparams1 -> m (Term dparams2)) -> [Arg dparams1] -> m [Arg dparams2]
+mapArgsM = traverse . mapArgM
 
-mapParamM :: Monad m => (Type -> m Type) -> Param -> m Param
-mapParamM f (x, tp) = pure ((,) x) <*> f tp
+mapParamM :: Applicative m => (Type dparams1 -> m (Type dparams2)) -> Param dparams1 -> m (Param dparams2)
+mapParamM f (x, tp) = ((,) x) <$> f tp
 
-mapParamsM :: Monad m => (Type -> m Type) -> [Param] -> m [Param]
-mapParamsM = mapM . mapParamM
+mapParamsM :: Applicative m => (Type dparams1 -> m (Type dparams2)) -> [Param dparams1] -> m [Param dparams2]
+mapParamsM = traverse . mapParamM
 
-mapParam :: (Type -> Type) -> Param -> Param
+mapParam :: (Type dparams1 -> Type dparams2) -> Param dparams1 -> Param dparams2
 mapParam f (x, tp) = (x, f tp)
 
-mapParams :: (Type -> Type) -> [Param] -> [Param]
+mapParams :: (Type dparams1 -> Type dparams2) -> [Param dparams1] -> [Param dparams2]
 mapParams = map . mapParam
 
 -- Maps over the terms in a list of cases
-mapCasesM :: Monad m => (Var -> [Param] -> Term -> m Term) -> [Case] -> m [Case]
-mapCasesM f = mapM $ \ (Case x ps tm) -> pure (Case x ps) <*> f x ps tm
+mapCasesM :: Applicative m => (Var -> [Param dparams] -> Term dparams -> m (Term dparams)) -> [Case dparams] -> m [Case dparams]
+mapCasesM f = traverse $ \ (Case x ps tm) -> (Case x ps) <$> f x ps tm
 
 -- Applies f to all the types in a list of ctors
-mapCtorsM :: Monad m => (Type -> m Type) -> [Ctor] -> m [Ctor]
-mapCtorsM f = mapM $ \ (Ctor x tps) -> pure (Ctor x) <*> mapM f tps
+mapCtorsM :: Applicative m => (Type dparams1 -> m (Type dparams2)) -> [Ctor dparams1] -> m [Ctor dparams2]
+mapCtorsM f = traverse $ \ (Ctor x tps) -> (Ctor x) <$> traverse f tps
 
-mapCtorsM_ :: Monad m => (Type -> m a) -> [Ctor] -> m ()
-mapCtorsM_ f = mapM_ $ \ (Ctor x tps) -> mapM_ f tps
+mapCtorsM_ :: Applicative m => (Type dparams -> m a) -> [Ctor dparams] -> m ()
+mapCtorsM_ f = traverse_ $ \ (Ctor x tps) -> traverse_ f tps
 
-mapCtors :: (Type -> Type) -> [Ctor] -> [Ctor]
+mapCtors :: (Type dparams1 -> Type dparams2) -> [Ctor dparams1] -> [Ctor dparams2]
 mapCtors f = map $ \ (Ctor x tps) -> Ctor x (map f tps)
 
 -- Maps over the terms in a Prog
-mapProgM :: Monad m => (Term -> m Term) -> Prog -> m Prog
+mapProgM :: Applicative m => (Term None -> m (Term None)) -> Prog -> m Prog
 mapProgM f (ProgFun x ps tm tp) =
-  pure (ProgFun x ps) <*> f tm <*> pure tp
+  (\tm' -> ProgFun x ps tm' tp) <$> f tm
 mapProgM mtm (ProgExtern x ps tp) =
   pure (ProgExtern x ps tp)
 mapProgM mtm (ProgData y cs) =
   pure (ProgData y cs)
 
 -- Maps over the terms in Progs
-mapProgsM :: Monad m => (Term -> m Term) -> Progs -> m Progs
+mapProgsM :: Applicative m => (Term None -> m (Term None)) -> Progs -> m Progs
 mapProgsM f (Progs ps end) =
-  pure Progs <*> mapM (mapProgM f) ps <*> f end
+  Progs <$> traverse (mapProgM f) ps <*> f end
 
 -- Built-in datatype Bool
 
@@ -204,7 +207,11 @@ tpUnit = TpProd Multiplicative []
 tpBoolName = "Bool"
 tmTrueName = "True"
 tmFalseName = "False"
-tpBool = TpData tpBoolName []
+
+tpBool :: Alternative dparams => Type dparams
+tpBool = TpData tpBoolName empty
+
+tmTrue, tmFalse :: Alternative dparams => Term dparams
 tmTrue = TmVarG CtorVar tmTrueName [] [] tpBool
 tmFalse = TmVarG CtorVar tmFalseName [] [] tpBool
 

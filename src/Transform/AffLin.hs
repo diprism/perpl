@@ -3,6 +3,7 @@ import qualified Data.Map as Map
 import Control.Monad.RWS
 import Struct.Lib
 import Util.Helpers
+import Util.None
 import Scope.Ctxt
 import Scope.Name
 import Scope.Free
@@ -30,7 +31,7 @@ import Scope.Subst
 
 
 -- Reader, Writer, State monad
-type AffLinM a = RWS Ctxt FreeVars () a
+type AffLinM a = RWS (Ctxt None None None) (FreeVars None) () a
 -- RWS monad functions, where
 --   m = RWS monad
 --   r = reader type
@@ -55,7 +56,7 @@ type AffLinM a = RWS Ctxt FreeVars () a
 
 
 -- Bind x : tp inside an AffLinM, discarding it if unused
-alBind :: Var -> Type -> AffLinM Term -> AffLinM Term
+alBind :: Var -> Type None -> AffLinM (Term None) -> AffLinM (Term None)
 alBind x tp m =
   censor (Map.delete x) -- Delete x from FVs
          (listen (local (\ g -> ctxtDeclTerm g x tp) m) >>= \ (tm, fvs) ->
@@ -64,13 +65,13 @@ alBind x tp m =
 
 -- Bind a list of params inside an AffLinM
 -- Like alBind, but for multiple params
-alBinds :: [Param] -> AffLinM Term -> AffLinM Term
+alBinds :: [Param None] -> AffLinM (Term None) -> AffLinM (Term None)
 alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
 
 -- Maps something to Unit
 -- For example, take x : Bool, which becomes
 -- case x of false -> unit | true -> unit
-discard' :: Term -> Type -> Term -> AffLinM Term
+discard' :: Term None -> Type None -> Term None -> AffLinM (Term None)
 discard' (TmVarL "_" tp') tp rtm = return rtm -- error ("discard' \"_\" " ++ show tp ++ " in the term " ++ show rtm)
 discard' x (TpArr tp1 tp2) rtm =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
@@ -82,7 +83,7 @@ discard' x (TpProd Multiplicative tps) rtm =
     let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in
       discards (Map.fromList ps) rtm >>= \ rtm' ->
       return (TmElimProd Multiplicative x ps rtm' (typeof rtm'))
-discard' x xtp@(TpData y []) rtm =
+discard' x xtp@(TpData y None) rtm =
   ask >>= \ g ->
     -- let () = discard x in rtm
     return (TmElimProd Multiplicative (TmVarG DefVar (discardName y) [] [(x, xtp)] tpUnit) [] rtm (typeof rtm))
@@ -93,7 +94,7 @@ discard' _ tp _ = error ("Trying to discard a " ++ show tp)
 -- of some term. This maps x to Unit, then case-splits on it.
 -- So to discard x : (A -> B) & Unit in tm, this returns
 -- case x.2 of unit -> tm
-discard :: Var -> Type -> Term -> AffLinM Term
+discard :: Var -> Type None -> Term None -> AffLinM (Term None)
 discard x tp tm =
   ask >>= \ g ->
   if robust g tp
@@ -102,12 +103,12 @@ discard x tp tm =
           return (TmLet "_" dtm tpUnit tm (typeof tm)))-}
 
 -- Discard a set of variables
-discards :: FreeVars -> Term -> AffLinM Term
+discards :: FreeVars None -> Term None -> AffLinM (Term None)
 discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm) fvs
 
 -- See definition of L(tp) above
-affLinTp :: Type -> Type
-affLinTp (TpData y []) = TpData y []
+affLinTp :: Type None -> Type None
+affLinTp (TpData y None) = TpData y None
 affLinTp (TpProd am tps) = TpProd am $ map affLinTp tps ++ [tpUnit | am == Additive]
 affLinTp (TpArr tp1 tp2) =
   let (tps, end) = splitArrows (TpArr tp1 tp2)
@@ -117,7 +118,7 @@ affLinTp (TpArr tp1 tp2) =
 affLinTp tp = error ("Trying to affLin a " ++ show tp)
 
 -- Make a case linear, returning the local vars that occur free in it
-affLinCase :: Case -> AffLinM Case
+affLinCase :: Case None -> AffLinM (Case None)
 affLinCase (Case x ps tm) =
   let ps' = mapParams affLinTp ps in
   alBinds ps' (affLin tm) >>=
@@ -126,7 +127,7 @@ affLinCase (Case x ps tm) =
 -- Converts a lambda term to an ampersand pair with Unit, where the
 -- Unit side discards all the free variables from the body of the lambda
 -- ambFun `\ x : T. tm` = `<\ x : T. tm, Z(FV(\ x : T. tm))>`,
-ambFun :: Term -> FreeVars -> AffLinM Term
+ambFun :: Term None -> FreeVars None -> AffLinM (Term None)
 ambFun tm fvs =
   let tp = typeof tm in
     case tp of
@@ -137,7 +138,7 @@ ambFun tm fvs =
 
 -- Extract the function from a linearized term, if possible
 -- So ambElim `<f, unit>` = `f`
-ambElim :: Term -> Term
+ambElim :: Term None -> Term None
 ambElim tm =
   case typeof tm of
     TpProd Additive [tp, unittp] ->
@@ -145,24 +146,24 @@ ambElim tm =
     _ -> tm
 
 -- Linearizes params and also a body term
-affLinParams :: [Param] -> Term -> AffLinM ([Param], Term)
+affLinParams :: [Param None] -> Term None -> AffLinM ([Param None], Term None)
 affLinParams ps body =
   let lps = mapParams affLinTp ps in
   listen (alBinds lps (affLin body)) >>= \ (body', fvs) ->
     return (lps, body')
 
 -- Peels of lambdas as params, returning (L(params), L(body))
-affLinLams :: Term -> AffLinM ([Param], Term)
+affLinLams :: Term None -> AffLinM ([Param None], Term None)
 affLinLams = uncurry affLinParams . splitLams
 
 -- Generic helper for applying L to a list of something, where alf=L and dscrd=discard
-affLinBranches :: (a -> AffLinM b) -> (FreeVars -> b -> AffLinM b) -> [a] -> AffLinM [b]
+affLinBranches :: (a -> AffLinM b) -> (FreeVars None -> b -> AffLinM b) -> [a] -> AffLinM [b]
 affLinBranches alf dscrd als =
   listen (mapM (listen . alf) als) >>= \ (alxs, xsAny) ->
   mapM (\ (b, xs) -> dscrd (Map.difference xsAny xs) b) alxs
 
 -- Make a term linear, returning the local vars that occur free in it
-affLin :: Term -> AffLinM Term
+affLin :: Term None -> AffLinM (Term None)
 affLin (TmVarL x tp) =
   -- L(x) => x    (x is a local var)
   let ltp = affLinTp tp in
@@ -240,7 +241,7 @@ affLin (TmEqs tms) =
 affLinDiscards :: [Prog] -> AffLinM [Prog]
 affLinDiscards (p@(ProgData y cs) : ps) =
   ask >>= \ g ->
-  let ytp = TpData y [] in
+  let ytp = TpData y None in
   if robust g ytp then
     pure (p :) <*> affLinDiscards ps
   else
@@ -277,7 +278,7 @@ affLinDefine (ProgExtern x ps tp) =
   ProgExtern x (map affLinTp ps) (affLinTp tp)
 
 -- Adds all the definitions in a file to context, after replacing arrows with <type, Unit>
-affLinDefines :: Progs -> Ctxt
+affLinDefines :: Progs -> Ctxt None None None
 affLinDefines (Progs ps end) =
   let ps' = map affLinDefine ps in
   ctxtDefProgs (Progs ps' end)

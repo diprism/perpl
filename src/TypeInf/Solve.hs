@@ -11,7 +11,7 @@ import Scope.Subst
 import Scope.Free
 import Scope.Ctxt
 
-bindTp :: Var -> Type -> Either TypeError Subst
+bindTp :: Var -> Type [] -> Either TypeError (Subst [])
 bindTp x tp
   -- Trying to bind x = x, so nothing needs to be done
   | tp == TpVar x = Right Map.empty
@@ -21,7 +21,7 @@ bindTp x tp
   | otherwise = Right (Map.singleton x (SubTp tp))
 
 -- Try to unify two types
-unify :: Type -> Type -> Either TypeError Subst
+unify :: Type [] -> Type [] -> Either TypeError (Subst [])
 unify (TpVar y) tp = bindTp y tp
 unify tp (TpVar y) = bindTp y tp
 unify tp1@(TpData y1 as1) tp2@(TpData y2 as2)
@@ -44,11 +44,11 @@ unify tp1 tp2
   | otherwise  = Left (UnificationError tp1 tp2)
 
 -- For [(x1, y1), (x2, y2), ...], unify x1 and y1, unify x2 and y2, etc.
-unifyAll' :: [(Type, Type)] -> Either TypeError Subst
+unifyAll' :: [(Type [], Type [])] -> Either TypeError (Subst [])
 unifyAll' tps = mapLeft fst $ unifyAll [(tp1, tp2, Loc { curDef = "", curExpr = ""}) | (tp1, tp2) <- tps]
 
 -- For [(x1, y1), (x2, y2), ...], unify x1 and y1, unify x2 and y2, etc.
-unifyAll :: [(Type, Type, Loc)] -> Either (TypeError, Loc) Subst
+unifyAll :: [(Type [], Type [], Loc)] -> Either (TypeError, Loc) (Subst [])
 unifyAll =
   foldr
     (\ (tp1, tp2, l) s ->
@@ -58,7 +58,7 @@ unifyAll =
     (Right Map.empty)
 
 -- Makes sure that robust-constrained solved type vars have robust solutions
-solvedWell :: Ctxt -> Subst -> [(Constraint, Loc)] -> Either (TypeError, Loc) ()
+solvedWell :: Ctxt [] [] [] -> Subst [] -> [(Constraint, Loc)] -> Either (TypeError, Loc) ()
 solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
   h (Unify tp1 tp2) l -- Not sure if checking tp1 == tp2 is necessary, but better be safe?
     | tp1 /= tp2 = Left (ConflictingTypes tp1 tp2, l)
@@ -72,11 +72,11 @@ solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
 -- return type, simply solve those internal vars to Unit
 -- Example: `let f = \ x. x in True`
 -- Returns (new subst, remaining type vars, remaining tag vars)
-solveInternal :: SolveVars -> Subst -> Type -> (Subst, [Var], [Var])
+solveInternal :: SolveVars -> Subst [] -> Type [] -> (Subst [], [Var], [Var])
 solveInternal vs s rtp =
   let unsolved = Map.difference vs s
       (utgs, utpvs) = Map.partition id unsolved -- split into tag and type vars
-      fvs = freeVars (subst s rtp) -- get vars that occur in the return type
+      fvs = freeVars (subst s rtp) :: FreeVars [] -- get vars that occur in the return type
       internalUnsolved = Map.difference utpvs fvs
       s' = fmap (\ False -> SubTp tpUnit) internalUnsolved -- substitute for Unit
       s'' = s' `compose` s -- Add to Unit substitutions to s
@@ -94,7 +94,7 @@ Tries to solve a set of constraints
 If no error, returns (solution subst, remaining type vars, remaining tag vars)
 -}
 
-solve :: Ctxt -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var], [Var])
+solve :: Ctxt [] [] [] -> SolveVars -> Type [] -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst [], [Var], [Var])
 solve g vs rtp cs =
   unifyAll (getUnifications cs) >>= \ s ->
   let (s', xs, tgs) = solveInternal vs s rtp in
@@ -104,7 +104,7 @@ solve g vs rtp cs =
 -- Solves constraints, and arbitrarily solves all remaining type vars as Unit
 -- (tags may remain though)
 -- Returns (term, its type, remaining tags)
-solveM :: CheckM Term -> CheckM (Term, Type, [Var]) -- [Var] is list of tags
+solveM :: CheckM (Term []) -> CheckM (Term [], Type [], [Var]) -- [Var] is list of tags
 solveM m =
   listenSolveVars (listen m) >>= \ ((a, cs), vs) ->
   -- Because we use NoTp below, there are no FVs in the type, so all
@@ -114,7 +114,7 @@ solveM m =
     (solve g vs NoTp cs)
 
 -- 
-solvesM :: CheckM [(Var, Term, Type)] -> CheckM [(Var, Term, Scheme)]
+solvesM :: CheckM [(Var, Term [], Type [])] -> CheckM [(Var, Term [], Scheme)]
 solvesM ms =
   listenSolveVars (listen ms) >>= \ ((atps, cs), vs) ->
   let (fs, as, tps) = unzip3 atps in
@@ -125,7 +125,7 @@ solvesM ms =
         let stps = map (\ tp ->
                           let tp' = subst s tp
                               xsmap = Map.fromList (map (\ x -> (x, ())) xs)
-                              xs' = Map.keys (Map.intersection xsmap (freeVars tp'))
+                              xs' = Map.keys (Map.intersection xsmap (freeVars tp' :: FreeVars []))
                           in
                             Forall tgs xs' tp') tps
 
@@ -150,19 +150,19 @@ getDeps (UsProgs ps end) =
     
     h :: UsProg -> (Map Var (Set Var), Map Var (Set Var)) -> (Map Var (Set Var), Map Var (Set Var))
     h (UsProgFun x mtp tm) (fdeps, ddeps) =
-      (Map.insert x (Set.fromList (Map.keys (freeVars tm))) fdeps, ddeps)
+      (Map.insert x (Set.fromList (Map.keys (freeVars tm :: FreeVars []))) fdeps, ddeps)
     h (UsProgExtern x tp) deps = deps
     h (UsProgData y ps cs) (fdeps, ddeps) =
-      (fdeps, Map.insert y (Set.fromList (Map.keys (freeVars cs))) ddeps)
+      (fdeps, Map.insert y (Set.fromList (Map.keys (freeVars cs :: FreeVars []))) ddeps)
 
 -- Helper for splitProgsH
-splitProgsH :: UsProg -> ([(Var, Type, UsTm)], [(Var, Type)], [(Var, [Var], [Ctor])])
+splitProgsH :: UsProg -> ([(Var, Type [], UsTm [])], [(Var, Type [])], [(Var, [Var], [Ctor []])])
 splitProgsH (UsProgFun x mtp tm) = ([(x, mtp, tm)], [], [])
 splitProgsH (UsProgExtern x tp) = ([], [(x, tp)], [])
 splitProgsH (UsProgData y ps cs) = ([], [], [(y, ps, cs)])
 
 -- Splits a program up into (functions, externs, datatypes)
-splitProgs :: UsProgs -> ([(Var, Type, UsTm)], [(Var, Type)], [(Var, [Var], [Ctor])], UsTm)
+splitProgs :: UsProgs -> ([(Var, Type [], UsTm [])], [(Var, Type [])], [(Var, [Var], [Ctor []])], UsTm [])
 splitProgs (UsProgs ps end) =
   let (fs, es, ds) = foldr (\ p (fs, es, ds) ->
                                let (fs', es', ds') = splitProgsH p in
@@ -173,7 +173,7 @@ splitProgs (UsProgs ps end) =
 -- Infers a set of mutually-defined global functions,
 -- adding their inferred types to the env when inferring
 -- the rest of the program, and adding their defs to the returned (schemified) program
-inferFuns :: [(Var, Type, UsTm)] -> CheckM SProgs -> CheckM SProgs
+inferFuns :: [(Var, Type [], UsTm [])] -> CheckM SProgs -> CheckM SProgs
 inferFuns fs m =
   -- Get a fresh type var for each function in fs
   mapM (const freshTp) fs >>= \ itps ->
@@ -212,28 +212,28 @@ Infers all datatypes in dsccs:
   - add each datatype def to env for inferring the rest of the program
   - add each datatype def to the returned (schemified) program -}
 
-inferData :: [[(Var, [Var], [Ctor])]] -> CheckM SProgs -> CheckM SProgs
+inferData :: [[(Var, [Var], [Ctor []])]] -> CheckM SProgs -> CheckM SProgs
 inferData dsccs cont = foldr h cont dsccs
   where
     -- Check with hPerhapsRec and add defs to returned (schemified) program
-    h :: [(Var, [Var], [Ctor])] -> CheckM SProgs -> CheckM SProgs
+    h :: [(Var, [Var], [Ctor []])] -> CheckM SProgs -> CheckM SProgs
     h dscc cont =
       hPerhapsRec dscc >>= \ dscc' ->
       addDefs dscc' cont
 
     -- Helper wrapper: if recursive, use hRec; otherwise, use hNonRec
-    hPerhapsRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
+    hPerhapsRec :: [(Var, [Var], [Ctor []])] -> CheckM [(Var, [Var], [Var], [Ctor []])]
     hPerhapsRec dscc = if sccIsRec dscc then hRec dscc else hNonRec dscc
 
     -- Returns if an scc (strongly-connected component) is (mutually) recursive
     -- Non-recursive only if the scc is a singleton that is itself non-recursive
     -- If the scc has 2+ datatypes, they must be mutually recursive
-    sccIsRec :: [(Var, [Var], [Ctor])] -> Bool
-    sccIsRec [(y, ps, cs)] = Map.member y (freeVars cs)
+    sccIsRec :: [(Var, [Var], [Ctor []])] -> Bool
+    sccIsRec [(y, ps, cs)] = Map.member y (freeVars cs :: FreeVars [])
     sccIsRec _ = True -- Mutually-recursive datatypes are recursive
 
     -- Like checkType for datatypes
-    checkData :: (Var, [Var], [Ctor]) -> CheckM (Var, [Var], [Ctor])
+    checkData :: (Var, [Var], [Ctor []]) -> CheckM (Var, [Var], [Ctor []])
     checkData (y, ps, cs) =
       localCurDef y $
       -- checkType doesn't look for bound type variables ps,
@@ -243,7 +243,7 @@ inferData dsccs cont = foldr h cont dsccs
 
     -- Adds datatype defs and ctors to env, and adds them to returned
     -- (schemified) program
-    addDefs :: [(Var, [Var], [Var], [Ctor])] -> CheckM SProgs -> CheckM SProgs
+    addDefs :: [(Var, [Var], [Var], [Ctor []])] -> CheckM SProgs -> CheckM SProgs
     addDefs [] cont = cont
     addDefs ((y, tgs, ps, cs) : ds) cont =
       defData y tgs ps cs (addDefs ds cont) >>= \ (SProgs sps etm) ->
@@ -252,7 +252,7 @@ inferData dsccs cont = foldr h cont dsccs
     -- Handles checking a single, non-recursive datatype
     -- Input: a singleton (datatype name, type param names, constructors)
     -- Return: a singleton (datatype name, tag vars, type param names, constructors)
-    hNonRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
+    hNonRec :: [(Var, [Var], [Ctor []])] -> CheckM [(Var, [Var], [Var], [Ctor []])]
     hNonRec [(y, ps, cs)] =
       listenSolveVars (checkData (y, ps, cs)) >>= \ ((_, _, cs'), vs) ->
       let tgs = Map.keys (Map.filter id vs) in
@@ -267,9 +267,9 @@ inferData dsccs cont = foldr h cont dsccs
     -- types in the SCC are not yet polymorphic. This prevents
     -- datatypes like
     --     data FullBinaryTree a = Leaf | FullBinaryTree (a, a)
-    constrainData :: (Var, [Var], [Ctor]) -> CheckM ()
+    constrainData :: (Var, [Var], [Ctor []]) -> CheckM ()
     constrainData (y, ps, cs) = localCurDef y (mapCtorsM_ constrainTpApps cs)
-    constrainTpApps :: Type -> CheckM ()
+    constrainTpApps :: Type [] -> CheckM ()
     constrainTpApps (TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2
     constrainTpApps (TpVar y) = return ()
     constrainTpApps (TpData y as) =
@@ -291,14 +291,14 @@ inferData dsccs cont = foldr h cont dsccs
 
     -- Like defType, but for a list of datatypes. This lets all the
     -- datatypes in the SCC see one another in the type environment.
-    defDataSCC :: [(Var, [Var], [Ctor])] -> CheckM a -> CheckM a
+    defDataSCC :: [(Var, [Var], [Ctor []])] -> CheckM a -> CheckM a
     defDataSCC dscc m =
       foldl (\ m (y, ps, cs) -> defData y [] ps [] m) m dscc
 
     -- Handles checking mutually-recursive datatypes
     -- Input: a list of (datatype name, type param names, constructors)
     -- Return: a list of (datatype name, tag vars, type param names, constructors)
-    hRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
+    hRec :: [(Var, [Var], [Ctor []])] -> CheckM [(Var, [Var], [Var], [Ctor []])]
     hRec dscc =
       -- Check all the datatype definitions.
       listenSolveVars
@@ -320,7 +320,7 @@ inferData dsccs cont = foldr h cont dsccs
 
 
 -- Checks an extern declaration
-inferExtern :: (Var, Type) -> CheckM SProgs -> CheckM SProgs
+inferExtern :: (Var, Type []) -> CheckM SProgs -> CheckM SProgs
 inferExtern (x, tp) m =
   -- It's possible that checkType tp introduces new tag variables,
   -- but only within an unused type parameter, so it's safe to ignore them.
@@ -333,7 +333,7 @@ inferExtern (x, tp) m =
   return (SProgs (SProgExtern x [] tp' : ps) end)
 
 -- Checks the end term (start term? Should be consistent with name...)
-inferEnd :: UsTm -> CheckM SProgs
+inferEnd :: UsTm [] -> CheckM SProgs
 inferEnd end =
   -- Answer type must be robust
   let m = infer end >>= \tm -> constrain (Robust (typeof tm)) >> return tm in

@@ -1,6 +1,7 @@
 {- Code for checking if a variable occurs affinely/linearly in a term -}
 -- Note: this file has become pretty unfocused, and should probably get
 -- moved in parts to other files at some point
+{-# LANGUAGE FlexibleContexts #-}
 
 module Scope.Free where
 import Struct.Lib
@@ -8,6 +9,8 @@ import Util.Helpers
 import Scope.Subst
 import Scope.Ctxt
 import qualified Data.Map as Map
+import Data.Foldable (toList)
+import Control.Applicative (Alternative(empty))
 
 -- For checking linearity, vars can appear:
 -- LinNo: not at all
@@ -25,14 +28,14 @@ linIf' :: Lin -> Lin -> Lin -> Lin
 linIf' i y n = linIf i y n LinErr
 
 -- Returns if x appears free in tm
-isFree :: Var -> UsTm -> Bool
-isFree x tm = Map.member x (freeVars tm)
+isFree :: Var -> UsTm [] -> Bool
+isFree x tm = Map.member x (freeVars tm :: FreeVars [])
 
 -- Returns if x occurs at most once in tm
-isAff :: Var -> UsTm -> Bool
+isAff :: Var -> UsTm [] -> Bool
 isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
   where
-    countOccs :: UsTm -> Map Var Int
+    countOccs :: UsTm [] -> Map Var Int
     countOccs (UsVar x) = Map.singleton x 1
     countOccs (UsLam x tp tm) = Map.delete x $ countOccs tm
     countOccs (UsApp tm tm') = Map.unionWith (+) (countOccs tm) (countOccs tm')
@@ -48,18 +51,18 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccs (UsElimProd am tm xs tm') = Map.unionWith (+) (countOccs tm) (foldr Map.delete (countOccs tm') xs)
     countOccs (UsEqs tms) = Map.unionsWith (+) (map countOccs tms)
     
-    countOccsCase :: CaseUs -> Map Var Int
+    countOccsCase :: CaseUs [] -> Map Var Int
     countOccsCase (CaseUs c xs tm) = foldr Map.delete (countOccs tm) xs
 
 -- Returns if x appears exactly once in a user-term
-isLin :: Var -> UsTm -> Bool
+isLin :: Var -> UsTm [] -> Bool
 isLin x tm = h tm == LinYes where
-  linCase :: CaseUs -> Lin
+  linCase :: CaseUs [] -> Lin
   linCase (CaseUs x' as tm') = if any ((==) x) as then LinNo else h tm'
 
   h_as dup = foldr (\ tm l -> linIf' l (linIf' (h tm) dup LinYes) (h tm)) LinNo
   
-  h :: UsTm -> Lin
+  h :: UsTm [] -> Lin
   h (UsVar x') = if x == x' then LinYes else LinNo
   h (UsLam x' tp tm) = if x == x' then LinNo else h tm
   h (UsApp tm tm') = h_as LinErr [tm, tm']
@@ -82,14 +85,14 @@ isLin x tm = h tm == LinYes where
   h (UsEqs tms) = h_as LinErr tms
 
 -- Returns if x appears exactly once in a term
-isLin' :: Var -> Term -> Bool
+isLin' :: Var -> Term dparams -> Bool
 isLin' x = (LinYes ==) . h where
-  linCase :: Case -> Lin
+  linCase :: Case dparams -> Lin
   linCase (Case x' ps tm) = if any ((x ==) . fst) ps then LinNo else h tm
 
   h_as dup = foldr (\ tm l -> linIf' l (linIf' (h tm) dup LinYes) (h tm)) LinNo
 
-  h :: Term -> Lin
+  h :: Term dparams -> Lin
   h (TmVarL x' tp) = if x == x' then LinYes else LinNo
   h (TmVarG gv x' tis as tp) = h_as LinErr (fsts as)
   h (TmLam x' tp tm tp') = if x == x' then LinNo else h tm
@@ -117,9 +120,8 @@ g maps a datatype name to its list of constructors, if any.
 pred takes two arguments, a list of visited nodes and a node.
 -}
 
-searchType :: ([Type] -> Type -> Bool) -> Ctxt -> Type -> Bool
+searchType :: (Eq (Type dparams), Foldable tags, Traversable dparams, Alternative dparams) => ([Type dparams] -> Type dparams -> Bool) -> Ctxt tags tparams dparams -> Type dparams -> Bool
 searchType pred g = h [] where
-  h :: [Type] -> Type -> Bool
   h visited tp = pred visited tp || case tp of
     TpData y as ->
       -- Don't search the same type twice (that would cause infinite recursion)
@@ -129,14 +131,14 @@ searchType pred g = h [] where
         Just (ps, cs) ->
           -- Substitute actual type parameters (as) for datatype's type parameters (ps)
           -- and recurse on each constructor
-          let s = Map.fromList (pickyZipWith (\p a -> (p, SubTp a)) ps as) in
+          let s = Map.fromList (pickyZipWith (\p a -> (p, SubTp a)) ps (toList as)) in
           any (\ (Ctor _ tps) -> any (h (tp : visited) . subst s) tps) cs
     TpArr tp1 tp2 -> h visited tp1 || h visited tp2
     TpProd am tps -> any (h visited) tps
     _ -> False
 
 -- Returns if a type has no arrow, ampersand, or recursive datatype anywhere in it
-robust :: Ctxt -> Type -> Bool
+robust :: (Eq (Type dparams), Foldable tags, Traversable dparams, Alternative dparams) => Ctxt tags tparams dparams -> Type dparams -> Bool
 robust g tp = not (searchType p g tp) where
   p visited tp@(TpData y as) = tp `elem` visited
   p visited (TpArr _ _) = True
@@ -144,21 +146,21 @@ robust g tp = not (searchType p g tp) where
   p visited _ = False
 
 -- Returns if a type has an infinite domain (i.e. it contains (mutually) recursive datatypes anywhere in it)
-isInfiniteType :: Ctxt -> Type -> Bool
+isInfiniteType :: (Eq (Type dparams), Foldable tags, Traversable dparams, Alternative dparams) => Ctxt tags tparams dparams -> Type dparams -> Bool
 isInfiniteType = searchType p where
   p visited tp@(TpData y as) = tp `elem` visited
   p _ _ = False
 
 -- Returns if a type is a (mutually) recursive datatype
-isRecursiveType :: Ctxt -> Type -> Bool
+isRecursiveType :: (Eq (Type dparams), Foldable tags, Traversable dparams, Alternative dparams) => Ctxt tags tparams dparams -> Type dparams -> Bool
 isRecursiveType g tp = searchType p g tp where
   p visited tp'@(TpData y as) = tp' `elem` visited && tp' == tp
   p _ _ = False
 
-isRecursiveTypeName :: Ctxt -> Var -> Bool
+isRecursiveTypeName :: (Eq (Type dparams), Foldable tags, Traversable dparams, Alternative dparams) => Ctxt tags tparams dparams -> Var -> Bool
 isRecursiveTypeName g y =
-  isRecursiveType g (TpData y []) -- this function currently used only after monomorphization, so empty type parameter list okay
+  isRecursiveType g (TpData y empty) -- this function currently used only after monomorphization, so empty type parameter list okay
 
 -- Returns the recursive datatypes in a file
-getRecursiveTypeNames :: Ctxt -> [Var]
+getRecursiveTypeNames :: (Eq (Type dparams), Foldable tags, Traversable dparams, Alternative dparams) => Ctxt tags tparams dparams -> [Var]
 getRecursiveTypeNames g = filter (isRecursiveTypeName g) (Map.keys g)

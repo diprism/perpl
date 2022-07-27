@@ -1,37 +1,46 @@
 -- Adapted from http://dev.stephendiehl.com/fun/006_hindley_milner.html
 {- Substitution code -}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, StandaloneDeriving #-}
 
 module Scope.Subst where
 import qualified Data.Map as Map
+import Control.Applicative (Alternative((<|>)))
+import Data.Foldable (toList)
 import Control.Monad.RWS.Lazy
 import Util.Helpers
+import Util.None
 import Scope.Ctxt
 import Scope.Fresh
 import Struct.Lib
 
 ----------------------------------------
 
-data SubT = SubVar Var | SubTm Term | SubTp Type
-  deriving (Eq, Ord, Show)
-type Subst = Map Var SubT
+data SubT dparams = SubVar Var | SubTm (Term dparams) | SubTp (Type dparams)
+deriving instance Eq (SubT [])
+deriving instance Eq (SubT None)
+deriving instance Ord (SubT [])
+deriving instance Ord (SubT None)
+deriving instance Show (SubT [])
+deriving instance Show (SubT None)
+type Subst dparams = Map Var (SubT dparams)
 
 -- Composes two substitutions
-compose :: Subst -> Subst -> Subst
+compose :: (Traversable dparams, Alternative dparams) => Subst dparams -> Subst dparams -> Subst dparams
 s1 `compose` s2 = Map.map (subst s1) s2 `Map.union` s1
 
 -- State monad, where s = Subst
-type SubstM = RWS () () Subst
+type SubstM dparams = RWS () () (Subst dparams)
 
 -- Returns a map of vars and their types (if a term var)
 -- If a var is a type var, the type will be NoType
-type FreeVars = Map Var Type
+type FreeVars dparams = Map Var (Type dparams)
 
 -- Runs the substitution monad
-runSubst :: Subst -> SubstM a -> a
+runSubst :: Subst dparams -> SubstM dparams a -> a
 runSubst s r = let (a', r', ()) = runRWS r () s in a'
 
 -- Picks a fresh name derived from x
-freshen :: Var -> SubstM Var
+freshen :: Var -> SubstM dparams Var
 freshen "_" = freshen "_0" -- get rid of '_'s
 freshen x =
   fmap (newVar x) get >>= \ x' ->
@@ -39,12 +48,28 @@ freshen x =
   return x'
 
 -- Pick fresh names for a list of vars
+{-
 freshens :: [Var] -> SubstM [Var]
 freshens [] = return []
 freshens (x : xs) = freshen x >>= \ x' -> pure ((:) x') <*> bind x x' (freshens xs)
+-}
+freshens :: Traversable t => t Var -> SubstM dparams (t Var)
+freshens xs = traverse freshen' xs >>= traverse cleanup where
+  freshen' :: Var -> SubstM dparams (Var, Var, SubT dparams, SubT dparams)
+  freshen' x = freshen x >>= \ x' ->
+               substVT x >>= \ oldx ->
+               substVT x' >>= \ oldx' ->
+               modify (Map.insert x (SubVar x')) >>
+               modify (Map.insert x' (SubVar x')) >>
+               return (x, x', oldx, oldx')
+  cleanup :: (Var, Var, SubT dparams, SubT dparams) -> SubstM dparams Var
+  cleanup (x, x', oldx, oldx') =
+               modify (Map.insert x oldx) >>
+               modify (Map.insert x' oldx') >>
+               return x'
 
 -- Rename x to x' in m
-bind :: Var -> Var -> SubstM a -> SubstM a
+bind :: Var -> Var -> SubstM dparams a -> SubstM dparams a
 bind x x' m =
   substVT x >>= \ oldx ->
   substVT x' >>= \ oldx' ->
@@ -56,15 +81,15 @@ bind x x' m =
   return a
 
 -- Renames all xs to xs' in m
-binds :: [Var] -> [Var] -> SubstM a -> SubstM a
-binds xs xs' m = foldr (uncurry bind) m (zip xs xs')
+binds :: (Foldable t, Applicative t) => t Var -> t Var -> SubstM dparams a -> SubstM dparams a
+binds xs xs' m = foldr (uncurry bind) m (zip (toList xs) (toList xs'))
 
 -- Lookup a variable
-substVT :: Var -> SubstM SubT
+substVT :: Var -> SubstM dparams (SubT dparams)
 substVT x = get >>= \ s -> return (maybe (SubVar x) id (Map.lookup x s))
 
 -- Lookup a variable, with continuations for var, term, type, and if undefined
-substVar :: Var -> (Var -> a) -> (Term -> a) -> (Type -> a) -> a -> SubstM a
+substVar :: Var -> (Var -> a) -> (Term dparams -> a) -> (Type dparams -> a) -> a -> SubstM dparams a
 substVar x fv ftm ftp fn =
   get >>= \ s ->
   return $ maybe fn
@@ -73,7 +98,7 @@ substVar x fv ftm ftp fn =
     (Map.lookup x s)
 
 -- Freshens params, and binds them in cont
-substParams :: AddMult -> [Param] -> SubstM a -> SubstM ([Param], a)
+substParams :: (Traversable dparams, Alternative dparams) => AddMult -> [Param dparams] -> SubstM dparams a -> SubstM dparams ([Param dparams], a)
 substParams am [] cont = (,) [] <$> cont
 substParams Additive (("_", tp) : ps) cont =
   substM tp >>= \ tp' ->
@@ -86,55 +111,55 @@ substParams am ((x, tp) : ps) cont =
   return ((x', tp') : ps', a)
 
 -- "Substitutable" typeclass definition: must have freeVars and substM
-class Substitutable a where
-  freeVars :: a -> FreeVars
-  substM :: a -> SubstM a
+class Substitutable a dparams where
+  freeVars :: a -> FreeVars dparams
+  substM :: a -> SubstM dparams a
 
 -- Run substM
-subst :: Substitutable a => Subst -> a -> a
+subst :: Substitutable a dparams => Subst dparams -> a -> a
 subst r a = runSubst r (substM a)
 
 -- Run substM under a given context
-substWithCtxt :: Substitutable a => Ctxt -> Subst -> a -> a
+substWithCtxt :: Substitutable a dparams => Ctxt tags tparams dparams -> Subst dparams -> a -> a
 substWithCtxt g s = subst (Map.union (Map.mapWithKey (const . SubVar) g) s)
 
 -- Run substM with no substitutions, so just alpha-rename bound vars
-alphaRename :: Substitutable a => Ctxt -> a -> a
+alphaRename :: Substitutable a dparams => Ctxt tags tparams dparams -> a -> a
 alphaRename g = substWithCtxt g Map.empty
 
 -- Substitutes inside a Functor/Traversable t
-substF :: (Functor t, Traversable t, Substitutable a) => t a -> SubstM (t a)
+substF :: (Functor t, Traversable t, Substitutable a dparams) => t a -> SubstM dparams (t a)
 substF = mapM substM
 
 -- Returns all free vars in a foldable
-freeVarsF :: (Foldable f, Substitutable a) => f a -> FreeVars
+freeVarsF :: (Foldable f, Substitutable a dparams) => f a -> FreeVars dparams
 freeVarsF = foldMap freeVars
 
 
-instance Substitutable Type where
+instance (Traversable dparams, Alternative dparams) => Substitutable (Type dparams) dparams where
   substM (TpArr tp1 tp2) = pure TpArr <*> substM tp1 <*> substM tp2
   substM tp@(TpVar y) =
     substVar y TpVar (const tp) id tp
-  substM (TpData y as) =
-    substM as >>= \ as' ->
+  substM tp@(TpData y as) =
+    substF as >>= \ as' ->
     substVar y
       (\ y' -> TpData y' as')
       (const (TpData y as'))
-      (\ tp' -> case tp' of TpData y' bs -> TpData y' (bs ++ as')
-                            _ -> error ("kind error (" ++ show (TpData y as) ++ " := " ++ show tp' ++ ")"))
+      (\ tp' -> case tp' of TpData y' bs -> TpData y' (bs <|> as')
+                            _ -> error ("kind error (" ++ show tp ++ " := " ++ show tp' ++ ")"))
       (TpData y as')
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
   substM NoTp = pure NoTp
 
   freeVars (TpArr tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
   freeVars (TpVar y) = Map.singleton y NoTp
-  freeVars (TpData y as) = Map.singleton y NoTp <> freeVars as
+  freeVars (TpData y as) = Map.singleton y NoTp <> freeVarsF as
   freeVars (TpProd am tps) = Map.unions (freeVars <$> tps)
   freeVars NoTp = Map.empty
 
-instance Substitutable Term where
+instance (Traversable dparams, Alternative dparams) => Substitutable (Term dparams) dparams where
   substM (TmVarL x tp) =
-    let tmx x' = pure (TmVarL x') <*> substM tp in
+    let tmx = \x' -> TmVarL x' <$> substM tp in
       substVar x tmx pure (const (tmx x)) (tmx x) >>= id
   substM (TmVarG g x tis as tp) =
     pure (TmVarG g x) <*> substM tis <*> mapArgsM substM as <*> substM tp
@@ -174,20 +199,23 @@ instance Substitutable Term where
   freeVars (TmElimProd am ptm ps tm tp) = Map.union (freeVars ptm) (foldr (Map.delete . fst) (freeVars tm) ps)
   freeVars (TmEqs tms) = freeVars tms
 
-instance Substitutable Case where
+instance (Traversable dparams, Alternative dparams) => Substitutable (Case dparams) dparams where
   substM (Case x ps tm) =
     pure (Case x) <**> substParams Multiplicative ps (substM tm)
   freeVars (Case x ps tm) =
     foldr (Map.delete . fst) (freeVars tm) ps
 
-instance Substitutable a => Substitutable [a] where
+instance (Substitutable a dparams) => Substitutable [a] dparams where
   substM = substF
   freeVars = freeVarsF
-instance Substitutable a => Substitutable (Maybe a) where
+instance (Substitutable a dparams) => Substitutable (Maybe a) dparams where
+  substM = substF
+  freeVars = freeVarsF
+instance (Substitutable a dparams) => Substitutable (Map k a) dparams where
   substM = substF
   freeVars = freeVarsF
 
-instance Substitutable SubT where
+instance (Traversable dparams, Alternative dparams) => Substitutable (SubT dparams) dparams where
   substM (SubTm tm) = pure SubTm <*> substM tm
   substM (SubTp tp) = pure SubTp <*> substM tp
   substM (SubVar x) = substVT x
@@ -196,11 +224,7 @@ instance Substitutable SubT where
   freeVars (SubTp tp) = freeVars tp
   freeVars (SubVar x) = Map.singleton x NoTp
 
-instance Substitutable v => Substitutable (Map.Map k v) where
-  substM m = sequence (Map.map substM m)
-  freeVars = error "freeVars called on a Subst (undefined behavior)"
-
-instance Substitutable UsTm where
+instance (Traversable dparams, Alternative dparams) => Substitutable (UsTm dparams) dparams where
   substM (UsVar x) =
     pure UsVar <*> substVar x id (const x) (const x) x
   substM (UsLam x tp tm) =
@@ -261,13 +285,13 @@ instance Substitutable UsTm where
   freeVars (UsEqs tms) =
     freeVars tms
   
-instance Substitutable CaseUs where
+instance (Traversable dparams, Alternative dparams) => Substitutable (CaseUs dparams) dparams where
   substM (CaseUs x ps tm) =
     freshens ps >>= \ ps' ->
     pure (CaseUs x ps') <*> binds ps ps' (substM tm)
   freeVars (CaseUs x ps tm) = foldr Map.delete (freeVars tm) ps
 
-instance Substitutable UsProg where
+instance Substitutable UsProg [] where
   substM (UsProgFun x tp tm) =
     bind x x okay >>
     pure (UsProgFun x) <*> substM tp <*> substM tm
@@ -281,15 +305,15 @@ instance Substitutable UsProg where
 
   freeVars ps = error "freeVars on a UsProg"
 
-instance Substitutable UsProgs where
+instance Substitutable UsProgs [] where
   substM (UsProgs ps end) = pure UsProgs <*> substM ps <*> substM end
   freeVars ps = error "freeVars on a UsProgs"
 
-instance Substitutable Ctor where
-  substM (Ctor x tps) = pure (Ctor x) <*> substM tps
+instance (Traversable dparams, Alternative dparams) => Substitutable (Ctor dparams) dparams where
+  substM (Ctor x tps) = Ctor x <$> substM tps
   freeVars (Ctor x tps) = freeVars tps
 
-instance Substitutable Prog where
+instance Substitutable Prog None where
   substM (ProgFun x ps tm tp) =
     bind x x okay >>
     pure (ProgFun x) <**> substParams Multiplicative ps (substM tm) <*> substM tp
@@ -302,7 +326,7 @@ instance Substitutable Prog where
 
   freeVars p = error "freeVars on a Prog"
 
-instance Substitutable SProg where
+instance Substitutable SProg [] where
   substM (SProgFun x (Forall tgs tpms tp) tm) =
     bind x x okay >>
     freshens tgs >>= \ tgs' ->
@@ -322,47 +346,51 @@ instance Substitutable SProg where
 
   freeVars p = error "freeVars on a Prog"
 
-instance Substitutable Progs where
+instance Substitutable Progs None where
   substM (Progs ps tm) =
     pure Progs <*> substM ps <*> substM tm
   freeVars (Progs ps tm) =
     Map.union (freeVars ps) (freeVars tm)
 
-instance Substitutable SProgs where
+instance Substitutable SProgs [] where
   substM (SProgs ps tm) =
     pure SProgs <*> substM ps <*> substM tm
   freeVars (SProgs ps tm) =
     Map.union (freeVars ps) (freeVars tm)
 
 
-freshVar' :: Subst -> Var -> Var
+freshVar' :: Subst dparams -> Var -> Var
 freshVar' s x =
   let (x', r', ()) = runRWS (freshen x) () s in x'
 
-freshVar :: Ctxt -> Var -> Var
+freshVar :: Ctxt tags tparams dparams -> Var -> Var
 freshVar = freshVar' . Map.mapWithKey (const . SubVar)
 
 
-instance Substitutable CtxtDef where
-  substM (DefTerm sc tp) = pure (DefTerm sc) <*> substM tp
-  substM (DefSTerm sc stp) = pure (DefSTerm sc) <*> substM stp
-  substM (DefData [] cs) = pure DefData <*> pure [] <*> substM cs
-  substM (DefData ps cs) = error "not implemented"
-  substM (DefSData [] [] cs) = pure DefData <*> pure [] <*> substM cs
-  substM (DefSData tgs ps cs) = error "not implemented"
+instance (Traversable tparams, Applicative tparams) => Substitutable (CtxtDef None tparams None) None where
+  substM (DefLocalTerm tp) = DefLocalTerm <$> substM tp
+  substM (DefGlobalTerm tgs xs tp) =
+    freshens tgs >>= \ tgs' ->
+    binds tgs tgs'
+      (freshens xs >>= \ xs' ->
+       DefGlobalTerm tgs xs' <$> binds xs xs' (substM tp))
+  substM (DefCtorTerm tgs xs tp) =
+    freshens tgs >>= \ tgs' ->
+    binds tgs tgs'
+      (freshens xs >>= \ xs' ->
+       DefCtorTerm tgs xs' <$> binds xs xs' (substM tp))
+  substM (DefData None None cs) = DefData None None <$> substM cs
   
-  freeVars (DefTerm sc tp) = freeVars tp
-  freeVars (DefSTerm sc stp) = freeVars stp
-  freeVars (DefData [] cs) = freeVars cs
-  freeVars (DefData ps cs) = error "not implemented"
-  freeVars (DefSData [] [] cs) = freeVars cs
-  freeVars (DefSData tgs ps cs) = error "not implemented"
+  freeVars (DefLocalTerm         tp) = freeVars tp
+  freeVars (DefGlobalTerm tgs xs tp) = foldr Map.delete (foldr Map.delete (freeVars tp) xs) tgs
+  freeVars (DefCtorTerm   tgs xs tp) = foldr Map.delete (foldr Map.delete (freeVars tp) xs) tgs
+  freeVars (DefData None None cs)    = freeVars cs
 
-instance Substitutable Scheme where
+instance Substitutable Scheme [] where
   substM (Forall tgs xs tp) =
     freshens tgs >>= \ tgs' ->
     binds tgs tgs'
       (freshens xs >>= \ xs' ->
-       pure (Forall tgs xs') <*> binds xs xs' (substM tp))
+       Forall tgs xs' <$> binds xs xs' (substM tp))
 
-  freeVars (Forall tgs xs tp) = foldr Map.delete (freeVars tp) (tgs ++ xs)
+  freeVars (Forall tgs xs tp) = foldr Map.delete (foldr Map.delete (freeVars tp) xs) tgs

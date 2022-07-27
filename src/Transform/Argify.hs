@@ -10,13 +10,14 @@ become (a -> ((b -> c) & Unit)) & Unit, only (a -> b -> c) & Unit
 
 module Transform.Argify where
 import qualified Data.Map as Map
+import Control.Applicative (Alternative)
 import Struct.Lib
 import Util.Helpers
 import Scope.Name
 import Scope.Subst
 
 
-argify :: Term -> Term
+argify :: (Traversable dparams, Alternative dparams) => Term dparams -> Term dparams
 argify (TmVarL x tp) = TmVarL x tp
 argify (TmVarG g x [] [] tp) =
   let (tps, etp) = splitArrows tp
@@ -31,7 +32,9 @@ argify tm@(TmApp _ _ _ _) =
       let as' = [(argify tm, tp) | (tm, tp) <- as]
           (tps, etp) = splitArrows tp
           remtps = drop (length as') tps
-          tmfvs = Map.mapWithKey (const . SubVar) (freeVars tm)
+          freeVarsTerm :: (Traversable dparams, Alternative dparams) => Term dparams -> FreeVars dparams
+          freeVarsTerm = freeVars
+          tmfvs = Map.mapWithKey (const . SubVar) (freeVarsTerm tm)
           lxs = runSubst tmfvs (freshens ["x" ++ show i | i <- [0..length remtps - 1]])
           ls = zip lxs remtps
           as'' = as' ++ [(TmVarL x tp, tp) | (x, tp) <- ls]

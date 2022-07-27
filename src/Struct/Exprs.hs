@@ -1,6 +1,10 @@
 {- Datatypes representing PPL code structures -}
+{-# LANGUAGE StandaloneDeriving, FlexibleInstances #-}
 
 module Struct.Exprs where
+
+import Util.None
+import Data.Foldable (toList)
 
 {- The program goes through three stages:
 
@@ -9,71 +13,78 @@ module Struct.Exprs where
 3. Monomorphization turns into an elaborated program (Progs, Term, Type). -}
 
 -- User-level program
-data UsProgs = UsProgs [UsProg] UsTm    -- definitions, main
+data UsProgs = UsProgs [UsProg] (UsTm []) -- definitions, main
   deriving (Eq, Ord)
 
 -- Individual user-level definition
 data UsProg =
-    UsProgFun String Type UsTm          -- lhs, type, rhs
-  | UsProgExtern String Type            -- lhs, type
-  | UsProgData String [Var] [Ctor]      -- lhs, type params, constructors
+    UsProgFun Var (Type []) (UsTm [])   -- lhs, type, rhs
+  | UsProgExtern Var (Type [])          -- lhs, type
+  | UsProgData Var [Var] [Ctor []]      -- lhs, type params, constructors
   deriving (Eq, Ord)
 
 -- Scheme-ified definition
 data SProg =
-    SProgFun Var Scheme Term            -- lhs, type, rhs
-  | SProgExtern Var [Type] Type         -- lhs, param types, return type
-  | SProgData Var [Var] [Var] [Ctor]    -- lhs, tags, type params, constructors
+    SProgFun Var Scheme (Term [])       -- lhs, type, rhs
+  | SProgExtern Var [Type []] (Type []) -- lhs, param types, return type
+  | SProgData Var [Var] [Var] [Ctor []] -- lhs, tags, type params, constructors
   deriving (Eq, Ord)
 
 -- Scheme-ified program
-data SProgs = SProgs [SProg] Term       -- definitions, main
+data SProgs = SProgs [SProg] (Term [])  -- definitions, main
   deriving (Eq, Ord)
 
 -- Elaborated definition
 data Prog =
-    ProgFun Var [(Var, Type)] Term Type -- lhs, params, rhs, return type
-  | ProgExtern Var [Type] Type          -- lhs, param types, return type
-  | ProgData Var [Ctor]                 -- lhs, type params, constructors
+    ProgFun Var [(Var, Type None)] (Term None) (Type None) -- lhs, params, rhs, return type
+  | ProgExtern Var [Type None] (Type None)                 -- lhs, param types, return type
+  | ProgData Var [Ctor None]                               -- lhs, type params, constructors
   deriving (Eq, Ord)
 
 -- Elaborated program
-data Progs = Progs [Prog] Term          -- definitions, main
+data Progs = Progs [Prog] (Term None) -- definitions, main
   deriving (Eq, Ord)
 
 -- Constructor
-data Ctor = Ctor Var [Type]             -- ctor name, param types
-  deriving (Eq, Ord)
+data Ctor dparams = Ctor Var [Type dparams] -- ctor name, param types
+deriving instance Eq (Ctor [])
+deriving instance Eq (Ctor None)
+deriving instance Ord (Ctor [])
+deriving instance Ord (Ctor None)
+
+instance HFunctor Ctor where
+  hmap f (Ctor x as) = Ctor x (map (hmap f) as)
 
 -- Variable
 type Var = String
 
 -- Param is (x : tp)
-type Param = (Var, Type)
+type Param dparams = (Var, Type dparams)
 -- Arg is (tm : tp)
-type Arg = (Term, Type)
+type Arg dparams = (Term dparams, Type dparams)
 
 type IsTag = Bool
 
-data Scheme = Forall [Var] [Var] Type   -- tags, type params, type
+data Scheme = Forall [Var] [Var] (Type []) -- tags, type params, type
   deriving (Eq, Ord)
 
 -- User-level term
-data UsTm = 
-    UsVar Var                           -- x
-  | UsLam Var Type UsTm                 -- \ x : tp. tm
-  | UsApp UsTm UsTm                     -- tm1 tm2
-  | UsCase UsTm [CaseUs]                -- case tm of case*
-  | UsLet Var UsTm UsTm                 -- let x = tm1 in tm2
-  | UsAmb [UsTm]                        -- amb tm1 tm2 ... tmn
-  | UsFactor Double UsTm                -- factor wt in tm
-  | UsFail Type                         -- fail : tp
-  | UsProd AddMult [UsTm]               -- (tm1, ..., tmn)/<tm1, ..., tmn>
-  | UsElimProd AddMult UsTm [Var] UsTm  -- let (x,y,z)/<x,y,z> = tm1 in tm2
-  | UsTmBool Bool                       -- True / False
-  | UsIf UsTm UsTm UsTm                 -- if tm1 then tm2 else tm3
-  | UsEqs [UsTm]                        -- tm1 == tm2 == ...
-  deriving (Eq, Ord)
+data UsTm dparams =
+    UsVar Var                               -- x
+  | UsLam Var (Type dparams) (UsTm dparams) -- \ x : tp. tm
+  | UsApp (UsTm dparams) (UsTm dparams)     -- tm1 tm2
+  | UsCase (UsTm dparams) [CaseUs dparams]  -- case tm of case*
+  | UsLet Var (UsTm dparams) (UsTm dparams) -- let x = tm1 in tm2
+  | UsAmb [UsTm dparams]                    -- amb tm1 tm2 ... tmn
+  | UsFactor Double (UsTm dparams)          -- factor wt in tm
+  | UsFail (Type dparams)                   -- fail : tp
+  | UsProd AddMult [UsTm dparams]           -- (tm1, ..., tmn)/<tm1, ..., tmn>
+  | UsElimProd AddMult (UsTm dparams) [Var] (UsTm dparams)  -- let (x,y,z)/<x,y,z> = tm1 in tm2
+  | UsTmBool Bool                           -- True / False
+  | UsIf (UsTm dparams) (UsTm dparams) (UsTm dparams)       -- if tm1 then tm2 else tm3
+  | UsEqs [UsTm dparams]                    -- tm1 == tm2 == ...
+deriving instance Eq (UsTm [])
+deriving instance Ord (UsTm [])
 
 data GlobalVar = CtorVar | DefVar
   deriving (Eq, Ord)
@@ -84,33 +95,53 @@ data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
 
 -- For the most part, the Type at the end of a constructor
 -- below is the type of that expression as a whole
-data Term =
-    TmVarL Var Type                           -- Local var
-  | TmVarG GlobalVar Var [Type] [Arg] Type    -- Global var
-  | TmLam Var Type Term Type                  -- \ x : tp1. tm : tp2
-  | TmApp Term Term Type {- -> -} Type        -- (tm1 : (tp1 -> tp2)) (tm2  : tp1) : tp2
-  | TmLet Var Term Type Term Type             -- let x : tp1 = tm1 in tp2 : tp2
-  | TmCase Term (Var, [Type]) [Case] Type     -- (case tm : y [tis] of case*) : tp
-  | TmAmb [Term] Type                         -- amb tm1 tm2 ... tmn : tp
-  | TmFactor Double Term Type                 -- factor wt in tm : tp
-  | TmProd AddMult [Arg]                      -- (tm1 : tp1, tm2 : tp2, ..., tmn : tpn) / <...>
-  | TmElimProd AddMult Term [Param] Term Type -- let (x:X,y:Y,z:Z)/<...> = tm1 in tm2 : tp
-  | TmEqs [Term]                              -- tm1 == tm2 == ...
-  deriving (Eq, Ord)
+data Term dparams =
+    TmVarL Var (Type dparams)                                                       -- Local var
+  | TmVarG GlobalVar Var [Type dparams] [Arg dparams] (Type dparams)                -- Global var
+  | TmLam Var (Type dparams) (Term dparams) (Type dparams)                          -- \ x : tp1. tm : tp2
+  | TmApp (Term dparams) (Term dparams) (Type dparams) {- -> -} (Type dparams)      -- (tm1 : (tp1 -> tp2)) (tm2  : tp1) : tp2
+  | TmLet Var (Term dparams) (Type dparams) (Term dparams) (Type dparams)           -- let x : tp1 = tm1 in tp2 : tp2
+  | TmCase (Term dparams) (Var, [Type dparams]) [Case dparams] (Type dparams)       -- (case tm : y [tis] of case*) : tp
+  | TmAmb [Term dparams] (Type dparams)                                             -- amb tm1 tm2 ... tmn : tp
+  | TmFactor Double (Term dparams) (Type dparams)                                   -- factor wt in tm : tp
+  | TmProd AddMult [Arg dparams]                                                    -- (tm1 : tp1, tm2 : tp2, ..., tmn : tpn) / <...>
+  | TmElimProd AddMult (Term dparams) [Param dparams] (Term dparams) (Type dparams) -- let (x:X,y:Y,z:Z)/<...> = tm1 in tm2 : tp
+  | TmEqs [Term dparams]                                                            -- tm1 == tm2 == ...
+deriving instance Eq (Term [])
+deriving instance Eq (Term None)
+deriving instance Ord (Term [])
+deriving instance Ord (Term None)
 
 data AddMult = Additive | Multiplicative
   deriving (Eq, Ord)
 
-data Type =
-    TpArr Type Type                     -- function
-  | TpData Var [Type]                   -- datatype name with type arguments
+data Type dparams =
+    TpArr (Type dparams) (Type dparams) -- function
+  | TpData Var (dparams (Type dparams)) -- datatype name with type arguments
   | TpVar Var                           -- type variable
-  | TpProd AddMult [Type]               -- additive or multiplicative product
+  | TpProd AddMult [Type dparams]       -- additive or multiplicative product
   | NoTp                                -- nothing
-  deriving (Eq, Ord)
+deriving instance Eq (Type [])
+deriving instance Eq (Type None)
+deriving instance Ord (Type [])
+deriving instance Ord (Type None)
 
-data CaseUs = CaseUs Var [Var] UsTm     -- | x a1 ... an -> tm
-  deriving (Eq, Ord)
+instance HFunctor Type where
+  hmap f (TpArr tp1 tp2) = TpArr (hmap f tp1) (hmap f tp2)
+  hmap f (TpData y as)   = TpData y (f (fmap (hmap f) as))
+  hmap f (TpVar y)       = TpVar y
+  hmap f (TpProd am tps) = TpProd am (map (hmap f) tps)
+  hmap f NoTp            = NoTp
 
-data Case = Case Var [Param] Term       -- | x (a1 : tp1) ... (an : tpn) -> tm
-  deriving (Eq, Ord)
+toUsTp :: (HFunctor t, Functor dparams, Foldable dparams) => t dparams -> t []
+toUsTp = hmap toList
+
+data CaseUs dparams = CaseUs Var [Var] (UsTm dparams) -- | x a1 ... an -> tm
+deriving instance Eq (CaseUs [])
+deriving instance Ord (CaseUs [])
+
+data Case dparams = Case Var [Param dparams] (Term dparams) -- | x (a1 : tp1) ... (an : tpn) -> tm
+deriving instance Eq (Case [])
+deriving instance Eq (Case None)
+deriving instance Ord (Case [])
+deriving instance Ord (Case None)

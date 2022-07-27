@@ -121,13 +121,13 @@ parseVarsCommas close allow0 allow1 = parsePeeks 2 >>= \ ts -> case ts of
   _ -> parseErr "expecting a tuple of variables"
 
 -- Parse a branch of a case expression.
-parseCase :: ParseM CaseUs
+parseCase :: ParseM (CaseUs [])
 parseCase = parsePeek >>= \ t -> case t of
   TkVar c -> parseEat *> pure (CaseUs c) <*> parseVars <* parseDrop TkArr <*> parseTerm1
   _ -> parseErr "expecting a case"
 
 -- Parse one or more branches of a case expression.
-parseCases :: ParseM [CaseUs]
+parseCases :: ParseM [CaseUs []]
 parseCases = parseBranches parseCase
 
 -- Parses a (floating-point) number
@@ -150,7 +150,7 @@ TERM1 ::=
  -}
 
 -- CaseOf, Lam, Let
-parseTerm1 :: ParseM UsTm
+parseTerm1 :: ParseM (UsTm [])
 parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- case term of c term ... \| ...
   [TkCase, _] -> parseEat *> pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
@@ -179,7 +179,7 @@ Currently the only term that can have a type annotation is "fail".
 
  -}
 
-parseTerm2 :: ParseM UsTm
+parseTerm2 :: ParseM (UsTm [])
 parseTerm2 = parseTerm3 >>= \ tm ->
   case tm of
     UsFail NoTp -> pure UsFail <*> parseTpAnn
@@ -194,7 +194,7 @@ TERM3 ::=
 -}
 
 
-parseTerm3 :: ParseM UsTm
+parseTerm3 :: ParseM (UsTm [])
 parseTerm3 = parseTerm4 >>= \ tm ->
   parsePeek >>= \ t -> case t of
     TkDoubleEq -> UsEqs <$> parseDelim parseTerm4 TkDoubleEq [tm]
@@ -210,19 +210,19 @@ TERM4 ::=
 
  -}
 
-parseTerm4 :: ParseM UsTm
+parseTerm4 :: ParseM (UsTm [])
 parseTerm4 = parsePeek >>= \ t -> case t of
 -- amb tm*
   TkAmb -> parseEat *> parseAmbs []
   _ -> parseTerm5 >>= \ tm -> parseTermApp tm
 
 -- Parses the "tm*" part of "amb tm*"
-parseAmbs :: [UsTm] -> ParseM UsTm
+parseAmbs :: [UsTm []] -> ParseM (UsTm [])
 parseAmbs acc =
   parseElse (UsAmb (reverse acc)) (parseTerm5 >>= \ tm -> parseAmbs (tm : acc))
 
 -- Parse an application spine
-parseTermApp :: UsTm -> ParseM UsTm
+parseTermApp :: UsTm [] -> ParseM (UsTm [])
 parseTermApp acc =
   parseElse acc $ parseTerm5 >>= parseTermApp . UsApp acc
 
@@ -240,7 +240,7 @@ TERM5 ::=
  -}
 
 -- Var, Parens
-parseTerm5 :: ParseM UsTm
+parseTerm5 :: ParseM (UsTm [])
 parseTerm5 = parsePeek >>= \ t -> case t of
   TkVar v -> parseEat *> pure (UsVar v)
   TkParenL -> parseEat *> (
@@ -264,7 +264,7 @@ TYPEANN ::=
 
 -}
 
-parseTpAnn :: ParseM Type
+parseTpAnn :: ParseM (Type [])
 parseTpAnn =
   parsePeek >>= \ t -> if t == TkColon then (parseEat *> parseType1 []) else pure NoTp
 
@@ -277,7 +277,7 @@ TYPE1 ::=
  -}
 
 -- Arrow
-parseType1 :: [Var] -> ParseM Type
+parseType1 :: [Var] -> ParseM (Type [])
 parseType1 ps = parseType2 ps >>= \ tp -> parsePeek >>= \ t -> case t of
   TkArr -> parseEat *> pure (TpArr tp) <*> parseType1 ps
   _ -> pure tp
@@ -292,7 +292,7 @@ TYPE2 ::=
  -}
 
 -- TypeVar
-parseType2 :: [Var] -> ParseM Type
+parseType2 :: [Var] -> ParseM (Type [])
 parseType2 ps = parsePeek >>= \ t -> case t of
   TkVar v -> parseEat *> if v `elem` ps then pure (TpVar v) else pure (TpData v) <*> parseTypes ps
   _ -> parseType3 ps
@@ -310,7 +310,7 @@ TYPE3 ::=
 
  -}
 
-parseType3 :: [Var] -> ParseM Type
+parseType3 :: [Var] -> ParseM (Type [])
 parseType3 ps = parsePeek >>= \ t -> case t of
   TkParenL -> parseEat *> (
     parsePeek >>= \ t -> case t of
@@ -326,14 +326,14 @@ parseType3 ps = parsePeek >>= \ t -> case t of
   _ -> parseErr "couldn't parse a type here; perhaps add parentheses?"
 
 -- List of Constructors
-parseEqCtors :: [Var] -> ParseM [Ctor]
+parseEqCtors :: [Var] -> ParseM [Ctor []]
 parseEqCtors ps = parsePeek >>= \t -> case t of
   TkEq -> parseDrop TkEq *> parseBranches (pure Ctor <*> parseVar <*> parseTypes ps)
   TkSemicolon -> return []
   _ -> parseErr "expected = or ;"
 
 -- List of Types
-parseTypes :: [Var] -> ParseM [Type]
+parseTypes :: [Var] -> ParseM [Type []]
 parseTypes ps = parseElse [] (parseType3 ps >>= \ tp -> fmap ((:) tp) (parseTypes ps))
 
 {-
