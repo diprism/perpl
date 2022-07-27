@@ -114,7 +114,7 @@ solveM m =
     (solve g vs NoTp cs)
 
 -- 
-solvesM :: CheckM [(Var, Term, Type)] -> CheckM [(Var, Term, Scheme)]
+solvesM :: CheckM [(Var, Term, Type)] -> CheckM [(Var, Term, [Var], [Var], Type)]
 solvesM ms =
   listenSolveVars (listen ms) >>= \ ((atps, cs), vs) ->
   let (fs, as, tps) = unzip3 atps in
@@ -127,16 +127,17 @@ solvesM ms =
                               xsmap = Map.fromList (map (\ x -> (x, ())) xs)
                               xs' = Map.keys (Map.intersection xsmap (freeVars tp'))
                           in
-                            Forall tgs xs' tp') tps
+                            (tgs, xs', tp')) tps
 
-            s' = foldr (\ (fx, Forall tgs' xs' tp') ->
+            s' = foldr (\ (fx, (tgs', xs', tp')) ->
                           Map.insert fx
                             (SubTm (TmVarG DefVar fx
                                     (map TpVar (tgs' ++ xs')) [] tp')))
                        s (zip fs stps)
         in
-          return (zip3 fs (subst s' as) stps))
+          return [(f, subst s' a, tgs, xs, tp) | (f, a, (tgs, xs, tp)) <- zip3 fs as stps])
     (solve g vs (TpProd Multiplicative tps) cs)
+
 
 -- Creates graphs of function dependencies and datatype dependencies in a program
 getDeps :: UsProgs -> (Map Var (Set Var), Map Var (Set Var))
@@ -197,9 +198,9 @@ inferFuns fs m =
                   okay) >>
                return (x, tm', typeof tm')) (zip fs itps))) >>= \ xtmstps ->
     -- Add defs to env, and check remaining progs (m)
-    foldr (\ (x, tm, stp) -> defTerm x stp) m xtmstps >>= \ (SProgs ps end) ->
+    foldr (\ (x, tm, tgs, ps, tp) -> defTerm x tgs ps tp) m xtmstps >>= \ (SProgs ps end) ->
     -- Add defs to returned (schemified) program
-    let ps' = map (\ (x, tm, stp) -> SProgFun x stp tm) xtmstps in
+    let ps' = map (\ (x, tm, tgs, ps, tp) -> SProgFun x tgs ps tp tm) xtmstps in
     return (SProgs (ps' ++ ps) end)
 
 {- inferData dsccs cont
@@ -328,7 +329,7 @@ inferExtern (x, tp) m =
   -- Make sure tp' doesn't use any recursive datatypes
   localCurDef x (guardExternRec tp') >>
   -- Add (x : tp') to env, checking rest of program
-  defTerm x (Forall [] [] tp') m >>= \ (SProgs ps end) ->
+  defTerm x [] [] tp' m >>= \ (SProgs ps end) ->
   -- Add (extern x : tp') to returned program
   return (SProgs (SProgExtern x [] tp' : ps) end)
 

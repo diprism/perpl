@@ -303,13 +303,13 @@ instance Substitutable Prog where
   freeVars p = error "freeVars on a Prog"
 
 instance Substitutable SProg where
-  substM (SProgFun x (Forall tgs tpms tp) tm) =
+  substM (SProgFun x tgs tpms tp tm) =
     bind x x okay >>
     freshens tgs >>= \ tgs' ->
     binds tgs tgs'
       (freshens tpms >>= \ tpms' ->
        binds tpms tpms'
-         (pure (SProgFun x) <*> (pure (Forall tgs' tpms') <*> substM tp) <*> substM tm))
+         (pure (SProgFun x tgs' tpms') <*> substM tp <*> substM tm))
   substM (SProgExtern x tps tp) =
     bind x x okay >>
     pure (SProgExtern x) <*> substM tps <*> substM tp
@@ -341,13 +341,3 @@ freshVar' s x =
 
 freshVar :: Ctxt -> Var -> Var
 freshVar = freshVar' . Map.mapWithKey (const . SubVar)
-
-
-instance Substitutable Scheme where
-  substM (Forall tgs xs tp) =
-    freshens tgs >>= \ tgs' ->
-    binds tgs tgs'
-      (freshens xs >>= \ xs' ->
-       pure (Forall tgs xs') <*> binds xs xs' (substM tp))
-
-  freeVars (Forall tgs xs tp) = foldr Map.delete (freeVars tp) (tgs ++ xs)
