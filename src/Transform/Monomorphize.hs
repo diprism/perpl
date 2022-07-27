@@ -180,7 +180,7 @@ makeInstantiations xis (SProgData y [] [] cs) =
     []
   else
     -- a datatype with no arguments can have only one instantiation, so we don't rename it (see renameCallsTp)
-    [ProgData y cs]
+    [ProgData y [Ctor x (map (renameCallsTp xis) tps) | Ctor x tps <- cs]]
 makeInstantiations xis (SProgData y tgs ps cs) =
     let tiss = Map.toList (xis Map.! y) in
     map (\ (tis, i) ->
