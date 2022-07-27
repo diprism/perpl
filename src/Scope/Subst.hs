@@ -5,7 +5,7 @@ module Scope.Subst where
 import qualified Data.Map as Map
 import Control.Monad.RWS.Lazy
 import Util.Helpers
-import Scope.Ctxt (Ctxt, CtxtDef(..))
+import Scope.Ctxt (Ctxt)
 import Scope.Fresh (newVar)
 import Struct.Lib
 
@@ -342,21 +342,6 @@ freshVar' s x =
 freshVar :: Ctxt -> Var -> Var
 freshVar = freshVar' . Map.mapWithKey (const . SubVar)
 
-
-instance Substitutable CtxtDef where
-  substM (DefTerm sc tp) = pure (DefTerm sc) <*> substM tp
-  substM (DefSTerm sc stp) = pure (DefSTerm sc) <*> substM stp
-  substM (DefData [] cs) = pure DefData <*> pure [] <*> substM cs
-  substM (DefData ps cs) = error "not implemented"
-  substM (DefSData [] [] cs) = pure DefData <*> pure [] <*> substM cs
-  substM (DefSData tgs ps cs) = error "not implemented"
-  
-  freeVars (DefTerm sc tp) = freeVars tp
-  freeVars (DefSTerm sc stp) = freeVars stp
-  freeVars (DefData [] cs) = freeVars cs
-  freeVars (DefData ps cs) = error "not implemented"
-  freeVars (DefSData [] [] cs) = freeVars cs
-  freeVars (DefSData tgs ps cs) = error "not implemented"
 
 instance Substitutable Scheme where
   substM (Forall tgs xs tp) =

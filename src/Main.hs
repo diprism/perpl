@@ -90,9 +90,8 @@ showFile = return . show
 
 alphaRenameProgs :: Substitutable p => (p -> Ctxt) -> p -> Either String p
 alphaRenameProgs gf a = return (alphaRename (gf a) a)
---ctxtDefProgs
 
---process :: Show a => CmdArgs -> String -> a
+processContents :: CmdArgs -> String -> Either String String
 processContents (CmdArgs ifn ofn c m e dr l o z) s =
   let e' = e && m && l
       c' = c && e
