@@ -9,8 +9,6 @@ import Scope.Subst
 import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtLookupTerm, ctxtLookupType)
 import Scope.Name
 
-import Debug.Trace
-
 -- Collects the free variables of all the cases in
 -- a case-of over something with type rtp
 collectUnfolds :: Var -> Term -> [(FreeVars, Type)]
@@ -53,7 +51,7 @@ collectFolds rtp (TmEqs tms) = concatMap (collectFolds rtp) tms
 
 -- Runs collect[Un]folds on a Prog
 collectProg :: (Term -> [a]) -> Prog -> [a]
-collectProg f (ProgFun _ _ tm _) = f tm
+collectProg f (ProgFun _ _ tm) = f tm
 collectProg f _ = []
 
 -- Runs collect[Un]folds on a file
@@ -90,7 +88,7 @@ makeDisentangle g y us css =
                  (joinLams ps (TmCase (TmVarL x ytp) (y, []) cs' tp),
                    joinArrows (tpUnit : snds ps) tp)
              | (fvs, tp, cs, i) <- alls]
-      fun = ProgFun (unfoldName y) [(x, ytp)] (TmVarG CtorVar (unfoldCtorName y) [] [(TmProd Additive cscs, TpProd Additive (snds cscs))] utp) utp -- (TpArr ytp utp)
+      fun = ProgFun (unfoldName y) (TpArr ytp utp) (TmLam x ytp (TmVarG CtorVar (unfoldCtorName y) [] [(TmProd Additive cscs, TpProd Additive (snds cscs))] utp) utp)
   in
     (dat, fun)
 
@@ -101,15 +99,13 @@ makeDefold g y tms =
       tname = foldTypeName y
       x = freshVar g targetName
       ftp = TpData tname []
-      ps = [(x, ftp)]
       casesf = \ (i, tm) -> let ps' = Map.toList (freeVars tm) in Case (foldCtorName y i) ps' (derefunTerm Defun (ctxtDeclArgs g ps') y tm)
       cases = map casesf (enumerate tms)
       ctors = [Ctor x (snds ps) | Case x ps tm <- cases]
       tm = TmCase (TmVarL x ftp) (tname, []) cases (TpData y [])
-  in
---    error (tname ++ " | " ++ show ctors ++ " | " ++ show cases)
+  in traceShow ctors $
     (ProgData tname ctors,
-     ProgFun fname ps tm (TpData y []))
+     ProgFun fname (TpArr ftp (TpData y [])) (TmLam x ftp tm (TpData y [])))
 
 --------------------------------------------------
 
@@ -263,7 +259,7 @@ derefunTerm dr g rtp = fst . h where
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> typeof xtm in
           TmCase (TmVarG DefVar applyN [] [(tm1', tp1')] (TpData rtp [])) (rtp, []) cs' tp2'
     | otherwise =
-        let (tm1', TpData tp1' []) = traceShowId (h tm1)
+        let (tm1', TpData tp1' []) = h tm1
             cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> typeof xtm in
           TmCase tm1' (tp1', []) cs' tp2'
@@ -288,7 +284,8 @@ derefunTerm dr g rtp = fst . h where
     TmEqs [h' tm | tm <- tms]
 
 derefunProgTypes :: DeRe -> Var -> Prog -> Prog
-derefunProgTypes dr rtp (ProgFun x ps tm tp) = ProgFun x (map (fmap (derefunSubst dr rtp)) ps) tm (derefunSubst dr rtp tp)
+derefunProgTypes dr rtp (ProgFun x tp tm) =
+  ProgFun x (derefunSubst dr rtp tp) tm
 derefunProgTypes dr rtp (ProgExtern x tp) = ProgExtern x tp
 derefunProgTypes dr rtp (ProgData y cs) = ProgData y [Ctor x [derefunSubst dr rtp tp | tp <- tps] | Ctor x tps <- cs]
 
@@ -297,7 +294,7 @@ derefunProgsTypes dr rtp (Progs ps end) =
   Progs (map (derefunProgTypes dr rtp) ps) end
 
 derefunProg' :: DeRe -> Ctxt -> Var -> Prog -> Prog
-derefunProg' dr g rtp (ProgFun x ps tm tp) = ProgFun x ps (derefunTerm dr g rtp tm) tp
+derefunProg' dr g rtp (ProgFun x tp tm) = ProgFun x tp (derefunTerm dr g rtp tm)
 derefunProg' dr g rtp (ProgExtern x tp) = ProgExtern x tp
 derefunProg' dr g rtp (ProgData y cs) = ProgData y cs
 

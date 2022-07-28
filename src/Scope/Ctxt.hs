@@ -89,7 +89,7 @@ ctxtDefSProgs (SProgs ps end) = foldl ctxtDefSProg emptyCtxt ps
 
 -- Adds all definitions from a file to context
 ctxtDefProg :: Ctxt -> Prog -> Ctxt
-ctxtDefProg g (ProgFun x ps tm tp) = ctxtDefGlobal g x [] [] (joinArrows (map snd ps) tp)
+ctxtDefProg g (ProgFun x tp tm) = ctxtDefGlobal g x [] [] tp
 ctxtDefProg g (ProgExtern x tp) = ctxtDefGlobal g x [] [] tp
 ctxtDefProg g (ProgData y cs) = ctxtDefData g y [] [] cs
 

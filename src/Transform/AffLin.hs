@@ -247,7 +247,7 @@ affLinDiscards (p@(ProgData y cs) : ps) =
     let
       -- define _discardy_ = \x. case x of Con1 a11 a12 ... -> () | ...
       -- Linearizing this will generate recursive calls to discard as needed
-      defDiscard = ProgFun (discardName y) [("x", ytp)] body tpUnit
+      defDiscard = ProgFun (discardName y) (TpArr ytp tpUnit) (TmLam "x" ytp body tpUnit)
       body = TmCase (TmVarL "x" ytp) (y, []) cases tpUnit
       cases = [let atps' = nameParams c atps in Case c atps' tmUnit | Ctor c atps <- cs]
     in
@@ -260,21 +260,27 @@ affLinDiscards [] = return []
 affLinProg :: Prog -> AffLinM Prog
 affLinProg (ProgData y cs) =
   pure (ProgData y (mapCtors affLinTp cs))
-affLinProg (ProgFun x as tm tp) =
-  let as' = mapParams affLinTp as
-      tp' = affLinTp tp
-  in pure (\tm' -> ProgFun x as' tm' tp') <*> alBinds as' (affLin tm)
+affLinProg (ProgFun x tp tm) =
+  -- Top-level arrows are not transformed
+  let
+    (ptps, rtp) = splitArrows tp
+    tp' = joinArrows (fmap affLinTp ptps) (affLinTp rtp)
+    (ps, rtm) = splitLams tm
+    ps' = mapParams affLinTp ps
+  in
+    alBinds ps' (affLin rtm) >>= \rtm' ->
+    return (ProgFun x tp' (joinLams ps' rtm'))
 affLinProg (ProgExtern x tp) =
   -- Top-level arrows are not transformed
-  let (ps, rtp) = splitArrows tp in
-  pure (ProgExtern x (joinArrows (fmap affLinTp ps) (affLinTp rtp)))
+  let (ptps, rtp) = splitArrows tp in
+  pure (ProgExtern x (joinArrows (fmap affLinTp ptps) (affLinTp rtp)))
 
 -- Helper that does affLinTp on all the types so that we can add all the definitions to ctxt
 affLinDefine :: Prog -> Prog
 affLinDefine (ProgData y cs) =
   ProgData y (mapCtors affLinTp cs)
-affLinDefine (ProgFun x as tm tp) =
-  ProgFun x (mapParams affLinTp as) tm (affLinTp tp)
+affLinDefine (ProgFun x tp tm) =
+  ProgFun x (affLinTp tp) tm 
 affLinDefine (ProgExtern x tp) =
   ProgExtern x (affLinTp tp)
 

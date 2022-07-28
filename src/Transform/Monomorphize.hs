@@ -159,16 +159,15 @@ makeInstantiations xis (SProgFun x [] [] tp tm) =
     -- then this def is never used so we can just delete it
     []
   else
-    [ProgFun x [] (renameCalls xis tm) (renameCallsTp xis tp)]
+    [ProgFun x (renameCallsTp xis tp) (renameCalls xis tm)]
 makeInstantiations xis (SProgFun x tgs ys tp tm) =
   let tiss = Map.toList (xis Map.! x) in
     map (\ (tis, i) ->
            let s = Map.fromList (zip (tgs ++ ys) (SubTp <$> tis)) in
              ProgFun
                (instName x i) -- new name for this particular instantiation
-               [] -- args are [], for now (see Transform.Argify)
-               (renameCalls xis (subst s tm))
-               (renameCallsTp xis (subst s tp)))
+               (renameCallsTp xis (subst s tp))
+               (renameCalls xis (subst s tm)))
       tiss
 makeInstantiations xis (SProgExtern x tp) =
   if null (Map.toList (xis Map.! x)) then

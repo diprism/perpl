@@ -1,5 +1,6 @@
 module Struct.Helpers where
 import Struct.Exprs
+import Struct.Show()
 import Util.Helpers
 import Data.List
 
@@ -73,7 +74,7 @@ joinApps' tm = h (toArg tm) where
   h :: (Term, Type) -> [Term] -> Term
   h (tm1, tp) [] = tm1
   h (tm1, TpArr tp2 tp) (tm2 : as) = h (TmApp tm1 tm2 tp2 tp, tp) as
-  h (tm1, tp) (tm2 : as) = error "internal error: in joinApps', trying to apply to non-arrow type"
+  h (tm1, tp) (tm2 : as) = error ("internal error: in joinApps', trying to apply to non-arrow type " ++ show tp)
 
 -- Joins (tm1, [(tm2, tp2), (tm3, tp3), ..., (tmn, tpn)]) into tm1 tm2 tm3 ... tmn
 joinApps :: Term -> [Arg] -> Term
@@ -184,8 +185,8 @@ mapCtors f = map $ \ (Ctor x tps) -> Ctor x (map f tps)
 
 -- Maps over the terms in a Prog
 mapProgM :: Monad m => (Term -> m Term) -> Prog -> m Prog
-mapProgM f (ProgFun x ps tm tp) =
-  pure (ProgFun x ps) <*> f tm <*> pure tp
+mapProgM f (ProgFun x tp tm) =
+  pure (ProgFun x) <*> pure tp <*> f tm
 mapProgM mtm (ProgExtern x tp) =
   pure (ProgExtern x tp)
 mapProgM mtm (ProgData y cs) =

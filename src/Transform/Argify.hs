@@ -11,8 +11,6 @@ become (a -> ((b -> c) & Unit)) & Unit, only (a -> b -> c) & Unit
 module Transform.Argify where
 import qualified Data.Map as Map
 import Struct.Lib
-import Util.Helpers
-import Scope.Name
 import Scope.Subst
 
 
@@ -50,18 +48,9 @@ argify (TmElimProd am ptm ps tm tp) = TmElimProd am (argify ptm) ps (argify tm) 
 argify (TmEqs tms) = TmEqs (argify <$> tms)
 
 argifyProg :: Prog -> Prog
-argifyProg (ProgFun x [] tm tp) =
-  let tm' = argify tm
-      (as, etp) = splitArrows tp
-      (ls, etm) = splitLams tm'
-      etas = [ (etaName x i, atp) | (i, atp) <- drop (length ls) (enumerate as) ]
-      etm_eta = joinApps etm (paramsToArgs etas)
-      ls_eta = ls ++ etas
-  in
-    ProgFun x ls_eta etm_eta etp
+argifyProg (ProgFun x tp tm) = ProgFun x tp (argify tm)
 argifyProg (ProgExtern x tp) = ProgExtern x tp
 argifyProg (ProgData y cs) = ProgData y cs
-argifyProg tp = error $ "This shouldn't happen (" ++ show tp ++ ")"
 
 argifyFile :: Progs -> Progs
 argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argify tm)

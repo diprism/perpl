@@ -290,9 +290,9 @@ instance Substitutable Ctor where
   freeVars (Ctor x tps) = freeVars tps
 
 instance Substitutable Prog where
-  substM (ProgFun x ps tm tp) =
+  substM (ProgFun x tp tm) =
     bind x x okay >>
-    pure (ProgFun x) <**> substParams Multiplicative ps (substM tm) <*> substM tp
+    pure (ProgFun x) <*> substM tp <*> substM tm
   substM (ProgExtern x tp) =
     bind x x okay >>
     pure (ProgExtern x) <*> substM tp

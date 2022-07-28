@@ -2,7 +2,6 @@ module Struct.Show where
 import Data.List (intercalate)
 import Util.Helpers
 import Struct.Exprs
-import Struct.Helpers
 
 {- Convert back from elaborated terms to user terms -}
 
@@ -27,7 +26,7 @@ toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (fsts as) (toUsTm tm)
 
 toUsProg :: Prog -> UsProg
-toUsProg (ProgFun x ps tm tp) = UsProgFun x (joinArrows (snds ps) tp) (toUsTm (joinLams ps tm))
+toUsProg (ProgFun x tp tm) = UsProgFun x tp (toUsTm tm)
 toUsProg (ProgExtern x tp) = UsProgExtern x tp
 toUsProg (ProgData y cs) = UsProgData y [] cs
 

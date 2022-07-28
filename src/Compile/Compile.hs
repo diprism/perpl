@@ -299,15 +299,17 @@ type2fgg g tp =
 
 -- Adds the rules for a Prog
 prog2fgg :: Ctxt -> Prog -> RuleM
-prog2fgg g (ProgFun x ps tm tp) =
-  type2fgg g (joinArrows (snds ps) tp) +>= \ _ ->
-  bindExts True ps $ term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
+prog2fgg g (ProgFun x tp tm) =
+  let (_, rtp) = splitArrows tp
+      (ps, rtm) = splitLams tm in
+  type2fgg g tp +>= \ _ ->
+  bindExts True ps $ term2fgg (ctxtDeclArgs g ps) rtm +>= \ tmxs ->
   let unused_ps = Map.toList (Map.difference (Map.fromList ps) (Map.fromList tmxs))
       (unused_x, unused_tp) = unzip unused_ps
-      vtp : unused_n = newNames (tp : unused_tp)
+      vtp : unused_n = newNames (rtp : unused_tp)
   in
-    mkRule (TmVarG DefVar x [] [] tp) (vtp : tmxs ++ ps ++ unused_n ++ unused_ps)
-      (Edge' (tmxs ++ [vtp]) (show tm) : discardEdges' unused_ps unused_n)
+    mkRule (TmVarG DefVar x [] [] rtp) (vtp : tmxs ++ ps ++ unused_n ++ unused_ps)
+      (Edge' (tmxs ++ [vtp]) (show rtm) : discardEdges' unused_ps unused_n)
       (ps ++ [vtp])
 prog2fgg g (ProgExtern x tp) =
     type2fgg g tp +>
