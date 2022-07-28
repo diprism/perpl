@@ -12,7 +12,7 @@ import Util.Helpers
 import Scope.Fresh (newVar)
 import Scope.Subst
 import Scope.Free (isAff, isInfiniteType)
-import Scope.Ctxt (Ctxt, CtxtDef(..), ctxtDefLocal, ctxtDefGlobal, ctxtDefData)
+import Scope.Ctxt (Ctxt, CtxtDef(..), DefTerm(..), DefType(..), ctxtDefLocal, ctxtDefGlobal, ctxtDefData)
 
 -- Convention: expected type, then actual type
 -- TODO: Enforce this convention
@@ -175,17 +175,17 @@ lookupDatatype :: Var -> CheckM ([Var], [Var], [Ctor])
 lookupDatatype x =
   askEnv >>= \ g ->
   case Map.lookup x g of
-    Just (DefData tgs ps cs) -> return (tgs, ps, cs)
+    Just (DefType (DefData tgs ps cs)) -> return (tgs, ps, cs)
     _ -> err (ScopeError x)
 
 -- Lookup a term variable
-lookupTermVar :: Var -> CheckM CtxtDef
+lookupTermVar :: Var -> CheckM DefTerm
 lookupTermVar x =
   askEnv >>= \ g ->
   case Map.lookup x g of
     Nothing -> err (ScopeError x)
-    Just (DefData _ _ _) -> err (ScopeError x)
-    Just d -> return d
+    Just (DefType _ ) -> err (ScopeError x)
+    Just (DefTerm d) -> return d
 
 -- Lookup the datatype that cases split on
 lookupCtorType :: [CaseUs] -> CheckM (Var, [Var], [Var], [Ctor])
@@ -286,7 +286,6 @@ infer' (UsVar x) =
     DefLocal tp -> return (TmVarL x tp)
     DefGlobal tgs tis tp -> h DefVar tgs tis tp
     DefCtor tgs tis tp -> h CtorVar tgs tis tp
-    _ -> error "this can't happen"
   where
     h gv tgs tis tp =
       -- pick new tags
