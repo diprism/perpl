@@ -9,7 +9,7 @@ import Util.SCC
 import Struct.Lib
 import Scope.Subst
 import Scope.Free (robust)
-import Scope.Ctxt (CtxtDef(..))
+import Scope.Ctxt (Ctxt, emptyCtxt)
 
 bindTp :: Var -> Type -> Either TypeError Subst
 bindTp x tp
@@ -58,15 +58,13 @@ unifyAll =
     (Right Map.empty)
 
 -- Makes sure that robust-constrained solved type vars have robust solutions
-solvedWell :: Env -> Subst -> [(Constraint, Loc)] -> Either (TypeError, Loc) ()
+solvedWell :: Ctxt -> Subst -> [(Constraint, Loc)] -> Either (TypeError, Loc) ()
 solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
-  robust' = robust (fmap (\ (tgs, ps, cs) -> DefData (tgs++ps) cs) (typeEnv e))
-
   h (Unify tp1 tp2) l -- Not sure if checking tp1 == tp2 is necessary, but better be safe?
     | tp1 /= tp2 = Left (ConflictingTypes tp1 tp2, l)
     | otherwise = okay
   h (Robust tp) l -- Make sure that tp was solved to a robust type
-    | not (robust' tp) = Left (RobustType tp, l)
+    | not (robust e tp) = Left (RobustType tp, l)
     | otherwise = okay
 
 -- If in the process of doing type inference on a term,
@@ -96,7 +94,7 @@ Tries to solve a set of constraints
 If no error, returns (solution subst, remaining type vars, remaining tag vars)
 -}
 
-solve :: Env -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var], [Var])
+solve :: Ctxt -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var], [Var])
 solve g vs rtp cs =
   unifyAll (getUnifications cs) >>= \ s ->
   let (s', xs, tgs) = solveInternal vs s rtp in
@@ -199,7 +197,7 @@ inferFuns fs m =
                   okay) >>
                return (x, tm', typeof tm')) (zip fs itps))) >>= \ xtmstps ->
     -- Add defs to env, and check remaining progs (m)
-    foldr (\ (x, tm, stp) -> defTerm x DefVar stp) m xtmstps >>= \ (SProgs ps end) ->
+    foldr (\ (x, tm, stp) -> defTerm x stp) m xtmstps >>= \ (SProgs ps end) ->
     -- Add defs to returned (schemified) program
     let ps' = map (\ (x, tm, stp) -> SProgFun x stp tm) xtmstps in
     return (SProgs (ps' ++ ps) end)
@@ -275,8 +273,7 @@ inferData dsccs cont = foldr h cont dsccs
     constrainTpApps (TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2
     constrainTpApps (TpVar y) = return ()
     constrainTpApps (TpData y as) =
-      askEnv >>= \ g ->
-      let (_, xs, _) = typeEnv g Map.! y in
+      lookupDatatype y >>= \ (_, xs, _) ->
         zipWithM_ (\ x a -> constrain (Unify (TpVar x) a)) xs as
     constrainTpApps (TpProd am tps) = mapM_ constrainTpApps tps
     constrainTpApps NoTp = error "this shouldn't happen"
@@ -296,7 +293,7 @@ inferData dsccs cont = foldr h cont dsccs
     -- datatypes in the SCC see one another in the type environment.
     defDataSCC :: [(Var, [Var], [Ctor])] -> CheckM a -> CheckM a
     defDataSCC dscc m =
-      foldl (\ m (y, ps, cs) -> defType y [] ps cs m) m dscc
+      foldl (\ m (y, ps, cs) -> defData y [] ps [] m) m dscc
 
     -- Handles checking mutually-recursive datatypes
     -- Input: a list of (datatype name, type param names, constructors)
@@ -331,7 +328,7 @@ inferExtern (x, tp) m =
   -- Make sure tp' doesn't use any recursive datatypes
   localCurDef x (guardExternRec tp') >>
   -- Add (x : tp') to env, checking rest of program
-  defTerm x DefVar (Forall [] [] tp') m >>= \ (SProgs ps end) ->
+  defTerm x (Forall [] [] tp') m >>= \ (SProgs ps end) ->
   -- Add (extern x : tp') to returned program
   return (SProgs (SProgExtern x [] tp' : ps) end)
 
@@ -374,5 +371,5 @@ inferFile :: UsProgs -> Either String SProgs
 inferFile ps =
   either (\ (e, loc) -> Left (show e ++ ", " ++ show loc)) (\ (a, s, w) -> Right a)
     (runExcept (runRWST (inferProgs ps)
-                        (CheckR (Env mempty mempty mempty) (Loc "" "")) mempty))
+                        (CheckR emptyCtxt (Loc "" "")) mempty))
 

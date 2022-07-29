@@ -78,10 +78,6 @@ data UsTm =
 data GlobalVar = CtorVar | DefVar
   deriving (Eq, Ord)
 
--- Which kind of var: local function, global function, or constructor
-data Scope = ScopeLocal | ScopeGlobal | ScopeCtor
-  deriving (Eq, Show)
-
 -- For the most part, the Type at the end of a constructor
 -- below is the type of that expression as a whole
 data Term =

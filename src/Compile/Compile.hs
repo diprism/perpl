@@ -6,7 +6,7 @@ import Util.Tensor
 import Util.FGG
 import Util.Helpers
 import Struct.Lib
-import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtDeclTerm, ctxtLookupType)
+import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtDefLocal, ctxtLookupType)
 import Scope.Name
 import Scope.Subst
 
@@ -163,7 +163,7 @@ term2fgg _ (TmVarG _ _ (_:_) _ _) = error "Cannot compile polymorphic code"
 
 term2fgg g (TmLam x tp tm tp') =
   bindExt True x tp
-    (term2fgg (ctxtDeclTerm g x tp) tm +>= \ tmxs ->
+    (term2fgg (ctxtDefLocal g x tp) tm +>= \ tmxs ->
      addPairFactor g tp tp' +>
      type2fgg g tp +>
      let [vtp', varr] = newNames [tp', TpArr tp tp']
@@ -207,7 +207,7 @@ term2fgg g (TmFactor wt tm tp) =
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm +>= \ xtmxs ->
   bindExt True x xtp $
-  term2fgg (ctxtDeclTerm g x xtp) tm +>= \ tmxs ->
+  term2fgg (ctxtDefLocal g x xtp) tm +>= \ tmxs ->
   let vxtp = (x, xtp)
       [vtp] = newNames [tp] in -- TODO: if unused?
     mkRule (TmLet x xtm xtp tm tp) (vxtp : vtp : xtmxs ++ tmxs)
@@ -241,7 +241,7 @@ term2fgg g (TmElimProd Additive ptm ps tm tp) =
   let o = injIndex [x | (x, _) <- ps]
       (x, xtp) = ps !! o in
     bindExt True x xtp $
-    term2fgg (ctxtDeclTerm g x xtp) tm +>= \ tmxs ->
+    term2fgg (ctxtDefLocal g x xtp) tm +>= \ tmxs ->
     let tps = [tp | (_, tp) <- ps]
         ptp = TpProd Additive tps
         [vtp, vptp] = newNames [tp, ptp]

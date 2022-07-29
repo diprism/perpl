@@ -12,7 +12,7 @@ import Util.Helpers
 import Scope.Fresh (newVar)
 import Scope.Subst
 import Scope.Free (isAff, isInfiniteType)
-import Scope.Ctxt (CtxtDef(..))
+import Scope.Ctxt (Ctxt, CtxtDef(..), DefTerm(..), DefType(..), ctxtDefLocal, ctxtDefGlobal, ctxtDefData)
 
 -- Convention: expected type, then actual type
 -- TODO: Enforce this convention
@@ -76,10 +76,6 @@ instance Substitutable Constraint where
   freeVars (Robust tp) = freeVars tp
 
 {- ===== CheckM Monad =====-}
--- Environment, stores info about vars in scope
-data Env = Env { typeEnv :: Map Var ([Var], [Var], [Ctor]),
-                 localEnv :: Map Var Type,
-                 globalEnv :: Map Var (GlobalVar, Scheme) }
 
 type SolveVars = Map Var IsTag
 
@@ -90,23 +86,11 @@ instance Show Loc where
   show l = intercalate ", " ((if null (curDef l) then ["somewhere"] else ["in the definition " ++ curDef l]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
 
 -- Reader part of the RWST monad for inference/checking
-data CheckR = CheckR { checkEnv :: Env, checkLoc :: Loc }
+data CheckR = CheckR { checkEnv :: Ctxt, checkLoc :: Loc }
 
 -- Temporarily modifies the env
-modifyEnv :: (Env -> Env) -> CheckR -> CheckR
+modifyEnv :: (Ctxt -> Ctxt) -> CheckR -> CheckR
 modifyEnv f cr = cr { checkEnv = f (checkEnv cr) }
-
--- Adds a type definition to env
-typeEnvInsert :: Var -> [Var] -> [Var] -> [Ctor] -> CheckR -> CheckR
-typeEnvInsert y tgs ps cs = modifyEnv $ \ e -> e { typeEnv = Map.insert y (tgs, ps, cs) (typeEnv e) }
-
--- Adds a local var binding to the env
-localEnvInsert :: Var -> Type -> CheckR -> CheckR
-localEnvInsert x tp = modifyEnv $ \ e -> e { localEnv = Map.insert x tp (localEnv e) }
-
--- Adds a global def to the env
-globalEnvInsert :: Var -> GlobalVar -> Scheme -> CheckR -> CheckR
-globalEnvInsert x gv stp = modifyEnv $ \ e -> e { globalEnv = Map.insert x (gv, stp) (globalEnv e) }
 
 -- RWST (Reader-Writer-State-Transformer) monad:
 -- R (downwards): CheckR, the environment and current location
@@ -130,7 +114,7 @@ occursCheck :: Substitutable a => Var -> a -> Bool
 occursCheck x t = x `Map.member` (freeVars t)
 
 -- Return the env
-askEnv :: CheckM Env
+askEnv :: CheckM Ctxt
 askEnv = checkEnv <$> ask
 
 -- Return the current location
@@ -147,14 +131,7 @@ localCurExpr a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curExpr = show a
 
 -- Add (x : tp) to env
 inEnv :: Var -> Type -> CheckM a -> CheckM a
-inEnv x tp = local $ localEnvInsert x tp
-
--- Guard against duplicate definitions of x
-guardDupDef :: Var -> CheckM ()
-guardDupDef x =
-  askEnv >>= \ env ->
-  let isdup = not (x `Map.member` typeEnv env || x `Map.member` globalEnv env) in
-    guardM isdup (MultipleDefs x)
+inEnv x tp = local $ modifyEnv (\ g -> ctxtDefLocal g x tp)
 
 -- Checks for any duplicate definitions
 anyDupDefs :: UsProgs -> CheckM ()
@@ -179,25 +156,15 @@ anyDupDefs (UsProgs ps etm) =
 guardExternRec :: Type -> CheckM ()
 guardExternRec tp =
   askEnv >>= \ env ->
-  let g = fmap (\ (tgs, ps, cs) -> DefData ps cs) (typeEnv env) in
-  guardM (not (isInfiniteType g tp)) ExternRecData
+  guardM (not (isInfiniteType env tp)) ExternRecData
 
 -- Defines a global function
-defTerm :: Var -> GlobalVar -> Scheme -> CheckM a -> CheckM a
-defTerm x g tp =
-  local (globalEnvInsert x g tp)
-
--- Defines a datatype
-defType :: Var -> [Var] -> [Var] -> [Ctor] -> CheckM a -> CheckM a
-defType y tgs ps cs =
-  local (typeEnvInsert y tgs ps cs)
+defTerm :: Var -> Scheme -> CheckM a -> CheckM a
+defTerm x (Forall tgs ps tp) = local $ modifyEnv ( \ g -> ctxtDefGlobal g x tgs ps tp)
 
 -- Defines a datatype and its constructors
 defData :: Var -> [Var] -> [Var] -> [Ctor] -> CheckM a -> CheckM a
-defData y tgs ps cs m =
-  foldr
-    (\ (Ctor x tps) -> defTerm x CtorVar (Forall tgs ps (joinArrows tps (TpData y (TpVar <$> (tgs ++ ps))))))
-    (defType y tgs ps cs m) cs
+defData y tgs ps cs = local $ modifyEnv (\ g -> ctxtDefData g y tgs ps cs)
 
 -- Add (x1 : tp1), (x2 : tp2), ... to env
 inEnvs :: [(Var, Type)] -> CheckM a -> CheckM a
@@ -207,13 +174,18 @@ inEnvs = flip $ foldr $ uncurry inEnv
 lookupDatatype :: Var -> CheckM ([Var], [Var], [Ctor])
 lookupDatatype x =
   askEnv >>= \ g ->
-  maybe (err (ScopeError x)) return (Map.lookup x (typeEnv g))
+  case Map.lookup x g of
+    Just (DefType (DefData tgs ps cs)) -> return (tgs, ps, cs)
+    _ -> err (ScopeError x)
 
 -- Lookup a term variable
-lookupTermVar :: Var -> CheckM (Either Type (GlobalVar, Scheme))
+lookupTermVar :: Var -> CheckM DefTerm
 lookupTermVar x =
   askEnv >>= \ g ->
-  maybe (err (ScopeError x)) return ((Left <$> Map.lookup x (localEnv g)) |?| (Right <$> Map.lookup x (globalEnv g)))
+  case Map.lookup x g of
+    Nothing -> err (ScopeError x)
+    Just (DefType _ ) -> err (ScopeError x)
+    Just (DefTerm d) -> return d
 
 -- Lookup the datatype that cases split on
 lookupCtorType :: [CaseUs] -> CheckM (Var, [Var], [Var], [Ctor])
@@ -221,11 +193,10 @@ lookupCtorType [] = err NoCases
 lookupCtorType (CaseUs x _ _ : _) =
   lookupTermVar x >>= \ tp ->
   case tp of
-    Right (CtorVar, Forall _ _ ctp) -> case splitArrows ctp of
+    DefCtor _ _ ctp -> case splitArrows ctp of
       (_, TpData y _) -> lookupDatatype y >>= \ (tgs, xs, cs) -> return (y, tgs, xs, cs)
       (_, etp) -> error "This shouldn't happen"
-    Right (DefVar, _) -> err (CtorError x)
-    Left loctp -> err (CtorError x)
+    _ -> err (CtorError x)
 
 -- Returns the new type vars introduced by m
 listenSolveVars :: CheckM a -> CheckM (a, SolveVars)
@@ -240,11 +211,8 @@ boundVars :: CheckM (Map Var ())
 boundVars =
   ask >>= \ d ->
   get >>= \ s ->
-  let env = checkEnv d
-      tpe = typeEnv env
-      lce = localEnv env
-      gbe = globalEnv env in
-  return (Map.unions [const () <$> tpe, const () <$> lce, const () <$> gbe, const () <$> s])
+  let env = checkEnv d in
+  return (Map.unions [const () <$> env, const () <$> s])
 
 -- Returns if x is a tag variable
 isTag :: Var -> CheckM Bool
@@ -315,10 +283,11 @@ infer' (UsVar x) =
   -- Lookup the type of x
   lookupTermVar x >>= \ etp ->
   case etp of
-    -- if x is a local var:
-    Left tp -> return (TmVarL x tp)
-    -- if x is a global var:
-    Right (gv, Forall tgs tis tp) ->
+    DefLocal tp -> return (TmVarL x tp)
+    DefGlobal tgs tis tp -> h DefVar tgs tis tp
+    DefCtor tgs tis tp -> h CtorVar tgs tis tp
+  where
+    h gv tgs tis tp =
       -- pick new tags
       mapM (const freshTag) tgs >>= \ tgs' ->
       -- pick new type vars
