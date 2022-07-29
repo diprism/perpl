@@ -6,10 +6,19 @@ import Struct.Lib
 import Util.Helpers
 
 data CtxtDef =
+    DefTerm DefTerm
+  | DefType DefType
+  deriving Show
+
+data DefTerm =    
     DefLocal Type
   | DefGlobal [Var] [Var] Type -- tags, params, type
   | DefCtor [Var] [Var] Type   -- tags, params, type
-  | DefData [Var] [Var] [Ctor] -- tags, params, ctors
+  deriving Show
+
+data DefType =
+  DefData [Var] [Var] [Ctor] -- tags, params, ctors
+  -- DefTypeVar -- not currently used
   deriving Show
 
 type Ctxt = Map Var CtxtDef
@@ -20,7 +29,7 @@ emptyCtxt = Map.empty
 
 -- Add a local term to the context
 ctxtDefLocal :: Ctxt -> Var -> Type -> Ctxt
-ctxtDefLocal g x tp = Map.insert x (DefLocal tp) g
+ctxtDefLocal g x tp = Map.insert x (DefTerm (DefLocal tp)) g
 
 -- Add params to context
 ctxtDeclArgs :: Ctxt -> [Param] -> Ctxt
@@ -28,40 +37,44 @@ ctxtDeclArgs = foldl $ uncurry . ctxtDefLocal
 
 -- Add a global term to the context
 ctxtDefGlobal :: Ctxt -> Var -> [Var] -> [Var] -> Type -> Ctxt
-ctxtDefGlobal g x tgs ps tp = Map.insert x (DefGlobal tgs ps tp) g
+ctxtDefGlobal g x tgs ps tp = Map.insert x (DefTerm (DefGlobal tgs ps tp)) g
 
 -- Add a constructor to the context
 ctxtDefCtor :: Ctxt -> Ctor -> Var -> [Var] -> [Var] -> Ctxt
 ctxtDefCtor g (Ctor x tps) y tgs ps =
-  Map.insert x (DefCtor tgs ps (joinArrows tps (TpData y (TpVar <$> (tgs ++ ps))))) g
+  let tp = joinArrows tps (TpData y (TpVar <$> (tgs ++ ps))) in
+  Map.insert x (DefTerm (DefCtor tgs ps tp)) g
 
 -- Add a datatype definition to the context,
 -- and all its constructors
 ctxtDefData :: Ctxt -> Var -> [Var] -> [Var] -> [Ctor] -> Ctxt
 ctxtDefData g y tgs ps ctors =
   foldr (\ c g -> ctxtDefCtor g c y tgs ps)
-    (Map.insert y (DefData tgs ps ctors) g) ctors
+    (Map.insert y (DefType (DefData tgs ps ctors)) g) ctors
   
 -- Lookup a term in the context
 ctxtLookupTerm :: Ctxt -> Var -> Maybe Type
-ctxtLookupTerm g x = Map.lookup x g >>= \ vd -> case vd of
-  DefLocal tp -> Just tp
-  DefGlobal [] [] tp -> Just tp
-  DefCtor [] [] tp -> Just tp
-  DefData _ _ _ -> Nothing
-  _ -> error "this shouldn't happen"
+ctxtLookupTerm g x = Map.lookup x g >>= \ d -> case d of
+  DefTerm dt -> case dt of
+    DefLocal tp -> Just tp
+    DefGlobal [] [] tp -> Just tp
+    DefCtor [] [] tp -> Just tp
+    _ -> error "this shouldn't happen"
+  DefType _ -> Nothing
 
 -- Lookup a datatype in the context
 ctxtLookupType :: Ctxt -> Var -> Maybe [Ctor]
-ctxtLookupType g x = Map.lookup x g >>= \ vd -> case vd of
-  DefData [] [] cs -> Just cs
-  DefData _ _ _ -> error "this shouldn't happen"
-  _ -> Nothing
+ctxtLookupType g x = Map.lookup x g >>= \ d -> case d of
+  DefTerm _ -> Nothing
+  DefType dt -> case dt of
+    DefData [] [] cs -> Just cs
+    _ -> error "this shouldn't happen"
 
 ctxtLookupType2 :: Ctxt -> Var -> Maybe ([Var], [Ctor])
-ctxtLookupType2 g x = Map.lookup x g >>= \ vd -> case vd of
-  DefData tgs ps cs -> Just (tgs++ps, cs)
-  _ -> Nothing
+ctxtLookupType2 g x = Map.lookup x g >>= \ d -> case d of
+  DefTerm _ -> Nothing
+  DefType dt -> case dt of
+    DefData tgs ps cs -> Just (tgs++ps, cs)
   
 -- Is this var bound in this context?
 ctxtBinds :: Ctxt -> Var -> Bool

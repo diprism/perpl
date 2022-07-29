@@ -1,0 +1,4 @@
+data Box a = B a;
+data Foo = F (Box Bool);
+let b = F (B True) in ()
+

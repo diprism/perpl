@@ -103,7 +103,7 @@ makeDefold g y tms =
       cases = map casesf (enumerate tms)
       ctors = [Ctor x (snds ps) | Case x ps tm <- cases]
       tm = TmCase (TmVarL x ftp) (tname, []) cases (TpData y [])
-  in traceShow ctors $
+  in
     (ProgData tname ctors,
      ProgFun fname (TpArr ftp (TpData y [])) (TmLam x ftp tm (TpData y [])))
 
