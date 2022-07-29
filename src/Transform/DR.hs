@@ -284,8 +284,7 @@ derefunTerm dr g rtp = fst . h where
     TmEqs [h' tm | tm <- tms]
 
 derefunProgTypes :: DeRe -> Var -> Prog -> Prog
-derefunProgTypes dr rtp (ProgFun x tp tm) =
-  ProgFun x (derefunSubst dr rtp tp) tm
+derefunProgTypes dr rtp (ProgFun x tp tm) = ProgFun x (derefunSubst dr rtp tp) tm
 derefunProgTypes dr rtp (ProgExtern x tp) = ProgExtern x tp
 derefunProgTypes dr rtp (ProgData y cs) = ProgData y [Ctor x [derefunSubst dr rtp tp | tp <- tps] | Ctor x tps <- cs]
 
