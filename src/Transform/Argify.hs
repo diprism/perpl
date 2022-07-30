@@ -1,11 +1,16 @@
 {-
-Code that applies the following transformations:
-1. define foo = \ a. \ b. tm;   =>   define foo a b = tm;
-2. TmApp (TmApp (TmVarG x) tm1) tm2...   =>   TmVarG x [tm1, tm2, ...]
+Applies the following transformations:
+1. ProgFun f [] (TmLam x (... tm)) (TpArr xtp (... tp))   =>   ProgFun f [(x,xtp), ...] tm tp
+   with tm first η-expanded if it does not have enough λ's in front.
+2. TmApp (TmApp (TmVarG x []) tm1) tm2...   =>   TmVarG x [tm1, tm2, ...]
+   with partial applications η-expanded.
 
 This transformation makes AffLin more efficient,
 because we don't need to have functions like a -> b -> c
 become (a -> ((b -> c) & Unit)) & Unit, only (a -> b -> c) & Unit
+
+This also makes compilation to an FGG more efficient,
+because the rule for a global function can take all its arguments at once.
 -}
 
 module Transform.Argify where
