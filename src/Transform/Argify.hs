@@ -45,7 +45,7 @@ argify tm@(TmApp _ _ _ _) =
     (TmVarG g x tis as' tp, as) ->
       error (show (TmVarG g x tis as' tp))
     (etm, as) ->
-      joinApps etm [(argify tm, tp) | (tm, tp) <- as]
+      joinApps (argify etm) [(argify tm, tp) | (tm, tp) <- as]
 argify (TmLet x xtm xtp tm tp) = TmLet x (argify xtm) xtp (argify tm) tp
 argify (TmCase tm y cs tp) = TmCase (argify tm) y (fmap (\ (Case x ps tm') -> Case x ps (argify tm')) cs) tp
 argify (TmAmb tms tp) = TmAmb (argify <$> tms) tp
