@@ -1,0 +1,7 @@
+define const = \x. \y. x;
+define id = \x. x;
+define first = const;
+define second = const id;
+(amb first second) True False
+
+-- correct: [1.0, 1.0]

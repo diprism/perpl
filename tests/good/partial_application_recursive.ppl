@@ -1,0 +1,13 @@
+data Nat = Zero | Succ Nat;
+define id : Nat -> Nat = \x. x;
+define first : Nat -> Nat -> Nat = \x. \y. x;
+define second : Nat -> Nat -> Nat = \x. id;
+define not : Bool -> Bool = \b. if b then False else True;
+define even : Nat -> Bool = \x. case x of
+  | Zero -> True
+  | Succ x -> not (even x);
+even ((amb first second)
+      (Succ (Succ (Succ Zero)))
+      (Succ (Succ Zero)))
+
+-- correct: [1.0, 1.0]
