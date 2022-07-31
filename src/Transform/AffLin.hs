@@ -151,10 +151,6 @@ affLinParams ps body =
   listen (alBinds lps (affLin body)) >>= \ (body', fvs) ->
     return (lps, body')
 
--- Peels of lambdas as params, returning (L(params), L(body))
-affLinLams :: Term -> AffLinM ([Param], Term)
-affLinLams = uncurry affLinParams . splitLams
-
 -- Generic helper for applying L to a list of something, where alf=L and dscrd=discard
 affLinBranches :: (a -> AffLinM b) -> (FreeVars -> b -> AffLinM b) -> [a] -> AffLinM [b]
 affLinBranches alf dscrd als =
@@ -176,15 +172,14 @@ affLin (TmVarG gv x tis as y) =
   let y'   = affLinTp y
       tis' = map affLinTp tis
   in return (TmVarG gv x tis' as' y')
-affLin (TmLam x tp tm tp') =
-  -- L(\ x : tp. tm) => <\ x : L(tp). L(tm), Z(FV(tm) - {x})>
-  listen (affLinLams (TmLam x tp tm tp')) >>= \ ((lps, body), fvs) ->
-  ambFun (joinLams lps body) fvs
+affLin (TmLam x xtp tm tp) =
+  -- L(\ x : xtp. tm) => <\ x : L(xtp). L(tm), Z(FV(tm) - {x})>
+  listen (affLinParams [(x, xtp)] tm) >>= \ (([(x', xtp')], tm'), fvs) ->
+  ambFun (TmLam x' xtp' tm' (affLinTp tp)) fvs
 affLin (TmApp tm1 tm2 tp2 tp) =
-  -- L(tm a1 a2 ... an) => let <f, _> = L(tm) in f L(a1) L(a2) ... L(an)
-  let (tm, as) = splitApps (TmApp tm1 tm2 tp2 tp) in
-    listen (pure (,) <*> affLin tm <*> mapArgsM affLin as) >>= \ ((tm', as'), fvs) ->
-    ambFun (joinApps (ambElim tm') as') fvs
+  -- L(tm1 tm2) => let <f, _> = L(tm1) in f L(tm2)
+  affLin tm1 >>= \ tm1' -> affLin tm2 >>= \ tm2' ->
+  return (TmApp (ambElim tm1') tm2' (affLinTp tp2) (affLinTp tp))
 affLin (TmLet x xtm xtp tm tp) =
   -- L(let x : xtp = xtm in tm) => let x : L(xtp) = L(xtm) in let _ = Z({x} - FV(tm)) in L(tm)
   affLin xtm >>= \ xtm' ->
