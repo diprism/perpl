@@ -263,10 +263,9 @@ affLinProg (ProgData y cs) =
 affLinProg (ProgFun x tp tm) =
   -- Top-level arrows are not transformed
   let
-    (ptps, rtp) = splitArrows tp
-    tp' = joinArrows (fmap affLinTp ptps) (affLinTp rtp)
-    (ps, rtm) = splitLams tm
+    (ps, rtm, rtp) = splitLamsArrows tm tp
     ps' = mapParams affLinTp ps
+    tp' = joinArrows (snds ps') (affLinTp rtp)
   in
     alBinds ps' (affLin rtm) >>= \rtm' ->
     return (ProgFun x tp' (joinLams ps' rtm'))

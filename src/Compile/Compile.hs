@@ -300,8 +300,7 @@ type2fgg g tp =
 -- Adds the rules for a Prog
 prog2fgg :: Ctxt -> Prog -> RuleM
 prog2fgg g (ProgFun x tp tm) =
-  let (_, rtp) = splitArrows tp
-      (ps, rtm) = splitLams tm in
+  let (ps, rtm, rtp) = splitLamsArrows tm tp in
   type2fgg g tp +>= \ _ ->
   bindExts True ps $ term2fgg (ctxtDeclArgs g ps) rtm +>= \ tmxs ->
   let unused_ps = Map.toList (Map.difference (Map.fromList ps) (Map.fromList tmxs))

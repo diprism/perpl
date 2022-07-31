@@ -341,3 +341,18 @@ freshVar' s x =
 
 freshVar :: Ctxt -> Var -> Var
 freshVar = freshVar' . Map.mapWithKey (const . SubVar)
+
+-- Same as splitLams and splitArrows, but performs η-expansions as needed to
+-- ensure that the same number of TmLams and TpArrs are split off
+-- TODO: Find a better place to put this function
+splitLamsArrows :: Term -> Type -> ([Param], Term, Type)
+splitLamsArrows (TmLam x tp1 tm2 tp2) _ =
+  let (ls, tm2', tp2') = splitLamsArrows tm2 tp2 in ((x, tp1) : ls, tm2', tp2')
+splitLamsArrows tm (TpArr tp1 tp2) =
+  let
+    x = newVar "x" (freeVars tm)
+    tm2 = (TmApp tm (TmVarL x tp1) tp1 tp2)
+    (ls, tm2', tp2') = splitLamsArrows tm2 tp2
+  in
+    ((x, tp1) : ls, tm2', tp2')
+splitLamsArrows tm tp = ([], tm, tp)
