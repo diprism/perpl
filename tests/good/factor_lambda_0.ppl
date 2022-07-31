@@ -1,0 +1,4 @@
+define f = factor 2 in \x. factor 3 in \y. factor 5 in (x,y);
+let g = f in ()
+
+-- correct: [2.0]

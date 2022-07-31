@@ -9,7 +9,7 @@ my_errs=()
 
 for file in \
     examples/{amb,datatype_polymorphism,derefun,double,dyck,dyck_problem,equal,example12,extinction,fsm,fsm2,function_polymorphism,head_tail_rec,pattern1,pattern2,pda,pda2,penney,products,reverse,sample,stairs,syntax,tree,von_neumann}.ppl \
-    tests/good/{type_parameter_{nonrecursive,unused,different,swap},{zero,one,discard}_add_prod,datatype_containing_type_application,partial_application{,_recursive}}.ppl
+    tests/good/{type_parameter_{nonrecursive,unused,different,swap},{zero,one,discard}_add_prod,datatype_containing_type_application,partial_application{,_recursive},{amb,factor}_lambda_{0,1,2}}.ppl
 do
     printf '%-40s' "Compiling ${file}... "
     my_err=$(./perplc $file -o /dev/null 2>&1 > /dev/null)
