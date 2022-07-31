@@ -9,5 +9,3 @@ define even : Nat -> Bool = \x. case x of
 even ((amb first second)
       (Succ (Succ (Succ Zero)))
       (Succ (Succ Zero)))
-
--- correct: [1.0, 1.0]
