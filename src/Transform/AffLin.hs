@@ -110,10 +110,7 @@ affLinTp :: Type -> Type
 affLinTp (TpData y []) = TpData y []
 affLinTp (TpProd am tps) = TpProd am $ map affLinTp tps ++ [tpUnit | am == Additive]
 affLinTp (TpArr tp1 tp2) =
-  let (tps, end) = splitArrows (TpArr tp1 tp2)
-      tps' = map affLinTp tps
-      end' = affLinTp end
-  in TpProd Additive [joinArrows tps' end', tpUnit]
+  TpProd Additive [TpArr (affLinTp tp1) (affLinTp tp2), tpUnit]
 affLinTp tp = error ("Trying to affLin a " ++ show tp)
 
 -- Make a case linear, returning the local vars that occur free in it
