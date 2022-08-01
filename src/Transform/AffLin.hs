@@ -156,7 +156,7 @@ affLin (TmLam x xtp tm tp) =
   discards fvs tmUnit >>= \ ntm ->
   return (TmProd Additive [(TmLam x xtp' tm' tp', TpArr xtp' tp'), (ntm, tpUnit)])
 affLin (TmApp tm1 tm2 tp2 tp) =
-  -- L(tm1 tm2) => let <f, _> = L(tm1) in f L(tm2)
+  -- L(tm1 tm2 : tp) => let <f, _> = L(tm1 : tp1) in f L(tm2 : tp2)
   affLin tm1 >>= \ tm1' -> affLin tm2 >>= \ tm2' ->
   let tp2' = affLinTp tp2
       tp'  = affLinTp tp

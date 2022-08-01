@@ -58,7 +58,15 @@ bindCases xs =
 discardEdges' :: [(Var, Type)] -> [(Var, Type)] -> [Edge' Type]
 discardEdges' d_xs d_ns = [Edge' [(x, tp), vn] x | ((x, tp), vn) <- zip d_xs d_ns]
 
--- mkRule creates a rule from a lhs term, a list of nodes, and a function that returns the edges and external nodes given a list of the nodes' indices (it does some magic on the nodes, so the indices are not necessarily in the same order as the nodes)
+{- mkRule lhs ns es xs
+
+Creates a rule.
+
+- lhs: the left-hand side
+- ns:  the right-hand side node ids and labels
+- es:  the right-hand side edges
+- xs:  the external node ids and labels -}
+
 mkRule :: Term -> [(Var, Type)] -> [Edge' Type] -> [(Var, Type)] -> RuleM
 mkRule = mkRuleReps 1
 
@@ -202,7 +210,7 @@ term2fgg g (TmFactor wt tm tp) =
   term2fgg g tm +>= \ xs ->
   let [vtp] = newNames [tp] in
   addFactor ("factor " ++ show wt) (Scalar wt) +>
-  mkRule (TmFactor wt tm tp) (xs ++ [vtp]) [Edge' [] ("factor " ++ show wt), Edge' (vtp : xs) (show tm)] (xs ++ [vtp])
+  mkRule (TmFactor wt tm tp) (vtp : xs) [Edge' [] ("factor " ++ show wt), Edge' (xs ++ [vtp]) (show tm)] (xs ++ [vtp])
   
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm +>= \ xtmxs ->
