@@ -12,12 +12,12 @@ data CtxtDef =
 
 data DefTerm =    
     DefLocal Type
-  | DefGlobal [Var] [Var] Type -- tags, params, type
-  | DefCtor [Var] [Var] Type   -- tags, params, type
+  | DefGlobal [Var] [Var] Type -- tags, type params, type
+  | DefCtor [Var] [Var] Type   -- tags, type params, type
   deriving Show
 
 data DefType =
-  DefData [Var] [Var] [Ctor] -- tags, params, ctors
+  DefData [Var] [Var] [Ctor] -- tags, type params, ctors
   -- DefTypeVar -- not currently used
   deriving Show
 
