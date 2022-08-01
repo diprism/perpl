@@ -1,6 +1,10 @@
 # The PERPL Compiler
 
-PERPL stands for Probabilistic Exact Recursive Programming Language.
+PERPL stands for Probabilistic Exact Recursive Programming Language. Unlike many general-purpose PPLs, PERPL performs exact inference, via [factor graph grammars](https://github.com/diprism/fggs).
+And unlike other PPLs that do support exact inference, PERPL can express unbounded recursive calls and (with some restrictions) recursive data structures.
+For example, a PCFG parser written in PERPL appears to generate (infinitely many) trees and sum the probabilities of those (exponentially many) trees that yield a given string; yet it compiles to a cubic-sized system of equations whose solution is equivalent to the CKY algorithm.
+
+For more about the language, see [language.md](language.md).
 
 ## Building the compiler
 
@@ -14,11 +18,9 @@ To run tests:
 
 ## Using the compiler
     
-To compile a PERPL program to an FGG (JSON-formatted):
+To compile a PERPL program:
 
-    ./perplc [options] FILE.ppl -o OUTPUT.json
-
-For more about the language, see [language.md](language.md).
+    ./perplc [options] FILE.ppl
 
 Options:
         
@@ -29,9 +31,10 @@ Options:
     -r DTYPES   Refunctionalize recursive datatypes DTYPES
     -c          Compile only to PPL code (not to FGG)
     -z          Compute sum-product
-    -o OUTFILE  Output to OUTFILE
+    -o OUTFILE  Output an FGG to OUTFILE
+
+Although `perplc` can compute sum-products, its implementation is not very efficient. The normal usage is to use the `-o` option to output an FGG to a JSON file. Then the FGG can be processed using [the `fggs` package](https://github.com/diprism/fggs).
 
 ## Credits
 
-This code is written by Colin McDonald at the University of Notre Dame
-and is licensed under the MIT License.
+This code is written by Colin McDonald (University of Notre Dame) with contributions from David Chiang (University of Notre Dame) and Chung-chieh Shan (Indiana University). It is licensed under the MIT License.
