@@ -30,13 +30,11 @@ Let-binding:
     
 However, lambda expressions are one of several types of expressions that must be used _affinely_, that is, no more than once. So it's an error to write
 
-```
-let f = \x . x in (f True, f True)
-```
+    let f = \x . x in (f True, f True)   -- error: f used twice
     
 ## Products
 
-There are two kinds of tuples, which are accessed in different ways. _Multiplicative_ tuples 
+There are two kinds of tuples, which are accessed in different ways. _Multiplicative_ tuples are the same as tuples in many other languages:
 
     (True, False, False)                      -- type (Bool, Bool, Bool)
     ()                                        -- type ()
@@ -173,4 +171,4 @@ An external declaration looks like this:
 
     extern flip : (Bool -> Unit -> Nat) -> Unit -> Bool -> Nat;
 
-The target FGG will have a nonterminal symbol `flip` whose rules should be added to it.
+The target FGG will have a nonterminal symbol `flip` with no rules; you have to supply them before using the FGG.
