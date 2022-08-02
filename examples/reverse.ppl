@@ -6,7 +6,7 @@ define reverseh = \ acc. \ xs. case xs of
   | Cons x xs' -> reverseh (Cons x acc) xs';
 
 -- reverse : Forall a. List a -> List a
-define reverse = reverseh Nil;
+define reverse = \ xs. reverseh Nil xs;
 
 -- listEq : Forall a. List a -> List a -> Bool
 define listEq = \ xs. \ ys. case xs of
