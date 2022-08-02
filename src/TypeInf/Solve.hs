@@ -101,42 +101,62 @@ solve g vs rtp cs =
   solvedWell g s' cs >>
   return (s', xs, tgs)
 
--- Solves constraints, and arbitrarily solves all remaining type vars as Unit
--- (tags may remain though)
--- Returns (term, its type, remaining tags)
-solveM :: CheckM Term -> CheckM (Term, Type, [Var]) -- [Var] is list of tags
+{- solveM m
+
+Solves the constraints generated in m, and arbitrarily solves all remaining type vars as Unit. (Tags may remain, though.)
+
+m is a CheckM returning the term to be solved
+
+Returns: (tm, tp, tgs), where
+- tm: the solved term
+- tp: its type
+- tgs: list of remaining tags -}
+
+solveM :: CheckM Term -> CheckM (Term, Type, [Var])
 solveM m =
   listenSolveVars (listen m) >>= \ ((a, cs), vs) ->
   -- Because we use NoTp below, there are no FVs in the type, so all
   -- remaining type vars are seen as internal unsolved and become Unit
   askEnv >>= \ g ->
-  either throwError (\ (s, [], tgs) -> return (subst s a, subst s (typeof a), tgs))
-    (solve g vs NoTp cs)
+  case solve g vs NoTp cs of
+    Left e -> throwError e
+    Right (s, [], tgs) -> return (subst s a, subst s (typeof a), tgs)
+    Right _ -> error "type variables remaining after solving (this shouldn't happen)"
 
--- 
+{- solvesM ms
+
+ms is a CheckM returning [(x1, tm1, tp1), ...], which is a list of
+(possibly mutually recursive) global function definitions.
+
+Returns: [(x1, tm1, tgs1, ps1, tp1)], where
+- x: the left-hand side of the definition
+- tm: the right-hand side term
+- tgs: tag variables
+- ps: type variables
+- tp: the type of tm -}
+
 solvesM :: CheckM [(Var, Term, Type)] -> CheckM [(Var, Term, [Var], [Var], Type)]
 solvesM ms =
-  listenSolveVars (listen ms) >>= \ ((atps, cs), vs) ->
-  let (fs, as, tps) = unzip3 atps in
+  listenSolveVars (listen ms) >>= \ ((defs, cs), vs) ->
   askEnv >>= \ g ->
-  either
-    throwError
-    (\ (s, xs, tgs) ->
-        let stps = map (\ tp ->
-                          let tp' = subst s tp
-                              xsmap = Map.fromList (map (\ x -> (x, ())) xs)
-                              xs' = Map.keys (Map.intersection xsmap (freeVars tp'))
-                          in
-                            (tgs, xs', tp')) tps
+  case solve g vs (TpProd Multiplicative [tps | (_, _, tps) <- defs]) cs of
+    Left e -> throwError e
+    Right (s, xs, tgs) ->
+      let
+        -- Perform type substitutions (s) and add type/tag parameters.
+        defs' = map (\ (f, tm, tp) ->
+                        let tm' = subst s tm
+                            tp' = subst s tp
+                            xs' = [x | x <- xs, x `Map.member` freeVars tp']
+                        in
+                          (f, tm', tgs, xs', tp')) defs
 
-            s' = foldr (\ (fx, (tgs', xs', tp')) ->
-                          Map.insert fx
-                            (SubTm (TmVarG DefVar fx
-                                    (map TpVar (tgs' ++ xs')) [] tp')))
-                       s (zip fs stps)
-        in
-          return [(f, subst s' a, tgs, xs, tp) | (f, a, (tgs, xs, tp)) <- zip3 fs as stps])
-    (solve g vs (TpProd Multiplicative tps) cs)
+        -- Add tag/type parameters to right-hand side terms. This has
+        -- to be done in a second pass because of mutual recursion.
+        s' = Map.fromList [(f, SubTm (TmVarG DefVar f (TpVar <$> (tgs++xs')) [] tp')) | (f, _, tgs, xs', tp') <- defs']
+        defs'' = [(f, subst s' tm, tgs, xs', tp') | (f, tm, tgs, xs', tp') <- defs']
+      in
+        return defs''
 
 
 -- Creates graphs of function dependencies and datatype dependencies in a program
