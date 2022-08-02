@@ -38,37 +38,13 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
 
   argifyTerm :: Term -> Term
   argifyTerm (TmVarL x tp) = TmVarL x tp
-  argifyTerm (TmVarG g x [] [] tp) =
-    -- No arguments were provided, so η-expand by the number of arguments of x
-    let (tps, etp) = arities Map.! x
-        lxs = runSubst (Map.singleton x (SubVar x)) (freshens ["x" ++ show i | i <- [0..length tps - 1]])
-        ls = zip lxs tps
-    in
-      joinLams ls (TmVarG g x [] (paramsToArgs ls) etp)
+  argifyTerm (TmVarG g x [] [] _) = argifyAppG g x []
   argifyTerm tm@(TmVarG g x tis as tp) = error ("argifyTerm received a term that is already argified: " ++ show tm)
   argifyTerm (TmLam x xtp tm tp) = TmLam x xtp (argifyTerm tm) tp
   argifyTerm tm@(TmApp _ _ _ _) =
     case splitApps tm of
-      (TmVarG g x [] [] tp, as) ->
-        -- as = the provided arguments
-        -- tps = the argument types of x
-        let as' = [(argifyTerm tm, tp) | (tm, tp) <- as]
-            (tps, etp) = arities Map.! x
-        in
-          if length as' < length tps then
-            -- This is a partial application, so η-expand with the missing arguments.
-            let
-              remtps = drop (length as') tps -- list of missing argument types
-              tmfvs = Map.mapWithKey (const . SubVar) (freeVars tm)
-              lxs = runSubst tmfvs (freshens ["x" ++ show i | i <- [0..length remtps - 1]])
-              ls = zip lxs remtps
-              as'' = as' ++ [(TmVarL x tp, tp) | (x, tp) <- ls]
-            in
-              joinLams ls (TmVarG g x [] as'' etp)
-          else
-            -- Absorb |tps| arguments into the TmVarG
-            joinApps (TmVarG g x [] (take (length tps) as') etp) (drop (length tps) as')
-      f@(TmVarG g x tis as' tp, as) ->
+      (TmVarG g x [] [] _, as) -> argifyAppG g x as
+      f@(TmVarG g x tis as' _, as) ->
         error ("argifyTerm received a term that is already argified: " ++ show f)
       (etm, as) ->
         joinApps (argifyTerm etm) [(argifyTerm tm, tp) | (tm, tp) <- as]
@@ -79,6 +55,29 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
   argifyTerm (TmProd am as) = TmProd am [(argifyTerm tm, tp) | (tm, tp) <- as]
   argifyTerm (TmElimProd am ptm ps tm tp) = TmElimProd am (argifyTerm ptm) ps (argifyTerm tm) tp
   argifyTerm (TmEqs tms) = TmEqs (argifyTerm <$> tms)
+
+  -- Argify an application of a global definition (TmVarG g x [] [] _)
+  -- to zero or more arguments (as).
+  argifyAppG :: GlobalVar -> Var -> [Arg] -> Term
+  argifyAppG g x as =
+    -- as = the provided arguments
+    -- tps = the argument types of x
+    let as' = [(argifyTerm tm, tp) | (tm, tp) <- as]
+        (tps, etp) = arities Map.! x
+    in
+      if length as' < length tps then
+        -- This is a partial (or non-) application, so η-expand with the missing arguments.
+        let
+          remtps = drop (length as') tps -- list of missing argument types
+          tmfvs = Map.mapWithKey (const . SubVar) (freeVars tm)
+          lxs = runSubst tmfvs (freshens ["x" ++ show i | i <- [0..length remtps - 1]])
+          ls = zip lxs remtps
+          as'' = as' ++ paramsToArgs ls
+        in
+          joinLams ls (TmVarG g x [] as'' etp)
+      else
+        -- Absorb |tps| arguments into the TmVarG
+        joinApps (TmVarG g x [] (take (length tps) as') etp) (drop (length tps) as')
 
   -- Argify a definition.
   
