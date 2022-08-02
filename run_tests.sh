@@ -8,7 +8,7 @@ round () {
 my_errs=()
 
 for file in \
-    examples/{bool,derefun,double,dyck,dyck_problem,equal,example12,extinction,fsm,fsm2,function_polymorphism,head_tail_rec,list,nat,pattern1,pattern2,pda,pda2,penney,products,reverse,sample,stairs,syntax,tree,von_neumann}.ppl \
+    examples/{bool,dyck,equal,example12,extinction,fsm,fsm2,function_polymorphism,head_tail_rec,list,nat,pattern1,pattern2,pda,pda2,penney,products,reverse,sample,stairs,syntax,tree,von_neumann}.ppl \
     tests/good/{amb,type_parameter_{nonrecursive,unused,different,swap},{zero,one,discard}_add_prod,datatype_containing_type_application,partial_application{,_recursive},{amb,factor}_lambda_{0,1,2}}.ppl
 do
     printf '%-40s' "Compiling ${file}... "

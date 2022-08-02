@@ -19,6 +19,16 @@ define times = \m. \n. case m of
   | Zero -> Zero
   | Succ m' -> plus n (times m' n); -}
 
+{- But multiplication by a constant is allowed: -}
+
+define double = \n: Nat.
+  case n of
+  | Zero -> Zero
+  | Succ m -> Succ (Succ (double m));
+
+define iszero =
+  \ n. case n of Zero -> True | Succ n' -> False;
+
 define equal = \m. \n. case m of
   | Zero -> (case n of
     | Zero -> True
