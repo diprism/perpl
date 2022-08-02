@@ -30,7 +30,7 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
   arity (ProgFun x [] tm tp) = let (ls, etm) = splitLams tm in [(x, (snds ls, typeof etm))]
   arity (ProgExtern x [] tp) = let (tps, etp) = splitArrows tp in [(x, (tps, etp))]
   arity (ProgData x cs) = [(y, (tps, TpData x [])) | Ctor y tps <- cs]
-  arity _ = []
+  arity prog = error ("arity received a definition that is already argified: " ++ show prog)
 
   arities = Map.fromList (concat (map arity ps))
 
