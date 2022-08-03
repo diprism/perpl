@@ -1,8 +1,12 @@
+{- Parse a string using a weighted context-free grammar. -}
+
 data Terminal = A;
 data Nonterminal = S;
 data RHS = Unary Terminal | Binary Nonterminal Nonterminal;
 data String = Nil | Cons Terminal String;
-extern production: Nonterminal -> RHS;
+
+define production: Nonterminal -> RHS = \x.
+  case x of S -> amb (factor 0.1 in Binary S S) (factor 0.9 in Unary A);
 
 define gen: Nonterminal -> String -> String = \x: Nonterminal. \acc: String.
   case production x of
@@ -17,3 +21,5 @@ define equal: String -> String -> Bool = \xs: String. \ys: String.
       | Cons y ys -> if x == y then equal xs ys else False);
 
 equal (gen S Nil) (Cons A (Cons A (Cons A Nil)))
+
+-- correct: [0.98542, 0.01458]
