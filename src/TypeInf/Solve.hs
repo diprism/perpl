@@ -5,7 +5,7 @@ import Control.Monad.RWS.Lazy
 import Control.Monad.Except
 import TypeInf.Check
 import Util.Helpers
-import Util.SCC
+import Util.Graph (scc)
 import Struct.Lib
 import Scope.Subst
 import Scope.Free (robust)
