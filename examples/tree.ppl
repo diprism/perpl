@@ -1,3 +1,6 @@
+{- Trees in which nodes can have any number of children, demonstrating
+   mutually recursive datatypes. -}
+
 data Tree =
     Leaf
   | Node Children;
