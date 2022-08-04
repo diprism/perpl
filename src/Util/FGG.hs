@@ -108,7 +108,7 @@ fgg_to_json (FGG ds fs nts s rs) =
           \ (reps, Rule lhs (HGF ns es xs)) -> replicate reps $ JSobject [
              ("lhs", JSstring lhs),
              ("rhs", JSobject [
-                 ("nodes", JSarray [JSobject [("label", JSstring d)] | Node n d <- ns]),
+                 ("nodes", JSarray [JSobject [("label", JSstring d), ("id", JSstring n)] | Node n d <- ns]),
                  ("edges", JSarray $ flip map es $
                    \ (Edge atts l) -> JSobject [
                      ("attachments", JSarray (map JSint atts)),
@@ -158,11 +158,12 @@ rulesToFGG dom start rs nts facs =
 
     domsEq = \ x d1 d2 -> if not checkDomsEq || d1 == d2 then d1 else error
       ("Conflicting domains for nonterminal " ++ x ++ ": " ++
-        show d1 ++ " vs " ++ show d2)
+        show d1 ++ " versus " ++ show d2)
 
     -- Nonterminals that were added directly by addNonterm(s)
-    nts'' = fmap (\ds -> fmap show ds) (Map.fromList nts)
+    nts'' = fmap (fmap show) (Map.fromList nts)
 
+    -- Nonterminals from left-hand sides of rules get their "type" from the external nodes
     nts' = foldr (\ (Rule lhs (HGF ns _ xs)) ->
                     Map.insertWith (domsEq lhs) lhs [show (node_domain (ns !! i)) | i <- xs]) nts'' rs''
 

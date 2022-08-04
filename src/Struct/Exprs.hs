@@ -34,7 +34,7 @@ data SProgs = SProgs [SProg] Term       -- definitions, main
 data Prog =
     ProgFun Var Type Term               -- lhs, type, rhs
   | ProgExtern Var Type                 -- lhs, type
-  | ProgData Var [Ctor]                 -- lhs, type params, constructors
+  | ProgData Var [Ctor]                 -- lhs, constructors
   deriving (Eq, Ord)
 
 -- Elaborated program

@@ -23,9 +23,22 @@ define x016: () -> ((), ()) = \x: () . ((), ());
 define x017: ((() -> ()), ()) = (\x: (). (), ());
 -- datatypes       
 data Tree = Leaf | Unary Tree | Binary Tree Tree;
-define x018: Tree = Binary (Unary Leaf) (Leaf);
+define x018: Tree = Binary (Unary Leaf) Leaf;
+data Tree' a = | Leaf' a | Unary' (Tree' a) | Binary' (Tree' a) (Tree' a);
+define x019: Tree' Bool = Binary' (Unary' (Leaf' True)) (Leaf' False);
+-- type applications and arrows
+define x020: Tree' Bool -> Bool = \x: Tree' Bool. True;
+define x021: Tree' (Bool -> Bool) = Leaf' (\x: Bool. x);
+define x022: Bool -> Tree' Bool = \x: Bool. Leaf' True;
+-- type applications and products
+define x023: Tree' (Bool, Bool) = Leaf' (True, True);
+define x024: (Tree' Bool, Bool) = (Leaf' True, True);
+define x025: (Bool, Tree' Bool) = (True, Leaf' True);
+data Zero;
+extern x026: Zero;
 
 let x = (
   x001, x002, x003, x004, x005, x006, x007, x008, x009, x010,
-  x011, x012, x013, x014, x015, x016, x017, x018
+  x011, x012, x013, x014, x015, x016, x017, x018, x019, x020,
+  x021, x022, x023, x024, x025, x026
 ) in ()

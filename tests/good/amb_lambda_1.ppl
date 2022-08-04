@@ -1,0 +1,9 @@
+define f = amb (\x. amb (\y. amb (x,y) (x,y) (x,y) (x,y) (x,y))
+                        (\y. amb (x,y) (x,y) (x,y) (x,y) (x,y))
+                        (\y. amb (x,y) (x,y) (x,y) (x,y) (x,y)))
+               (\x. amb (\y. amb (x,y) (x,y) (x,y) (x,y) (x,y))
+                        (\y. amb (x,y) (x,y) (x,y) (x,y) (x,y))
+                        (\y. amb (x,y) (x,y) (x,y) (x,y) (x,y)));
+let g = f (amb () () () () () () ()) in ()
+
+-- correct: [42.0]

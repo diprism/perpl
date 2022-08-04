@@ -1,31 +1,40 @@
-data WSymbol = WSym0 | WSym1;
-data ZSymbol = ZSym0 | ZSym1;
-data State = q1 | q2 | q3;
-data String = WNil | WCons WSymbol String;
-data Stack = ZNil | ZCons ZSymbol Stack;
-data Action = Pop State | Push State ZSymbol;
+-- A pushdown automaton recognizing the language { 0^n 1^n | n >= 0 }
 
-extern transition : State -> (WSymbol, State);
-extern transition' : State -> WSymbol -> ZSymbol -> Action;
-extern in_accept : State -> Bool;
-extern in_accept' : State -> Bool;
-extern q0 : State;
-extern q0' : State;
-extern z0 : ZSymbol;
+data InputSymbol = Sym0 | Sym1;
+data StackSymbol = Pound | Dollar;
+data State = q0s | q1s | sink;
+data String a = Nil | Cons a (String a);
+data Action = Pop State | Push State StackSymbol;
 
-define gen_fa : State -> String = \ q. if in_accept q
-  then WNil
-  else (let (w, r) = transition q in WCons w (gen_fa r));
+define transition' : State -> InputSymbol -> StackSymbol -> Action =
+  \ q. \ w. \ z. case q of
+    | q0s -> (case w of
+      | Sym0 -> Push q0s Pound
+      | Sym1 -> Pop (case z of Pound -> q1s | Dollar -> sink))
+    | q1s -> (case w of
+      | Sym0 -> Pop sink
+      | Sym1 -> Pop (case z of Pound -> q1s | Dollar -> sink))
+    | sink -> Pop sink;
 
-define rec_pda : State -> String -> Stack -> Bool =
-  \ q'. \ ws. \ zs. case ws of
-    | WNil -> in_accept' q'
-    | WCons w ws -> (case zs of
-      | ZNil -> False
-      | ZCons z zs -> (case transition' q' w z of
+define in_accept' : State -> StackSymbol -> Bool =
+  \ q. \ z. case q of
+    | q0s -> False
+    | q1s -> (case z of Pound -> False | Dollar -> True)
+    | sink -> False;
+
+define rec_pda : State -> String InputSymbol -> String StackSymbol -> Bool =
+  \ q'. \ ws. \ zs. case zs of
+    | Nil -> False
+    | Cons z zs -> (case ws of
+      | Nil -> in_accept' q' z
+      | Cons w ws -> (case transition' q' w z of
         | Pop r' -> rec_pda r' ws zs
-        | Push r' znew -> rec_pda r' ws (ZCons znew (ZCons z zs))
+        | Push r' znew -> rec_pda r' ws (Cons znew (Cons z zs))
       )
     );
 
-rec_pda q0' (gen_fa q0) (ZCons z0 ZNil);
+define start_state = q0s;
+define w0 = Cons Sym0 (Cons Sym0 (Cons Sym1 (Cons Sym1 Nil)));
+define start_stack = Cons Dollar Nil;
+
+rec_pda start_state w0 start_stack;

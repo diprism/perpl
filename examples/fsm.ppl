@@ -1,21 +1,42 @@
+-- A finite automaton recognizing the language: { 0^{2i} 1^{2j+1} | i, j >= 0 }
+
 data Symbol = Sym0 | Sym1;
-data State = q1 | q2 | q3;
+data State = q0e | q0o | q1e | q1o | sink;
 data String = Nil | Cons Symbol String;
 
-extern transition : State -> (Symbol, State);
-extern transition' : (Symbol, State) -> State;
-extern in_accept : State -> Bool;
-extern in_accept' : State -> Bool;
-extern q0 : State;
-extern q0' : State;
+define transition : Symbol -> State -> State = \ s. \ q. case s of
+  | Sym0 -> (case q of
+    | q0e -> q0o
+    | q0o -> q0e
+    | q1e -> sink
+    | q1o -> sink
+    | sink -> sink
+    )
+  | Sym1 -> (case q of
+    | q0e -> q1o
+    | q0o -> sink
+    | q1e -> q1o
+    | q1o -> q1e
+    | sink -> sink
+    );
 
-define gen : State -> String = \ q. if in_accept q
-  then Nil
-  else (let (w, x) = transition q in Cons w (gen x));
+define is_accept_state : State -> Bool = \ q. case q of
+  | q0e -> False | q0o -> False | q1e -> False | q1o -> True | sink -> False;
 
-define rec : State -> String -> Bool =
-  \ q'. \ ws. case ws of
-    | Nil -> in_accept' q'
-    | Cons w ws -> rec (transition' (w, q')) ws;
+define start_state = q0e;
 
-rec q0' (gen q0)
+define run : State -> String -> Bool =
+  \ q. \ ws. case ws of
+    | Nil -> is_accept_state q
+    | Cons w ws -> run (transition w q) ws;
+
+-- Should get accepted, so [0, 1]
+define string1 = Cons Sym0 (Cons Sym0 (Cons Sym1 (Cons Sym1 (Cons Sym1 Nil))));
+-- Should get rejected, so [1, 0]
+define string2 = Cons Sym0 (Cons Sym0 (Cons Sym1 (Cons Sym1 (Cons Sym0 Nil))));
+-- Should get rejected, so [1, 0]
+define string3 = Cons Sym0 (Cons Sym0 (Cons Sym1 (Cons Sym1 Nil)));
+
+run start_state string1
+
+-- correct: [0, 1]

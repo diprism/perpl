@@ -270,9 +270,6 @@ derefunTerm dr g rtp = fst . h where
   h' (TmFactor wt tm tp) = let (tm', tp') = h tm in TmFactor wt tm' tp'
   h' (TmProd am as) =
     TmProd am [h tm | (tm, _) <- as]
---  h' (TmElimAmp tm o tp) =
---    let (tm', TpProd _ tps') = h tm in
---      TmElimAmp tm' o (tps' !! fst o)
   h' (TmElimProd am tm ps tm' tp) =
     let (tm2, TpProd am tps) = h tm
         (tm2', tp) = h tm'

@@ -1,0 +1,4 @@
+define f = factor 2 in \x. factor 3 in \y. factor 5 in (x,y);
+f (factor 7 in ()) (factor 11 in ())
+
+-- correct: [2310.0]

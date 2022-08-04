@@ -1,0 +1,10 @@
+define f = amb (\x. amb (\y. amb (x,y) (x,y) (x,y) (x,y) (x,y))
+                        (\y. amb (x,y) (x,y) (x,y) (x,y) (x,y))
+                        (\y. amb (x,y) (x,y) (x,y) (x,y) (x,y)))
+               (\x. amb (\y. amb (x,y) (x,y) (x,y) (x,y) (x,y))
+                        (\y. amb (x,y) (x,y) (x,y) (x,y) (x,y))
+                        (\y. amb (x,y) (x,y) (x,y) (x,y) (x,y)));
+f (amb () () () () () () ())
+  (amb () () () () () () () () () () ())
+
+-- correct: [2310.0]

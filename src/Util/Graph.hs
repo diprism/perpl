@@ -1,10 +1,13 @@
+module Util.Graph (scc, reachable) where
+
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+
+type Graph a = Map.Map a (Set.Set a)
+
 -- Implementation of Tarjan's strongly connected components algorithm
 -- Adapted from the pseudocode from
 -- https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm
-
-module Util.SCC (scc) where
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 -- Keeps track of relevant information
 data TarjanData a = TarjanData {
@@ -43,7 +46,7 @@ modSccs f t = t { sccs = f (sccs t) }
 
 -- Tarjan's algorithm implementation: goes from a graph to a
 -- topologically-sorted array of strongly connected components
-scc :: (Eq a, Ord a) => Map.Map a (Set.Set a) -> [[a]]
+scc :: (Eq a, Ord a) => Graph a -> [[a]]
 scc deps =
   reverse $ sccs $
   foldr (\ v t -> if Map.member v (indices t) then t else strongconnect v t)
@@ -79,16 +82,10 @@ scc deps =
       in
         t'''
 
+{- Find all nodes reachable from a given source node. -}
 
-{-main :: IO ()
-main =
-  let graph' = [("a", ["b"]),
-                ("b", ["a", "b"]),
-                ("c", ["a", "e", "d"]),
-                ("d", ["e"]),
-                ("e", ["c"])]
-      graph = Map.fromList (fmap (\ (k, v) -> (k, Set.fromList v)) graph')
-      sccs = scc graph
-  in
-    putStrLn (show sccs)
--}
+reachable :: (Eq a, Ord a) => Graph a -> a -> Set.Set a
+reachable graph node = h node Set.empty where
+  h node visited
+    | node `elem` visited = visited
+    | otherwise = foldr h (Set.insert node visited) (maybe [] Set.toList (Map.lookup node graph))

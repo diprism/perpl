@@ -110,10 +110,7 @@ affLinTp :: Type -> Type
 affLinTp (TpData y []) = TpData y []
 affLinTp (TpProd am tps) = TpProd am $ map affLinTp tps ++ [tpUnit | am == Additive]
 affLinTp (TpArr tp1 tp2) =
-  let (tps, end) = splitArrows (TpArr tp1 tp2)
-      tps' = map affLinTp tps
-      end' = affLinTp end
-  in TpProd Additive [joinArrows tps' end', tpUnit]
+  TpProd Additive [TpArr (affLinTp tp1) (affLinTp tp2), tpUnit]
 affLinTp tp = error ("Trying to affLin a " ++ show tp)
 
 -- Make a case linear, returning the local vars that occur free in it
@@ -123,37 +120,12 @@ affLinCase (Case x ps tm) =
   alBinds ps' (affLin tm) >>=
   return . Case x ps'
 
--- Converts a lambda term to an ampersand pair with Unit, where the
--- Unit side discards all the free variables from the body of the lambda
--- ambFun `\ x : T. tm` = `<\ x : T. tm, Z(FV(\ x : T. tm))>`,
-ambFun :: Term -> FreeVars -> AffLinM Term
-ambFun tm fvs =
-  let tp = typeof tm in
-    case tp of
-      TpArr _ _ ->
-        discards fvs tmUnit >>= \ ntm ->
-        return (TmProd Additive [(tm, tp), (ntm, tpUnit)])
-      _ -> return tm
-
--- Extract the function from a linearized term, if possible
--- So ambElim `<f, unit>` = `f`
-ambElim :: Term -> Term
-ambElim tm =
-  case typeof tm of
-    TpProd Additive [tp, unittp] ->
-      TmElimProd Additive tm [("x", tp), ("_", unittp)] (TmVarL "x" tp) tp
-    _ -> tm
-
 -- Linearizes params and also a body term
 affLinParams :: [Param] -> Term -> AffLinM ([Param], Term)
 affLinParams ps body =
   let lps = mapParams affLinTp ps in
-  listen (alBinds lps (affLin body)) >>= \ (body', fvs) ->
+  alBinds lps (affLin body) >>= \ body' ->
     return (lps, body')
-
--- Peels of lambdas as params, returning (L(params), L(body))
-affLinLams :: Term -> AffLinM ([Param], Term)
-affLinLams = uncurry affLinParams . splitLams
 
 -- Generic helper for applying L to a list of something, where alf=L and dscrd=discard
 affLinBranches :: (a -> AffLinM b) -> (FreeVars -> b -> AffLinM b) -> [a] -> AffLinM [b]
@@ -176,15 +148,22 @@ affLin (TmVarG gv x tis as y) =
   let y'   = affLinTp y
       tis' = map affLinTp tis
   in return (TmVarG gv x tis' as' y')
-affLin (TmLam x tp tm tp') =
-  -- L(\ x : tp. tm) => <\ x : L(tp). L(tm), Z(FV(tm) - {x})>
-  listen (affLinLams (TmLam x tp tm tp')) >>= \ ((lps, body), fvs) ->
-  ambFun (joinLams lps body) fvs
+affLin (TmLam x xtp tm tp) =
+  -- L(\ x : xtp. tm) => <\ x : L(xtp). L(tm), Z(FV(tm) - {x})>
+  let xtp' = affLinTp xtp
+      tp'  = affLinTp tp in
+  listen (alBind x xtp' (affLin tm)) >>= \ (tm', fvs) ->
+  discards fvs tmUnit >>= \ ntm ->
+  return (TmProd Additive [(TmLam x xtp' tm' tp', TpArr xtp' tp'), (ntm, tpUnit)])
 affLin (TmApp tm1 tm2 tp2 tp) =
-  -- L(tm a1 a2 ... an) => let <f, _> = L(tm) in f L(a1) L(a2) ... L(an)
-  let (tm, as) = splitApps (TmApp tm1 tm2 tp2 tp) in
-    listen (pure (,) <*> affLin tm <*> mapArgsM affLin as) >>= \ ((tm', as'), fvs) ->
-    ambFun (joinApps (ambElim tm') as') fvs
+  -- L(tm1 tm2 : tp) => let <f, _> = L(tm1 : tp1) in f L(tm2 : tp2)
+  affLin tm1 >>= \ tm1' -> affLin tm2 >>= \ tm2' ->
+  let tp2' = affLinTp tp2
+      tp'  = affLinTp tp
+      tp1' = TpArr tp2' tp' in
+  return (TmApp (TmElimProd Additive tm1' [("x", tp1'), ("_", tpUnit)]
+                            (TmVarL "x" tp1') tp1')
+                tm2' tp2' tp')
 affLin (TmLet x xtm xtp tm tp) =
   -- L(let x : xtp = xtm in tm) => let x : L(xtp) = L(xtm) in let _ = Z({x} - FV(tm)) in L(tm)
   affLin xtm >>= \ xtm' ->
@@ -261,9 +240,11 @@ affLinProg :: Prog -> AffLinM Prog
 affLinProg (ProgData y cs) =
   pure (ProgData y (mapCtors affLinTp cs))
 affLinProg (ProgFun x tp tm) =
-  -- Top-level arrows are not transformed
+  -- Top-level lambdas are not transformed
+  -- BUG: this cannot distinguish between original top-level lambdas and those introduced in argify
   let
-    (ps, rtm, rtp) = splitLamsArrows tm tp
+    (ps, rtm) = splitLams tm
+    rtp = typeof rtm
     ps' = mapParams affLinTp ps
     tp' = joinArrows (snds ps') (affLinTp rtp)
   in

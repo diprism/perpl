@@ -1,18 +1,20 @@
+{- Reverse a list twice and check whether it's equal to the original. -}
+
 data List a = Nil | Cons a (List a);
 
--- reverseh : Forall a. List a -> List a -> List a
-define reverseh = \ acc. \ xs. case xs of
+-- reverse_helper : List a -> List a -> List a
+define reverse_helper = \ acc. \ xs. case xs of
   | Nil -> acc
-  | Cons x xs' -> reverseh (Cons x acc) xs';
+  | Cons x xs' -> reverse_helper (Cons x acc) xs';
 
--- reverse : Forall a. List a -> List a
-define reverse = reverseh Nil;
+-- reverse : List a -> List a
+define reverse = \ xs. reverse_helper Nil xs;
 
--- listEq : Forall a. List a -> List a -> Bool
+-- listEq : List a -> List a -> Bool
 define listEq = \ xs. \ ys. case xs of
   | Nil -> (case ys of Nil -> True | Cons y ys' -> False)
   | Cons x xs' -> (case ys of Nil -> False | Cons y ys' -> if x == y then listEq xs' ys' else False);
 
---define input : List Bool = Cons True (Cons False Nil);
+define input : List Bool = Cons True (Cons False Nil);
 
-listEq (Cons True (Cons False Nil)) (reverse (reverse (Cons True (Cons False Nil))));
+listEq input (reverse input)

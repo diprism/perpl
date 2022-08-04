@@ -1,0 +1,45 @@
+{- Natural numbers are the simplest example of a recursive datatype. -}
+
+data Nat = Zero | Succ Nat;
+
+define not = \ a. if a then False else True;
+
+define even = \n. case n of
+  | Zero -> True
+  | Succ n' -> not (even n');
+
+define plus = \m. \n. case m of
+  | Zero -> n
+  | Succ m' -> Succ (plus m' n);
+
+{- The obvious definition of multiplication is not allowed,
+   because it involves copying of n.
+   
+define times = \m. \n. case m of
+  | Zero -> Zero
+  | Succ m' -> plus n (times m' n); -}
+
+{- But multiplication by a constant is allowed: -}
+
+define double = \n: Nat.
+  case n of
+  | Zero -> Zero
+  | Succ m -> Succ (Succ (double m));
+
+define iszero =
+  \ n. case n of Zero -> True | Succ n' -> False;
+
+define equal = \m. \n. case m of
+  | Zero -> (case n of
+    | Zero -> True
+    | Succ n' -> False)
+  | Succ m' -> (case n of
+    | Zero -> False
+    | Succ n' -> equal m' n');
+
+-- Generates a random natural number from an exponential distribution
+define random = amb (factor 0.5 in Zero) (factor 0.5 in Succ random);
+
+even (plus random random)
+
+-- correct: [0.444, 0.555]

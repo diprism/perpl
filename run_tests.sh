@@ -2,14 +2,14 @@
 
 round () {
     # Round all floats to 1 decimal place.
-    perl -pe 's/(-?\d+(\.\d+)?)/sprintf("%.1f",$1)/ge'
+    perl -pe 's/(-?\d+(\.\d+(e-?\d+)?)?)/sprintf("%.1f",$1)/ge'
 }
 
 my_errs=()
 
 for file in \
-    examples/{amb,datatype_polymorphism,derefun,double,dyck,dyck_problem,equal,example12,extinction,fsm,fsm2,function_polymorphism,head_tail_rec,pattern1,pattern2,pda,pda2,penney,products,reverse,sample,stairs,syntax,tree,von_neumann}.ppl \
-    tests/good/{type_parameter_{nonrecursive,unused,different,swap},{zero,one,discard}_add_prod,datatype_containing_type_application}.ppl
+    examples/{bool,dyck,extinction,fsm,list,nat,parser,pattern1,pattern2,pda,penney,reverse,stairs,tree,von_neumann}.ppl \
+    tests/good/{amb,sample,products,type_parameter_{nonrecursive,unused,different,swap},{zero,one,discard}_add_prod,datatype_containing_type_application,partial_application{,_recursive},{amb,factor}_lambda_{0,1,2},function_polymorphism,infinite_fails}.ppl
 do
     printf '%-40s' "Compiling ${file}... "
     my_err=$(./perplc $file -o /dev/null 2>&1 > /dev/null)

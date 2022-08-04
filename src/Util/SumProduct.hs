@@ -5,7 +5,7 @@ import Data.List (sortOn)
 import Util.FGG
 import Util.Tensor
 import Util.Helpers
-import Util.SCC
+import Util.Graph
 
 type MultiTensor = Map String (Tensor Prob)
 
@@ -21,7 +21,11 @@ nonterminalGraph fgg = foldr (\ (Rule lhs rhs) g -> Map.insertWith Set.union lhs
 sumProduct :: FGG Domain -> Tensor Prob
 sumProduct fgg =
   let
-    sccs = scc (nonterminalGraph fgg)
+    -- Process the strongly-connected components that are reachable from start
+    -- in topological order
+    g = nonterminalGraph fgg
+    nodes = reachable g (start fgg)
+    sccs = filter (\c -> head c `elem` nodes) (scc g)
     z = foldr (sumProductSCC fgg) mempty (reverse sccs)
   in
     z Map.! (start fgg)
