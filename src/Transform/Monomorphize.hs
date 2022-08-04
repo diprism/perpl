@@ -36,8 +36,8 @@ collectCalls tm = collectCalls' tm <> collectCallsTp (typeof tm)
 collectCalls' :: Term -> GlobalCalls
 collectCalls' (TmVarL x tp) =
   collectCallsTp tp
-collectCalls' (TmVarG g x tis as tp) =
-  [(x, tis)] <> mconcat (collectCalls <$> fsts as)
+collectCalls' (TmVarG g x tgs tis as tp) =
+  [(x, tgs++tis)] <> mconcat (collectCalls <$> fsts as)
 collectCalls' (TmLam x xtp tm tp) =
   collectCalls tm
 collectCalls' (TmApp tm1 tm2 tp2 tp) =
@@ -59,10 +59,10 @@ collectCalls' (TmEqs tms) =
 
 -- Collects datatype calls in a type
 collectCallsTp :: Type -> GlobalCalls
-collectCallsTp (TpData y as)   = [(y, as)] <> mconcat (map collectCallsTp as)
-collectCallsTp (TpArr tp1 tp2) = collectCallsTp tp1 <> collectCallsTp tp2
-collectCallsTp (TpProd am tps) = mconcat (map collectCallsTp tps)
-collectCallsTp  _              = []
+collectCallsTp (TpData y tgs tis) = [(y, tgs++tis)] <> mconcat (map collectCallsTp tis)
+collectCallsTp (TpArr tp1 tp2)    = collectCallsTp tp1 <> collectCallsTp tp2
+collectCallsTp (TpProd am tps)    = mconcat (map collectCallsTp tps)
+collectCallsTp  _                 = []
 
 -- Substitutes polymorphic calls for their monomorphized version
 -- (So if we instantiate List with Bool and Unit, then `List1 = List Bool` and
@@ -72,22 +72,22 @@ collectCallsTp  _              = []
 --  with calls to List Unit)
 renameCalls :: Map Var (Map [Type] Int) -> Term -> Term
 renameCalls xis (TmVarL x tp) = TmVarL x (renameCallsTp xis tp)
-renameCalls xis (TmVarG g x [] as tp) = TmVarG g x [] [(renameCalls xis tm, renameCallsTp xis tp)| (tm, tp) <- as] (renameCallsTp xis tp)
-renameCalls xis (TmVarG g x tis as tp) =
+renameCalls xis (TmVarG g x [] [] as tp) = TmVarG g x [] [] [(renameCalls xis tm, renameCallsTp xis tp) | (tm, tp) <- as] (renameCallsTp xis tp)
+renameCalls xis (TmVarG g x tgs tis as tp) =
   let xisx = xis Map.! x
-      xi = (xis Map.! x) Map.! tis
+      xi = (xis Map.! x) Map.! (tgs++tis)
   in
-    TmVarG g (instName x xi) []
+    TmVarG g (instName x xi) [] []
       [(renameCalls xis tm, renameCallsTp xis tp)| (tm, tp) <- as]
       (renameCallsTp xis tp)
 renameCalls xis (TmLam x xtp tm tp) = TmLam x (renameCallsTp xis xtp) (renameCalls xis tm) (renameCallsTp xis tp)
 renameCalls xis (TmApp tm1 tm2 tp2 tp) = TmApp (renameCalls xis tm1) (renameCalls xis tm2) (renameCallsTp xis tp2) (renameCallsTp xis tp)
 renameCalls xis (TmLet x xtm xtp tm tp) = TmLet x (renameCalls xis xtm) (renameCallsTp xis xtp) (renameCalls xis tm) (renameCallsTp xis tp)
-renameCalls xis (TmCase tm (y, as) cs tp) =
-  let yi = (if null as then Nothing else Just ()) >> xis Map.!? y >>= \ m -> m Map.!? as
-      (y', as') = maybe (y, as) (\ i -> (instName y i, [])) yi
+renameCalls xis (TmCase tm (y, tgs, tis) cs tp) =
+  let yi = (if null (tgs++tis) then Nothing else Just ()) >> xis Map.!? y >>= \ m -> m Map.!? (tgs++tis)
+      (y', tgs', tis') = maybe (y, tgs, tis) (\ i -> (instName y i, [], [])) yi
   in
-    TmCase (renameCalls xis tm) (y', as')
+    TmCase (renameCalls xis tm) (y', tgs', tis')
       (fmap (\ (Case x ps tm') -> Case (maybe x (instName x) yi) [(x', renameCallsTp xis tp) | (x', tp) <- ps] (renameCalls xis tm')) cs) (renameCallsTp xis tp)
 renameCalls xis (TmAmb tms tp) = TmAmb (renameCalls xis <$> tms) (renameCallsTp xis tp)
 renameCalls xis (TmFactor wt tm tp) = TmFactor wt (renameCalls xis tm) (renameCallsTp xis tp)
@@ -97,10 +97,10 @@ renameCalls xis (TmEqs tms) = TmEqs (renameCalls xis <$> tms)
 
 -- Same as renameCalls, but for types
 renameCallsTp :: Map Var (Map [Type] Int) -> Type -> Type
-renameCallsTp xis (TpData y []) = TpData y [] -- a datatype with no arguments can have only one instantiation, so we don't rename it (see makeInstantiations))
-renameCallsTp xis (TpData y as) =
-  maybe (TpData y as)
-    (\ m -> let yi = m Map.! as in TpData (instName y yi) [])
+renameCallsTp xis (TpData y [] []) = TpData y [] [] -- a datatype with no arguments can have only one instantiation, so we don't rename it (see makeInstantiations))
+renameCallsTp xis (TpData y tgs tis) =
+  maybe (TpData y tgs tis)
+    (\ m -> let yi = m Map.! (tgs++tis) in TpData (instName y yi) [] [])
     (xis Map.!? y)
 renameCallsTp xis (TpArr tp1 tp2) = TpArr (renameCallsTp xis tp1) (renameCallsTp xis tp2)
 renameCallsTp xis (TpProd am tps) = TpProd am (map (renameCallsTp xis) tps)

@@ -42,7 +42,7 @@ ctxtDefGlobal g x tgs ps tp = Map.insert x (DefTerm (DefGlobal tgs ps tp)) g
 -- Add a constructor to the context
 ctxtDefCtor :: Ctxt -> Ctor -> Var -> [Var] -> [Var] -> Ctxt
 ctxtDefCtor g (Ctor x tps) y tgs ps =
-  let tp = joinArrows tps (TpData y (TpVar <$> (tgs ++ ps))) in
+  let tp = joinArrows tps (TpData y (TpVar <$> tgs) (TpVar <$> ps)) in
   Map.insert x (DefTerm (DefCtor tgs ps tp)) g
 
 -- Add a datatype definition to the context,
@@ -70,11 +70,11 @@ ctxtLookupType g x = Map.lookup x g >>= \ d -> case d of
     DefData [] [] cs -> Just cs
     _ -> error "this shouldn't happen"
 
-ctxtLookupType2 :: Ctxt -> Var -> Maybe ([Var], [Ctor])
+ctxtLookupType2 :: Ctxt -> Var -> Maybe ([Var], [Var], [Ctor])
 ctxtLookupType2 g x = Map.lookup x g >>= \ d -> case d of
   DefTerm _ -> Nothing
   DefType dt -> case dt of
-    DefData tgs ps cs -> Just (tgs++ps, cs)
+    DefData tgs ps cs -> Just (tgs, ps, cs)
   
 -- Is this var bound in this context?
 ctxtBinds :: Ctxt -> Var -> Bool

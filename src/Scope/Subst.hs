@@ -115,20 +115,22 @@ instance Substitutable Type where
   substM (TpArr tp1 tp2) = pure TpArr <*> substM tp1 <*> substM tp2
   substM tp@(TpVar y) =
     substVar y TpVar (const tp) id tp
-  substM (TpData y as) =
-    substM as >>= \ as' ->
+  substM (TpData y tgs tis) =
+    substM tgs >>= \ tgs' ->
+    substM tis >>= \ tis' ->
     substVar y
-      (\ y' -> TpData y' as')
-      (const (TpData y as'))
-      (\ tp' -> case tp' of TpData y' bs -> TpData y' (bs ++ as')
-                            _ -> error ("kind error (" ++ show (TpData y as) ++ " := " ++ show tp' ++ ")"))
-      (TpData y as')
+      (\ y' -> TpData y' tgs' tis')
+      (const (TpData y tgs' tis'))
+      -- allow y := y' tg1 ...
+      (\ tp' -> case tp' of TpData y' tgs'' [] -> TpData y' (tgs'' ++ tgs') tis'
+                            _ -> error ("kind error (" ++ y ++ " := " ++ show tp' ++ ")"))
+      (TpData y tgs' tis')
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
   substM NoTp = pure NoTp
 
   freeVars (TpArr tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
   freeVars (TpVar y) = Map.singleton y NoTp
-  freeVars (TpData y as) = Map.singleton y NoTp <> freeVars as
+  freeVars (TpData y tgs tis) = Map.singleton y NoTp <> freeVars tgs <> freeVars tis
   freeVars (TpProd am tps) = Map.unions (freeVars <$> tps)
   freeVars NoTp = Map.empty
 
@@ -136,8 +138,8 @@ instance Substitutable Term where
   substM (TmVarL x tp) =
     let tmx x' = pure (TmVarL x') <*> substM tp in
       substVar x tmx pure (const (tmx x)) (tmx x) >>= id
-  substM (TmVarG g x tis as tp) =
-    pure (TmVarG g x) <*> substM tis <*> mapArgsM substM as <*> substM tp
+  substM (TmVarG g x tgs tis as tp) =
+    pure (TmVarG g x) <*> substM tgs <*> substM tis <*> mapArgsM substM as <*> substM tp
   substM (TmLam x xtp tm tp) =
     freshen x >>= \ x' ->
     pure (TmLam x') <*> substM xtp <*> bind x x' (substM tm) <*> substM tp
@@ -146,8 +148,8 @@ instance Substitutable Term where
   substM (TmLet x xtm xtp tm tp) =
     freshen x >>= \ x' ->
     pure (TmLet x') <*> substM xtm <*> substM xtp <*> bind x x' (substM tm) <*> substM tp
-  substM (TmCase tm (y, as) cs tp) =
-    pure TmCase <*> substM tm <*> (pure ((,) y) <*> substM as) <*> substM cs <*> substM tp
+  substM (TmCase tm (y, tgs, tis) cs tp) =
+    pure TmCase <*> substM tm <*> (pure ((,,) y) <*> substM tgs <*> substM tis) <*> substM cs <*> substM tp
   substM (TmAmb tms tp) =
     pure TmAmb <*> substM tms <*> substM tp
   substM (TmFactor wt tm tp) =
@@ -162,7 +164,7 @@ instance Substitutable Term where
     pure TmEqs <*> substM tms
   
   freeVars (TmVarL x tp) = Map.singleton x tp
-  freeVars (TmVarG g x tis as tp) = freeVars (fsts as)
+  freeVars (TmVarG g x tgs tis as tp) = freeVars tgs <> freeVars tis <> freeVars (fsts as)
   freeVars (TmLam x xtp tm tp) = Map.delete x (freeVars tm)
   freeVars (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars tm1) (freeVars tm2)
   freeVars (TmLet x xtm xtp tm tp) = Map.union (freeVars xtm) (Map.delete x (freeVars tm))

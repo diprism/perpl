@@ -85,7 +85,7 @@ discard' x (TpProd Multiplicative tps) rtm =
 discard' x xtp@(TpData y []) rtm =
   ask >>= \ g ->
     -- let () = discard x in rtm
-    return (TmElimProd Multiplicative (TmVarG DefVar (discardName y) [] [(x, xtp)] tpUnit) [] rtm (typeof rtm))
+    return (TmElimProd Multiplicative (TmVarG DefVar (discardName y) [] [] [(x, xtp)] tpUnit) [] rtm (typeof rtm))
 discard' _ tp _ = error ("Trying to discard a " ++ show tp)
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard
@@ -140,7 +140,7 @@ affLin (TmVarL x tp) =
   let ltp = affLinTp tp in
   tell (Map.singleton x ltp) >>
   return (TmVarL x ltp)
-affLin (TmVarG gv x tis as y) =
+affLin (TmVarG gv x [] tis as y) =
   -- x is a global var with args as
   -- or a constructor with type args tis and args as
   -- L(x a1 ...) => x L(a1) ...

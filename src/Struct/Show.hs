@@ -8,13 +8,13 @@ import Struct.Helpers
 
 toUsTm :: Term -> UsTm
 toUsTm (TmVarL x _) = UsVar x
-toUsTm (TmVarG gv x tis as tp) =
+toUsTm (TmVarG gv x tgs tis as tp) =
   foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar {- x -} (foldl (\ x tp -> x ++ " [" ++ show tp ++ "]") x tis)) as
 toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
 --toUsTm (TmCase tm "Bool" [Case "True" [] thentm, Case "False" [] elsetm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
-toUsTm (TmCase tm ("Bool", []) [Case "False" [] elsetm, Case "True" [] thentm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
+toUsTm (TmCase tm ("Bool", [], []) [Case "False" [] elsetm, Case "True" [] thentm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmAmb [] tp) = UsFail tp
 toUsTm (TmAmb tms tp) = UsAmb [toUsTm tm | tm <- tms]
@@ -73,8 +73,8 @@ instance Show Term where
 
 instance Show Type where
   showsPrec _ (TpVar y) = showString y
-  showsPrec _ (TpData y []) = showString y
-  showsPrec p (TpData y as) = showParen (p > 10) (delimitWith " " (showString y : map (showsPrec 11) as))
+  showsPrec _ (TpData y [] []) = showString y
+  showsPrec p (TpData y tgs tis) = showParen (p > 10) (delimitWith " " (showString y : map (showsPrec 11) (tgs++tis)))
   showsPrec p (TpArr tp1 tp2) = showParen (p > 0) (showsPrec 1 tp1 . showString " -> " . shows tp2)
   showsPrec _ (TpProd am tps) = let (l, r) = amParens am in showString l . delimitWith ", " (map shows tps) . showString r
   showsPrec _ NoTp = id

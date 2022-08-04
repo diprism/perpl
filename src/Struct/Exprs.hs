@@ -78,17 +78,17 @@ data GlobalVar = CtorVar | DefVar
 -- With the exception of TmLam, the Type at the end of a constructor
 -- below is the type of that expression as a whole
 data Term =
-    TmVarL Var Type                           -- Local var
-  | TmVarG GlobalVar Var [Type] [Arg] Type    -- Global var app: (x ti1 ...) arg1 ...
-  | TmLam Var Type Term Type                  -- \ x : tp1. tm : tp2
-  | TmApp Term Term Type {- -> -} Type        -- (tm1 : (tp1 -> tp2)) (tm2 : tp1) : tp2
-  | TmLet Var Term Type Term Type             -- let x : tp1 = tm1 in tp2 : tp2
-  | TmCase Term (Var, [Type]) [Case] Type     -- (case tm : y [tis] of case*) : tp
-  | TmAmb [Term] Type                         -- amb tm1 tm2 ... tmn : tp
-  | TmFactor Double Term Type                 -- factor wt in tm : tp
-  | TmProd AddMult [Arg]                      -- (tm1 : tp1, tm2 : tp2, ..., tmn : tpn) / <...>
-  | TmElimProd AddMult Term [Param] Term Type -- let (x:X,y:Y,z:Z)/<...> = tm1 in tm2 : tp
-  | TmEqs [Term]                              -- tm1 == tm2 == ...
+    TmVarL Var Type                               -- Local var
+  | TmVarG GlobalVar Var [Type] [Type] [Arg] Type -- Global var app: (x tg1 ... ti1 ...) arg1 ...
+  | TmLam Var Type Term Type                      -- \ x : tp1. tm : tp2
+  | TmApp Term Term Type {- -> -} Type            -- (tm1 : (tp1 -> tp2)) (tm2 : tp1) : tp2
+  | TmLet Var Term Type Term Type                 -- let x : tp1 = tm1 in tp2 : tp2
+  | TmCase Term (Var, [Type], [Type]) [Case] Type -- (case tm : y tg1 ... ti1 ... of case1 ...) : tp
+  | TmAmb [Term] Type                             -- amb tm1 tm2 ... tmn : tp
+  | TmFactor Double Term Type                     -- factor wt in tm : tp
+  | TmProd AddMult [Arg]                          -- (tm1 : tp1, tm2 : tp2, ..., tmn : tpn) / <...>
+  | TmElimProd AddMult Term [Param] Term Type     -- let (x:X,y:Y,z:Z)/<...> = tm1 in tm2 : tp
+  | TmEqs [Term]                                  -- tm1 == tm2 == ...
   deriving (Eq, Ord)
 
 data AddMult = Additive | Multiplicative
@@ -96,7 +96,7 @@ data AddMult = Additive | Multiplicative
 
 data Type =
     TpArr Type Type                     -- function tp1 -> tp2
-  | TpData Var [Type]                   -- datatype x ti1 ...
+  | TpData Var [Type] [Type]            -- datatype x tg1 ... ti1 ...
   | TpVar Var                           -- type variable
   | TpProd AddMult [Type]               -- product (tp1, ...) or <tp1, ...>
   | NoTp                                -- nothing

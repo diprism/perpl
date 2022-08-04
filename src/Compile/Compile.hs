@@ -94,8 +94,8 @@ caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
   term2fgg (ctxtDeclArgs g as) xtm +>= \ xs_xtm_as ->
   let all_xs = Map.toList all_fvs
       unused_ps = Map.toList (Map.difference all_fvs (Map.fromList xs_xtm_as))
-      vctp : vtp : unused_nps = newNames (TpData y [] : tp : snds unused_ps)
-      fac = ctorFactorName x (paramsToArgs (nameParams x (snds as))) (TpData y [])
+      vctp : vtp : unused_nps = newNames (TpData y [] [] : tp : snds unused_ps)
+      fac = ctorFactorName x (paramsToArgs (nameParams x (snds as))) (TpData y [] [])
   in
     mkRule (TmCase ctm (y, []) cs tp)
       (vctp : vtp : xs_xtm_as ++ as ++ xs_ctm ++ all_xs ++ unused_ps ++ unused_nps)
@@ -299,7 +299,7 @@ type2fgg g tp =
   type2fgg' g tp
   where
     type2fgg' :: Ctxt -> Type -> RuleM
-    type2fgg' g (TpData y _) = returnRule
+    type2fgg' g (TpData y [] []) = returnRule
     type2fgg' g (TpArr tp1 tp2) = type2fgg g tp1 +> type2fgg g tp2
     type2fgg' g (TpProd am tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
     type2fgg' g tp = error ("Compiling a " ++ show tp ++ " to FGG rule")
@@ -324,10 +324,10 @@ prog2fgg g (ProgExtern x ps tp) =
 prog2fgg g (ProgData y cs) =
   -- Add constructor factors
   foldr (\ (fac, ws) rm -> addFactor fac ws +> rm) returnRule
-    (getCtorWeightsAll (domainValues g) cs (TpData y [])) +>
+    (getCtorWeightsAll (domainValues g) cs (TpData y [] [])) +>
   -- Add constructor rules
-  foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) (TpData y []) cs) returnRule cs +>
-  type2fgg g (TpData y [])
+  foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) (TpData y [] []) cs) returnRule cs +>
+  type2fgg g (TpData y [] [])
 
 -- Goes through a program and adds all the rules for it
 progs2fgg :: Ctxt -> Progs -> RuleM
@@ -345,7 +345,7 @@ domainValues g = tpVals where
         (tpVals tp) tps
   
   tpVals :: Type -> [String]
-  tpVals (TpData y _) =
+  tpVals (TpData y [] []) =
     maybe2 (ctxtLookupType g y) [] $ \ cs ->
       concat [foldl (kronwith $ \ d da -> d ++ " " ++ parens da) [x] (map tpVals as)
              | (Ctor x as) <- cs]
