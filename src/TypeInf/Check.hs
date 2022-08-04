@@ -159,8 +159,8 @@ guardExternRec tp =
   guardM (not (isInfiniteType env tp)) ExternRecData
 
 -- Defines a global function
-defTerm :: Var -> Scheme -> CheckM a -> CheckM a
-defTerm x (Forall tgs ps tp) = local $ modifyEnv ( \ g -> ctxtDefGlobal g x tgs ps tp)
+defTerm :: Var -> [Var] -> [Var] -> Type -> CheckM a -> CheckM a
+defTerm x tgs ps tp = local $ modifyEnv ( \ g -> ctxtDefGlobal g x tgs ps tp)
 
 -- Defines a datatype and its constructors
 defData :: Var -> [Var] -> [Var] -> [Ctor] -> CheckM a -> CheckM a
@@ -191,8 +191,8 @@ lookupTermVar x =
 lookupCtorType :: [CaseUs] -> CheckM (Var, [Var], [Var], [Ctor])
 lookupCtorType [] = err NoCases
 lookupCtorType (CaseUs x _ _ : _) =
-  lookupTermVar x >>= \ tp ->
-  case tp of
+  lookupTermVar x >>= \ d ->
+  case d of
     DefCtor _ _ ctp -> case splitArrows ctp of
       (_, TpData y _) -> lookupDatatype y >>= \ (tgs, xs, cs) -> return (y, tgs, xs, cs)
       (_, etp) -> error "This shouldn't happen"

@@ -79,10 +79,6 @@ instance Show Type where
   showsPrec _ (TpProd am tps) = let (l, r) = amParens am in showString l . delimitWith ", " (map shows tps) . showString r
   showsPrec _ NoTp = id
 
-instance Show Scheme where
-  show (Forall [] [] tp) = show tp
-  show (Forall tgs tpms tp) = "Forall " ++ intercalate ", " (tgs ++ tpms) ++ ". " ++ show tp
-
 instance Show UsProg where
   show (UsProgFun x tp tm) = "define " ++ x ++ showTpAnn tp ++ " = " ++ show tm ++ ";"
   show (UsProgExtern x tp) = "extern " ++ x ++ showTpAnn tp ++ ";"
@@ -93,7 +89,7 @@ instance Show UsProgs where
   show (UsProgs ps end) = intercalate "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
 
 instance Show SProg where
-  show (SProgFun x stp tm) = "define " ++ x ++ " : " ++ show stp ++ " = " ++ show tm ++ ";"
+  show (SProgFun x tgs ps tp tm) = "define " ++ x ++ " : Forall " ++ intercalate ", " (tgs ++ ps) ++ ". " ++ show tp ++ " = " ++ show tm ++ ";"
   show (SProgExtern x tps tp) = "extern " ++ x ++ " : " ++ show (joinArrows tps tp) ++ ";"
   show (SProgData y tgs ps cs) = "data " ++ intercalate " " (y : tgs ++ ps) ++ " = " ++ intercalate " | " [show c | c <- cs] ++ ";"
 
