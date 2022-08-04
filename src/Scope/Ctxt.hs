@@ -93,7 +93,7 @@ ctxtDefUsProgs (UsProgs ps end) = foldl ctxtDefUsProg emptyCtxt ps
 -- Adds all definitions from a scheme-ified file to context
 ctxtDefSProg :: Ctxt -> SProg -> Ctxt
 ctxtDefSProg g (SProgFun x tgs ps tp tm) = ctxtDefGlobal g x tgs ps tp
-ctxtDefSProg g (SProgExtern x ps tp) = ctxtDefGlobal g x [] [] (joinArrows ps tp)
+ctxtDefSProg g (SProgExtern x tp) = ctxtDefGlobal g x [] [] tp
 ctxtDefSProg g (SProgData y tgs ps cs) = ctxtDefData g y tgs ps cs
 
 -- Populates a context with the definitions from a scheme-ified file

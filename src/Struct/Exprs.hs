@@ -22,7 +22,7 @@ data UsProg =
 -- Scheme-ified definition
 data SProg =
     SProgFun Var [Var] [Var] Type Term  -- lhs, tags, type params, type, rhs
-  | SProgExtern Var [Type] Type         -- lhs, param types, return type
+  | SProgExtern Var Type                -- lhs, type
   | SProgData Var [Var] [Var] [Ctor]    -- lhs, tags, type params, constructors
   deriving (Eq, Ord)
 
@@ -34,7 +34,7 @@ data SProgs = SProgs [SProg] Term       -- definitions, main
 data Prog =
     ProgFun Var [(Var, Type)] Term Type -- lhs, params, rhs, return type
   | ProgExtern Var [Type] Type          -- lhs, param types, return type
-  | ProgData Var [Ctor]                 -- lhs, type params, constructors
+  | ProgData Var [Ctor]                 -- lhs, constructors
   deriving (Eq, Ord)
 
 -- Elaborated program

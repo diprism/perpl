@@ -351,7 +351,7 @@ inferExtern (x, tp) m =
   -- Add (x : tp') to env, checking rest of program
   defTerm x [] [] tp' m >>= \ (SProgs ps end) ->
   -- Add (extern x : tp') to returned program
-  return (SProgs (SProgExtern x [] tp' : ps) end)
+  return (SProgs (SProgExtern x tp' : ps) end)
 
 -- Checks the end term (start term? Should be consistent with name...)
 inferEnd :: UsTm -> CheckM SProgs
