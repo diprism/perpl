@@ -1,31 +1,41 @@
+-- Recognizes the language { 0^n 1^n }
+
 data WSymbol = WSym0 | WSym1;
-data ZSymbol = ZSym0 | ZSym1;
-data State = q1 | q2 | q3;
+data ZSymbol = ZSym0 | ZDollar;
+data State = q0s | q1s | sink;
 data String = WNil | WCons WSymbol String;
 data Stack = ZNil | ZCons ZSymbol Stack;
 data Action = Pop State | Push State ZSymbol;
 
-extern transition : State -> (WSymbol, State);
-extern transition' : State -> WSymbol -> ZSymbol -> Action;
-extern in_accept : State -> Bool;
-extern in_accept' : State -> Bool;
-extern q0 : State;
-extern q0' : State;
-extern z0 : ZSymbol;
+define transition' : State -> WSymbol -> ZSymbol -> Action =
+  \ q. \ w. \ z. case q of
+    | q0s -> (case w of
+      | WSym0 -> Push q0s ZSym0
+      | WSym1 -> Pop (case z of ZSym0 -> q1s | ZDollar -> sink))
+    | q1s -> (case w of
+      | WSym0 -> Pop sink
+      | WSym1 -> Pop (case z of ZSym0 -> q1s | ZDollar -> sink))
+    | sink -> Pop sink;
 
-define gen_fa : State -> String = \ q. if in_accept q
-  then WNil
-  else (let (w, r) = transition q in WCons w (gen_fa r));
+define in_accept' : State -> ZSymbol -> Bool =
+  \ q. \ z. case q of
+    | q0s -> False
+    | q1s -> (case z of ZSym0 -> False | ZDollar -> True)
+    | sink -> False;
 
 define rec_pda : State -> String -> Stack -> Bool =
-  \ q'. \ ws. \ zs. case ws of
-    | WNil -> in_accept' q'
-    | WCons w ws -> (case zs of
-      | ZNil -> False
-      | ZCons z zs -> (case transition' q' w z of
+  \ q'. \ ws. \ zs. case zs of
+    | ZNil -> False
+    | ZCons z zs -> (case ws of
+      | WNil -> in_accept' q' z
+      | WCons w ws -> (case transition' q' w z of
         | Pop r' -> rec_pda r' ws zs
         | Push r' znew -> rec_pda r' ws (ZCons znew (ZCons z zs))
       )
     );
 
-rec_pda q0' (gen_fa q0) (ZCons z0 ZNil);
+define q0 = q0s;
+define w0 = WCons WSym0 (WCons WSym0 (WCons WSym1 (WCons WSym1 WNil)));
+define z0 = ZCons ZDollar ZNil;
+
+rec_pda q0 w0 z0;

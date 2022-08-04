@@ -1,0 +1,15 @@
+data Nat = Zero | Succ Nat;
+
+define equal = \m. \n. case m of
+  | Zero -> (case n of
+    | Zero -> ()
+    | Succ n' -> fail)
+  | Succ m' -> (case n of
+    | Zero -> fail
+    | Succ n' -> equal m' n');
+
+define random = amb Zero (Succ random);
+
+equal random Zero
+
+-- correct: [1]
