@@ -14,14 +14,14 @@ data UsProgs = UsProgs [UsProg] UsTm    -- definitions, main
 
 -- Individual user-level definition
 data UsProg =
-    UsProgFun String Type UsTm          -- lhs, type, rhs
+    UsProgFun String UsTm Type          -- lhs, rhs, type
   | UsProgExtern String Type            -- lhs, type
   | UsProgData String [Var] [Ctor]      -- lhs, type params, constructors
   deriving (Eq, Ord)
 
 -- Scheme-ified definition
 data SProg =
-    SProgFun Var [Var] [Var] Type Term  -- lhs, tags, type params, type, rhs
+    SProgFun Var [Var] [Var] Term Type  -- lhs, tags, type params, rhs, type
   | SProgExtern Var Type                -- lhs, type
   | SProgData Var [Var] [Var] [Ctor]    -- lhs, tags, type params, constructors
   deriving (Eq, Ord)

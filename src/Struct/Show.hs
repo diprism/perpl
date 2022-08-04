@@ -27,7 +27,7 @@ toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (fsts as) (toUsTm tm)
 
 toUsProg :: Prog -> UsProg
-toUsProg (ProgFun x ps tm tp) = UsProgFun x (joinArrows (snds ps) tp) (toUsTm (joinLams ps tm))
+toUsProg (ProgFun x ps tm tp) = UsProgFun x (toUsTm (joinLams ps tm)) (joinArrows (snds ps) tp)
 toUsProg (ProgExtern x ps tp) = UsProgExtern x (joinArrows ps tp)
 toUsProg (ProgData y cs) = UsProgData y [] cs
 
@@ -80,7 +80,7 @@ instance Show Type where
   showsPrec _ NoTp = id
 
 instance Show UsProg where
-  show (UsProgFun x tp tm) = "define " ++ x ++ showTpAnn tp ++ " = " ++ show tm ++ ";"
+  show (UsProgFun x tm tp) = "define " ++ x ++ showTpAnn tp ++ " = " ++ show tm ++ ";"
   show (UsProgExtern x tp) = "extern " ++ x ++ showTpAnn tp ++ ";"
   show (UsProgData y ps []) = "data " ++ intercalate " " (y : ps) ++ ";"
   show (UsProgData y ps cs) = "data " ++ intercalate " " (y : ps) ++ " = " ++ intercalate " | " (map show cs) ++ ";"
@@ -89,7 +89,7 @@ instance Show UsProgs where
   show (UsProgs ps end) = intercalate "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
 
 instance Show SProg where
-  show (SProgFun x tgs ps tp tm) = "define " ++ x ++ " : Forall " ++ intercalate ", " (tgs ++ ps) ++ ". " ++ show tp ++ " = " ++ show tm ++ ";"
+  show (SProgFun x tgs ps tm tp) = "define " ++ x ++ " : Forall " ++ intercalate ", " (tgs ++ ps) ++ ". " ++ show tp ++ " = " ++ show tm ++ ";"
   show (SProgExtern x tp) = "extern " ++ x ++ " : " ++ show tp ++ ";"
   show (SProgData y tgs ps cs) = "data " ++ intercalate " " (y : tgs ++ ps) ++ " = " ++ intercalate " | " [show c | c <- cs] ++ ";"
 
