@@ -32,7 +32,7 @@ data SProgs = SProgs [SProg] Term       -- definitions, main
 
 -- Elaborated definition
 data Prog =
-    ProgFun Var [(Var, Type)] Term Type -- lhs, params, rhs, return type
+    ProgFun Var [Param] Term Type       -- lhs, params, rhs, return type
   | ProgExtern Var [Type] Type          -- lhs, param types, return type
   | ProgData Var [Ctor]                 -- lhs, constructors
   deriving (Eq, Ord)
@@ -75,13 +75,13 @@ data UsTm =
 data GlobalVar = CtorVar | DefVar
   deriving (Eq, Ord)
 
--- For the most part, the Type at the end of a constructor
+-- With the exception of TmLam, the Type at the end of a constructor
 -- below is the type of that expression as a whole
 data Term =
     TmVarL Var Type                           -- Local var
-  | TmVarG GlobalVar Var [Type] [Arg] Type    -- Global var
+  | TmVarG GlobalVar Var [Type] [Arg] Type    -- Global var app: (x ti1 ...) arg1 ...
   | TmLam Var Type Term Type                  -- \ x : tp1. tm : tp2
-  | TmApp Term Term Type {- -> -} Type        -- (tm1 : (tp1 -> tp2)) (tm2  : tp1) : tp2
+  | TmApp Term Term Type {- -> -} Type        -- (tm1 : (tp1 -> tp2)) (tm2 : tp1) : tp2
   | TmLet Var Term Type Term Type             -- let x : tp1 = tm1 in tp2 : tp2
   | TmCase Term (Var, [Type]) [Case] Type     -- (case tm : y [tis] of case*) : tp
   | TmAmb [Term] Type                         -- amb tm1 tm2 ... tmn : tp
@@ -95,10 +95,10 @@ data AddMult = Additive | Multiplicative
   deriving (Eq, Ord)
 
 data Type =
-    TpArr Type Type                     -- function
-  | TpData Var [Type]                   -- datatype name with type arguments
+    TpArr Type Type                     -- function tp1 -> tp2
+  | TpData Var [Type]                   -- datatype x ti1 ...
   | TpVar Var                           -- type variable
-  | TpProd AddMult [Type]               -- additive or multiplicative product
+  | TpProd AddMult [Type]               -- product (tp1, ...) or <tp1, ...>
   | NoTp                                -- nothing
   deriving (Eq, Ord)
 
