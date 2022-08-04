@@ -170,7 +170,7 @@ getDeps (UsProgs ps end) =
     clean m = let s = Set.fromList (Map.keys m) in fmap (Set.intersection s) m
     
     h :: UsProg -> (Map Var (Set Var), Map Var (Set Var)) -> (Map Var (Set Var), Map Var (Set Var))
-    h (UsProgFun x mtp tm) (fdeps, ddeps) =
+    h (UsProgFun x tm mtp) (fdeps, ddeps) =
       (Map.insert x (Set.fromList (Map.keys (freeVars tm))) fdeps, ddeps)
     h (UsProgExtern x tp) deps = deps
     h (UsProgData y ps cs) (fdeps, ddeps) =
@@ -178,7 +178,7 @@ getDeps (UsProgs ps end) =
 
 -- Helper for splitProgsH
 splitProgsH :: UsProg -> ([(Var, Type, UsTm)], [(Var, Type)], [(Var, [Var], [Ctor])])
-splitProgsH (UsProgFun x mtp tm) = ([(x, mtp, tm)], [], [])
+splitProgsH (UsProgFun x tm mtp) = ([(x, mtp, tm)], [], [])
 splitProgsH (UsProgExtern x tp) = ([], [(x, tp)], [])
 splitProgsH (UsProgData y ps cs) = ([], [], [(y, ps, cs)])
 
@@ -220,7 +220,7 @@ inferFuns fs m =
     -- Add defs to env, and check remaining progs (m)
     foldr (\ (x, tm, tgs, ps, tp) -> defTerm x tgs ps tp) m xtmstps >>= \ (SProgs ps end) ->
     -- Add defs to returned (schemified) program
-    let ps' = map (\ (x, tm, tgs, ps, tp) -> SProgFun x tgs ps tp tm) xtmstps in
+    let ps' = map (\ (x, tm, tgs, ps, tp) -> SProgFun x tgs ps tm tp) xtmstps in
     return (SProgs (ps' ++ ps) end)
 
 {- inferData dsccs cont
