@@ -139,7 +139,7 @@ solvesM :: CheckM [(Var, Term, Type)] -> CheckM [(Var, Term, [Var], [Var], Type)
 solvesM ms =
   listenSolveVars (listen ms) >>= \ ((defs, cs), vs) ->
   askEnv >>= \ g ->
-  case solve g vs (TpProd Multiplicative [tps | (_, _, tps) <- defs]) cs of
+  case solve g vs (TpProd Multiplicative [tp | (_, _, tp) <- defs]) cs of
     Left e -> throwError e
     Right (s, xs, tgs) ->
       let
@@ -154,7 +154,7 @@ solvesM ms =
         -- Add tag/type parameters to right-hand side terms. This has
         -- to be done in a second pass because of mutual recursion.
         s' = Map.fromList [(f, SubTm (TmVarG DefVar f (TpVar <$> (tgs++xs')) [] tp')) | (f, _, tgs, xs', tp') <- defs']
-        defs'' = [(f, subst s' tm, tgs, xs', tp') | (f, tm, tgs, xs', tp') <- defs']
+        defs'' = [(f, subst s' tm', tgs, xs', tp') | (f, tm', tgs, xs', tp') <- defs']
       in
         return defs''
 
