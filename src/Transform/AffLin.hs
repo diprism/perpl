@@ -82,7 +82,7 @@ discard' x (TpProd Multiplicative tps) rtm =
     let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in
       discards (Map.fromList ps) rtm >>= \ rtm' ->
       return (TmElimProd Multiplicative x ps rtm' (typeof rtm'))
-discard' x xtp@(TpData y []) rtm =
+discard' x xtp@(TpData y [] []) rtm =
   ask >>= \ g ->
     -- let () = discard x in rtm
     return (TmElimProd Multiplicative (TmVarG DefVar (discardName y) [] [] [(x, xtp)] tpUnit) [] rtm (typeof rtm))
@@ -107,7 +107,7 @@ discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm
 
 -- See definition of L(tp) above
 affLinTp :: Type -> Type
-affLinTp (TpData y []) = TpData y []
+affLinTp (TpData y [] []) = TpData y [] []
 affLinTp (TpProd am tps) = TpProd am $ map affLinTp tps ++ [tpUnit | am == Additive]
 affLinTp (TpArr tp1 tp2) =
   TpProd Additive [TpArr (affLinTp tp1) (affLinTp tp2), tpUnit]
@@ -140,14 +140,15 @@ affLin (TmVarL x tp) =
   let ltp = affLinTp tp in
   tell (Map.singleton x ltp) >>
   return (TmVarL x ltp)
-affLin (TmVarG gv x [] tis as y) =
+affLin (TmVarG gv x [] [] as y) =
   -- x is a global var with args as
   -- or a constructor with type args tis and args as
   -- L(x a1 ...) => x L(a1) ...
   mapArgsM affLin as >>= \ as' ->
   let y'   = affLinTp y
-      tis' = map affLinTp tis
-  in return (TmVarG gv x tis' as' y')
+  in return (TmVarG gv x [] [] as' y')
+affLin tm@(TmVarG gv x _ _ as y) =
+  error ("tried to affLin " ++ show tm)
 affLin (TmLam x xtp tm tp) =
   -- L(\ x : xtp. tm) => <\ x : L(xtp). L(tm), Z(FV(tm) - {x})>
   let xtp' = affLinTp xtp
@@ -219,7 +220,7 @@ affLin (TmEqs tms) =
 affLinDiscards :: [Prog] -> AffLinM [Prog]
 affLinDiscards (p@(ProgData y cs) : ps) =
   ask >>= \ g ->
-  let ytp = TpData y [] in
+  let ytp = TpData y [] [] in
   if robust g ytp then
     pure (p :) <*> affLinDiscards ps
   else
@@ -227,7 +228,7 @@ affLinDiscards (p@(ProgData y cs) : ps) =
       -- define _discardy_ = \x. case x of Con1 a11 a12 ... -> () | ...
       -- Linearizing this will generate recursive calls to discard as needed
       defDiscard = ProgFun (discardName y) [("x", ytp)] body tpUnit
-      body = TmCase (TmVarL "x" ytp) (y, []) cases tpUnit
+      body = TmCase (TmVarL "x" ytp) (y, [], []) cases tpUnit
       cases = [let atps' = nameParams c atps in Case c atps' tmUnit | Ctor c atps <- cs]
     in
       affLinDiscards ps >>= \ ps' ->
