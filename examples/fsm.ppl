@@ -1,4 +1,4 @@
--- Language: { 0^{2i}1^{2j+1} | i and j are integers}
+-- A finite automaton recognizing the language: { 0^{2i} 1^{2j+1} | i, j >= 0 }
 
 data Symbol = Sym0 | Sym1;
 data State = q0e | q0o | q1e | q1o | sink;
@@ -20,15 +20,15 @@ define transition : Symbol -> State -> State = \ s. \ q. case s of
     | sink -> sink
     );
 
-define in_accept : State -> Bool = \ q. case q of
+define is_accept_state : State -> Bool = \ q. case q of
   | q0e -> False | q0o -> False | q1e -> False | q1o -> True | sink -> False;
 
-define q0 = q0e;
+define start_state = q0e;
 
-define rec : State -> String -> Bool =
+define run : State -> String -> Bool =
   \ q. \ ws. case ws of
-    | Nil -> in_accept q
-    | Cons w ws -> rec (transition w q) ws;
+    | Nil -> is_accept_state q
+    | Cons w ws -> run (transition w q) ws;
 
 -- Should get accepted, so [0, 1]
 define string1 = Cons Sym0 (Cons Sym0 (Cons Sym1 (Cons Sym1 (Cons Sym1 Nil))));
@@ -37,4 +37,6 @@ define string2 = Cons Sym0 (Cons Sym0 (Cons Sym1 (Cons Sym1 (Cons Sym0 Nil))));
 -- Should get rejected, so [1, 0]
 define string3 = Cons Sym0 (Cons Sym0 (Cons Sym1 (Cons Sym1 Nil)));
 
-rec q0 string1
+run start_state string1
+
+-- correct: [0, 1]
