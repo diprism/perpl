@@ -161,11 +161,11 @@ makeInstantiations xis (SProgFun x [] [] tm tp) =
     []
   else
     [ProgFun x [] (renameCalls xis tm) (renameCallsTp xis tp)]
-makeInstantiations xis (SProgFun x tgs ys tm tp) =
+makeInstantiations xis (SProgFun x tgs ps tm tp) =
   let tiss = Map.toList (xis Map.! x) in
-    map (\ ((tags, tis), i) ->
-           let s = Map.fromList (pickyZip tgs (SubTp <$> tags) ++
-                                 pickyZip ys  (SubTp <$> tis )) in
+    map (\ ((tgs', tis), i) ->
+           let s = Map.fromList (pickyZip tgs (SubTp <$> tgs') ++
+                                 pickyZip ps  (SubTp <$> tis )) in
              ProgFun
                (instName x i) -- new name for this particular instantiation
                [] -- args are [], for now (see Transform.Argify)
