@@ -215,7 +215,7 @@ monomorphizeFile (SProgs sps stm) =
   let dm = makeDefMap sps
       tpms = makeTypeParams sps
       xis = makeEmptyInsts sps
-      xis' = foldr (\ (x, tis, as) xis -> addInsts dm tpms xis x tis as) xis (collectCalls stm)
+      xis' = foldr (\ (x, tgs, tis) xis -> addInsts dm tpms xis x tgs tis) xis (collectCalls stm)
       xis'' = fmap (\ tiss -> Map.fromList (zip (Set.toList tiss) [0..])) (semimap xis')
       xis''' = overrideCtorInsts xis'' sps
   in
