@@ -82,7 +82,7 @@ ctxtBinds = flip Map.member
 
 -- Adds all definitions from a raw file to context
 ctxtDefUsProg :: Ctxt -> UsProg -> Ctxt
-ctxtDefUsProg g (UsProgFun x tp tm) = ctxtDefGlobal g x [] [] tp
+ctxtDefUsProg g (UsProgFun x tm tp) = ctxtDefGlobal g x [] [] tp
 ctxtDefUsProg g (UsProgExtern x tp) = ctxtDefGlobal g x [] [] tp
 ctxtDefUsProg g (UsProgData y ps cs) = ctxtDefData g y [] ps cs
 
@@ -92,7 +92,7 @@ ctxtDefUsProgs (UsProgs ps end) = foldl ctxtDefUsProg emptyCtxt ps
 
 -- Adds all definitions from a scheme-ified file to context
 ctxtDefSProg :: Ctxt -> SProg -> Ctxt
-ctxtDefSProg g (SProgFun x tgs ps tp tm) = ctxtDefGlobal g x tgs ps tp
+ctxtDefSProg g (SProgFun x tgs ps tm tp) = ctxtDefGlobal g x tgs ps tp
 ctxtDefSProg g (SProgExtern x tp) = ctxtDefGlobal g x [] [] tp
 ctxtDefSProg g (SProgData y tgs ps cs) = ctxtDefData g y tgs ps cs
 

@@ -349,8 +349,12 @@ PROG ::=
 parseProg :: ParseM (Maybe UsProg)
 parseProg = parsePeek >>= \ t -> case t of
 -- define x [: type] = term; ...
-  TkFun -> parseEat *> pure Just <*> (pure UsProgFun <*> parseVar <*> parseTpAnn
-             <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkSemicolon)
+  TkFun -> parseEat *> pure Just <*>
+       (parseVar >>= \ x ->
+        parseTpAnn >>= \ tp ->
+        parseDrop TkEq >>
+        parseTerm1 >>= \ tm ->
+        pure (UsProgFun x tm tp) <* parseDrop TkSemicolon)
 -- extern x [: type]; ...
   TkExtern -> parseEat *> pure Just <*> (pure UsProgExtern <*> parseVar <*> parseTpAnn
                 <* parseDrop TkSemicolon)
