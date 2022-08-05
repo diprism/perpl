@@ -87,6 +87,9 @@ pickyZipWith f = go where
   go (a:as) (b:bs) = f a b : go as bs
   go _      _      = error "pickyZipWith: list lengths don't match"
 
+pickyZip :: [a] -> [b] -> [(a,b)]
+pickyZip = pickyZipWith (,)
+
 -- Collects duplicates, counting how many
 -- collectDups ['a', 'b', 'c', 'b', 'c', 'b'] = [('a', 1), ('b', 3), ('c', 2)]
 collectDups :: Ord a => [a] -> [(a, Int)]
