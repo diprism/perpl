@@ -148,8 +148,8 @@ instance Substitutable Term where
   substM (TmLet x xtm xtp tm tp) =
     freshen x >>= \ x' ->
     pure (TmLet x') <*> substM xtm <*> substM xtp <*> bind x x' (substM tm) <*> substM tp
-  substM (TmCase tm (y, tgs, tis) cs tp) =
-    pure TmCase <*> substM tm <*> (pure ((,,) y) <*> substM tgs <*> substM tis) <*> substM cs <*> substM tp
+  substM (TmCase tm (y, tgs, as) cs tp) =
+    pure TmCase <*> substM tm <*> (pure ((,,) y) <*> substM tgs <*> substM as) <*> substM cs <*> substM tp
   substM (TmAmb tms tp) =
     pure TmAmb <*> substM tms <*> substM tp
   substM (TmFactor wt tm tp) =

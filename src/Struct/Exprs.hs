@@ -83,7 +83,7 @@ data Term =
   | TmLam Var Type Term Type                      -- \ x : tp1. tm : tp2
   | TmApp Term Term Type {- -> -} Type            -- (tm1 : (tp1 -> tp2)) (tm2 : tp1) : tp2
   | TmLet Var Term Type Term Type                 -- let x : tp1 = tm1 in tp2 : tp2
-  | TmCase Term (Var, [Type], [Type]) [Case] Type -- (case tm : y tg1 ... ti1 ... of case1 ...) : tp
+  | TmCase Term (Var, [Type], [Type]) [Case] Type -- (case tm : y tg1 ... a1 ... of case1 ...) : tp
   | TmAmb [Term] Type                             -- amb tm1 tm2 ... tmn : tp
   | TmFactor Double Term Type                     -- factor wt in tm : tp
   | TmProd AddMult [Arg]                          -- (tm1 : tp1, tm2 : tp2, ..., tmn : tpn) / <...>
