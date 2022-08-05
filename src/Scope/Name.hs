@@ -29,7 +29,7 @@ internalFactorName tm = "v=" ++ show tm
 
 -- Naming convention for constructor factor
 ctorFactorName :: Var -> [(Term, Type)] -> Type -> String
-ctorFactorName x as tp = internalFactorName (TmVarG CtorVar x [] as tp)
+ctorFactorName x as tp = internalFactorName (TmVarG CtorVar x [] [] as tp)
 
 -- FGG factor name for the default ctor rule
 ctorFactorNameDefault :: Var -> [Type] -> Type -> String

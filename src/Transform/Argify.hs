@@ -29,7 +29,7 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
   arity :: Prog -> [(Var, ([Type], Type))]
   arity (ProgFun x [] tm tp) = let (ls, etm) = splitLams tm in [(x, (snds ls, typeof etm))]
   arity (ProgExtern x [] tp) = let (tps, etp) = splitArrows tp in [(x, (tps, etp))]
-  arity (ProgData x cs) = [(y, (tps, TpData x [])) | Ctor y tps <- cs]
+  arity (ProgData x cs) = [(y, (tps, TpData x [] [])) | Ctor y tps <- cs]
   arity prog = error ("arity received a definition that is already argified: " ++ show prog)
 
   arities = Map.fromList (concat (map arity ps))
@@ -38,13 +38,13 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
 
   argifyTerm :: Term -> Term
   argifyTerm (TmVarL x tp) = TmVarL x tp
-  argifyTerm (TmVarG g x [] [] _) = argifyAppG g x []
-  argifyTerm tm@(TmVarG g x tis as tp) = error ("argifyTerm received a term that is already argified: " ++ show tm)
+  argifyTerm (TmVarG g x [] [] [] _) = argifyAppG g x []
+  argifyTerm tm@(TmVarG g x tgs tis as tp) = error ("argifyTerm received a term that is already argified: " ++ show tm)
   argifyTerm (TmLam x xtp tm tp) = TmLam x xtp (argifyTerm tm) tp
   argifyTerm tm@(TmApp _ _ _ _) =
     case splitApps tm of
-      (TmVarG g x [] [] _, as) -> argifyAppG g x as
-      f@(TmVarG g x tis as' _, as) ->
+      (TmVarG g x [] [] [] _, as) -> argifyAppG g x as
+      f@(TmVarG g x tgs tis as' _, as) ->
         error ("argifyTerm received a term that is already argified: " ++ show f)
       (etm, as) ->
         joinApps (argifyTerm etm) [(argifyTerm tm, tp) | (tm, tp) <- as]
@@ -56,7 +56,7 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
   argifyTerm (TmElimProd am ptm ps tm tp) = TmElimProd am (argifyTerm ptm) ps (argifyTerm tm) tp
   argifyTerm (TmEqs tms) = TmEqs (argifyTerm <$> tms)
 
-  -- Argify an application of a global definition (TmVarG g x [] [] _)
+  -- Argify an application of a global definition (TmVarG g x [] [] [] _)
   -- to zero or more arguments (as).
   argifyAppG :: GlobalVar -> Var -> [Arg] -> Term
   argifyAppG g x as =
@@ -69,7 +69,7 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
         [] ->
           -- Absorb |tps| arguments into the TmVarG
           case splitAt (length tps) as' of
-            (absorb, remain) -> joinApps (TmVarG g x [] absorb etp) remain
+            (absorb, remain) -> joinApps (TmVarG g x [] [] absorb etp) remain
         remtps -> -- list of missing argument types
           -- This is a partial (or non-) application, so η-expand with the missing arguments.
           let
@@ -78,7 +78,7 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
             ls = zip lxs remtps
             as'' = as' ++ paramsToArgs ls
           in
-            joinLams ls (TmVarG g x [] as'' etp)
+            joinLams ls (TmVarG g x [] [] as'' etp)
 
   -- Argify a definition.
   

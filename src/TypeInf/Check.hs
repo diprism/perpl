@@ -194,7 +194,7 @@ lookupCtorType (CaseUs x _ _ : _) =
   lookupTermVar x >>= \ d ->
   case d of
     DefCtor _ _ ctp -> case splitArrows ctp of
-      (_, TpData y _) -> lookupDatatype y >>= \ (tgs, xs, cs) -> return (y, tgs, xs, cs)
+      (_, TpData y _ _) -> lookupDatatype y >>= \ (tgs, xs, cs) -> return (y, tgs, xs, cs)
       (_, etp) -> error "This shouldn't happen"
     _ -> err (CtorError x)
 
@@ -257,12 +257,14 @@ annTp tp = checkType tp
 checkType :: Type -> CheckM Type
 checkType (TpArr tp1 tp2) =
   pure TpArr <*> checkType tp1 <*> checkType tp2
-checkType (TpData y as) =
+checkType (TpData y [] as) =
   lookupDatatype y >>= \ (tgs, ps, _) ->
   mapM checkType as >>= \ as' ->
   mapM (const freshTag) tgs >>= \ tgs' ->
-  guardM (length ps == length as) (WrongNumArgs (length ps) (length as)) >>
-  pure (TpData y (tgs' ++ as'))
+  guardM (length as == length ps) (WrongNumArgs (length ps) (length as)) >>
+  pure (TpData y tgs' as')
+checkType (TpData y tgs as) =
+  error "checkType should never see a tag!"
 checkType (TpProd am tps) =
   pure (TpProd am) <*> mapM checkType tps
 checkType (TpVar y) =
@@ -294,7 +296,7 @@ infer' (UsVar x) =
       mapM (const freshTp) tis >>= \ tis' ->
       -- substitute old tags/type vars for new ones
       let tp' = subst (Map.fromList (zip (tgs ++ tis) (SubTp <$> (tgs' ++ tis')))) tp in
-        return (TmVarG gv x (tgs' ++ tis') [] tp')
+        return (TmVarG gv x tgs' tis' [] tp')
 
 infer' (UsLam x xtp tm) =
   -- Check the annotation xtp
@@ -333,14 +335,14 @@ infer' (UsCase tm cs) =
   guardM (length ctors == length cs) (WrongNumCases (length ctors) (length cs)) >>
   infer tm >>= \ tm' ->
   -- Constraint: (y itgs ips) = (typeof tm')
-  constrain (Unify (TpData y (itgs ++ ips)) (typeof tm')) >>
+  constrain (Unify (TpData y itgs ips) (typeof tm')) >>
   -- itp = cases return type
   freshTp >>= \ itp ->
   -- infer cases
   mapM (uncurry inferCase) (zip cs' ctors') >>= \ cs'' ->
   -- Constraints: for each case `| x ps -> tm`, itp = (typeof tm)
   mapM (\ (Case x ps tm) -> constrain (Unify itp (typeof tm))) cs'' >>
-  return (TmCase tm' (y, itgs ++ ips) cs'' itp)
+  return (TmCase tm' (y, itgs, ips) cs'' itp)
 
 infer' (UsIf tm1 tm2 tm3) =
   infer tm1 >>= \ tm1' ->
@@ -351,11 +353,11 @@ infer' (UsIf tm1 tm2 tm3) =
   -- Constraint: (typeof tm2') = (typeof tm3')
   constrain (Unify (typeof tm2') (typeof tm3')) >>
   -- Translate if-then-else to case-of
-  return (TmCase tm1' (tpBoolName, []) [Case tmFalseName [] tm3', Case tmTrueName [] tm2'] (typeof tm2'))
+  return (TmCase tm1' (tpBoolName, [], []) [Case tmFalseName [] tm3', Case tmTrueName [] tm2'] (typeof tm2'))
 
 infer' (UsTmBool b) =
   -- Translate True/False into a constructor var
-  return (TmVarG CtorVar (if b then tmTrueName else tmFalseName) [] [] tpBool)
+  return (TmVarG CtorVar (if b then tmTrueName else tmFalseName) [] [] [] tpBool)
 
 infer' (UsLet x xtm tm) =
   -- Check the annotation xtp'

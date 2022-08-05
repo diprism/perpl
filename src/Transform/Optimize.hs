@@ -49,9 +49,9 @@ Notes:
 -- p(result==z) = p(b==true)
 liftAmb :: Term -> Term
 liftAmb (TmVarL x tp) = TmVarL x tp
-liftAmb (TmVarG gv x tis as tp) =
+liftAmb (TmVarG gv x tgs tis as tp) =
   let as' = [[(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
-    joinAmbs [TmVarG gv x tis as tp | as <- (kronall as')] tp
+    joinAmbs [TmVarG gv x tgs tis as tp | as <- (kronall as')] tp
 liftAmb (TmLam x tp tm tp') =
   joinAmbs [TmLam x tp tm tp' | tm <- splitAmbs (liftAmb tm)] (TpArr tp tp') 
 liftAmb (TmApp tm1 tm2 tp2 tp) =
@@ -101,8 +101,8 @@ liftFail'' (tm, Just tm') = tm'
 
 liftFail' :: Term -> Maybe Term
 liftFail' (TmVarL x tp) = pure (TmVarL x tp)
-liftFail' (TmVarG gv x tis as tp) =
-  pure (TmVarG gv x tis) <*> mapArgsM liftFail' as <*> pure tp
+liftFail' (TmVarG gv x tgs tis as tp) =
+  pure (TmVarG gv x tgs tis) <*> mapArgsM liftFail' as <*> pure tp
 liftFail' (TmLam x tp tm tp') = pure (TmLam x tp (liftFail tm) tp')
 liftFail' (TmApp tm1 tm2 tp2 tp) = pure TmApp <*> liftFail' tm1 <*> liftFail' tm2 <*> pure tp2 <*> pure tp
 liftFail' (TmLet x xtm xtp tm tp) =
@@ -164,7 +164,7 @@ safe2sub g x xtm tm =
     -- Returns if there are no global def vars or ambs/fails/uniforms
     noDefsSamps :: Term -> Bool
     noDefsSamps (TmVarL x tp) = True
-    noDefsSamps (TmVarG g x _ as tp) = g == CtorVar && all (noDefsSamps . fst) as
+    noDefsSamps (TmVarG g x _ _ as tp) = g == CtorVar && all (noDefsSamps . fst) as
     noDefsSamps (TmLam x tp tm tp') = noDefsSamps tm
     noDefsSamps (TmApp tm1 tm2 tp2 tp) = noDefsSamps tm1 && noDefsSamps tm2
     noDefsSamps (TmLet x xtm xtp tm tp) = noDefsSamps xtm && noDefsSamps tm
@@ -179,8 +179,8 @@ safe2sub g x xtm tm =
 -- Applies various optimizations to a term
 optimizeTerm :: Ctxt -> Term -> Term
 optimizeTerm g (TmVarL x tp) = TmVarL x tp
-optimizeTerm g (TmVarG gv x tis as tp) =
-  TmVarG gv x tis (optimizeArgs g as) tp
+optimizeTerm g (TmVarG gv x tgs tis as tp) =
+  TmVarG gv x tgs tis (optimizeArgs g as) tp
 optimizeTerm g (TmLet x xtm xtp tm tp) =
   let xtm' = optimizeTerm g xtm
       tm' = optimizeTerm (ctxtDefLocal g x xtp) tm in
@@ -207,7 +207,7 @@ optimizeTerm g (TmApp tm1 tm2 tp2 tp) =
 optimizeTerm g (TmCase tm y cs tp) =
   let tm' = optimizeTerm g tm in
     case splitLets tm' of
-      (ds, TmVarG CtorVar x tis as _) ->
+      (ds, TmVarG CtorVar x tgs tis as _) ->
         let [Case _ cps ctm] = filter (\ (Case x' _ _) -> x == x') cs
             p_a_ds = zipWith (\ (tm, _) (x', tp) -> (x', tm, tp)) as cps in
           optimizeTerm g (joinLets (ds ++ p_a_ds) ctm)

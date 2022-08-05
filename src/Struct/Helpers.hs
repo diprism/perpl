@@ -6,7 +6,7 @@ import Data.List
 -- Gets the type of an elaborated term in O(1) time
 typeof :: Term -> Type
 typeof (TmVarL x tp) = tp
-typeof (TmVarG gv x tis as tp) = tp
+typeof (TmVarG gv x tgs tis as tp) = tp
 typeof (TmLam x tp tm tp') = TpArr tp tp'
 typeof (TmApp tm1 tm2 tp2 tp) = tp
 typeof (TmLet x xtm xtp tm tp) = tp
@@ -126,15 +126,15 @@ paramsToArgs :: [Param] -> [Arg]
 paramsToArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
 
 -- Turns a constructor into one with all its args applied
-addArgs :: GlobalVar -> Var -> [Type] -> [Arg] -> [Param] -> Type -> Term
-addArgs gv x tis tas vas y =
-  TmVarG gv x tis (tas ++ [(TmVarL a atp, atp) | (a, atp) <- vas]) y
+addArgs :: GlobalVar -> Var -> [Type] -> [Type] -> [Arg] -> [Param] -> Type -> Term
+addArgs gv x tgs tis tas vas y =
+  TmVarG gv x tgs tis (tas ++ [(TmVarL a atp, atp) | (a, atp) <- vas]) y
 
 -- Eta-expands a constructor with the necessary extra args
-etaExpand :: GlobalVar -> Var -> [Type] -> [Arg] -> [Param] -> Type -> Term
-etaExpand gv x tis tas vas y =
+etaExpand :: GlobalVar -> Var -> [Type] -> [Type] -> [Arg] -> [Param] -> Type -> Term
+etaExpand gv x tgs tis tas vas y =
   foldr (\ (a, atp) tm -> TmLam a atp tm (typeof tm))
-    (addArgs gv x tis tas vas y) vas
+    (addArgs gv x tgs tis tas vas y) vas
 
 toArg :: Term -> Arg
 toArg tm = (tm, typeof tm)
@@ -204,9 +204,9 @@ tpUnit = TpProd Multiplicative []
 tpBoolName = "Bool"
 tmTrueName = "True"
 tmFalseName = "False"
-tpBool = TpData tpBoolName []
-tmTrue = TmVarG CtorVar tmTrueName [] [] tpBool
-tmFalse = TmVarG CtorVar tmFalseName [] [] tpBool
+tpBool = TpData tpBoolName [] []
+tmTrue = TmVarG CtorVar tmTrueName [] [] [] tpBool
+tmFalse = TmVarG CtorVar tmFalseName [] [] [] tpBool
 
 builtins :: [UsProg]
 builtins = [

@@ -80,7 +80,7 @@ mkRuleReps reps lhs ns es xs =
 ctorRules :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
 ctorRules g (Ctor x as) y cs =
   let as' = [(etaName x i, a) | (i, a) <- enumerate as]
-      tm = TmVarG CtorVar x [] [(TmVarL a atp, atp) | (a, atp) <- as'] y
+      tm = TmVarG CtorVar x [] [] [(TmVarL a atp, atp) | (a, atp) <- as'] y
       fac = ctorFactorNameDefault x as y in
     addFactor fac (getCtorWeightsFlat (domainValues g) (Ctor x as) cs) +>
     foldr (\ tp r -> type2fgg g tp +> r) returnRule as +>
@@ -94,10 +94,10 @@ caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
   term2fgg (ctxtDeclArgs g as) xtm +>= \ xs_xtm_as ->
   let all_xs = Map.toList all_fvs
       unused_ps = Map.toList (Map.difference all_fvs (Map.fromList xs_xtm_as))
-      vctp : vtp : unused_nps = newNames (TpData y [] : tp : snds unused_ps)
-      fac = ctorFactorName x (paramsToArgs (nameParams x (snds as))) (TpData y [])
+      vctp : vtp : unused_nps = newNames (TpData y [] [] : tp : snds unused_ps)
+      fac = ctorFactorName x (paramsToArgs (nameParams x (snds as))) (TpData y [] [])
   in
-    mkRule (TmCase ctm (y, []) cs tp)
+    mkRule (TmCase ctm (y, [], []) cs tp)
       (vctp : vtp : xs_xtm_as ++ as ++ xs_ctm ++ all_xs ++ unused_ps ++ unused_nps)
       (Edge' (xs_ctm ++ [vctp]) (show ctm) :
        Edge' (xs_xtm_as ++ [vtp]) (show xtm) :
@@ -156,18 +156,18 @@ term2fgg g (TmVarL x tp) =
   type2fgg g tp +>
   addExt x tp
 
-term2fgg g (TmVarG gv x [] [] tp) =
+term2fgg g (TmVarG gv x [] [] [] tp) =
   returnRule -- If this is a ctor/def with no args, we already add its rule when it gets defined
 
-term2fgg g (TmVarG gv x [] as y) =
+term2fgg g (TmVarG gv x [] [] as y) =
   [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
   let (vy : ps) = newNames (y : snds as) in
-    mkRule (TmVarG gv x [] as y) (vy : ps ++ concat xss)
+    mkRule (TmVarG gv x [] [] as y) (vy : ps ++ concat xss)
       (Edge' (ps ++ [vy]) (if gv == CtorVar then ctorFactorNameDefault x (snds as) y else x) :
         [Edge' (xs ++ [vtp]) (show atm) | (xs, (atm, atp), vtp) <- zip3 xss as ps])
       (concat xss ++ [vy])
 
-term2fgg _ (TmVarG _ _ (_:_) _ _) = error "Cannot compile polymorphic code"
+term2fgg _ (TmVarG _ _ _ _ _ _) = error "Cannot compile polymorphic code"
 
 term2fgg g (TmLam x tp tm tp') =
   bindExt True x tp
@@ -192,12 +192,12 @@ term2fgg g (TmApp tm1 tm2 tp2 tp) =
        Edge' [vtp2, vtp, varr] fac]
       (xs1 ++ xs2 ++ [vtp])    
 
-term2fgg g (TmCase tm (y, []) cs tp) =
+term2fgg g (TmCase tm (y, [], []) cs tp) =
   term2fgg g tm +>= \ xs ->
   let fvs = freeVars cs in
     bindCases (Map.toList (Map.union (freeVars tm) fvs)) (map (caseRule g fvs xs tm y cs tp) cs)
 
-term2fgg _ (TmCase _ (_, _:_) _ _) = error "Cannot compile polymorphic code"
+term2fgg _ (TmCase _ _ _ _) = error "Cannot compile polymorphic code"
 
 -- fail (i.e., amb with no arguments) doesn't generate any rules, but
 -- should still generate the left-hand side nonterminal
@@ -299,7 +299,7 @@ type2fgg g tp =
   type2fgg' g tp
   where
     type2fgg' :: Ctxt -> Type -> RuleM
-    type2fgg' g (TpData y _) = returnRule
+    type2fgg' g (TpData y [] []) = returnRule
     type2fgg' g (TpArr tp1 tp2) = type2fgg g tp1 +> type2fgg g tp2
     type2fgg' g (TpProd am tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
     type2fgg' g tp = error ("Compiling a " ++ show tp ++ " to FGG rule")
@@ -314,7 +314,7 @@ prog2fgg g (ProgFun x ps tm tp) =
       (unused_x, unused_tp) = unzip unused_ps
       vtp : unused_n = newNames (tp : unused_tp)
   in
-    mkRule (TmVarG DefVar x [] [] tp) (vtp : tmxs ++ ps ++ unused_n ++ unused_ps)
+    mkRule (TmVarG DefVar x [] [] [] tp) (vtp : tmxs ++ ps ++ unused_n ++ unused_ps)
       (Edge' (tmxs ++ [vtp]) (show tm) : discardEdges' unused_ps unused_n)
       (ps ++ [vtp])
 prog2fgg g (ProgExtern x ps tp) =
@@ -324,10 +324,10 @@ prog2fgg g (ProgExtern x ps tp) =
 prog2fgg g (ProgData y cs) =
   -- Add constructor factors
   foldr (\ (fac, ws) rm -> addFactor fac ws +> rm) returnRule
-    (getCtorWeightsAll (domainValues g) cs (TpData y [])) +>
+    (getCtorWeightsAll (domainValues g) cs (TpData y [] [])) +>
   -- Add constructor rules
-  foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) (TpData y []) cs) returnRule cs +>
-  type2fgg g (TpData y [])
+  foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) (TpData y [] []) cs) returnRule cs +>
+  type2fgg g (TpData y [] [])
 
 -- Goes through a program and adds all the rules for it
 progs2fgg :: Ctxt -> Progs -> RuleM
@@ -345,7 +345,7 @@ domainValues g = tpVals where
         (tpVals tp) tps
   
   tpVals :: Type -> [String]
-  tpVals (TpData y _) =
+  tpVals (TpData y [] []) =
     maybe2 (ctxtLookupType g y) [] $ \ cs ->
       concat [foldl (kronwith $ \ d da -> d ++ " " ++ parens da) [x] (map tpVals as)
              | (Ctor x as) <- cs]

@@ -24,9 +24,9 @@ bindTp x tp
 unify :: Type -> Type -> Either TypeError Subst
 unify (TpVar y) tp = bindTp y tp
 unify tp (TpVar y) = bindTp y tp
-unify tp1@(TpData y1 as1) tp2@(TpData y2 as2)
-  | y1 == y2 && length as1 == length as2 =
-      unifyAll' (zip as1 as2)
+unify tp1@(TpData y1 tgs1 as1) tp2@(TpData y2 tgs2 as2)
+  | y1 == y2 && length tgs1 == length tgs2 && length as1 == length as2 =
+      unifyAll' (zip (tgs1++as1) (tgs2++as2))
   | otherwise = Left (UnificationError tp1 tp2)
 unify (TpArr l1 r1) (TpArr l2 r2) =
   unify l1 l2 >>= \ sl ->
@@ -153,7 +153,7 @@ solvesM ms =
 
         -- Add tag/type parameters to right-hand side terms. This has
         -- to be done in a second pass because of mutual recursion.
-        s' = Map.fromList [(f, SubTm (TmVarG DefVar f (TpVar <$> (tgs++xs')) [] tp')) | (f, _, tgs, xs', tp') <- defs']
+        s' = Map.fromList [(f, SubTm (TmVarG DefVar f (TpVar <$> tgs) (TpVar <$> xs') [] tp')) | (f, _, tgs, xs', tp') <- defs']
         defs'' = [(f, subst s' tm', tgs, xs', tp') | (f, tm', tgs, xs', tp') <- defs']
       in
         return defs''
@@ -293,9 +293,12 @@ inferData dsccs cont = foldr h cont dsccs
     constrainTpApps :: Type -> CheckM ()
     constrainTpApps (TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2
     constrainTpApps (TpVar y) = return ()
-    constrainTpApps (TpData y as) =
-      lookupDatatype y >>= \ (_, xs, _) ->
-        zipWithM_ (\ x a -> constrain (Unify (TpVar x) a)) xs as
+    constrainTpApps (TpData y [] as) =
+      lookupDatatype y >>= \ (_, ps, _) ->
+        guardM (length ps == length as) (WrongNumArgs (length ps) (length as)) >>
+        zipWithM_ (\ x a -> constrain (Unify (TpVar x) a)) ps as
+    constrainTpApps (TpData y tgs as) =
+      error "constrainTpApps wasn't expecting to see tags"
     constrainTpApps (TpProd am tps) = mapM_ constrainTpApps tps
     constrainTpApps NoTp = error "this shouldn't happen"
 
@@ -333,9 +336,11 @@ inferData dsccs cont = foldr h cont dsccs
         -- type variables ps have already been renamed apart in alphaRenameProgs
         (mapM_ (\ (y, ps, cs) -> mapM_ addSolveTpVar ps) dscc >>
          defDataSCC dscc (mapM_ constrainData dscc)) >>
-      -- Add tag vars in vs to the recursive uses of types in dscc.
+      -- Add tag vars in vs to the recursive uses of types in dscc
+      -- by substituting y := y tgs.
+      
       let tgs = Map.keys (Map.filter id vs)
-          s = Map.fromList [(y, SubTp (TpData y (TpVar <$> tgs))) | (y, ps, cs) <- dscc']
+          s = Map.fromList [(y, SubTp (TpData y (TpVar <$> tgs) [])) | (y, ps, cs) <- dscc']
       in
         return [(y, tgs, ps, mapCtors (subst s) cs) | (y, ps, cs) <- dscc']
 
