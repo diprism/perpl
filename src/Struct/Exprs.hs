@@ -79,7 +79,7 @@ data GlobalVar = CtorVar | DefVar
 -- below is the type of that expression as a whole
 data Term =
     TmVarL Var Type                               -- Local var
-  | TmVarG GlobalVar Var [Type] [Type] [Arg] Type -- Global var app: (x tg1 ... ti1 ...) arg1 ...
+  | TmVarG GlobalVar Var [Type] [Type] [Arg] Type -- Global var app: x [tg1] ... [ti1] ... arg1 ...
   | TmLam Var Type Term Type                      -- \ x : tp1. tm : tp2
   | TmApp Term Term Type {- -> -} Type            -- (tm1 : (tp1 -> tp2)) (tm2 : tp1) : tp2
   | TmLet Var Term Type Term Type                 -- let x : tp1 = tm1 in tp2 : tp2

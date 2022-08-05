@@ -89,7 +89,7 @@ instance Show UsProgs where
   show (UsProgs ps end) = intercalate "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
 
 instance Show SProg where
-  show (SProgFun x tgs ps tm tp) = "define " ++ x ++ " : Forall " ++ intercalate ", " (tgs ++ ps) ++ ". " ++ show tp ++ " = " ++ show tm ++ ";"
+  show (SProgFun x tgs ps tp tm) = "define " ++ x ++ " : " ++ intercalate " " ["∀ "++a++"." | a <- tgs ++ ps] ++ " " ++ show tp ++ " = " ++ show tm ++ ";"
   show (SProgExtern x tp) = "extern " ++ x ++ " : " ++ show tp ++ ";"
   show (SProgData y tgs ps cs) = "data " ++ intercalate " " (y : tgs ++ ps) ++ " = " ++ intercalate " | " [show c | c <- cs] ++ ";"
 
