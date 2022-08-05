@@ -115,22 +115,22 @@ instance Substitutable Type where
   substM (TpArr tp1 tp2) = pure TpArr <*> substM tp1 <*> substM tp2
   substM tp@(TpVar y) =
     substVar y TpVar (const tp) id tp
-  substM (TpData y tgs tis) =
+  substM (TpData y tgs as) =
     substM tgs >>= \ tgs' ->
-    substM tis >>= \ tis' ->
+    substM as >>= \ as' ->
     substVar y
-      (\ y' -> TpData y' tgs' tis')
-      (const (TpData y tgs' tis'))
+      (\ y' -> TpData y' tgs' as')
+      (const (TpData y tgs' as'))
       -- allow y := y' tg1 ...
-      (\ tp' -> case tp' of TpData y' tgs'' [] -> TpData y' (tgs'' ++ tgs') tis'
+      (\ tp' -> case tp' of TpData y' tgs'' [] -> TpData y' (tgs'' ++ tgs') as'
                             _ -> error ("kind error (" ++ y ++ " := " ++ show tp' ++ ")"))
-      (TpData y tgs' tis')
+      (TpData y tgs' as')
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
   substM NoTp = pure NoTp
 
   freeVars (TpArr tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
   freeVars (TpVar y) = Map.singleton y NoTp
-  freeVars (TpData y tgs tis) = Map.singleton y NoTp <> freeVars tgs <> freeVars tis
+  freeVars (TpData y tgs as) = Map.singleton y NoTp <> freeVars tgs <> freeVars as
   freeVars (TpProd am tps) = Map.unions (freeVars <$> tps)
   freeVars NoTp = Map.empty
 
@@ -139,7 +139,7 @@ instance Substitutable Term where
     let tmx x' = pure (TmVarL x') <*> substM tp in
       substVar x tmx pure (const (tmx x)) (tmx x) >>= id
   substM (TmVarG g x tgs tis as tp) =
-    pure (TmVarG g x) <*> substM tgs <*> substM tis <*> mapArgsM substM as <*> substM tp
+    pure (TmVarG g x) <*> substM tgs <*> substM tis <*> mapArgsM substM as <*> substM tp -- TODO: for consistency, should x be substitutable?
   substM (TmLam x xtp tm tp) =
     freshen x >>= \ x' ->
     pure (TmLam x') <*> substM xtp <*> bind x x' (substM tm) <*> substM tp
@@ -164,7 +164,7 @@ instance Substitutable Term where
     pure TmEqs <*> substM tms
   
   freeVars (TmVarL x tp) = Map.singleton x tp
-  freeVars (TmVarG g x tgs tis as tp) = freeVars tgs <> freeVars tis <> freeVars (fsts as)
+  freeVars (TmVarG g x tgs tis as tp) = freeVars tgs <> freeVars tis <> freeVars (fsts as) -- TODO: for consistency, should x be included?
   freeVars (TmLam x xtp tm tp) = Map.delete x (freeVars tm)
   freeVars (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars tm1) (freeVars tm2)
   freeVars (TmLet x xtm xtp tm tp) = Map.union (freeVars xtm) (Map.delete x (freeVars tm))

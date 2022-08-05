@@ -59,10 +59,10 @@ collectCalls' (TmEqs tms) =
 
 -- Collects datatype calls in a type
 collectCallsTp :: Type -> GlobalCalls
-collectCallsTp (TpData y tgs tis) = [(y, tgs++tis)] <> mconcat (map collectCallsTp tis)
-collectCallsTp (TpArr tp1 tp2)    = collectCallsTp tp1 <> collectCallsTp tp2
-collectCallsTp (TpProd am tps)    = mconcat (map collectCallsTp tps)
-collectCallsTp  _                 = []
+collectCallsTp (TpData y tgs as) = [(y, tgs++as)] <> mconcat (map collectCallsTp as)
+collectCallsTp (TpArr tp1 tp2)   = collectCallsTp tp1 <> collectCallsTp tp2
+collectCallsTp (TpProd am tps)   = mconcat (map collectCallsTp tps)
+collectCallsTp  _                = []
 
 -- Substitutes polymorphic calls for their monomorphized version
 -- (So if we instantiate List with Bool and Unit, then `List1 = List Bool` and
@@ -98,9 +98,9 @@ renameCalls xis (TmEqs tms) = TmEqs (renameCalls xis <$> tms)
 -- Same as renameCalls, but for types
 renameCallsTp :: Map Var (Map [Type] Int) -> Type -> Type
 renameCallsTp xis (TpData y [] []) = TpData y [] [] -- a datatype with no arguments can have only one instantiation, so we don't rename it (see makeInstantiations))
-renameCallsTp xis (TpData y tgs tis) =
-  maybe (TpData y tgs tis)
-    (\ m -> let yi = m Map.! (tgs++tis) in TpData (instName y yi) [] [])
+renameCallsTp xis (TpData y tgs as) =
+  maybe (TpData y tgs as)
+    (\ m -> let yi = m Map.! (tgs++as) in TpData (instName y yi) [] [])
     (xis Map.!? y)
 renameCallsTp xis (TpArr tp1 tp2) = TpArr (renameCallsTp xis tp1) (renameCallsTp xis tp2)
 renameCallsTp xis (TpProd am tps) = TpProd am (map (renameCallsTp xis) tps)

@@ -121,15 +121,15 @@ searchType :: ([Type] -> Type -> Bool) -> Ctxt -> Type -> Bool
 searchType pred g = h [] where
   h :: [Type] -> Type -> Bool
   h visited tp = pred visited tp || case tp of
-    TpData y tgs tis ->
+    TpData y tgs as ->
       -- Don't search the same type twice (that would cause infinite recursion)
       not (tp `elem` visited) &&
       case ctxtLookupType2 g y of
         Nothing -> False
-        Just (tgvars, tpvars, cs) ->
+        Just (tgs', ps, cs) ->
           -- Substitute actual type parameters for datatype's type parameters
           -- and recurse on each constructor
-          let s = Map.fromList (pickyZipWith (\p a -> (p, SubTp a)) tgvars tgs ++ pickyZipWith (\p a -> (p, SubTp a)) tpvars tis) in
+          let s = Map.fromList (pickyZipWith (\p a -> (p, SubTp a)) tgs' tgs ++ pickyZipWith (\p a -> (p, SubTp a)) ps as) in
           any (\ (Ctor _ tps) -> any (h (tp : visited) . subst s) tps) cs
     TpArr tp1 tp2 -> h visited tp1 || h visited tp2
     TpProd am tps -> any (h visited) tps
@@ -138,7 +138,7 @@ searchType pred g = h [] where
 -- Returns if a type has no arrow, ampersand, or recursive datatype anywhere in it
 robust :: Ctxt -> Type -> Bool
 robust g tp = not (searchType p g tp) where
-  p visited tp@(TpData y tgs tis) = tp `elem` visited
+  p visited tp@(TpData y tgs as) = tp `elem` visited
   p visited (TpArr _ _) = True
   p visited (TpProd am _) = am == Additive
   p visited _ = False
@@ -146,13 +146,13 @@ robust g tp = not (searchType p g tp) where
 -- Returns if a type has an infinite domain (i.e. it contains (mutually) recursive datatypes anywhere in it)
 isInfiniteType :: Ctxt -> Type -> Bool
 isInfiniteType = searchType p where
-  p visited tp@(TpData y tgs tis) = tp `elem` visited
+  p visited tp@(TpData y tgs as) = tp `elem` visited
   p _ _ = False
 
 -- Returns if a type is a (mutually) recursive datatype
 isRecursiveType :: Ctxt -> Type -> Bool
 isRecursiveType g tp = searchType p g tp where
-  p visited tp'@(TpData y tgs tis) = tp' `elem` visited && tp' == tp
+  p visited tp'@(TpData y tgs as) = tp' `elem` visited && tp' == tp
   p _ _ = False
 
 isRecursiveTypeName :: Ctxt -> Var -> Bool

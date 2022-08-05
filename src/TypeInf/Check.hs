@@ -257,13 +257,13 @@ annTp tp = checkType tp
 checkType :: Type -> CheckM Type
 checkType (TpArr tp1 tp2) =
   pure TpArr <*> checkType tp1 <*> checkType tp2
-checkType (TpData y [] tis) =
-  lookupDatatype y >>= \ (tgs, tpvars, _) ->
-  mapM checkType tis >>= \ tis' ->
+checkType (TpData y [] as) =
+  lookupDatatype y >>= \ (tgs, ps, _) ->
+  mapM checkType as >>= \ as' ->
   mapM (const freshTag) tgs >>= \ tgs' ->
-  guardM (length tis == length tpvars) (WrongNumArgs (length tpvars) (length tis)) >>
-  pure (TpData y tgs' tis')
-checkType (TpData y tgs tis) =
+  guardM (length as == length ps) (WrongNumArgs (length ps) (length as)) >>
+  pure (TpData y tgs' as')
+checkType (TpData y tgs as) =
   error "checkType should never see a tag!"
 checkType (TpProd am tps) =
   pure (TpProd am) <*> mapM checkType tps

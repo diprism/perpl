@@ -96,7 +96,7 @@ data AddMult = Additive | Multiplicative
 
 data Type =
     TpArr Type Type                     -- function tp1 -> tp2
-  | TpData Var [Type] [Type]            -- datatype x tg1 ... ti1 ...
+  | TpData Var [Type] [Type]            -- datatype x tg1 ... a1 ...
   | TpVar Var                           -- type variable
   | TpProd AddMult [Type]               -- product (tp1, ...) or <tp1, ...>
   | NoTp                                -- nothing

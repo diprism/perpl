@@ -24,9 +24,9 @@ bindTp x tp
 unify :: Type -> Type -> Either TypeError Subst
 unify (TpVar y) tp = bindTp y tp
 unify tp (TpVar y) = bindTp y tp
-unify tp1@(TpData y1 tgs1 tis1) tp2@(TpData y2 tgs2 tis2)
-  | y1 == y2 && length tgs1 == length tgs2 && length tis1 == length tis2 =
-      unifyAll' (zip (tgs1++tis1) (tgs2++tis2))
+unify tp1@(TpData y1 tgs1 as1) tp2@(TpData y2 tgs2 as2)
+  | y1 == y2 && length tgs1 == length tgs2 && length as1 == length as2 =
+      unifyAll' (zip (tgs1++as1) (tgs2++as2))
   | otherwise = Left (UnificationError tp1 tp2)
 unify (TpArr l1 r1) (TpArr l2 r2) =
   unify l1 l2 >>= \ sl ->
@@ -293,9 +293,12 @@ inferData dsccs cont = foldr h cont dsccs
     constrainTpApps :: Type -> CheckM ()
     constrainTpApps (TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2
     constrainTpApps (TpVar y) = return ()
-    constrainTpApps (TpData y tgs tis) =
-      lookupDatatype y >>= \ (tgvars, tpvars, _) ->
-        zipWithM_ (\ x a -> constrain (Unify (TpVar x) a)) (tgvars++tpvars) (tgs++tis)
+    constrainTpApps (TpData y [] as) =
+      lookupDatatype y >>= \ (_, ps, _) ->
+        guardM (length ps == length as) (WrongNumArgs (length ps) (length as)) >>
+        zipWithM_ (\ x a -> constrain (Unify (TpVar x) a)) ps as
+    constrainTpApps (TpData y tgs as) =
+      error "constrainTpApps wasn't expecting to see tags"
     constrainTpApps (TpProd am tps) = mapM_ constrainTpApps tps
     constrainTpApps NoTp = error "this shouldn't happen"
 
