@@ -336,7 +336,9 @@ inferData dsccs cont = foldr h cont dsccs
         -- type variables ps have already been renamed apart in alphaRenameProgs
         (mapM_ (\ (y, ps, cs) -> mapM_ addSolveTpVar ps) dscc >>
          defDataSCC dscc (mapM_ constrainData dscc)) >>
-      -- Add tag vars in vs to the recursive uses of types in dscc.
+      -- Add tag vars in vs to the recursive uses of types in dscc
+      -- by substituting y := y tgs.
+      
       let tgs = Map.keys (Map.filter id vs)
           s = Map.fromList [(y, SubTp (TpData y (TpVar <$> tgs) [])) | (y, ps, cs) <- dscc']
       in

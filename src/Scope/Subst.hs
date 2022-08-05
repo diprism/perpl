@@ -121,7 +121,8 @@ instance Substitutable Type where
     substVar y
       (\ y' -> TpData y' tgs' as')
       (const (TpData y tgs' as'))
-      -- allow y := y' tg1 ...
+      -- Allow y := y' tg1 ....
+      -- This is used in TypeInf.Solve in inferData to add tags to a datatype.
       (\ tp' -> case tp' of TpData y' tgs'' [] -> TpData y' (tgs'' ++ tgs') as'
                             _ -> error ("kind error (" ++ y ++ " := " ++ show tp' ++ ")"))
       (TpData y tgs' as')
