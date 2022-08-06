@@ -3,9 +3,8 @@
 
 module Scope.Subst (SubT(..), Subst, compose,
                     Substitutable,
-                    substM, runSubst, subst, substWithCtxt, alphaRename,
-                    FreeVars, freeVars,
-                    freshens, freshVar) where
+                    substM, subst, substWithCtxt, alphaRename,
+                    FreeVars, freeVars) where
 import qualified Data.Map as Map
 import Control.Monad.RWS.Lazy
 import Util.Helpers
@@ -340,11 +339,3 @@ instance Substitutable SProgs where
     pure SProgs <*> substM ps <*> substM tm
   freeVars (SProgs ps tm) =
     Map.union (freeVars ps) (freeVars tm)
-
-
-freshVar' :: Subst -> Var -> Var
-freshVar' s x =
-  let (x', r', ()) = runRWS (freshen x) () s in x'
-
-freshVar :: Ctxt -> Var -> Var
-freshVar = freshVar' . Map.mapWithKey (const . SubVar)

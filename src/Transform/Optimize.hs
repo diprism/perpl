@@ -5,7 +5,8 @@ import Struct.Lib
 import Util.Helpers
 import Scope.Name
 import Scope.Free (isLin', robust)
-import Scope.Subst (SubT(SubTm), substWithCtxt, FreeVars, freeVars, freshVar)
+import Scope.Subst (SubT(SubTm), substWithCtxt, FreeVars, freeVars)
+import Scope.Fresh (newVar)
 import Scope.Ctxt (Ctxt, ctxtDeclArgs, ctxtDefLocal, ctxtDefProgs)
 
 {- Provides various optimizations:
@@ -215,7 +216,7 @@ optimizeTerm g (TmCase tm y cs tp) =
         let (ps, end) = splitArrows tp
             g_ps = foldr (\ (Case x xps xtm) g -> ctxtDeclArgs g xps) g cs
             (_, _, rps') = foldl (\ (e, g', ps') p ->
-                                    let e' = freshVar g' e in
+                                    let e' = newVar e g' in
                                       (e', ctxtDefLocal g' e' p, (e', p) : ps'))
                            (etaName "e" 0, g_ps, []) ps
             ps' = reverse rps'

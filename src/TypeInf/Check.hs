@@ -206,7 +206,7 @@ listenSolveVars m =
   get >>= \ vs' ->
   return (a, Map.difference vs' vs)
 
--- Returns all the vars currently in scope
+-- Returns all the vars currently in scope or being solved
 boundVars :: CheckM (Map Var ())
 boundVars =
   ask >>= \ d ->
@@ -224,11 +224,11 @@ isTag x =
 addSolveTpVar :: Var -> CheckM ()
 addSolveTpVar x = modify (Map.insert x False)
 
--- Returns a fresh var that doesn't collide with any in scope
+-- Returns a fresh var that doesn't collide with any in scope or being solved
 fresh :: Var -> CheckM Var
 fresh x = newVar x <$> boundVars
 
--- Returns a new type var (to solve) that doesn't collide with any in scope
+-- Returns a new type var (to solve) that doesn't collide with any in scope or being solved
 freshTpVar' :: IsTag -> CheckM Var
 freshTpVar' tg =
   fresh (if tg then "#0" else "?0") >>= \ x ->

@@ -1,4 +1,4 @@
-module Scope.Fresh (newVar) where
+module Scope.Fresh (newVar, newVars) where
 import Util.Helpers
 import Struct.Lib
 import qualified Data.Map as Map
@@ -34,10 +34,10 @@ splitVar x =
 
 -- Given a map and a var, try new var names until it is no longer in the map
 newVar :: Var -> Map Var a -> Var
-newVar x xs = if Map.member x xs then h xs (splitVar x) else x
+newVar x g = if Map.member x g then h (splitVar x) else x
   where
-    h xs x = let x' = show x in if Map.member x' xs then h xs (succSplitVar x) else x'
+    h x = let x' = show x in if Map.member x' g then h (succSplitVar x) else x'
 
 newVars :: [Var] -> Map Var a -> [Var]
-newVars xs m =
-  foldr (\ x gxs g -> let x' = newVar x g in gxs (Map.insert x' () g)) (const []) xs (() <$ m)
+newVars xs g =
+  fst (foldr (\ x (xs', g') -> let x' = newVar x g' in (x':xs', Map.insert x' () g')) ([], () <$ g) xs)

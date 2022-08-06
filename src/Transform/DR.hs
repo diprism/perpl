@@ -5,8 +5,9 @@ import Data.List
 import Struct.Lib
 import Util.Helpers
 import Scope.Free (getRecursiveTypeNames)
-import Scope.Subst (SubT(SubVar), subst, FreeVars, freeVars, freshVar)
+import Scope.Subst (SubT(SubVar), subst, FreeVars, freeVars)
 import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtLookupTerm, ctxtLookupType)
+import Scope.Fresh (newVar)
 import Scope.Name
 
 
@@ -79,7 +80,7 @@ makeDisentangle g y us css =
   let ytp = TpData y [] []
       utp = TpData (unfoldTypeName y) [] []
       dat = makeUnfoldDatatype y us
-      x = freshVar g targetName
+      x = newVar targetName g
       sub_ps ps = [(x, derefunSubst Refun y tp) | (x, tp) <- ps]
       alls = zipWith3 (\ (fvs, tp) cs i -> (fvs, tp, cs, i)) us css [0..]
       cscs = [let ps = sub_ps (Map.toList fvs)
@@ -98,7 +99,7 @@ makeDefold :: Ctxt  -> Var -> [Term] -> (Prog, Prog)
 makeDefold g y tms =
   let fname = applyName y
       tname = foldTypeName y
-      x = freshVar g targetName
+      x = newVar targetName g
       ftp = TpData tname [] []
       ps = [(x, ftp)]
       casesf = \ (i, tm) -> let ps' = Map.toList (freeVars tm) in Case (foldCtorName y i) ps' (derefunTerm Defun (ctxtDeclArgs g ps') y tm)
@@ -205,7 +206,7 @@ defoldTerm rtp = h where
 data DeRe = Defun | Refun
   deriving (Eq, Show)
 
--- Substitute from a type var to its Unfold/Fold datatype
+-- Substitute from a datatype name to its Unfold/Fold datatype's name
 derefunSubst :: DeRe -> Var -> Type -> Type
 derefunSubst dr rtp = subst (Map.fromList [(rtp, SubVar (if dr == Defun then foldTypeName rtp else unfoldTypeName rtp))])
 

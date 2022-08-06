@@ -15,7 +15,8 @@ because the rule for a global function can take all its arguments at once.
 module Transform.Argify where
 import qualified Data.Map as Map
 import Struct.Lib
-import Scope.Subst (SubT(SubVar), runSubst, freeVars, freshens)
+import Scope.Subst (freeVars)
+import Scope.Fresh (newVars)
 import Util.Helpers
 
 argifyFile :: Progs -> Progs
@@ -73,8 +74,7 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
         remtps -> -- list of missing argument types
           -- This is a partial (or non-) application, so η-expand with the missing arguments.
           let
-            tmfvs = Map.mapWithKey (const . SubVar) (freeVars tm)
-            lxs = runSubst tmfvs (freshens ["x" ++ show i | i <- [0..length remtps - 1]])
+            lxs = newVars ["x" ++ show i | i <- [0..length remtps - 1]] (freeVars tm)
             ls = zip lxs remtps
             as'' = as' ++ paramsToArgs ls
           in
