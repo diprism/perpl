@@ -159,7 +159,11 @@ solvesM ms =
         return defs''
 
 
--- Creates graphs of function dependencies and datatype dependencies in a program
+{- Creates graphs of function dependencies and datatype dependencies in
+a program.  The nodes of the function dependency graph are the defines
+(not externs), and there is an edge from every define to every define
+that it uses. Similarly for the datatype dependency graph. -}
+
 getDeps :: UsProgs -> (Map Var (Set Var), Map Var (Set Var))
 getDeps (UsProgs ps end) =
   let (fdeps, ddeps) = foldr h mempty ps in
@@ -168,7 +172,10 @@ getDeps (UsProgs ps end) =
     -- Removes ctors, externs, type parameters from each set in the map
     clean :: Map Var (Set Var) -> Map Var (Set Var)
     clean m = let s = Set.fromList (Map.keys m) in fmap (Set.intersection s) m
-    
+
+    -- Create an edge from every define or datatype lhs to its rhs's
+    -- free vars.  The free vars include many kinds of variables, but
+    -- we only care about the defines and datatypes.
     h :: UsProg -> (Map Var (Set Var), Map Var (Set Var)) -> (Map Var (Set Var), Map Var (Set Var))
     h (UsProgFun x tm mtp) (fdeps, ddeps) =
       (Map.insert x (Set.fromList (Map.keys (freeVars tm))) fdeps, ddeps)
@@ -246,9 +253,10 @@ inferData dsccs cont = foldr h cont dsccs
     hPerhapsRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
     hPerhapsRec dscc = if sccIsRec dscc then hRec dscc else hNonRec dscc
 
-    -- Returns if an scc (strongly-connected component) is (mutually) recursive
-    -- Non-recursive only if the scc is a singleton that is itself non-recursive
-    -- If the scc has 2+ datatypes, they must be mutually recursive
+    -- Returns if an SCC (strongly-connected component) is (mutually) recursive.
+    -- If the SCC has 2+ datatypes, they must be mutually recursive.
+    -- If the SCC is a singleton, it is recursive iff its only node has a self-loop.
+    -- Since the graph has been discarded, we look at its free variables again.
     sccIsRec :: [(Var, [Var], [Ctor])] -> Bool
     sccIsRec [(y, ps, cs)] = Map.member y (freeVars cs)
     sccIsRec _ = True -- Mutually-recursive datatypes are recursive
