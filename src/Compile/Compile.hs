@@ -8,7 +8,7 @@ import Util.Helpers
 import Struct.Lib
 import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtDefLocal, ctxtLookupType)
 import Scope.Name
-import Scope.Subst
+import Scope.Subst (FreeVars, freeVars)
 
 -- Pick throwaway var names (doesn't really matter what these are,
 -- so long as they're different from each other and don't conflict

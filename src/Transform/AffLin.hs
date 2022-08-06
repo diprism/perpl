@@ -6,7 +6,7 @@ import Util.Helpers
 import Scope.Ctxt (Ctxt, ctxtDefLocal, ctxtDefProgs, emptyCtxt)
 import Scope.Name
 import Scope.Free (robust)
-import Scope.Subst
+import Scope.Subst (FreeVars)
 
 {- ====== Affine to Linear Functions ====== -}
 -- These functions convert affine terms to

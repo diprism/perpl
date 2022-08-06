@@ -1,7 +1,11 @@
 -- Adapted from http://dev.stephendiehl.com/fun/006_hindley_milner.html
 {- Substitution code -}
 
-module Scope.Subst where
+module Scope.Subst (SubT(..), Subst, compose,
+                    Substitutable,
+                    substM, runSubst, subst, substWithCtxt, alphaRename,
+                    FreeVars, freeVars,
+                    freshens, freshVar) where
 import qualified Data.Map as Map
 import Control.Monad.RWS.Lazy
 import Util.Helpers

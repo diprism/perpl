@@ -5,7 +5,7 @@ import Struct.Lib
 import Util.Helpers
 import Scope.Name
 import Scope.Free (isLin', robust)
-import Scope.Subst
+import Scope.Subst (SubT(..), substWithCtxt, FreeVars, freeVars, freshVar)
 import Scope.Ctxt (Ctxt, ctxtDeclArgs, ctxtDefLocal, ctxtDefProgs)
 
 {- Provides various optimizations:

@@ -15,7 +15,7 @@ because the rule for a global function can take all its arguments at once.
 module Transform.Argify where
 import qualified Data.Map as Map
 import Struct.Lib
-import Scope.Subst
+import Scope.Subst (SubT(..), runSubst, freeVars, freshens)
 import Util.Helpers
 
 argifyFile :: Progs -> Progs

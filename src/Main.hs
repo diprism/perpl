@@ -11,7 +11,7 @@ import Transform.DR
 import Transform.AffLin
 import Transform.Optimize
 import Transform.Argify
-import Scope.Subst
+import Scope.Subst (Substitutable, alphaRename)
 import Scope.Ctxt
 import Util.FGG
 import Util.SumProduct
