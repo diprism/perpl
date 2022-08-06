@@ -10,7 +10,7 @@ import Control.Monad.Except
 import Struct.Lib
 import Util.Helpers
 import Scope.Fresh (newVar)
-import Scope.Subst (SubT(..), Substitutable, substM, subst, freeVars)
+import Scope.Subst (SubT(SubTp), Substitutable, substM, subst, freeVars)
 import Scope.Free (isAff, isInfiniteType)
 import Scope.Ctxt (Ctxt, CtxtDef(..), DefTerm(..), DefType(..), ctxtDefLocal, ctxtDefGlobal, ctxtDefData)
 

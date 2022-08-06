@@ -5,7 +5,7 @@
 module Scope.Free where
 import Struct.Lib
 import Util.Helpers
-import Scope.Subst (SubT(..), subst, freeVars)
+import Scope.Subst (SubT(SubTp), subst, freeVars)
 import Scope.Ctxt (Ctxt, ctxtLookupType2)
 import qualified Data.Map as Map
 

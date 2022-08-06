@@ -3,7 +3,7 @@
 module Transform.Monomorphize where
 import Struct.Lib
 import Util.Helpers
-import Scope.Subst (SubT(..), subst)
+import Scope.Subst (SubT(SubTp), subst)
 import Scope.Name
 import qualified Data.Map as Map
 import qualified Data.Set as Set

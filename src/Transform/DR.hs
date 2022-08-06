@@ -5,7 +5,7 @@ import Data.List
 import Struct.Lib
 import Util.Helpers
 import Scope.Free (getRecursiveTypeNames)
-import Scope.Subst (SubT(..), subst, FreeVars, freeVars, freshVar)
+import Scope.Subst (SubT(SubVar), subst, FreeVars, freeVars, freshVar)
 import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtLookupTerm, ctxtLookupType)
 import Scope.Name
 

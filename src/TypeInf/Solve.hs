@@ -7,7 +7,7 @@ import TypeInf.Check
 import Util.Helpers
 import Util.Graph (scc)
 import Struct.Lib
-import Scope.Subst (SubT(..), Subst, compose, subst, freeVars)
+import Scope.Subst (SubT(SubTm,SubTp), Subst, compose, subst, freeVars)
 import Scope.Free (robust)
 import Scope.Ctxt (Ctxt, emptyCtxt)
 
