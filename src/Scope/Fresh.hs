@@ -1,6 +1,6 @@
 module Scope.Fresh (newVar, newVars) where
 import Util.Helpers
-import Struct.Lib
+import Struct.Lib (Var)
 import qualified Data.Map as Map
 import Data.Char
 

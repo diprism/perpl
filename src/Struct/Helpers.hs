@@ -79,12 +79,6 @@ joinApps' tm = h (toArg tm) where
 joinApps :: Term -> [Arg] -> Term
 joinApps tm as = joinApps' tm (fsts as)
 
--- splitApps, but for UsTms
-splitUsApps :: UsTm -> (UsTm, [UsTm])
-splitUsApps = h [] where
-  h as (UsApp tm1 tm2) = h (tm2 : as) tm1
-  h as tm = (tm, as)
-
 -- Splits \ x1 : tp1. \ x2 : tp2. ... \ xn : tpn. tm into ([(x1, tp1), (x2, tp2), ..., (xn, tpn)], tm)
 splitLams :: Term -> ([Param], Term)
 splitLams (TmLam x tp tm tp') = let (ls, end) = splitLams tm in ((x, tp) : ls, end)
@@ -124,17 +118,6 @@ joinAmbs tms tp = TmAmb tms tp
 -- Converts Params [(Var, Type)] to Args [(Term, Type)]
 paramsToArgs :: [Param] -> [Arg]
 paramsToArgs = map $ \ (a, atp) -> (TmVarL a atp, atp)
-
--- Turns a constructor into one with all its args applied
-addArgs :: GlobalVar -> Var -> [Type] -> [Type] -> [Arg] -> [Param] -> Type -> Term
-addArgs gv x tgs tis tas vas y =
-  TmVarG gv x tgs tis (tas ++ [(TmVarL a atp, atp) | (a, atp) <- vas]) y
-
--- Eta-expands a constructor with the necessary extra args
-etaExpand :: GlobalVar -> Var -> [Type] -> [Type] -> [Arg] -> [Param] -> Type -> Term
-etaExpand gv x tgs tis tas vas y =
-  foldr (\ (a, atp) tm -> TmLam a atp tm (typeof tm))
-    (addArgs gv x tgs tis tas vas y) vas
 
 toArg :: Term -> Arg
 toArg tm = (tm, typeof tm)
