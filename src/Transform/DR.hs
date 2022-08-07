@@ -5,11 +5,19 @@ import Data.List
 import Struct.Lib
 import Util.Helpers
 import Scope.Free (getRecursiveTypeNames)
-import Scope.Subst (SubT(SubVar), subst, FreeVars, freeVars)
+import Scope.Subst (Substitutable, SubT(SubVar), subst, FreeVars, freeVars)
 import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtLookupTerm, ctxtLookupType)
 import Scope.Fresh (newVar)
 import Scope.Name
 
+-- Returns the free local variables of a Substitutable.
+
+-- By the time defunctionalization/refunctionalization occurs, there
+-- are no more type or tag variables, and TmVarGs are currently not
+-- included in freeVars. So freeVarLs just calls freeVars.
+
+freeVarLs :: Substitutable a => a -> FreeVars
+freeVarLs = freeVars
 
 -- Collects the free variables of all the cases in
 -- a case-of over something with type rtp
@@ -20,7 +28,7 @@ collectUnfolds rtp (TmLam x tp tm tp') = collectUnfolds rtp tm
 collectUnfolds rtp (TmApp tm1 tm2 tp2 tp) = collectUnfolds rtp tm1 ++ collectUnfolds rtp tm2
 collectUnfolds rtp (TmLet x xtm xtp tm tp) = collectUnfolds rtp xtm ++ collectUnfolds rtp tm
 collectUnfolds rtp (TmCase tm (y, _, _) cs tp) =
-  let fvs = freeVars cs
+  let fvs = freeVarLs cs
       this = if y == rtp then [(fvs, tp)] else [] in
     collectUnfolds rtp tm
       ++ concatMap (\ (Case cx cps ctm) -> collectUnfolds rtp ctm) cs
@@ -38,7 +46,7 @@ collectUnfolds rtp (TmEqs tms) = concatMap (collectUnfolds rtp) tms
 collectFolds :: Var -> Term -> [(Var, FreeVars)]
 collectFolds rtp (TmVarL x tp) = []
 collectFolds rtp (TmVarG gv x _ _ as tp) =
-  let this = if TpData rtp [] [] == tp && gv == CtorVar then [(x, freeVars (fsts as))] else [] in
+  let this = if TpData rtp [] [] == tp && gv == CtorVar then [(x, freeVarLs (fsts as))] else [] in
     concatMap (\ (atm, atp) -> collectFolds rtp atm) as ++ this
 collectFolds rtp (TmLam x tp tm tp') = collectFolds rtp tm
 collectFolds rtp (TmApp tm1 tm2 tp2 tp) = collectFolds rtp tm1 ++ collectFolds rtp tm2
@@ -102,7 +110,7 @@ makeDefold g y tms =
       x = newVar targetName g
       ftp = TpData tname [] []
       ps = [(x, ftp)]
-      casesf = \ (i, tm) -> let ps' = Map.toList (freeVars tm) in Case (foldCtorName y i) ps' (derefunTerm Defun (ctxtDeclArgs g ps') y tm)
+      casesf = \ (i, tm) -> let ps' = Map.toList (freeVarLs tm) in Case (foldCtorName y i) ps' (derefunTerm Defun (ctxtDeclArgs g ps') y tm)
       cases = map casesf (enumerate tms)
       ctors = [Ctor x (snds ps) | Case x ps tm <- cases]
       tm = TmCase (TmVarL x ftp) (tname, [], []) cases (TpData y [] [])
@@ -177,7 +185,7 @@ defoldTerm rtp = h where
     | gv == CtorVar && tp == TpData rtp [] [] =
         mapArgsM h as >>= \ as' ->
         State.get >>= \ fs ->
-        let fvs = Map.toList (freeVars (fsts as'))
+        let fvs = Map.toList (freeVarLs (fsts as'))
             cname = foldCtorName rtp (length fs)
             tname = foldTypeName rtp
             aname = applyName rtp
