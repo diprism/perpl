@@ -25,15 +25,26 @@ s1 `compose` s2 = Map.map (subst s1) s2 `Map.union` s1
 -- State monad, where s = Subst
 type SubstM = RWS () () Subst
 
--- Returns a map of vars and their types (if a term var)
--- If a var is a type var, the type will be NoType
+{- The return type of freeVars. It maps from a variable x to its type if
+   x is a term variable, and NoTp otherwise.
+
+   In UsTms, occurrences of global variables (UsVar x) are considered
+   free, while in Terms, occurrences of global variables (TmVarG) are
+   considered not free.
+
+   Uses of datatype names (TpData x) are considered free. (This is
+   currently used during type inference to find recursive types.) -}
+
 type FreeVars = Map Var Type
 
 -- Runs the substitution monad
 runSubst :: Subst -> SubstM a -> a
 runSubst s r = let (a', r', ()) = runRWS r () s in a'
 
--- Picks a fresh name derived from x
+-- Picks a name x', derived from x, that is fresh in the sense that it
+-- is different from any y such that y := ... is in the current
+-- substitution. This is done for every local (term or type) variable,
+-- and then x is α-converted to x' to avoid variable capture.
 freshen :: Var -> SubstM Var
 freshen "_" = freshen "_0" -- get rid of '_'s
 freshen x =
@@ -41,12 +52,14 @@ freshen x =
   modify (Map.insert x' (SubVar x')) >>
   return x'
 
--- Pick fresh names for a list of vars
+-- Pick fresh names (see freshen) for a list of vars
 freshens :: [Var] -> SubstM [Var]
 freshens [] = return []
 freshens (x : xs) = freshen x >>= \ x' -> pure ((:) x') <*> bind x x' (freshens xs)
 
--- Rename x to x' in m
+-- Rename x := x' in m. Also performs the trivial substitution x' :=
+-- x', because any further α-conversions performed inside m need to
+-- avoid both x and x'.
 bind :: Var -> Var -> SubstM a -> SubstM a
 bind x x' m =
   substVT x >>= \ oldx ->
@@ -58,7 +71,7 @@ bind x x' m =
   modify (Map.insert x' oldx') >>
   return a
 
--- Renames all xs to xs' in m
+-- Renames all xs to xs' (see bind) in m
 binds :: [Var] -> [Var] -> SubstM a -> SubstM a
 binds xs xs' m = foldr (uncurry bind) m (zip xs xs')
 
@@ -93,9 +106,26 @@ class Substitutable a where
   freeVars :: a -> FreeVars
   substM :: a -> SubstM a
 
--- Run substM
+{- subst s a
+
+Perform capture-avoiding substitution s on a Substitutable a.
+
+Subst s is a Map from variables x to three kinds of substitutions:
+
+- x := SubVar y replaces:
+  * global variables x (UsVar x but not TmVarG x)
+  * free occurrences of local variables x (TmVarL x or UsVar x)
+  * free occurrences of type variables x (TpVar x)
+  * uses of datatype x (TpData x)
+- x := SubTm tm replaces:
+  * free occurrences of local variables x (TmVarL x but not UsVar x)
+- x := SubTp tp replaces:
+  * free occurrences of type variables x (TpVar x)
+  * if x is a datatype name (TpData x) and tp has no type parameters,
+    x is changed to tp's name, and tp's tags are prepended. -}
+  
 subst :: Substitutable a => Subst -> a -> a
-subst r a = runSubst r (substM a)
+subst s a = runSubst s (substM a)
 
 -- Run substM under a given context
 substWithCtxt :: Substitutable a => Ctxt -> Subst -> a -> a
