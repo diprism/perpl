@@ -145,13 +145,13 @@ disentangleTerm rtp cases = h where
       State.get >>= \ unfolds ->
       let i = length unfolds
           x' = targetName -- TODO: pick fresh var?
-          x'' = targetName ++ "'" -- TODO: pick a fresher var?
+          x'' = targetName2 -- TODO: pick a fresher var?
           get_ps = \ (cfvs, ctp2) -> Map.toList cfvs
           get_as = \ (cfvs, ctp2) -> paramsToArgs (Map.toList cfvs)
           get_arr = \ (cfvs, ctp2) -> joinArrows (snds (get_ps (cfvs, ctp2))) ctp2
           xtps = map get_arr cases
           xtp = TpProd Additive xtps
-          cs'' = [Case (unfoldCtorName rtp) [(x', xtp)] (let cfvstp2 = cases !! i in joinApps (TmElimProd Additive (TmVarL x' xtp) [(if j == i then x'' else "_", jtp) | (j, jtp) <- enumerate xtps] (TmVarL x'' (xtps !! i)) (xtps !! i)) (get_as cfvstp2))]
+          cs'' = [Case (unfoldCtorName rtp) [(x', xtp)] (let cfvstp2 = cases !! i in joinApps (TmElimProd Additive (TmVarL x' xtp) [(if j == i then x'' else Var "_", jtp) | (j, jtp) <- enumerate xtps] (TmVarL x'' (xtps !! i)) (xtps !! i)) (get_as cfvstp2))]
           rtm = TmCase tm (unfoldTypeName rtp, [], []) cs'' tp
       in
         State.put (unfolds ++ [cs']) >>
@@ -414,7 +414,7 @@ spanGraphError res chosen =
       relevantDeps = filter $ flip Map.member res
       
       depstr :: Char -> Var -> [Var] -> String
-      depstr dr name deps = dr : "[" ++ name ++ "] <- " ++ intercalate ", " (relevantDeps deps)
+      depstr dr (Var name) deps = dr : "[" ++ name ++ "] <- " ++ intercalate ", " (show <$> relevantDeps deps)
 
 -- Greedily pops nodes from the graph that satisfy tryPickDR until none remain,
 -- returning the recursive datatype names and whether to de- or refunctionalize them
@@ -422,10 +422,10 @@ spanGraph :: [(Var, DeRe)] -> RecEdges -> Either String [(Var, DeRe)]
 spanGraph explicit_drs res =
   case [ rtp | (rtp,_) <- explicit_drs, Map.notMember rtp res ] of
     [] -> h [] res
-    extras -> Left $ "No recursive datatype named " ++ intercalate " or " extras ++
-                     case [ rtp | rtp <- Map.keys res, any (`isPrefixOf` rtp) extras ] of
+    extras -> Left $ "No recursive datatype named " ++ intercalate " or " (show <$> extras) ++
+                     case [ rtp | rtp <- Map.keys res, any (`isPrefixOf` (show rtp)) (show <$> extras) ] of
                        [] -> ""
-                       actuals -> " (did you mean " ++ intercalate " or " actuals ++ "?)"
+                       actuals -> " (did you mean " ++ intercalate " or " (show <$> actuals) ++ "?)"
  where
   h :: [(Var, DeRe)] -> RecEdges -> Either String [(Var, DeRe)]
   h chosen res

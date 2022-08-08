@@ -14,9 +14,9 @@ data UsProgs = UsProgs [UsProg] UsTm    -- definitions, main
 
 -- Individual user-level definition
 data UsProg =
-    UsProgFun String UsTm Type          -- lhs, rhs, type
-  | UsProgExtern String Type            -- lhs, type
-  | UsProgData String [Var] [Ctor]      -- lhs, type params, constructors
+    UsProgFun Var UsTm Type             -- lhs, rhs, type
+  | UsProgExtern Var Type               -- lhs, type
+  | UsProgData Var [Var] [Ctor]         -- lhs, type params, constructors
   deriving (Eq, Ord)
 
 -- Scheme-ified definition
@@ -46,7 +46,8 @@ data Ctor = Ctor Var [Type]             -- ctor name, param types
   deriving (Eq, Ord)
 
 -- Variable
-type Var = String
+newtype Var = Var String
+  deriving (Eq, Ord)
 
 -- Param is (x : tp)
 type Param = (Var, Type)

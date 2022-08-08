@@ -74,7 +74,7 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
         remtps -> -- list of missing argument types
           -- This is a partial (or non-) application, so η-expand with the missing arguments.
           let
-            lxs = newVars ["x" ++ show i | i <- [0..length remtps - 1]] (freeVars tm)
+            lxs = newVars [Var ("x" ++ show i) | i <- [0..length remtps - 1]] (freeVars tm)
             ls = zip lxs remtps
             as'' = as' ++ paramsToArgs ls
           in

@@ -22,7 +22,7 @@ typeof (TmEqs tms) = tpBool
 injIndex :: [Var] -> Int
 injIndex = h . zip [0..] where
   h [] = -1
-  h ((i, "_") : xs) = h xs
+  h ((i, Var "_") : xs) = h xs
   h ((i, x) : xs) = i
 
 -- Sorts cases according to the order they are appear in the datatype definition
@@ -184,9 +184,9 @@ mapProgsM f (Progs ps end) =
 tmUnit = TmProd Multiplicative []
 tpUnit = TpProd Multiplicative []
 
-tpBoolName = "Bool"
-tmTrueName = "True"
-tmFalseName = "False"
+tpBoolName = Var "Bool"
+tmTrueName = Var "True"
+tmFalseName = Var "False"
 tpBool = TpData tpBoolName [] []
 tmTrue = TmVarG CtorVar tmTrueName [] [] [] tpBool
 tmFalse = TmVarG CtorVar tmFalseName [] [] [] tpBool

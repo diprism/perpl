@@ -34,17 +34,17 @@ data TypeError =
   | ExternRecData -- externs can't use recursive datatypes
 
 instance Show TypeError where
-  show (InfiniteType x tp) = "Failed to construct infinite type: " ++ x ++ " := " ++ show tp
+  show (InfiniteType x tp) = "Failed to construct infinite type: " ++ show x ++ " := " ++ show tp
   show (ConflictingTypes tp1 tp2) = "Conflicting types: " ++ show tp1 ++ " and " ++ show tp2
-  show (AffineError x tm) = "'" ++ x ++ "' is not affine in " ++ show tm
-  show (ScopeError x) = "'" ++ x ++ "' is not in scope"
-  show (CtorError x) = "'" ++ x ++ "' is not a constructor"
+  show (AffineError x tm) = "'" ++ show x ++ "' is not affine in " ++ show tm
+  show (ScopeError x) = "'" ++ show x ++ "' is not in scope"
+  show (CtorError x) = "'" ++ show x ++ "' is not a constructor"
   show (UnificationError tp1 tp2) = "Failed to unify " ++ show tp1 ++ " and " ++ show tp2
   show (RobustType tp) = "Expected " ++ show tp ++ " to be a robust type (or if binding a var, it is used non-affinely)"
   show NoCases = "Can't have case-of with no cases"
   show ExpNonUnderscoreVar = "Expected non-underscore variable here"
   show ExpOneNonUnderscoreVar = "Expected exactly one non-underscore variable"
-  show (MissingCases xs) = "Missing cases: " ++ intercalate ", " xs
+  show (MissingCases xs) = "Missing cases: " ++ intercalate ", " (show <$> xs)
   show (WrongNumCases exp act) = "Expected " ++ show exp ++ " cases, but got " ++ show act
   show (WrongNumArgs exp act) = "Expected " ++ show exp ++ " args, but got " ++ show act
   show (MultipleDefs x) = "Multiple definitions of " ++ show x
@@ -123,7 +123,7 @@ askLoc = checkLoc <$> ask
 
 -- Modify the current location, storing a as the current def we are in
 localCurDef :: Var -> CheckM b -> CheckM b
-localCurDef a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curDef = a } })
+localCurDef (Var a) = local (\ cr -> cr { checkLoc = (checkLoc cr) { curDef = a } })
 
 -- Modify the current location, storing a as the current expr we are in
 localCurExpr :: Show a => a -> CheckM b -> CheckM b
@@ -231,7 +231,7 @@ fresh x = newVar x <$> boundVars
 -- Returns a new var (to solve) that doesn't collide with any in scope or being solved
 freshVar :: IsTag -> CheckM Var
 freshVar tg =
-  fresh (if tg then "#0" else "?0") >>= \ x ->
+  fresh (if tg then Var "#0" else Var "?0") >>= \ x ->
   modify (Map.insert x tg) >>
   return x
 
@@ -279,7 +279,7 @@ infer' :: UsTm -> CheckM Term
 
 infer' (UsVar x) =
   -- Disable use of "_"
-  guardM (x /= "_") ExpNonUnderscoreVar >>
+  guardM (x /= Var "_") ExpNonUnderscoreVar >>
   -- Lookup the type of x
   lookupTermVar x >>= \ etp ->
   case etp of
@@ -391,7 +391,7 @@ infer' (UsProd am tms) =
 infer' (UsElimProd am ptm xs tm) =
   infer ptm >>= \ ptm' ->
   -- Guard against `let <x, y, _> = ... in ...` (also against `let <_, _, _> = ... in ...`)
-  guardM (am /= Additive || 1 == length (filter (/= "_") xs)) ExpOneNonUnderscoreVar >>
+  guardM (am /= Additive || 1 == length (filter (/= Var "_") xs)) ExpOneNonUnderscoreVar >>
   -- Pick a fresh type var for each x in xs
   mapM (\ x -> (,) x <$> freshTp) xs >>= \ ps ->
   -- For each (x : tp) in ps, if x is used more than affinely, constrain tp to be robust
