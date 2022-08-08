@@ -14,8 +14,8 @@ checkDomsEq = True
 
 type Domain = [String] -- list of values for some type
 type Factor = (String, Maybe Weights)
-type Prob = Double
-type Weights = Tensor Prob
+type Weight = Double
+type Weights = Tensor Weight
 type Label = String
 --type Nonterminal = (Label, String) -- domain must be a singleton
 

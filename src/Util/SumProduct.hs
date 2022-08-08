@@ -7,9 +7,9 @@ import Util.Tensor
 import Util.Helpers
 import Util.Graph
 
-type MultiTensor = Map String (Tensor Prob)
+type MultiTensor = Map String (Tensor Weight)
 
-multiTensorDistance :: MultiTensor -> MultiTensor -> Prob
+multiTensorDistance :: MultiTensor -> MultiTensor -> Weight
 multiTensorDistance mt1 mt2 =
   let diff = Map.differenceWith (\t1 t2 -> Just (tensorSub t1 t2)) mt1 mt2 in
     foldr max 0.0 (fmap (foldr max 0.0 . tensorFlatten) diff)
@@ -18,7 +18,7 @@ nonterminalGraph :: FGG Domain -> Map String (Set String)
 nonterminalGraph fgg = foldr (\ (Rule lhs rhs) g -> Map.insertWith Set.union lhs (nts rhs) g) (fmap (const mempty) (nonterminals fgg)) (repRules fgg)
   where nts rhs = Set.fromList [edge_label e | e <- hgf_edges rhs, edge_label e `Map.member` nonterminals fgg]
 
-sumProduct :: FGG Domain -> Tensor Prob
+sumProduct :: FGG Domain -> Tensor Weight
 sumProduct fgg =
   let
     -- Process the strongly-connected components that are reachable from start
@@ -52,11 +52,11 @@ step fgg nts z =
   Map.union (Map.fromList [ (x, stepNonterminal x) | x <- nts ]) z
   where
 
-    stepNonterminal :: String -> Tensor Prob
+    stepNonterminal :: String -> Tensor Weight
     stepNonterminal x =
       foldr tensorAdd (zeros (nonterminalShape fgg x)) [stepRHS rhs | Rule lhs rhs <- repRules fgg, lhs == x]
 
-    stepRHS :: HGF Label -> Tensor Prob
+    stepRHS :: HGF Label -> Tensor Weight
     stepRHS rhs = h [] nodes
       where
         -- Permute nodes so that the external nodes come first, in the
@@ -90,7 +90,7 @@ step fgg nts z =
           in
             foldr tensorTimes (Scalar 1.0) [w !!! (fmap SliceIndex asst) | (w, asst) <- zip edge_wts edge_assts]
 
-    edgeWeights :: String -> Tensor Prob
+    edgeWeights :: String -> Tensor Weight
     edgeWeights el =
       case Map.lookup el z of
                 Just w -> w
