@@ -37,14 +37,14 @@ data Edge' d = Edge' { edge_atts' :: [(Label, d)], edge_label' :: Label }
   deriving Eq
 data HGF' d = HGF' { hgf_nodes' :: [(Label, d)], hgf_edges' :: [Edge' d], hgf_exts' :: [(Label, d)] }
   deriving Eq
-data Rule d = Rule String (HGF d)
+data Rule d = Rule String (HGF' d)
   deriving Eq
 data FGG d = FGG {
   domains :: Map String d,                  -- node label to values
   factors :: Map String (d, Maybe Weights), -- edge label to att node labels, weights
   nonterminals :: Map String d,             -- nt name to attachment node labels
   start :: String,                          -- nt name
-  rules :: [(Int, Rule Label)]
+  rules :: [(Int, Rule Label)]              -- [(reps, rule)]: reps keeps track of duplicate rules that should not be deduplicated
 }
 
 instance Eq (Node d) where
@@ -70,7 +70,7 @@ instance Functor FGG where
         s
         (fmap (\ (i, r) -> (i, fmap show r)) rs)
 
--- Convert a HGF' to a HFG
+-- Convert a HGF' to a HGF
 castHGF :: HGF' d -> HGF d
 castHGF (HGF' ns es xs) =
   let ns' = nub (toNodes ns)
@@ -105,7 +105,8 @@ fgg_to_json (FGG ds fs nts s rs) =
          ]),
         ("start", JSstring s),
         ("rules", JSarray $ concat $ flip map (nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs) $
-          \ (reps, Rule lhs (HGF ns es xs)) -> replicate reps $ JSobject [
+          \ (reps, Rule lhs rhs) -> let (HGF ns es xs) = castHGF rhs in
+            replicate reps $ JSobject [
              ("lhs", JSstring lhs),
              ("rhs", JSobject [
                  ("nodes", JSarray [JSobject [("label", JSstring d), ("id", JSstring n)] | Node n d <- ns]),
@@ -145,7 +146,7 @@ emptyFGG s = FGG Map.empty Map.empty Map.empty s []
 
 -- Construct an FGG from a list of rules, a start symbol,
 -- and a function that gives the possible values of each type
-rulesToFGG :: Show d => (d -> Domain) -> String -> [(Int, Rule d)] -> [(Label, [d])] -> [Factor] -> FGG Domain
+rulesToFGG :: Show d => Eq d => (d -> Domain) -> String -> [(Int, Rule d)] -> [(Label, [d])] -> [Factor] -> FGG Domain
 rulesToFGG dom start rs nts facs =
   FGG ds fs nts' start rsdom
   where
@@ -153,8 +154,8 @@ rulesToFGG dom start rs nts facs =
     rs'' = [r | (_, r) <- rs']
     rsdom = [(i, fmap show r) | (i, r) <- rs']
     
-    ds  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
-                   foldr (\ (Node n d) -> Map.insert (show d) (dom d)) m ns) Map.empty rs''
+    ds  = foldr (\ (Rule lhs (HGF' ns es xs)) m ->
+                   foldr (\ (n, d) -> Map.insert (show d) (dom d)) m ns) Map.empty rs''
 
     domsEq = \ x d1 d2 -> if not checkDomsEq || d1 == d2 then d1 else error
       ("Conflicting domains for nonterminal " ++ x ++ ": " ++
@@ -164,15 +165,15 @@ rulesToFGG dom start rs nts facs =
     nts'' = fmap (fmap show) (Map.fromList nts)
 
     -- Nonterminals from left-hand sides of rules get their "type" from the external nodes
-    nts' = foldr (\ (Rule lhs (HGF ns _ xs)) ->
-                    Map.insertWith (domsEq lhs) lhs [show (node_domain (ns !! i)) | i <- xs]) nts'' rs''
+    nts' = foldr (\ (Rule lhs (HGF' ns _ xs)) ->
+                    Map.insertWith (domsEq lhs) lhs [show d | (n, d) <- xs]) nts'' rs''
 
     getFac = \ l lhs -> maybe (error ("In the rule " ++ lhs ++ ", no factor named " ++ l))
                       id $ lookup l facs
 
-    fs  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
-                   foldr (\ (Edge atts l) ->
+    fs  = foldr (\ (Rule lhs (HGF' ns es xs)) m ->
+                   foldr (\ (Edge' atts l) ->
                              if Map.member l nts' then id else
-                               Map.insert l ([show (node_domain (ns !! i)) {-node_label (ns !! i)-} | i <- atts], getFac l lhs))
+                               Map.insert l ([show d | (n, d) <- atts], getFac l lhs))
                          m es)
                 Map.empty rs''

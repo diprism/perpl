@@ -16,7 +16,7 @@ multiTensorDistance mt1 mt2 =
 
 nonterminalGraph :: FGG Domain -> Map String (Set String)
 nonterminalGraph fgg = foldr (\ (Rule lhs rhs) g -> Map.insertWith Set.union lhs (nts rhs) g) (fmap (const mempty) (nonterminals fgg)) (repRules fgg)
-  where nts rhs = Set.fromList [edge_label e | e <- hgf_edges rhs, edge_label e `Map.member` nonterminals fgg]
+  where nts rhs = Set.fromList [edge_label' e | e <- hgf_edges' rhs, edge_label' e `Map.member` nonterminals fgg]
 
 sumProduct :: FGG Domain -> Tensor Weight
 sumProduct fgg =
@@ -54,7 +54,7 @@ step fgg nts z =
 
     stepNonterminal :: String -> Tensor Weight
     stepNonterminal x =
-      foldr tensorAdd (zeros (nonterminalShape fgg x)) [stepRHS rhs | Rule lhs rhs <- repRules fgg, lhs == x]
+      foldr tensorAdd (zeros (nonterminalShape fgg x)) [stepRHS (castHGF rhs) | Rule lhs rhs <- repRules fgg, lhs == x]
 
     stepRHS :: HGF Label -> Tensor Weight
     stepRHS rhs = h [] nodes

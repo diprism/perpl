@@ -73,7 +73,7 @@ mkRule = mkRuleReps 1
 -- Creates this rule `reps` times
 mkRuleReps :: Int -> Term -> [(Var, Type)] -> [Edge' Type] -> [External] -> RuleM
 mkRuleReps reps lhs ns es xs =
-  addRule reps (Rule (show lhs) (castHGF (HGF' (nub ns) es xs)))
+  addRule reps (Rule (show lhs) (HGF' (nub ns) es (nub xs)))
 
 
 -- Add rule for a constructor
