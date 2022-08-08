@@ -150,9 +150,10 @@ solvesM ms =
                             xs' = [x | x <- xs, x `Map.member` freeVars tp']
                         in
                           (f, tm', tgs, xs', tp')) defs
-
         -- Add tag/type parameters to right-hand side terms. This has
         -- to be done in a second pass because of mutual recursion.
+        -- This substitution is possible because occurrences of f are actually
+        -- local variables (TmVarL); they change into global variables (TmVarG) now.
         s' = Map.fromList [(f, SubTm (TmVarG DefVar f (TpVar <$> tgs) (TpVar <$> xs') [] tp')) | (f, _, tgs, xs', tp') <- defs']
         defs'' = [(f, subst s' tm', tgs, xs', tp') | (f, tm', tgs, xs', tp') <- defs']
       in
@@ -207,7 +208,8 @@ inferFuns fs m =
   mapM (const freshTp) fs >>= \ itps ->
   -- ftps is the set of function names with their type (var)
   let ftps = [(x, itp) | ((x, _, _), itp) <- zip fs itps] in
-    -- add ftps to env
+    -- add ftps to env as local variables (DefLocal) for now;
+    -- they will be changed to global variables inside solvesM
     inEnvs ftps
     (solvesM
       (mapM (\ ((x, mtp, tm), itp) ->
