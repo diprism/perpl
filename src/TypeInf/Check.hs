@@ -10,7 +10,7 @@ import Control.Monad.Except
 import Struct.Lib
 import Util.Helpers
 import Scope.Fresh (newVar)
-import Scope.Subst (SubT(SubTp), Substitutable, substM, subst, freeVars)
+import Scope.Subst (SubT(SubTp,SubTg), Substitutable, substM, subst, freeVars)
 import Scope.Free (isAff, isInfiniteType)
 import Scope.Ctxt (Ctxt, CtxtDef(..), DefTerm(..), DefType(..), ctxtDefLocal, ctxtDefGlobal, ctxtDefData)
 
@@ -228,24 +228,22 @@ addSolveTpVar x = modify (Map.insert x False)
 fresh :: Var -> CheckM Var
 fresh x = newVar x <$> boundVars
 
--- Returns a new type var (to solve) that doesn't collide with any in scope or being solved
-freshTpVar' :: IsTag -> CheckM Var
-freshTpVar' tg =
+-- Returns a new var (to solve) that doesn't collide with any in scope or being solved
+freshVar :: IsTag -> CheckM Var
+freshVar tg =
   fresh (if tg then "#0" else "?0") >>= \ x ->
   modify (Map.insert x tg) >>
   return x
 
--- Wraps TpVar around freshTpVar'
-freshTp' :: Bool -> CheckM Type
-freshTp' tg = pure TpVar <*> freshTpVar' tg
-
 freshTpVar, freshTagVar :: CheckM Var
-freshTpVar = freshTpVar' False
-freshTagVar = freshTpVar' True
+freshTpVar = freshVar False
+freshTagVar = freshVar True
 
-freshTp, freshTag :: CheckM Type
-freshTp = freshTp' False
-freshTag = freshTp' True
+freshTp :: CheckM Type
+freshTp = pure TpVar <*> freshTpVar
+
+freshTag :: CheckM Tag
+freshTag = pure TgVar <*> freshTagVar
 
 -- If NoTp, return a fresh type to solve; otherwise, check the type
 annTp :: Type -> CheckM Type
@@ -295,7 +293,7 @@ infer' (UsVar x) =
       -- pick new type vars
       mapM (const freshTp) tis >>= \ tis' ->
       -- substitute old tags/type vars for new ones
-      let tp' = subst (Map.fromList (zip (tgs ++ tis) (SubTp <$> (tgs' ++ tis')))) tp in
+      let tp' = subst (Map.fromList (zip tgs (SubTg <$> tgs') ++ zip tis (SubTp <$> tis'))) tp in
         return (TmVarG gv x tgs' tis' [] tp')
 
 infer' (UsLam x xtp tm) =
@@ -322,7 +320,7 @@ infer' (UsCase tm cs) =
   mapM (const freshTag) tgs >>= \ itgs ->
   mapM (const freshTp) ps >>= \ ips ->
   let -- substitute old tags/type vars for new
-      psub = Map.fromList (zip (tgs ++ ps) [SubTp p' | p' <- itgs ++ ips])
+      psub = Map.fromList (zip tgs (SubTg <$> itgs) ++ zip ps (SubTp <$> ips))
       -- Sort cases
       cs' = sortCases ctors (subst psub cs)
       -- Substitute old tags/type vars for new in constructors

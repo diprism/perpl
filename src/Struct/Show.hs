@@ -9,7 +9,7 @@ import Struct.Helpers
 toUsTm :: Term -> UsTm
 toUsTm (TmVarL x _) = UsVar x
 toUsTm (TmVarG gv x tgs tis as _tp) =
-  foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar {- x -} (foldl (\ x tp -> x ++ " [" ++ show tp ++ "]") x (tgs++tis))) as
+  foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar {- x -} (foldl (\ x p -> x ++ " [" ++ p ++ "]") x ((show <$> tgs)++(show <$> tis)))) as
 toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
@@ -74,7 +74,7 @@ instance Show Term where
 instance Show Type where
   showsPrec _ (TpVar y) = showString y
   showsPrec _ (TpData y [] []) = showString y
-  showsPrec p (TpData y tgs as) = showParen (p > 10) (delimitWith " " (showString y : map (showsPrec 11) (tgs++as)))
+  showsPrec p (TpData y tgs as) = showParen (p > 10) (delimitWith " " (showString y : map (showsPrec 11) tgs ++ map (showsPrec 11) as))
   showsPrec p (TpArr tp1 tp2) = showParen (p > 0) (showsPrec 1 tp1 . showString " -> " . shows tp2)
   showsPrec _ (TpProd am tps) = let (l, r) = amParens am in showString l . delimitWith ", " (map shows tps) . showString r
   showsPrec _ NoTp = id
@@ -101,3 +101,6 @@ instance Show Prog where
 
 instance Show Progs where
   show = show . toUsProgs
+
+instance Show Tag where
+  show (TgVar tg) = tg

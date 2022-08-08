@@ -42,7 +42,7 @@ ctxtDefGlobal g x tgs ps tp = Map.insert x (DefTerm (DefGlobal tgs ps tp)) g
 -- Add a constructor to the context
 ctxtDefCtor :: Ctxt -> Ctor -> Var -> [Var] -> [Var] -> Ctxt
 ctxtDefCtor g (Ctor x tps) y tgs ps =
-  let tp = joinArrows tps (TpData y (TpVar <$> tgs) (TpVar <$> ps)) in
+  let tp = joinArrows tps (TpData y (TgVar <$> tgs) (TpVar <$> ps)) in
   Map.insert x (DefTerm (DefCtor tgs ps tp)) g
 
 -- Add a datatype definition to the context,

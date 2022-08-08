@@ -5,7 +5,7 @@
 module Scope.Free where
 import Struct.Lib
 import Util.Helpers
-import Scope.Subst (SubT(SubTp), subst, freeVars)
+import Scope.Subst (SubT(SubTp,SubTg), subst, freeVars)
 import Scope.Ctxt (Ctxt, ctxtLookupType2)
 import qualified Data.Map as Map
 
@@ -129,7 +129,7 @@ searchType pred g = h [] where
         Just (tgs', ps, cs) ->
           -- Substitute actual type parameters for datatype's type parameters
           -- and recurse on each constructor
-          let s = Map.fromList (pickyZipWith (\p a -> (p, SubTp a)) tgs' tgs ++ pickyZipWith (\p a -> (p, SubTp a)) ps as) in
+          let s = Map.fromList (pickyZipWith (\p a -> (p, SubTg a)) tgs' tgs ++ pickyZipWith (\p a -> (p, SubTp a)) ps as) in
           any (\ (Ctor _ tps) -> any (h (tp : visited) . subst s) tps) cs
     TpArr tp1 tp2 -> h visited tp1 || h visited tp2
     TpProd am tps -> any (h visited) tps

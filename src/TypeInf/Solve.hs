@@ -7,7 +7,7 @@ import TypeInf.Check
 import Util.Helpers
 import Util.Graph (scc)
 import Struct.Lib
-import Scope.Subst (SubT(SubTm,SubTp), Subst, compose, subst, freeVars)
+import Scope.Subst (SubT(SubTm,SubTp,SubTg), Subst, compose, subst, freeVars)
 import Scope.Free (robust)
 import Scope.Ctxt (Ctxt, emptyCtxt)
 
@@ -26,7 +26,9 @@ unify (TpVar y) tp = bindTp y tp
 unify tp (TpVar y) = bindTp y tp
 unify tp1@(TpData y1 tgs1 as1) tp2@(TpData y2 tgs2 as2)
   | y1 == y2 && length tgs1 == length tgs2 && length as1 == length as2 =
-      unifyAll' (zip (tgs1++as1) (tgs2++as2))
+      unifyTags (zip tgs1 tgs2) >>= \ s ->
+      unifyTypes' (zip as1 as2) >>= \ s' ->
+      return (s' `compose` s)
   | otherwise = Left (UnificationError tp1 tp2)
 unify (TpArr l1 r1) (TpArr l2 r2) =
   unify l1 l2 >>= \ sl ->
@@ -36,7 +38,7 @@ unify (TpProd am1 tps1) (TpProd am2 tps2)
   | (am1 /= am2) || (length tps1 /= length tps2) =
       Left (UnificationError (TpProd am1 tps1) (TpProd am2 tps2))
   | otherwise =
-      unifyAll' (zip tps1 tps2)
+      unifyTypes' (zip tps1 tps2)
 unify NoTp tp = error "unify should not receive a NoTp"
 unify tp NoTp = error "unify should not receive a NoTp"
 unify tp1 tp2
@@ -44,18 +46,30 @@ unify tp1 tp2
   | otherwise  = Left (UnificationError tp1 tp2)
 
 -- For [(x1, y1), (x2, y2), ...], unify x1 and y1, unify x2 and y2, etc.
-unifyAll' :: [(Type, Type)] -> Either TypeError Subst
-unifyAll' tps = mapLeft fst $ unifyAll [(tp1, tp2, Loc { curDef = "", curExpr = ""}) | (tp1, tp2) <- tps]
+unifyTypes' :: [(Type, Type)] -> Either TypeError Subst
+unifyTypes' tps = mapLeft fst $ unifyTypes [(tp1, tp2, Loc { curDef = "", curExpr = ""}) | (tp1, tp2) <- tps]
 
 -- For [(x1, y1), (x2, y2), ...], unify x1 and y1, unify x2 and y2, etc.
-unifyAll :: [(Type, Type, Loc)] -> Either (TypeError, Loc) Subst
-unifyAll =
+unifyTypes :: [(Type, Type, Loc)] -> Either (TypeError, Loc) Subst
+unifyTypes =
   foldr
     (\ (tp1, tp2, l) s ->
         s >>= \ s ->
         mapLeft (\ e -> (e, l)) (unify (subst s tp1) (subst s tp2)) >>= \ s' ->
         return (s' `compose` s))
     (Right Map.empty)
+
+unifyTag :: Tag -> Tag -> Either TypeError Subst
+unifyTag (TgVar x) (TgVar y)
+  | x /= y = Right (Map.singleton x (SubTg (TgVar y)))
+  | otherwise = Right Map.empty
+
+unifyTags :: [(Tag, Tag)] -> Either TypeError Subst
+unifyTags = foldr
+  (\ (tg1, tg2) es -> es >>= \ s ->
+                      unifyTag (subst s tg1) (subst s tg2) >>= \ s' ->
+                      return (s' `compose` s))
+  (Right Map.empty)
 
 -- Makes sure that robust-constrained solved type vars have robust solutions
 solvedWell :: Ctxt -> Subst -> [(Constraint, Loc)] -> Either (TypeError, Loc) ()
@@ -96,7 +110,7 @@ If no error, returns (solution subst, remaining type vars, remaining tag vars)
 
 solve :: Ctxt -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var], [Var])
 solve g vs rtp cs =
-  unifyAll (getUnifications cs) >>= \ s ->
+  unifyTypes (getUnifications cs) >>= \ s ->
   let (s', xs, tgs) = solveInternal vs s rtp in
   solvedWell g s' cs >>
   return (s', xs, tgs)
@@ -154,7 +168,7 @@ solvesM ms =
         -- to be done in a second pass because of mutual recursion.
         -- This substitution is possible because occurrences of f are actually
         -- local variables (TmVarL); they change into global variables (TmVarG) now.
-        s' = Map.fromList [(f, SubTm (TmVarG DefVar f (TpVar <$> tgs) (TpVar <$> xs') [] tp')) | (f, _, tgs, xs', tp') <- defs']
+        s' = Map.fromList [(f, SubTm (TmVarG DefVar f (TgVar <$> tgs) (TpVar <$> xs') [] tp')) | (f, _, tgs, xs', tp') <- defs']
         defs'' = [(f, subst s' tm', tgs, xs', tp') | (f, tm', tgs, xs', tp') <- defs']
       in
         return defs''
@@ -350,7 +364,7 @@ inferData dsccs cont = foldr h cont dsccs
       -- by substituting y := y tgs.
       
       let tgs = Map.keys (Map.filter id vs)
-          s = Map.fromList [(y, SubTp (TpData y (TpVar <$> tgs) [])) | (y, ps, cs) <- dscc']
+          s = Map.fromList [(y, SubTp (TpData y (TgVar <$> tgs) [])) | (y, ps, cs) <- dscc']
       in
         return [(y, tgs, ps, mapCtors (subst s) cs) | (y, ps, cs) <- dscc']
 

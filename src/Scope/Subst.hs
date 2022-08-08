@@ -14,7 +14,7 @@ import Struct.Lib
 
 ----------------------------------------
 
-data SubT = SubVar Var | SubTm Term | SubTp Type
+data SubT = SubVar Var | SubTm Term | SubTp Type | SubTg Tag
   deriving (Eq, Ord, Show)
 type Subst = Map Var SubT
 
@@ -79,13 +79,13 @@ binds xs xs' m = foldr (uncurry bind) m (zip xs xs')
 substVT :: Var -> SubstM SubT
 substVT x = get >>= \ s -> return (maybe (SubVar x) id (Map.lookup x s))
 
--- Lookup a variable, with continuations for var, term, type, and if undefined
-substVar :: Var -> (Var -> a) -> (Term -> a) -> (Type -> a) -> a -> SubstM a
-substVar x fv ftm ftp fn =
+-- Lookup a variable, with continuations for var, term, type, tag, and if undefined
+substVar :: Var -> (Var -> a) -> (Term -> a) -> (Type -> a) -> (Tag -> a) -> a -> SubstM a
+substVar x fv ftm ftp ftg fn =
   get >>= \ s ->
   return $ maybe fn
     (\ st -> case st of
-        {SubVar x' -> fv x'; SubTm tm -> ftm tm; SubTp tp -> ftp tp })
+        {SubVar x' -> fv x'; SubTm tm -> ftm tm; SubTp tp -> ftp tp; SubTg tg -> ftg tg })
     (Map.lookup x s)
 
 -- Freshens params, and binds them in cont
@@ -147,7 +147,7 @@ freeVarsF = foldMap freeVars
 instance Substitutable Type where
   substM (TpArr tp1 tp2) = pure TpArr <*> substM tp1 <*> substM tp2
   substM tp@(TpVar y) =
-    substVar y TpVar (const tp) id tp
+    substVar y TpVar (const tp) id (const tp) tp
   substM (TpData y tgs as) =
     substM tgs >>= \ tgs' ->
     substM as >>= \ as' ->
@@ -158,6 +158,7 @@ instance Substitutable Type where
       -- This is used in TypeInf.Solve in inferData to add tags to a datatype.
       (\ tp' -> case tp' of TpData y' tgs'' [] -> TpData y' (tgs'' ++ tgs') as'
                             _ -> error ("kind error (" ++ y ++ " := " ++ show tp' ++ ")"))
+      (const (TpData y tgs' as'))
       (TpData y tgs' as')
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
   substM NoTp = pure NoTp
@@ -171,7 +172,7 @@ instance Substitutable Type where
 instance Substitutable Term where
   substM (TmVarL x tp) =
     let tmx x' = pure (TmVarL x') <*> substM tp in
-      substVar x tmx pure (const (tmx x)) (tmx x) >>= id
+      substVar x tmx pure (const (tmx x)) (const (tmx x)) (tmx x) >>= id
   substM (TmVarG g x tgs tis as tp) =
     pure (TmVarG g x) <*> substM tgs <*> substM tis <*> mapArgsM substM as <*> substM tp -- TODO: for consistency, should x be substitutable?
   substM (TmLam x xtp tm tp) =
@@ -216,6 +217,12 @@ instance Substitutable Case where
   freeVars (Case x ps tm) =
     foldr (Map.delete . fst) (freeVars tm) ps
 
+instance Substitutable Tag where
+  substM tg@(TgVar x) =
+    substVar x TgVar (const tg) (const tg) id tg
+  freeVars (TgVar x) =
+    Map.singleton x NoTp
+
 instance Substitutable a => Substitutable [a] where
   substM = substF
   freeVars = freeVarsF
@@ -226,10 +233,12 @@ instance Substitutable a => Substitutable (Maybe a) where
 instance Substitutable SubT where
   substM (SubTm tm) = pure SubTm <*> substM tm
   substM (SubTp tp) = pure SubTp <*> substM tp
+  substM (SubTg tg) = pure SubTg <*> substM tg
   substM (SubVar x) = substVT x
 
   freeVars (SubTm tm) = freeVars tm
   freeVars (SubTp tp) = freeVars tp
+  freeVars (SubTg tg) = freeVars tg
   freeVars (SubVar x) = Map.singleton x NoTp
 
 instance Substitutable v => Substitutable (Map.Map k v) where
@@ -238,7 +247,7 @@ instance Substitutable v => Substitutable (Map.Map k v) where
 
 instance Substitutable UsTm where
   substM (UsVar x) =
-    pure UsVar <*> substVar x id (const x) (const x) x
+    pure UsVar <*> substVar x id (const x) (const x) (const x) x
   substM (UsLam x tp tm) =
     freshen x >>= \ x' ->
     pure (UsLam x') <*> substM tp <*> bind x x' (substM tm)
