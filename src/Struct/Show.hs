@@ -9,7 +9,8 @@ import Struct.Helpers
 toUsTm :: Term -> UsTm
 toUsTm (TmVarL x _) = UsVar x
 toUsTm (TmVarG gv x tgs tis as _tp) =
-  foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar {- x -} (foldl (\ x p -> x ++ " [" ++ p ++ "]") x ((show <$> tgs)++(show <$> tis)))) as
+  let x' = intercalate " " (x : ["[" ++ p ++ "]" | p <- (show <$> tgs) ++ (show <$> tis)]) in
+  foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar x') as
 toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
