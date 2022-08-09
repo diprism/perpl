@@ -156,9 +156,11 @@ rulesToFGG dom start rs nts facs =
     rs' = nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs
     rs'' = [r | (_, r) <- rs']
     rsdom = [(i, fmap (NodeLabel . show) r) | (i, r) <- rs']
+
+    nls = concat (map (\ (Rule lhs (HGF' ns es xs)) -> snds ns) rs'') ++
+          concat (snds nts)
     
-    ds  = foldr (\ (Rule lhs (HGF' ns es xs)) m ->
-                   foldr (\ (n, d) -> Map.insert (NodeLabel (show d)) (dom d)) m ns) Map.empty rs''
+    ds  = foldr (\ d m -> Map.insert (NodeLabel (show d)) (dom d) m) Map.empty nls
 
     domsEq = \ x d1 d2 -> if not checkDomsEq || d1 == d2 then d1 else error
       ("Conflicting types for nonterminal " ++ show x ++ ": " ++

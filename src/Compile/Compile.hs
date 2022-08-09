@@ -22,21 +22,6 @@ nonterminalLabel = EdgeLabel . show
 paramsToExternals :: [Param] -> [External]
 paramsToExternals ps = [(NodeName x, tp) | (x, tp) <- ps]
 
-{- If the start term is just a factor (has no rule), then we need to
-   add a rule
-
-     [startName]-(v) -> [tm]-(v)
-
-  TODO: Possibly delete this. -}
-
-addStartRuleIfNecessary :: Term -> RuleM -> (EdgeLabel, RuleM)
-addStartRuleIfNecessary tm rm =
-  let stm = nonterminalLabel tm
-      tp = typeof tm
-      [vtp] = newNodeNames [tp] in
-    if isRule stm rm then (stm, rm) else
-      (EdgeLabel startName,
-       mkRule (TmVarL startName tp) [vtp] [Edge' [vtp] stm] [vtp] +> rm)
 
 {- A rule is created for a local variable x only if x is discarded.
 
@@ -414,7 +399,6 @@ compileFile :: Progs -> Either String FGG
 compileFile ps =
   let g = ctxtDefProgs ps
       Progs _ end = ps
-      rm = progs2fgg g ps
-      (end', RuleM rs xs nts fs) = addStartRuleIfNecessary end rm
+      RuleM rs xs nts fs = progs2fgg g ps
   in
-      return (rulesToFGG (domainValues g) end' (reverse rs) nts fs)
+      return (rulesToFGG (domainValues g) (nonterminalLabel end) (reverse rs) nts fs)
