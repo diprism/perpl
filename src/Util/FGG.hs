@@ -12,12 +12,17 @@ import Util.JSON
 -- (though for the sake of efficiency, perhaps better off for stable releases)
 checkDomsEq = True
 
-newtype Value = Value String
 type Domain = [Value] -- list of values for some type
+newtype Value = Value String
 type Factor = (EdgeLabel, Maybe Weights)
 type Weight = Double
 type Weights = Tensor Weight
 
+newtype NodeName = NodeName String
+  deriving (Eq, Ord)
+instance Show NodeName where
+  show (NodeName n) = n
+  
 newtype NodeLabel = NodeLabel String
   deriving (Eq, Ord)
 instance Show NodeLabel where
@@ -27,8 +32,6 @@ newtype EdgeLabel = EdgeLabel String
   deriving (Eq, Ord)
 instance Show EdgeLabel where
   show (EdgeLabel el) = el
-
-type NodeName = String
 
 -- d = type of domain
 data Node d = Node {node_name :: NodeName, node_domain :: d}
@@ -109,7 +112,7 @@ fgg_to_json (FGG ds fs nts (EdgeLabel s) rs) =
             replicate reps $ JSobject [
              ("lhs", JSstring lhs),
              ("rhs", JSobject [
-                 ("nodes", JSarray [JSobject [("label", JSstring d), ("id", JSstring n)] | Node n (NodeLabel d) <- ns]),
+                 ("nodes", JSarray [JSobject [("label", JSstring d), ("id", JSstring n)] | Node (NodeName n) (NodeLabel d) <- ns]),
                  ("edges", JSarray $ flip map es $
                    \ (Edge atts (EdgeLabel l)) -> JSobject [
                      ("attachments", JSarray (map JSint atts)),
