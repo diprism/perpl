@@ -293,7 +293,8 @@ infer' (UsVar x) =
       -- pick new type vars
       mapM (const freshTp) tis >>= \ tis' ->
       -- substitute old tags/type vars for new ones
-      let tp' = subst (Map.fromList (zip tgs (SubTg <$> tgs') ++ zip tis (SubTp <$> tis'))) tp in
+      let tp' = subst (Map.fromList (pickyZip tgs (SubTg <$> tgs') ++
+                                     pickyZip tis (SubTp <$> tis'))) tp in
         return (TmVarG gv x tgs' tis' [] tp')
 
 infer' (UsLam x xtp tm) =
@@ -320,7 +321,8 @@ infer' (UsCase tm cs) =
   mapM (const freshTag) tgs >>= \ itgs ->
   mapM (const freshTp) ps >>= \ ips ->
   let -- substitute old tags/type vars for new
-      psub = Map.fromList (zip tgs (SubTg <$> itgs) ++ zip ps (SubTp <$> ips))
+      psub = Map.fromList (pickyZip tgs (SubTg <$> itgs) ++
+                           pickyZip ps (SubTp <$> ips))
       -- Sort cases
       cs' = sortCases ctors (subst psub cs)
       -- Substitute old tags/type vars for new in constructors
@@ -337,7 +339,7 @@ infer' (UsCase tm cs) =
   -- itp = cases return type
   freshTp >>= \ itp ->
   -- infer cases
-  mapM (uncurry inferCase) (zip cs' ctors') >>= \ cs'' ->
+  mapM (uncurry inferCase) (pickyZip cs' ctors') >>= \ cs'' ->
   -- Constraints: for each case `| x ps -> tm`, itp = (typeof tm)
   mapM (\ (Case x ps tm) -> constrain (Unify itp (typeof tm))) cs'' >>
   return (TmCase tm' (y, itgs, ips) cs'' itp)
@@ -420,7 +422,7 @@ inferCase (CaseUs x xs tm) (Ctor x' ps) =
   guardM (x == x') (MissingCases [x']) >>
   -- Guard against wrong number of args
   guardM (length ps == length xs) (WrongNumArgs (length ps) (length xs)) >>
-  let xps = zip xs ps in
+  let xps = pickyZip xs ps in
   -- For each (x : tp) in xps, if x is used more than affinely in tm, constrain tp to be robust
   mapM (\ (x, tp) -> constrainIf (not $ isAff x tm) (Robust tp)) xps >>
   inEnvs xps (infer tm) >>= \ tm' ->
