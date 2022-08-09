@@ -10,8 +10,8 @@ import Util.Tensor
 import Scope.Name
 
 -- RuleM monad-like datatype and functions
-type External = (Var, Type)
-type Nonterminal = (Var, [Type])
+type External = (NodeName, Type)
+type Nonterminal = (EdgeLabel, [Type])
 -- RuleM stores the following:
 --   1. [(Int, Rule Type)]: a list of rules and how many times to duplicate them
 --                            (so amb True False True => p(True) = **2**, p(False) = 1)
@@ -48,7 +48,7 @@ addExts :: [External] -> RuleM
 addExts xs = RuleM [] xs [] []
 
 -- Add a single external node
-addExt :: Var -> Type -> RuleM
+addExt :: NodeName -> Type -> RuleM
 addExt x tp = addExts [(x, tp)]
 
 -- Add a list of nonterminals with the types of their attachment nodes
@@ -56,7 +56,7 @@ addNonterms :: [Nonterminal] -> RuleM
 addNonterms nts = RuleM [] [] nts []
 
 -- Add a single nonterminal with the types of its attachment nodes
-addNonterm :: Var -> [Type] -> RuleM
+addNonterm :: EdgeLabel -> [Type] -> RuleM
 addNonterm x tps = addNonterms [(x, tps)]
 
 -- Add a list of rules
@@ -68,11 +68,11 @@ addRule :: Int -> Rule Type -> RuleM
 addRule reps r = addRules [(reps, r)]
 
 -- Adds an "incomplete" factor (extern)
-addIncompleteFactor :: Var -> RuleM
+addIncompleteFactor :: EdgeLabel -> RuleM
 addIncompleteFactor x = RuleM [] [] [] [(x, Nothing)]
 
 -- Adds a factor x with weights tensor w
-addFactor :: Var -> Weights -> RuleM
+addFactor :: EdgeLabel -> Weights -> RuleM
 addFactor x w = RuleM [] [] [] [(x, Just w)]
 
 -- Do nothing new
@@ -88,7 +88,7 @@ setExts :: [External] -> RuleM -> RuleM
 setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
 
 -- Returns if this lhs is already used
-isRule :: String -> RuleM -> Bool
+isRule :: EdgeLabel -> RuleM -> Bool
 isRule lhs (RuleM rs xs nts fs) = any (\ (_, Rule lhs' _) -> lhs == lhs') rs
 
 
@@ -97,19 +97,19 @@ getPairWeights :: Int -> Int -> Weights
 getPairWeights tp1s tp2s = tensorId [tp1s, tp2s]
 
 -- Computes the weights for a function with params ps and return type tp
-getExternWeights :: (Type -> [String]) -> [Type] -> Type -> Weights
+getExternWeights :: (Type -> [Value]) -> [Type] -> Type -> Weights
 getExternWeights dom ps tp =
   zeros ([length (dom tp) | tp <- ps] ++ [length (dom tp)])
 
 -- Computes the weights for a list of constructors
-getCtorWeightsAll :: (Type -> [String]) -> [Ctor] -> Type -> [(String, Weights)]
+getCtorWeightsAll :: (Type -> [Value]) -> [Ctor] -> Type -> [(EdgeLabel, Weights)]
 getCtorWeightsAll dom cs y =
-  concat [[(ctorFactorName x [(TmVarL x atp, atp) | (x, atp) <- zip as' as] y, ws)
+  concat [[(EdgeLabel $ ctorFactorName x [(TmVarL x atp, atp) | (Value x, atp) <- zip as' as] y, ws)
           | (as', ws) <- getCtorWeights dom (Ctor x as) cs]
          | Ctor x as <- cs]
 
 -- Computes the weights for a specific constructor
-getCtorWeights :: (Type -> [String]) -> Ctor -> [Ctor] -> [([String], Weights)]
+getCtorWeights :: (Type -> [Value]) -> Ctor -> [Ctor] -> [([Value], Weights)]
 getCtorWeights dom (Ctor x as) cs =
   let (cs_before, cs_after) = splitCtorsAt cs x
       csf = \ cs' -> sum [product (map (length . dom) as') | (Ctor x' as') <- cs']
@@ -123,7 +123,7 @@ getCtorWeights dom (Ctor x as) cs =
       foldr (\ (i, o, a) ws -> Vector [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]]) row as'
 
 -- Computes the weights for a specific constructor (can't remember how this is different from getCtorWeights above :P)
-getCtorWeightsFlat :: (Type -> [String]) -> Ctor -> [Ctor] -> Weights
+getCtorWeightsFlat :: (Type -> [Value]) -> Ctor -> [Ctor] -> Weights
 getCtorWeightsFlat dom (Ctor x as) cs =
   let (cs_before, cs_after) = splitCtorsAt cs x
       csf = \ cs' -> sum [product (map (length . dom) as') | Ctor x' as' <- cs']
@@ -141,7 +141,7 @@ getCtorEqWeights :: Int {- num of possible values -} -> Weights
 getCtorEqWeights cs = tensorId [cs]
 
 -- Computes the weights for the &-product of a list of types (rather, their domains)
-getAmpWeights :: [[String]] -> [Weights]
+getAmpWeights :: [[Value]] -> [Weights]
 getAmpWeights tpvs =
   [Vector
     (concatMap
@@ -149,7 +149,7 @@ getAmpWeights tpvs =
           [Vector [Scalar (if l == k && i == j then 1 else 0) | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs]) (enumerate tpvs)) | (i, itpvs) <- enumerate tpvs]
 
 -- Computes the weights for the *-product of a list of types (rather, their domains)
-getProdWeights :: [[String]] -> [([String], Weights)]
+getProdWeights :: [[Value]] -> [([Value], Weights)]
 getProdWeights tpvs =
   [([a | (_, _, a) <- as'],
     let (out, pos) = foldr (\ (i, o, _) (l, j) -> (l * o, l * i + j)) (1, 0) as' in
@@ -160,7 +160,7 @@ getProdWeights tpvs =
 
 -- Returns the weights tensor for when the individual elements
 -- in a product equal the entire product (see tensorId for more info)
-getProdWeightsV :: [[String]] -> Weights
+getProdWeightsV :: [[Value]] -> Weights
 getProdWeightsV tpvs = tensorId [length vs | vs <- tpvs]
 
 -- Returns the weights for (tm1 == tm2 == ... == tmn)

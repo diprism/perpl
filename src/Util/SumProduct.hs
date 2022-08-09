@@ -7,18 +7,18 @@ import Util.Tensor
 import Util.Helpers
 import Util.Graph
 
-type MultiTensor = Map String (Tensor Weight)
+type MultiTensor = Map EdgeLabel (Tensor Weight)
 
 multiTensorDistance :: MultiTensor -> MultiTensor -> Weight
 multiTensorDistance mt1 mt2 =
   let diff = Map.differenceWith (\t1 t2 -> Just (tensorSub t1 t2)) mt1 mt2 in
     foldr max 0.0 (fmap (foldr max 0.0 . tensorFlatten) diff)
 
-nonterminalGraph :: FGG Domain -> Map String (Set String)
+nonterminalGraph :: FGG -> Map EdgeLabel (Set EdgeLabel)
 nonterminalGraph fgg = foldr (\ (Rule lhs rhs) g -> Map.insertWith Set.union lhs (nts rhs) g) (fmap (const mempty) (nonterminals fgg)) (repRules fgg)
   where nts rhs = Set.fromList [edge_label' e | e <- hgf_edges' rhs, edge_label' e `Map.member` nonterminals fgg]
 
-sumProduct :: FGG Domain -> Tensor Weight
+sumProduct :: FGG -> Tensor Weight
 sumProduct fgg =
   let
     -- Process the strongly-connected components that are reachable from start
@@ -30,33 +30,33 @@ sumProduct fgg =
   in
     z Map.! (start fgg)
 
-sumProductSCC :: FGG Domain -> [String] -> MultiTensor -> MultiTensor
+sumProductSCC :: FGG -> [EdgeLabel] -> MultiTensor -> MultiTensor
 sumProductSCC fgg nts z = h (Map.union (zero fgg nts) z) where
   h prev =
     let cur = step fgg nts prev
         diff = multiTensorDistance cur prev
     in if diff < 1e-3 then cur else h cur
 
-zero :: FGG Domain -> [String] -> MultiTensor
+zero :: FGG -> [EdgeLabel] -> MultiTensor
 zero fgg nts =
   Map.fromList [(x, zeros (nonterminalShape fgg x)) | x <- nts]
 
-nonterminalShape :: FGG Domain -> String -> [Int]
+nonterminalShape :: FGG -> EdgeLabel -> [Int]
 nonterminalShape fgg x = [length ((domains fgg) Map.! nl) | nl <- (nonterminals fgg) Map.! x]
 
-repRules :: FGG d -> [Rule Label]
+repRules :: FGG -> [Rule NodeLabel]
 repRules fgg = concat [ replicate c r | (c, r) <- rules fgg ]
   
-step :: FGG Domain -> [String] -> MultiTensor -> MultiTensor
+step :: FGG -> [EdgeLabel] -> MultiTensor -> MultiTensor
 step fgg nts z =
   Map.union (Map.fromList [ (x, stepNonterminal x) | x <- nts ]) z
   where
 
-    stepNonterminal :: String -> Tensor Weight
+    stepNonterminal :: EdgeLabel -> Tensor Weight
     stepNonterminal x =
       foldr tensorAdd (zeros (nonterminalShape fgg x)) [stepRHS (castHGF rhs) | Rule lhs rhs <- repRules fgg, lhs == x]
 
-    stepRHS :: HGF Label -> Tensor Weight
+    stepRHS :: HGF NodeLabel -> Tensor Weight
     stepRHS rhs = h [] nodes
       where
         -- Permute nodes so that the external nodes come first, in the
@@ -90,7 +90,7 @@ step fgg nts z =
           in
             foldr tensorTimes (Scalar 1.0) [w !!! (fmap SliceIndex asst) | (w, asst) <- zip edge_wts edge_assts]
 
-    edgeWeights :: String -> Tensor Weight
+    edgeWeights :: EdgeLabel -> Tensor Weight
     edgeWeights el =
       case Map.lookup el z of
                 Just w -> w
