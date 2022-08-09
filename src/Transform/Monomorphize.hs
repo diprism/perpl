@@ -3,7 +3,7 @@
 module Transform.Monomorphize where
 import Struct.Lib
 import Util.Helpers
-import Scope.Subst (SubT(SubTp), subst)
+import Scope.Subst (SubT(SubTp,SubTg), subst)
 import Scope.Name
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -21,11 +21,11 @@ semimap (Semimap m) = m
 
 -- Maps a definition name to the instantiations it has
 -- (where each inst is a list of types, one for each tag/type var)
-type Insts = Semimap Var (Set.Set ([Type], [Type]))
+type Insts = Semimap Var (Set.Set ([Tag], [Type]))
 -- Map a definition to the tag and type vars it is polymorphic over
 type TypeParams = Map Var ([Var], [Var])
 -- List of global calls something makes, and the instantiation of each call
-type GlobalCalls = [(Var, [Type], [Type])]
+type GlobalCalls = [(Var, [Tag], [Type])]
 -- Maps a definition name to all the other defs it calls and how it instantiates them
 type DefMap = Map Var GlobalCalls
 
@@ -70,7 +70,7 @@ collectCallsTp  _                = []
 --  and `reverse1 : List1 -> List1` and `reverse2 : List2 -> List2`; then, replace all
 --  calls to `reverse` for a List Bool with `reverse1` and similarly for `reverse2`
 --  with calls to List Unit)
-renameCalls :: Map Var (Map ([Type], [Type]) Int) -> Term -> Term
+renameCalls :: Map Var (Map ([Tag], [Type]) Int) -> Term -> Term
 renameCalls xis (TmVarL x tp) = TmVarL x (renameCallsTp xis tp)
 renameCalls xis (TmVarG g x [] [] as tp) = TmVarG g x [] [] [(renameCalls xis tm, renameCallsTp xis tp) | (tm, tp) <- as] (renameCallsTp xis tp)
 renameCalls xis (TmVarG g x tgs tis as tp) =
@@ -96,7 +96,7 @@ renameCalls xis (TmElimProd am ptm ps tm tp) = TmElimProd am (renameCalls xis pt
 renameCalls xis (TmEqs tms) = TmEqs (renameCalls xis <$> tms)
 
 -- Same as renameCalls, but for types
-renameCallsTp :: Map Var (Map ([Type], [Type]) Int) -> Type -> Type
+renameCallsTp :: Map Var (Map ([Tag], [Type]) Int) -> Type -> Type
 renameCallsTp xis (TpData y [] []) = TpData y [] [] -- a datatype with no arguments can have only one instantiation, so we don't rename it (see makeInstantiations))
 renameCallsTp xis (TpData y tgs as) =
   maybe (TpData y tgs as)
@@ -131,7 +131,7 @@ makeTypeParams = mconcat . map h where
   h (SProgData y tgs ps cs) = Map.fromList ((y, (tgs, ps)) : map (\ (Ctor x tps) -> (x, (tgs, ps))) cs)
 
 -- If not visited, insert into Insts and recurse
-addInsts :: DefMap -> TypeParams -> Insts -> Var -> [Type] -> [Type] -> Insts
+addInsts :: DefMap -> TypeParams -> Insts -> Var -> [Tag] -> [Type] -> Insts
 addInsts dm tpms xis x tgs tis
   -- if already visited, or not polymorphic in the first place, just return xis
   | not (x `Map.member` semimap xis) || (tgs,tis) `Set.member` (semimap xis Map.! x) = xis
@@ -139,7 +139,7 @@ addInsts dm tpms xis x tgs tis
                   (xis <> Semimap (Map.singleton x (Set.singleton (tgs,tis)))) x tgs tis
   where
     -- Depth-first traversal with cur as root
-    processNext :: Var -> DefMap -> TypeParams -> Insts -> Var -> [Type] -> [Type] -> Insts
+    processNext :: Var -> DefMap -> TypeParams -> Insts -> Var -> [Tag] -> [Type] -> Insts
     processNext cur dm tpms xis x tgs tis =
       let (curtgs, curpms) = tpms Map.! cur
           curtis = semimap xis Map.! cur
@@ -147,13 +147,13 @@ addInsts dm tpms xis x tgs tis
         foldr (\ (x, tgs, tis) xis ->
                   foldr (\ (ctgs,ctis) xis ->
                             addInsts dm tpms xis x
-                                     (subst (Map.fromList (pickyZip curtgs (SubTp <$> ctgs))) tgs)
+                                     (subst (Map.fromList (pickyZip curtgs (SubTg <$> ctgs))) tgs)
                                      (subst (Map.fromList (pickyZip curpms (SubTp <$> ctis))) tis))
                         xis curtis)
               xis (dm Map.! x)
 
 -- Given a map from def name to its instance names, duplicate a def for each instantation
-makeInstantiations :: Map Var (Map ([Type], [Type]) Int) -> SProg -> [Prog]
+makeInstantiations :: Map Var (Map ([Tag], [Type]) Int) -> SProg -> [Prog]
 makeInstantiations xis (SProgFun x [] [] tm tp) =
   if null (Map.toList (xis Map.! x)) then
     -- if x is never instantiated even with [] (since it has no tags/type vars),
@@ -164,7 +164,7 @@ makeInstantiations xis (SProgFun x [] [] tm tp) =
 makeInstantiations xis (SProgFun x tgs ps tm tp) =
   let tiss = Map.toList (xis Map.! x) in
     map (\ ((tgs', tis), i) ->
-           let s = Map.fromList (pickyZip tgs (SubTp <$> tgs') ++
+           let s = Map.fromList (pickyZip tgs (SubTg <$> tgs') ++
                                  pickyZip ps  (SubTp <$> tis )) in
              ProgFun
                (instName x i) -- new name for this particular instantiation
@@ -186,7 +186,7 @@ makeInstantiations xis (SProgData y [] [] cs) =
 makeInstantiations xis (SProgData y tgs ps cs) =
     let tiss = Map.toList (xis Map.! y) in
     map (\ ((tags, tis), i) ->
-           let s = Map.fromList (pickyZip tgs (SubTp <$> tags) ++
+           let s = Map.fromList (pickyZip tgs (SubTg <$> tags) ++
                                  pickyZip ps  (SubTp <$> tis )) in
              ProgData
                (instName y i) -- new name for this particular instantiation
@@ -200,7 +200,7 @@ makeInstantiations xis (SProgData y tgs ps cs) =
 -- of their datatype. This avoids generating mismatched/confusing datatypes
 -- and constructors like:
 --   data Nat_inst0 = Zero_inst5 | Succ_inst2
-overrideCtorInsts :: Map Var (Map ([Type], [Type]) Int) -> [SProg] -> Map Var (Map ([Type], [Type]) Int)
+overrideCtorInsts :: Map Var (Map ([Tag], [Type]) Int) -> [SProg] -> Map Var (Map ([Tag], [Type]) Int)
 overrideCtorInsts m [] = m
 overrideCtorInsts m (SProgData y tgs pms cs : sps) =
   let yis = m Map.! y
