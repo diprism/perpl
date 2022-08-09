@@ -147,8 +147,16 @@ showFGG = pprint_json . fgg_to_json
 emptyFGG :: EdgeLabel -> FGG
 emptyFGG s = FGG Map.empty Map.empty Map.empty s []
 
--- Construct an FGG from a list of rules, a start symbol,
--- and a function that gives the possible values of each type
+{- rulesToFGG dom start rs nts facs
+
+   Construct an FGG from:
+
+   - dom: function that gives the possible Values belonging to d
+   - start: start nonterminal
+   - rs: list of rules with repetition counts
+   - nts: list of nonterminal EdgeLabels and their "types"
+   - facs: list of factors -}
+             
 rulesToFGG :: Show d => Eq d => (d -> Domain) -> EdgeLabel -> [(Int, Rule d)] -> [(EdgeLabel, [d])] -> [Factor] -> FGG
 rulesToFGG dom start rs nts facs =
   FGG ds fs nts' start rsdom

@@ -2,7 +2,6 @@
 
 module Compile.RuleM where
 import Data.List
-import qualified Data.Map as Map
 import Struct.Lib
 import Util.FGG
 import Util.Helpers
@@ -87,10 +86,6 @@ resetExts (RuleM rs xs nts fs) = RuleM rs [] nts fs
 setExts :: [External] -> RuleM -> RuleM
 setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
 
--- Returns if this lhs is already used
-isRule :: EdgeLabel -> RuleM -> Bool
-isRule lhs (RuleM rs xs nts fs) = any (\ (_, Rule lhs' _) -> lhs == lhs') rs
-
 
 -- Returns the Weights for a function tp1 -> tp2
 getPairWeights :: Int -> Int -> Weights
@@ -172,30 +167,3 @@ getEqWeights dom ntms =
     [0..ntms-1]
     True
     Nothing
-
--- TODO: it is no longer necessary to be this complex—now the we just need
--- to take and return a single (non-nested) list
-
--- Given a set of external nodes, this returns a pair where the first
--- is basically just the nub of the concatenated nodes, and the second
--- is a mapping from each node's original position to its new one in
--- the first part.
--- It takes a list of lists to allow you to more easily keep track of
--- where an arbitrary number of externals went.
-combineExts :: Ord a => [[(a, x)]] -> ([(a, x)], [[Int]])
-combineExts = h Map.empty 0 where
-
-  index :: Ord a => Map a Int -> Int -> [(a, x)] -> (Map a Int, [(a, x)])
-  index ixs i [] = (ixs, [])
-  index ixs i (a : as) = case Map.lookup (fst a) ixs of
-    Nothing -> fmap ((:) a) (index (Map.insert (fst a) i ixs) (succ i) as)
-    Just ia -> index ixs i as
-  
-  h :: Ord a => Map a Int -> Int -> [[(a, x)]] -> ([(a, x)], [[Int]])
-  h ixs i [] = ([], [])
-  h ixs i (as : rest) =
-    let (ixs', as') = index ixs i as
-        is = [ixs' Map.! a | (a, _) <- as]
-        (rs, ms) = h ixs' (i + length as') rest in
-      (as' ++ rs, is : ms)
-
