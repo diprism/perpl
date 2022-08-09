@@ -20,7 +20,7 @@ type Nonterminal = (EdgeLabel, [Type])
 --   4. [Factor]: factor accumulator
 data RuleM = RuleM [(Int, Rule Type)] [External] [Nonterminal] [Factor]
 
--- RuleM instances of >>= and >= (since not
+-- RuleM instances of >>= and >> (since not
 -- technically a monad, need to pick new names)
 infixl 1 +>=, +>, +>=*
 -- Like (>>=) but for RuleM
