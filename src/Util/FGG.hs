@@ -13,7 +13,7 @@ import Util.JSON
 
 type Domain = [Value]
 newtype Value = Value String
-type Factor = (EdgeLabel, Maybe Weights)
+type Factor = (EdgeLabel, Maybe Weights) -- TODO: move this to RuleM
 type Weight = Double
 type Weights = Tensor Weight
 
@@ -48,7 +48,8 @@ type NodeLabel = Type
 
    - Terminals determine a function, called a factor, from the
      attachment nodes' Values to a Weight; here, this function is
-     represented as a Tensor.
+     represented as a Tensor. TODO: Could list out possible functions
+     instead of using strings.
 
    - Edges labeled with nonterminals can be rewritten using
      Rules. Here, nonterminal labels always correspond to Terms. -}
@@ -61,6 +62,8 @@ instance Show EdgeLabel where
 
 data Edge = Edge { edge_atts :: [(NodeName, NodeLabel)], edge_label :: EdgeLabel }
   deriving Eq
+-- Hypergraph fragment (= hypergraph with external nodes)
+-- TODO: This could simply be merged into Rule.
 data HGF = HGF { hgf_nodes :: [(NodeName, NodeLabel)], hgf_edges :: [Edge], hgf_exts :: [(NodeName, NodeLabel)] }
   deriving Eq
 data Rule = Rule EdgeLabel HGF

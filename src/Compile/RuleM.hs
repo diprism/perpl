@@ -8,7 +8,11 @@ import Util.Helpers
 import Util.Tensor
 import Scope.Name
 
--- RuleM monad-like datatype and functions
+{- RuleM is a monad-like type for building FGGs.
+
+   TODO: Its contents are not that different from FGG itself; could they be merged?
+ -}
+
 type External = (NodeName, Type)
 type Nonterminal = (EdgeLabel, [Type])
 -- RuleM stores the following:
