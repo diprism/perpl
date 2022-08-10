@@ -134,11 +134,10 @@ emptyFGG s = FGG Map.empty Map.empty Map.empty s []
              
 rulesToFGG :: (NodeLabel -> Domain) -> EdgeLabel -> [(Int, Rule)] -> [(EdgeLabel, [NodeLabel])] -> [Factor] -> FGG
 rulesToFGG dom start rs nts facs =
-  FGG ds fs nts' start rsdom
+  FGG ds fs nts' start rs'
   where
     rs' = nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs
     rs'' = [r | (_, r) <- rs']
-    rsdom = [(i, r) | (i, r) <- rs']
 
     nls = concat (map (\ (Rule lhs (HGF ns es xs)) -> snds ns) rs'') ++
           concat (snds nts)

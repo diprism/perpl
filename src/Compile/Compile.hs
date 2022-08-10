@@ -11,12 +11,14 @@ import Scope.Name
 import Scope.Subst (FreeVars, freeVars)
 
 
--- TODO: name first one NnOut
 newNodeNames :: [a] -> [(NodeName, a)]
 newNodeNames as = [(NnInternal j, atp) | (j, atp) <- enumerate as]
 
 paramsToExternals :: [Param] -> [External]
 paramsToExternals ps = [(NnVar x, tp) | (x, tp) <- ps]
+
+unusedExternals :: [External] -> [External] -> [External]
+unusedExternals = deleteFirstsBy (\ (x1, _) (x2, _) -> x1 == x2)
 
 
 {- varRule x tp
@@ -92,7 +94,7 @@ caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
   bindExts as $
   term2fgg (ctxtDeclArgs g as) xtm +>= \ xs_xtm_as ->
   let all_xs = paramsToExternals (Map.toList all_fvs)
-      unused_ps = Map.toList (Map.difference (Map.fromList all_xs) (Map.fromList xs_xtm_as))
+      unused_ps = unusedExternals all_xs xs_xtm_as
       [vctp] = newNodeNames [TpData y [] []]
       vtp = (NnOut, tp)
       fac = ElTerminal (ctorFactorName x (paramsToArgs (nameParams x (snds as))) (TpData y [] []))
@@ -110,7 +112,7 @@ ambRule :: Ctxt -> FreeVars -> [Term] -> Type -> Term -> Int -> RuleM
 ambRule g all_fvs tms tp tm reps =
   term2fgg g tm +>= \ tmxs ->
   let all_xs = paramsToExternals (Map.toList all_fvs)
-      unused_tms = Map.toList (Map.difference (Map.fromList all_xs) (Map.fromList tmxs))
+      unused_tms = unusedExternals all_xs tmxs
       vtp = (NnOut, tp)
   in
     mkRuleReps reps (TmAmb tms tp) (vtp : tmxs ++ all_xs ++ unused_tms)
@@ -123,7 +125,7 @@ ampRule g all_fvs as i tm tp =
   term2fgg g tm +>= \ tmxs ->
   let tps = snds as
       all_xs = paramsToExternals (Map.toList all_fvs)
-      unused_tms = Map.toList (Map.difference (Map.fromList all_xs) (Map.fromList tmxs))
+      unused_tms = unusedExternals all_xs tmxs
       [vamp] = newNodeNames [TpProd Additive tps]
       vtp = (NnOut, tp)
   in
@@ -291,7 +293,7 @@ term2fgg g (TmElimProd Multiplicative ptm ps tm tp) =
   let ps' = paramsToExternals ps
       tps = snds ps
       ptp = TpProd Multiplicative tps
-      unused_ps = Map.toList (Map.difference (Map.fromList ps') (Map.fromList tmxs))
+      unused_ps = unusedExternals ps' tmxs
       vtp = (NnOut, tp)
       [vptp] = newNodeNames [ptp]
   in
@@ -335,7 +337,7 @@ prog2fgg g (ProgFun x ps tm tp) = let tp' = joinArrows (snds ps) tp in
   type2fgg g tp' +>= \ _ ->
   bindExts ps $ term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
   let ps' = paramsToExternals ps
-      unused_ps = Map.toList (Map.difference (Map.fromList ps') (Map.fromList tmxs))
+      unused_ps = unusedExternals ps' tmxs
       (unused_x, unused_tp) = unzip unused_ps
       vtp = (NnOut, tp)
   in
