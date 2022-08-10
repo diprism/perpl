@@ -6,7 +6,6 @@ import Struct.Lib
 import Util.FGG
 import Util.Helpers
 import Util.Tensor
-import Scope.Name
 
 {- RuleM is a monad-like type for building FGGs.
 
@@ -92,37 +91,25 @@ setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
 
 {--- Functions for computing Weights for terminal-labeled Edges ---}
 
--- Returns the Weights for a function tp1 -> tp2
+{- getPairWeights tp1s tp2s
+
+   Returns the weights w[x,y,(x,y)] = 1, which is used for function
+   types tp1 -> tp2.  tp1s and tp2s are the sizes of the domains of x1
+   and x2, respectively. -}
+                                 
 getPairWeights :: Int -> Int -> Weights
 getPairWeights tp1s tp2s = tensorId [tp1s, tp2s]
 
--- Computes the weights for a function with params ps and return type tp
-getExternWeights :: (Type -> [Value]) -> [Type] -> Type -> Weights
-getExternWeights dom ps tp =
-  zeros ([length (dom tp) | tp <- ps] ++ [length (dom tp)])
+{- getCtorWeightsFlat dom c cs
 
--- Computes the weights for a list of constructors
-getCtorWeightsAll :: (Type -> [Value]) -> [Ctor] -> Type -> [(EdgeLabel, Weights)]
-getCtorWeightsAll dom cs y =
-  concat [[(ElTerminal $ ctorFactorName x [(TmVarL x atp, atp) | (Value x, atp) <- zip as' as] y, ws)
-          | (as', ws) <- getCtorWeights dom (Ctor x as) cs]
-         | Ctor x as <- cs]
+   Computes the weights for a specific constructor.
 
--- Computes the weights for a specific constructor
-getCtorWeights :: (Type -> [Value]) -> Ctor -> [Ctor] -> [([Value], Weights)]
-getCtorWeights dom (Ctor x as) cs =
-  let (cs_before, cs_after) = splitCtorsAt cs x
-      csf = \ cs' -> sum [product (map (length . dom) as') | (Ctor x' as') <- cs']
-      cs_b' = csf cs_before
-      cs_a' = csf cs_after
-      mkrow = \ mask -> vector (replicate cs_b' 0 ++ mask ++ replicate cs_a' 0)
-  in
-    flip map (kronpos (map dom as)) $ \ as' -> (,) [a | (_, _, a) <- as'] $
-      let (out, pos) = foldr (\ (i, o, _) (l, j) -> (l * o, l * i + j)) (1, 0) as'
-          row = mkrow (tensorIdRow pos out) in
-      foldr (\ (i, o, a) ws -> Vector [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]]) row as'
+   - dom: maps from node labels (Type) to domains ([Value])
+   - c:   a specific constructor
+   - cs:  list of all constructors (including c)
 
--- Computes the weights for a specific constructor (can't remember how this is different from getCtorWeights above :P)
+   Returns: If c = Ctor x ps, the tensor w[a1, ..., an, Ctor x as] = 1. -}
+
 getCtorWeightsFlat :: (Type -> [Value]) -> Ctor -> [Ctor] -> Weights
 getCtorWeightsFlat dom (Ctor x as) cs =
   let (cs_before, cs_after) = splitCtorsAt cs x
@@ -136,11 +123,24 @@ getCtorWeightsFlat dom (Ctor x as) cs =
       (\ j l -> vector (mkrow (tensorIdRow j l)))
       (map dom as) 0 1
 
--- Identity matrix
-getCtorEqWeights :: Int {- num of possible values -} -> Weights
-getCtorEqWeights cs = tensorId [cs]
+{- getIdWeights n
 
--- Computes the weights for the &-product of a list of types (rather, their domains)
+   -  n: number of possible values
+
+   Returns: the nxn identity matrix -}
+      
+getIdWeights :: Int  -> Weights
+getIdWeights n = tensorId [n]
+
+{- getAmpWeights tpvs
+
+   Computes the weights for the additive product of a list of domains.
+
+   - tpvs: the list of domains
+
+   Returns: If tp = <tp1, ..., tpn>, a list of weights [w1, ..., wn] where
+   wi[x, <_, ..., x, ..., _>] = 1. -}
+
 getAmpWeights :: [[Value]] -> [Weights]
 getAmpWeights tpvs =
   [Vector
@@ -148,22 +148,28 @@ getAmpWeights tpvs =
       (\ (j, vs) ->
           [Vector [Scalar (if l == k && i == j then 1 else 0) | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs]) (enumerate tpvs)) | (i, itpvs) <- enumerate tpvs]
 
--- Computes the weights for the *-product of a list of types (rather, their domains)
-getProdWeights :: [[Value]] -> [([Value], Weights)]
-getProdWeights tpvs =
-  [([a | (_, _, a) <- as'],
-    let (out, pos) = foldr (\ (i, o, _) (l, j) -> (l * o, l * i + j)) (1, 0) as' in
-      foldr (\ (i, o, a) ws ->
-               Vector [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]])
-        (vector (tensorIdRow pos out)) as')
-  | as' <- kronpos tpvs]
+{- getProdWeightsV tpvs
 
--- Returns the weights tensor for when the individual elements
--- in a product equal the entire product (see tensorId for more info)
+   Computes the weights for the multiplicative product of a list of domains.
+
+   - tpvs: the list of domains
+
+   If tp = (tp1, ..., tpn), returns the tensor w[x1, ..., xn, (x1, ..., xn)] = 1. -}
+  
 getProdWeightsV :: [[Value]] -> Weights
 getProdWeightsV tpvs = tensorId [length vs | vs <- tpvs]
 
--- Returns the weights for (tm1 == tm2 == ... == tmn)
+{- getEqWeights s n
+
+   Returns the weights for (tm1 == tm2 == ... == tmn)
+
+   - s: the size of the domains of the terms
+   - n: the number of terms
+
+   Returns: s x   ....   x s x 2 tensor
+            |<- n copies ->|
+ -}
+
 getEqWeights :: Int -> Int -> Weights
 getEqWeights dom ntms =
   foldr

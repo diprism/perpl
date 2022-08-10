@@ -10,7 +10,6 @@ import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtDefLocal, ctxtLookupTyp
 import Scope.Name
 import Scope.Subst (FreeVars, freeVars)
 
-
 newNodeNames :: [a] -> [(NodeName, a)]
 newNodeNames as = [(NnInternal j, atp) | (j, atp) <- enumerate as]
 
@@ -145,8 +144,7 @@ addProdFactors :: Ctxt -> [Type] -> RuleM
 addProdFactors g tps =
   let tpvs = [domainValues g tp | tp <- tps] in
     type2fgg g (TpProd Multiplicative tps) +>
-    addFactor (ElTerminal (prodFactorName tps)) (getProdWeightsV tpvs) +>
-    foldr (\ (as', w) r -> r +> addFactor (ElTerminal (prodFactorName' [a | Value a <- as'])) w) returnRule (getProdWeights tpvs)
+    addFactor (ElTerminal (prodFactorName tps)) (getProdWeightsV tpvs)
 
 -- Adds factor for v=(tp -> tp')
 addPairFactor :: Ctxt -> Type -> Type -> RuleM
@@ -324,7 +322,7 @@ term2fgg g (TmEqs tms) =
 
 type2fgg :: Ctxt -> Type -> RuleM
 type2fgg g tp =
-  addFactor (ElTerminal (typeFactorName tp)) (getCtorEqWeights (domainSize g tp)) +>
+  addFactor (ElTerminal (typeFactorName tp)) (getIdWeights (domainSize g tp)) +>
   type2fgg' g tp
   where
     type2fgg' :: Ctxt -> Type -> RuleM
@@ -354,9 +352,6 @@ prog2fgg g (ProgExtern x ps tp) =
     type2fgg g tp' +>
     addIncompleteFactor (ElNonterminal (TmVarG DefVar x [] [] [] tp'))
 prog2fgg g (ProgData y cs) =
-  -- Add constructor factors
-  foldr (\ (fac, ws) rm -> addFactor fac ws +> rm) returnRule
-    (getCtorWeightsAll (domainValues g) cs (TpData y [] [])) +>
   -- Add constructor rules
   foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) (TpData y [] []) cs) returnRule cs +>
   type2fgg g (TpData y [] [])

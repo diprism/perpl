@@ -13,6 +13,7 @@ import Util.JSON
 
 type Domain = [Value]
 newtype Value = Value String
+  deriving Show
 type Factor = (EdgeLabel, Maybe Weights) -- TODO: move this to RuleM
 type Weight = Double
 type Weights = Tensor Weight
