@@ -33,7 +33,7 @@ paramsToExternals ps = [(NodeName x, tp) | (x, tp) <- ps]
 varRule :: Var -> Type -> RuleM
 varRule x tp =
   let [v0, v1] = newNodeNames [tp, tp] in
-    mkRule (TmVarL x tp) [v0, v1] [Edge' [v0, v1] (EdgeLabel (typeFactorName tp))] [v0, v1]
+    mkRule (TmVarL x tp) [v0, v1] [Edge [v0, v1] (EdgeLabel (typeFactorName tp))] [v0, v1]
 
 {- bindExts xs' rm
 
@@ -69,13 +69,13 @@ Creates a rule.
 - es:  the right-hand side edges
 - xs:  the external node ids and labels -}
 
-mkRule :: Term -> [(NodeName, Type)] -> [Edge' Type] -> [External] -> RuleM
+mkRule :: Term -> [(NodeName, Type)] -> [Edge Type] -> [External] -> RuleM
 mkRule = mkRuleReps 1
 
 -- Creates this rule `reps` times
-mkRuleReps :: Int -> Term -> [(NodeName, Type)] -> [Edge' Type] -> [External] -> RuleM
+mkRuleReps :: Int -> Term -> [(NodeName, Type)] -> [Edge Type] -> [External] -> RuleM
 mkRuleReps reps lhs ns es xs =
-  addRule reps (Rule (nonterminalLabel lhs) (HGF' (nub ns) es (nub xs)))
+  addRule reps (Rule (nonterminalLabel lhs) (HGF (nub ns) es (nub xs)))
 
 
 -- Add rule for a constructor
@@ -88,7 +88,7 @@ ctorRules g (Ctor x as) y cs =
     foldr (\ tp r -> type2fgg g tp +> r) returnRule as +>
     let [vy] = newNodeNames [y]
         as'' = paramsToExternals as' in
-      mkRule tm (vy : as'') [Edge' (as'' ++ [vy]) fac] (as'' ++ [vy])
+      mkRule tm (vy : as'') [Edge (as'' ++ [vy]) fac] (as'' ++ [vy])
 
 -- Add a rule for this particular case in a case-of statement
 caseRule :: Ctxt -> FreeVars -> [External] -> Term -> Var -> [Case] -> Type -> Case -> RuleM
@@ -103,9 +103,9 @@ caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
   in
     mkRule (TmCase ctm (y, [], []) cs tp)
       (vctp : vtp : xs_xtm_as ++ as' ++ xs_ctm ++ all_xs ++ unused_ps)
-      [Edge' (xs_ctm ++ [vctp]) (nonterminalLabel ctm),
-       Edge' (xs_xtm_as ++ [vtp]) (nonterminalLabel xtm),
-       Edge' (as' ++ [vctp]) fac]
+      [Edge (xs_ctm ++ [vctp]) (nonterminalLabel ctm),
+       Edge (xs_xtm_as ++ [vtp]) (nonterminalLabel xtm),
+       Edge (as' ++ [vctp]) fac]
       (xs_ctm ++ all_xs ++ [vtp])
 
 -- Adds rule for the i-th term in an amb tm1 tm2 ... tmn
@@ -117,7 +117,7 @@ ambRule g all_fvs tms tp tm reps =
       [vtp] = newNodeNames [tp]
   in
     mkRuleReps reps (TmAmb tms tp) (vtp : tmxs ++ all_xs ++ unused_tms)
-      [Edge' (tmxs ++ [vtp]) (nonterminalLabel tm)]
+      [Edge (tmxs ++ [vtp]) (nonterminalLabel tm)]
       (all_xs ++ [vtp])
 
 -- Adds rule for the i-th component of an &-product
@@ -130,8 +130,8 @@ ampRule g all_fvs as i tm tp =
       [vamp, vtp] = newNodeNames [TpProd Additive tps, tp]
   in
     mkRule (TmProd Additive as) (vamp : vtp : tmxs ++ all_xs ++ unused_tms)
-      [Edge' (tmxs ++ [vtp]) (nonterminalLabel tm),
-       Edge' [vamp, vtp] (EdgeLabel (ampFactorName tps i))]
+      [Edge (tmxs ++ [vtp]) (nonterminalLabel tm),
+       Edge [vamp, vtp] (EdgeLabel (ampFactorName tps i))]
       (all_xs ++ [vamp])
 
 -- Adds factors for the &-product of tps
@@ -176,8 +176,8 @@ term2fgg g (TmVarG gv x [] [] as y) =
                       DefVar -> EdgeLabel x
   in
     mkRule (TmVarG gv x [] [] as y) (vy : ps ++ concat xss)
-      (Edge' (ps ++ [vy]) el :
-        [Edge' (xs ++ [vtp]) (nonterminalLabel atm) | (xs, (atm, atp), vtp) <- zip3 xss as ps])
+      (Edge (ps ++ [vy]) el :
+        [Edge (xs ++ [vtp]) (nonterminalLabel atm) | (xs, (atm, atp), vtp) <- zip3 xss as ps])
       (concat xss ++ [vy])
 
 term2fgg _ (TmVarG _ _ _ _ _ _) = error "Cannot compile polymorphic code"
@@ -190,8 +190,8 @@ term2fgg g (TmLam x tp tm tp') =
      let [vtp', varr] = newNodeNames [tp', TpArr tp tp']
          vtp = (NodeName x, tp) in
        mkRule (TmLam x tp tm tp') (vtp : vtp' : varr : tmxs)
-         [Edge' (tmxs ++ [vtp']) (nonterminalLabel tm),
-          Edge' [vtp, vtp', varr] (EdgeLabel (pairFactorName tp tp'))]
+         [Edge (tmxs ++ [vtp']) (nonterminalLabel tm),
+          Edge [vtp, vtp', varr] (EdgeLabel (pairFactorName tp tp'))]
          (delete vtp tmxs ++ [varr]))
 
 term2fgg g (TmApp tm1 tm2 tp2 tp) =
@@ -201,9 +201,9 @@ term2fgg g (TmApp tm1 tm2 tp2 tp) =
       [vtp2, vtp, varr] = newNodeNames [tp2, tp, TpArr tp2 tp] in
     addPairFactor g tp2 tp +>
     mkRule (TmApp tm1 tm2 tp2 tp) (vtp2 : vtp : varr : xs1 ++ xs2)
-      [Edge' (xs2 ++ [vtp2]) (nonterminalLabel tm2),
-       Edge' (xs1 ++ [varr]) (nonterminalLabel tm1),
-       Edge' [vtp2, vtp, varr] fac]
+      [Edge (xs2 ++ [vtp2]) (nonterminalLabel tm2),
+       Edge (xs1 ++ [varr]) (nonterminalLabel tm1),
+       Edge [vtp2, vtp, varr] fac]
       (xs1 ++ xs2 ++ [vtp])    
 
 term2fgg g (TmCase tm (y, [], []) cs tp) =
@@ -226,8 +226,8 @@ term2fgg g (TmFactor wt tm tp) =
       el = EdgeLabel ("factor " ++ show wt) in
   addFactor el (Scalar wt) +>
   mkRule (TmFactor wt tm tp) (vtp : xs)
-    [Edge' [] el,
-     Edge' (xs ++ [vtp]) (nonterminalLabel tm)]
+    [Edge [] el,
+     Edge (xs ++ [vtp]) (nonterminalLabel tm)]
     (xs ++ [vtp])
   
 term2fgg g (TmLet x xtm xtp tm tp) =
@@ -237,8 +237,8 @@ term2fgg g (TmLet x xtm xtp tm tp) =
   let vxtp = (NodeName x, xtp)
       [vtp] = newNodeNames [tp] in -- TODO: if unused?
     mkRule (TmLet x xtm xtp tm tp) (vxtp : vtp : xtmxs ++ tmxs)
-      [Edge' (xtmxs ++ [vxtp]) (nonterminalLabel xtm),
-       Edge' (tmxs ++ [vtp]) (nonterminalLabel tm)]
+      [Edge (xtmxs ++ [vxtp]) (nonterminalLabel xtm),
+       Edge (tmxs ++ [vtp]) (nonterminalLabel tm)]
       (xtmxs ++ delete vxtp tmxs ++ [vtp])
 
 term2fgg g (TmProd Additive as) =
@@ -258,8 +258,8 @@ term2fgg g (TmProd am@Multiplicative as) =
   in
     addProdFactors g tps +>
     mkRule (TmProd am as) (vptp : vtps ++ concat xss)
-      (Edge' (vtps ++ [vptp]) (EdgeLabel (prodFactorName (snds as))) :
-        [Edge' (tmxs ++ [vtp]) (nonterminalLabel atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
+      (Edge (vtps ++ [vptp]) (EdgeLabel (prodFactorName (snds as))) :
+        [Edge (tmxs ++ [vtp]) (nonterminalLabel atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
       (concat xss ++ [vptp])
 
 term2fgg g (TmElimProd Additive ptm ps tm tp) =
@@ -276,9 +276,9 @@ term2fgg g (TmElimProd Additive ptm ps tm tp) =
       addAmpFactors g tps +>
       mkRule (TmElimProd Additive ptm ps tm tp)
         (vtp : vptp : (x', xtp) : tmxs ++ ptmxs)
-        [Edge' (ptmxs ++ [vptp]) (nonterminalLabel ptm),
-         Edge' (tmxs ++ [vtp]) (nonterminalLabel tm),
-         Edge' [vptp, (x', xtp)] (EdgeLabel (ampFactorName tps o))]
+        [Edge (ptmxs ++ [vptp]) (nonterminalLabel ptm),
+         Edge (tmxs ++ [vtp]) (nonterminalLabel tm),
+         Edge [vptp, (x', xtp)] (EdgeLabel (ampFactorName tps o))]
         (ptmxs ++ delete (x', xtp) tmxs ++ [vtp])
 
 term2fgg g (TmElimProd Multiplicative ptm ps tm tp) =
@@ -294,9 +294,9 @@ term2fgg g (TmElimProd Multiplicative ptm ps tm tp) =
     addProdFactors g tps +>
     mkRule (TmElimProd Multiplicative ptm ps tm tp)
       (vtp : vptp : ps' ++ unused_ps ++ tmxs ++ ptmxs)
-      [Edge' (ptmxs ++ [vptp]) (nonterminalLabel ptm),
-       Edge' (ps' ++ [vptp]) (EdgeLabel (prodFactorName tps)),
-       Edge' (tmxs ++ [vtp]) (nonterminalLabel tm)]
+      [Edge (ptmxs ++ [vptp]) (nonterminalLabel ptm),
+       Edge (ps' ++ [vptp]) (EdgeLabel (prodFactorName tps)),
+       Edge (tmxs ++ [vtp]) (nonterminalLabel tm)]
          (ptmxs ++ foldr delete tmxs ps' ++ [vtp])
 
 term2fgg g (TmEqs tms) =
@@ -308,7 +308,7 @@ term2fgg g (TmEqs tms) =
     addFactor fac (getEqWeights (domainSize g tmstp) ntms) +>
     mkRule (TmEqs tms)
       (vbtp : vtps ++ concat xss)
-      (Edge' (vtps ++ [vbtp]) fac : [Edge' (xs ++ [vtp]) (nonterminalLabel tm) | (tm, vtp, xs) <- zip3 tms vtps xss])
+      (Edge (vtps ++ [vbtp]) fac : [Edge (xs ++ [vtp]) (nonterminalLabel tm) | (tm, vtp, xs) <- zip3 tms vtps xss])
       (concat xss ++ [vbtp])
 
 -- Adds factors for each subexpression in a type
@@ -335,7 +335,7 @@ prog2fgg g (ProgFun x ps tm tp) =
       [vtp] = newNodeNames [tp]
   in
     mkRule (TmVarG DefVar x [] [] [] tp) (vtp : tmxs ++ ps' ++ unused_ps)
-      (Edge' (tmxs ++ [vtp]) (nonterminalLabel tm) : [])
+      (Edge (tmxs ++ [vtp]) (nonterminalLabel tm) : [])
       (ps' ++ [vtp])
 prog2fgg g (ProgExtern x ps tp) =
   let tp' = (joinArrows ps tp) in

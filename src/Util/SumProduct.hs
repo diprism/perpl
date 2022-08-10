@@ -16,7 +16,7 @@ multiTensorDistance mt1 mt2 =
 
 nonterminalGraph :: FGG -> Map EdgeLabel (Set EdgeLabel)
 nonterminalGraph fgg = foldr (\ (Rule lhs rhs) g -> Map.insertWith Set.union lhs (nts rhs) g) (fmap (const mempty) (nonterminals fgg)) (repRules fgg)
-  where nts rhs = Set.fromList [edge_label' e | e <- hgf_edges' rhs, edge_label' e `Map.member` nonterminals fgg]
+  where nts rhs = Set.fromList [edge_label e | e <- hgf_edges rhs, edge_label e `Map.member` nonterminals fgg]
 
 sumProduct :: FGG -> Tensor Weight
 sumProduct fgg =
@@ -54,30 +54,33 @@ step fgg nts z =
 
     stepNonterminal :: EdgeLabel -> Tensor Weight
     stepNonterminal x =
-      foldr tensorAdd (zeros (nonterminalShape fgg x)) [stepRHS (castHGF rhs) | Rule lhs rhs <- repRules fgg, lhs == x]
+      foldr tensorAdd (zeros (nonterminalShape fgg x)) [stepRHS rhs | Rule lhs rhs <- repRules fgg, lhs == x]
 
     stepRHS :: HGF NodeLabel -> Tensor Weight
-    stepRHS rhs = h [] nodes
+    stepRHS (HGF nodes edges exts) = h [] nodes'
       where
+        -- Number the nodes of the RHS
+        m = Map.fromList (zip (fsts nodes) [0..])
+        edges' = [[m Map.! n | (n, d) <- atts] | Edge atts el <- edges]
+        exts' = [m Map.! n | (n, d) <- exts]
+        
         -- Permute nodes so that the external nodes come first, in the
-        -- order that they are listed in hgf_exts rhs
-        perm = (hgf_exts rhs) ++ [i | i <- [0..length (hgf_nodes rhs)-1],
-                                   not (i `elem` (hgf_exts rhs))]
+        -- order that they are listed in rhs
+        perm = exts' ++ [i | i <- [0..length nodes-1], not (i `elem` exts')]
         unperm = [i | (i, pi) <- sortOn (\(i, pi) -> pi) (enumerate perm)]
-        nodes = fmap (hgf_nodes rhs !!) perm
+        nodes' = fmap (nodes !!) perm
 
-        edge_wts = fmap (edgeWeights . edge_label) (hgf_edges rhs)
+        edge_wts = [edgeWeights el | Edge atts el <- edges]
 
-        -- h asst nodes is_ext
+        -- h asst nodes
         -- asst is assignment to processed nodes, *reversed*
         -- nodes is remaining nodes
-        h asst (node:nodes) =
+        h asst ((_, d):nodes) =
           let
-            Node _ d = node
             size = length (domains fgg Map.! d)
             sub = [h (i:asst) nodes | i <- [0..size-1]]
           in
-            if length asst < length (hgf_exts rhs) then
+            if length asst < length exts' then
               Vector sub -- external: don't contract
             else
               foldr tensorAdd (Scalar 0.0) sub -- internal: contract
@@ -86,7 +89,7 @@ step fgg nts z =
           let
             asst_rev = reverse asst
             asst_unperm = fmap (asst_rev !!) unperm
-            edge_assts = [(fmap (asst_unperm !!) (edge_atts e)) | e <- hgf_edges rhs]
+            edge_assts = fmap (fmap (asst_unperm !!)) edges'
           in
             foldr tensorTimes (Scalar 1.0) [w !!! (fmap SliceIndex asst) | (w, asst) <- zip edge_wts edge_assts]
 
