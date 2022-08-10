@@ -318,7 +318,10 @@ term2fgg g (TmEqs tms) =
       (Edge (vtps ++ [vbtp]) fac : [Edge (xs ++ [vtp]) (ElNonterminal tm) | (tm, vtp, xs) <- zip3 tms vtps xss])
       (concat xss ++ [vbtp])
 
--- Adds factors for each subexpression in a type
+{- type2fgg g tp
+
+   Adds factors for each subexpression in a type. -}
+
 type2fgg :: Ctxt -> Type -> RuleM
 type2fgg g tp =
   addFactor (ElTerminal (typeFactorName tp)) (getCtorEqWeights (domainSize g tp)) +>
@@ -330,8 +333,10 @@ type2fgg g tp =
     type2fgg' g (TpProd am tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
     type2fgg' g tp = error ("Compiling a " ++ show tp ++ " to FGG rule")
 
+{- prog2fgg g prog
 
--- Adds the rules for a Prog
+   Adds the rules for a Prog. -}
+    
 prog2fgg :: Ctxt -> Prog -> RuleM
 prog2fgg g (ProgFun x ps tm tp) = let tp' = joinArrows (snds ps) tp in
   type2fgg g tp' +>= \ _ ->
@@ -361,8 +366,12 @@ progs2fgg :: Ctxt -> Progs -> RuleM
 progs2fgg g (Progs ps tm) =
   foldr (\ p rm -> rm +> prog2fgg g p) (term2fgg g tm) ps
   
+{- domainValues g tp
 
--- Computes a list of all the possible inhabitants of a type
+   Computes a list of all the possible inhabitants of a type. -}
+
+-- TODO: Instead list out the inhabitants as Terms, then show them
+
 domainValues :: Ctxt -> Type -> [Value]
 domainValues g tp = Value <$> domainValues' g tp
 
@@ -392,7 +401,10 @@ domainValues' g = tpVals where
 domainSize :: Ctxt -> Type -> Int
 domainSize g = length . domainValues g
 
--- Converts an elaborated program into an FGG
+{- compileFile progs
+
+   Converts an elaborated program into an FGG (or returns an error). -}
+
 compileFile :: Progs -> Either String FGG
 compileFile ps =
   let g = ctxtDefProgs ps

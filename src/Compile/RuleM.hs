@@ -86,6 +86,7 @@ resetExts (RuleM rs xs nts fs) = RuleM rs [] nts fs
 setExts :: [External] -> RuleM -> RuleM
 setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
 
+{--- Functions for computing Weights for terminal-labeled Edges ---}
 
 -- Returns the Weights for a function tp1 -> tp2
 getPairWeights :: Int -> Int -> Weights

@@ -1,4 +1,7 @@
-{- FGG datatype code -}
+{- A minimalist implementation of factor graph grammars (FGGs), which
+   are the main target of the compiler. For more information about
+   FGGs, see: David Chiang and Darcey Riley. Factor graph grammars. In
+   Proc. NeurIPS, 6648–6658. 2020. -}
 
 module Util.FGG where
 import qualified Data.Map as Map
@@ -8,16 +11,15 @@ import Util.Helpers
 import Util.Tensor
 import Util.JSON
 
--- Should the compiler make sure there aren't conflicting nonterminal domains?
--- This is only really a sanity check, and can be turned on/off as pleased
--- (though for the sake of efficiency, perhaps better off for stable releases)
-checkDomsEq = True
-
-type Domain = [Value] -- list of values for some type
+type Domain = [Value]
 newtype Value = Value String
 type Factor = (EdgeLabel, Maybe Weights)
 type Weight = Double
 type Weights = Tensor Weight
+
+{- Every node in an FGG has a NodeName, which is unique within its
+   Rule. Nodes are either internal or external, and we use different
+   NodeNames for the two kinds of nodes. -}
 
 data NodeName =
     NnOut           -- external node holding the value of an expression
@@ -29,7 +31,27 @@ instance Show NodeName where
   show (NnVar v) = v
   show (NnInternal i) = "*" ++ show i ++ "*"
   
+{- Every node in an FGG has a NodeLabel, which determines a set, called
+   a Domain, of possible Values that the node can have. For our
+   purposes, a NodeLabel is always a Type, and the corresponding
+   Domain is the set of String representations of all the inhabitants
+   of that Type. -}
+
 type NodeLabel = Type
+
+{- Every Edge (really, a hyperedge) in an FGG has an EdgeLabel, which is
+   either terminal or nonterminal.
+
+   - Both terminals and nonterminals determine a list of NodeLabels of
+     the attachment nodes. In the FGG literature, this list is called
+     a "type," which we always write in scare quotes here.
+
+   - Terminals determine a function, called a factor, from the
+     attachment nodes' Values to a Weight; here, this function is
+     represented as a Tensor.
+
+   - Edges labeled with nonterminals can be rewritten using
+     Rules. Here, nonterminal labels always correspond to Terms. -}
 
 data EdgeLabel = ElNonterminal Term | ElTerminal String
   deriving (Eq, Ord)
@@ -44,7 +66,7 @@ data HGF = HGF { hgf_nodes :: [(NodeName, NodeLabel)], hgf_edges :: [Edge], hgf_
 data Rule = Rule EdgeLabel HGF
   deriving Eq
 data FGG = FGG {
-  domains :: Map NodeLabel Domain,                       -- node label to values
+  domains :: Map NodeLabel Domain,                       -- node label to set of values
   factors :: Map EdgeLabel ([NodeLabel], Maybe Weights), -- edge label to att node labels, weights
   nonterminals :: Map EdgeLabel [NodeLabel],             -- nt name to attachment node labels
   start :: EdgeLabel,                                    -- start nt
@@ -144,7 +166,7 @@ rulesToFGG dom start rs nts facs =
     
     ds  = foldr (\ d m -> Map.insert d (dom d) m) Map.empty nls
 
-    domsEq = \ x d1 d2 -> if not checkDomsEq || d1 == d2 then d1 else error
+    domsEq = \ x d1 d2 -> if d1 == d2 then d1 else error
       ("Conflicting types for nonterminal " ++ show x ++ ": " ++
         show d1 ++ " versus " ++ show d2)
 
