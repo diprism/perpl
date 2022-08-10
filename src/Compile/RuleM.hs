@@ -99,7 +99,7 @@ getExternWeights dom ps tp =
 -- Computes the weights for a list of constructors
 getCtorWeightsAll :: (Type -> [Value]) -> [Ctor] -> Type -> [(EdgeLabel, Weights)]
 getCtorWeightsAll dom cs y =
-  concat [[(EdgeLabel $ ctorFactorName x [(TmVarL x atp, atp) | (Value x, atp) <- zip as' as] y, ws)
+  concat [[(ElTerminal $ ctorFactorName x [(TmVarL x atp, atp) | (Value x, atp) <- zip as' as] y, ws)
           | (as', ws) <- getCtorWeights dom (Ctor x as) cs]
          | Ctor x as <- cs]
 

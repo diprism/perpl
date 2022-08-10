@@ -3,6 +3,7 @@
 module Util.FGG where
 import qualified Data.Map as Map
 import Data.List
+import Struct.Lib
 import Util.Helpers
 import Util.Tensor
 import Util.JSON
@@ -18,20 +19,26 @@ type Factor = (EdgeLabel, Maybe Weights)
 type Weight = Double
 type Weights = Tensor Weight
 
-newtype NodeName = NodeName String
+data NodeName =
+    NnOut           -- external node holding the value of an expression
+  | NnVar Var       -- external node holding the value of a free variable
+  | NnInternal Int  -- internal node
   deriving (Eq, Ord)
 instance Show NodeName where
-  show (NodeName n) = n
+  show NnOut = "*out*"
+  show (NnVar v) = v
+  show (NnInternal i) = "*" ++ show i ++ "*"
   
 newtype NodeLabel = NodeLabel String
   deriving (Eq, Ord)
 instance Show NodeLabel where
   show (NodeLabel nl) = nl
 
-newtype EdgeLabel = EdgeLabel String
+data EdgeLabel = ElNonterminal Term | ElTerminal String
   deriving (Eq, Ord)
 instance Show EdgeLabel where
-  show (EdgeLabel el) = el
+  show (ElNonterminal tm) = show tm
+  show (ElTerminal s) = s
 
 data Edge d = Edge { edge_atts :: [(NodeName, d)], edge_label :: EdgeLabel }
   deriving Eq
@@ -72,28 +79,28 @@ weights_to_json (Vector ts) = JSarray [weights_to_json v | v <- ts]
    Convert an FGG into a JSON. -}
                               
 fgg_to_json :: FGG -> JSON
-fgg_to_json (FGG ds fs nts (EdgeLabel s) rs) =
+fgg_to_json (FGG ds fs nts s rs) =
   let mapToList = \ ds f -> JSobject $ map f (Map.toList ds) in
   JSobject
     [("grammar", JSobject 
       [("terminals", mapToList fs $
-         \ (EdgeLabel el, (d, mws)) -> (el, JSobject [("type", JSarray $ [JSstring nl | NodeLabel nl <- d])])),
+         \ (el, (d, mws)) -> (show el, JSobject [("type", JSarray $ [JSstring nl | NodeLabel nl <- d])])),
        ("nonterminals", mapToList nts $
-         \ (EdgeLabel el, d) -> (el, JSobject [
+         \ (el, d) -> (show el, JSobject [
            ("type", JSarray [JSstring nl | NodeLabel nl <-  d])
          ])),
-       ("start", JSstring s),
+       ("start", JSstring (show s)),
        ("rules", JSarray $ concat $ flip map (nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs) $
-          \ (reps, Rule (EdgeLabel lhs) (HGF ns es xs)) ->
+          \ (reps, Rule lhs (HGF ns es xs)) ->
             let m = Map.fromList (zip (fsts ns) [0..]) in
             replicate reps $ JSobject [
-             ("lhs", JSstring lhs),
+             ("lhs", JSstring (show lhs)),
              ("rhs", JSobject [
-                 ("nodes", JSarray [JSobject [("label", JSstring d), ("id", JSstring n)] | (NodeName n, NodeLabel d) <- ns]),
+                 ("nodes", JSarray [JSobject [("label", JSstring d), ("id", JSstring (show n))] | (n, NodeLabel d) <- ns]),
                  ("edges", JSarray $ flip map es $
-                   \ (Edge atts (EdgeLabel l)) -> JSobject [
+                   \ (Edge atts el) -> JSobject [
                      ("attachments", JSarray [JSint (m Map.! n) | (n, d) <- atts]),
-                     ("label", JSstring l)
+                     ("label", JSstring (show el))
                    ]),
                  ("externals", JSarray [JSint (m Map.! n) | (n, d) <- xs])
                ])
@@ -108,7 +115,7 @@ fgg_to_json (FGG ds fs nts (EdgeLabel s) rs) =
        ("factors",
           let fs_filtered = Map.mapMaybe (\ (d, mws) -> maybe Nothing (\ ws -> Just (d, ws)) mws) fs in
           mapToList fs_filtered $
-           \ (EdgeLabel el, (d, ws)) -> (el, JSobject [
+           \ (el, (d, ws)) -> (show el, JSobject [
              ("function", JSstring "finite"),
                ("type", JSarray [JSstring nl | NodeLabel nl <- d]),
                ("weights", weights_to_json ws)
