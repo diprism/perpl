@@ -44,7 +44,7 @@ zero fgg nts =
 nonterminalShape :: FGG -> EdgeLabel -> [Int]
 nonterminalShape fgg x = [length ((domains fgg) Map.! nl) | nl <- (nonterminals fgg) Map.! x]
 
-repRules :: FGG -> [Rule NodeLabel]
+repRules :: FGG -> [Rule]
 repRules fgg = concat [ replicate c r | (c, r) <- rules fgg ]
   
 step :: FGG -> [EdgeLabel] -> MultiTensor -> MultiTensor
@@ -56,7 +56,7 @@ step fgg nts z =
     stepNonterminal x =
       foldr tensorAdd (zeros (nonterminalShape fgg x)) [stepRHS rhs | Rule lhs rhs <- repRules fgg, lhs == x]
 
-    stepRHS :: HGF NodeLabel -> Tensor Weight
+    stepRHS :: HGF -> Tensor Weight
     stepRHS (HGF nodes edges exts) = h [] nodes'
       where
         -- Number the nodes of the RHS

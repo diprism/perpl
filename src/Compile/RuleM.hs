@@ -12,12 +12,12 @@ import Scope.Name
 type External = (NodeName, Type)
 type Nonterminal = (EdgeLabel, [Type])
 -- RuleM stores the following:
---   1. [(Int, Rule Type)]: a list of rules and how many times to duplicate them
+--   1. [(Int, Rule)]: a list of rules and how many times to duplicate them
 --                            (so amb True False True => p(True) = **2**, p(False) = 1)
 --   2. [External]: list of external nodes from the expression
 --   3. [Nonterminal]: nonterminal accumulator
 --   4. [Factor]: factor accumulator
-data RuleM = RuleM [(Int, Rule Type)] [External] [Nonterminal] [Factor]
+data RuleM = RuleM [(Int, Rule)] [External] [Nonterminal] [Factor]
 
 -- RuleM instances of >>= and >> (since not
 -- technically a monad, need to pick new names)
@@ -59,11 +59,11 @@ addNonterm :: EdgeLabel -> [Type] -> RuleM
 addNonterm x tps = addNonterms [(x, tps)]
 
 -- Add a list of rules
-addRules :: [(Int, Rule Type)] -> RuleM
+addRules :: [(Int, Rule)] -> RuleM
 addRules rs = RuleM rs [] [] []
 
 -- Add a single rule
-addRule :: Int -> Rule Type -> RuleM
+addRule :: Int -> Rule -> RuleM
 addRule reps r = addRules [(reps, r)]
 
 -- Adds an "incomplete" factor (extern)

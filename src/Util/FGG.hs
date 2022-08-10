@@ -29,10 +29,7 @@ instance Show NodeName where
   show (NnVar v) = v
   show (NnInternal i) = "*" ++ show i ++ "*"
   
-newtype NodeLabel = NodeLabel String
-  deriving (Eq, Ord)
-instance Show NodeLabel where
-  show (NodeLabel nl) = nl
+type NodeLabel = Type
 
 data EdgeLabel = ElNonterminal Term | ElTerminal String
   deriving (Eq, Ord)
@@ -40,27 +37,19 @@ instance Show EdgeLabel where
   show (ElNonterminal tm) = show tm
   show (ElTerminal s) = s
 
-data Edge d = Edge { edge_atts :: [(NodeName, d)], edge_label :: EdgeLabel }
+data Edge = Edge { edge_atts :: [(NodeName, NodeLabel)], edge_label :: EdgeLabel }
   deriving Eq
-data HGF d = HGF { hgf_nodes :: [(NodeName, d)], hgf_edges :: [Edge d], hgf_exts :: [(NodeName, d)] }
+data HGF = HGF { hgf_nodes :: [(NodeName, NodeLabel)], hgf_edges :: [Edge], hgf_exts :: [(NodeName, NodeLabel)] }
   deriving Eq
-data Rule d = Rule EdgeLabel (HGF d)
+data Rule = Rule EdgeLabel HGF
   deriving Eq
 data FGG = FGG {
   domains :: Map NodeLabel Domain,                       -- node label to values
   factors :: Map EdgeLabel ([NodeLabel], Maybe Weights), -- edge label to att node labels, weights
   nonterminals :: Map EdgeLabel [NodeLabel],             -- nt name to attachment node labels
   start :: EdgeLabel,                                    -- start nt
-  rules :: [(Int, Rule NodeLabel)]                       -- [(reps, rule)]: reps keeps track of duplicate rules that should not be deduplicated
+  rules :: [(Int, Rule)]                                 -- [(reps, rule)]: reps keeps track of duplicate rules that should not be deduplicated
 }
-
-instance Functor Edge where
-  fmap f (Edge ns l) = Edge [fmap f n | n <- ns] l
-instance Functor HGF where
-  fmap f (HGF ns es xs) =
-    HGF [fmap f n | n <- ns] [fmap f e | e <- es] [fmap f x | x <- xs]
-instance Functor Rule where
-  fmap f (Rule l hgf) = Rule l (fmap f hgf)
 
 -- Take the union of two lists of factors
 unionFactors :: [Factor] -> [Factor] -> [Factor]
@@ -84,10 +73,10 @@ fgg_to_json (FGG ds fs nts s rs) =
   JSobject
     [("grammar", JSobject 
       [("terminals", mapToList fs $
-         \ (el, (d, mws)) -> (show el, JSobject [("type", JSarray $ [JSstring nl | NodeLabel nl <- d])])),
+         \ (el, (d, mws)) -> (show el, JSobject [("type", JSarray [JSstring (show nl) | nl <- d])])),
        ("nonterminals", mapToList nts $
          \ (el, d) -> (show el, JSobject [
-           ("type", JSarray [JSstring nl | NodeLabel nl <-  d])
+           ("type", JSarray [JSstring (show nl) | nl <- d])
          ])),
        ("start", JSstring (show s)),
        ("rules", JSarray $ concat $ flip map (nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs) $
@@ -96,7 +85,7 @@ fgg_to_json (FGG ds fs nts s rs) =
             replicate reps $ JSobject [
              ("lhs", JSstring (show lhs)),
              ("rhs", JSobject [
-                 ("nodes", JSarray [JSobject [("label", JSstring d), ("id", JSstring (show n))] | (n, NodeLabel d) <- ns]),
+                 ("nodes", JSarray [JSobject [("label", JSstring (show d)), ("id", JSstring (show n))] | (n, d) <- ns]),
                  ("edges", JSarray $ flip map es $
                    \ (Edge atts el) -> JSobject [
                      ("attachments", JSarray [JSint (m Map.! n) | (n, d) <- atts]),
@@ -108,7 +97,7 @@ fgg_to_json (FGG ds fs nts s rs) =
       ]),
     ("interpretation", JSobject [
        ("domains", mapToList ds $
-         \ (NodeLabel nl, dom) -> (nl, JSobject [
+         \ (nl, dom) -> (show nl, JSobject [
            ("class", JSstring "finite"),
            ("values", JSarray $ [JSstring v | Value v <- dom])
          ])),
@@ -117,7 +106,7 @@ fgg_to_json (FGG ds fs nts s rs) =
           mapToList fs_filtered $
            \ (el, (d, ws)) -> (show el, JSobject [
              ("function", JSstring "finite"),
-               ("type", JSarray [JSstring nl | NodeLabel nl <- d]),
+               ("type", JSarray [JSstring (show nl) | nl <- d]),
                ("weights", weights_to_json ws)
              ]))
         ])
@@ -143,29 +132,29 @@ emptyFGG s = FGG Map.empty Map.empty Map.empty s []
    - nts: list of nonterminal EdgeLabels and their "types"
    - facs: list of factors -}
              
-rulesToFGG :: Show d => Eq d => (d -> Domain) -> EdgeLabel -> [(Int, Rule d)] -> [(EdgeLabel, [d])] -> [Factor] -> FGG
+rulesToFGG :: (NodeLabel -> Domain) -> EdgeLabel -> [(Int, Rule)] -> [(EdgeLabel, [NodeLabel])] -> [Factor] -> FGG
 rulesToFGG dom start rs nts facs =
   FGG ds fs nts' start rsdom
   where
     rs' = nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs
     rs'' = [r | (_, r) <- rs']
-    rsdom = [(i, fmap (NodeLabel . show) r) | (i, r) <- rs']
+    rsdom = [(i, r) | (i, r) <- rs']
 
     nls = concat (map (\ (Rule lhs (HGF ns es xs)) -> snds ns) rs'') ++
           concat (snds nts)
     
-    ds  = foldr (\ d m -> Map.insert (NodeLabel (show d)) (dom d) m) Map.empty nls
+    ds  = foldr (\ d m -> Map.insert d (dom d) m) Map.empty nls
 
     domsEq = \ x d1 d2 -> if not checkDomsEq || d1 == d2 then d1 else error
       ("Conflicting types for nonterminal " ++ show x ++ ": " ++
         show d1 ++ " versus " ++ show d2)
 
     -- Nonterminals that were added directly by addNonterm(s)
-    nts'' = fmap (fmap (NodeLabel . show)) (Map.fromList nts)
+    nts'' = Map.fromList nts
 
     -- Nonterminals from left-hand sides of rules get their "type" from the external nodes
     nts' = foldr (\ (Rule lhs (HGF ns _ xs)) ->
-                    Map.insertWith (domsEq lhs) lhs [NodeLabel (show d) | (n, d) <- xs]) nts'' rs''
+                    Map.insertWith (domsEq lhs) lhs (snds xs)) nts'' rs''
 
     getFac = \ l lhs -> maybe (error ("In the rule " ++ show lhs ++ ", no factor named " ++ show l))
                       id $ lookup l facs
@@ -173,6 +162,6 @@ rulesToFGG dom start rs nts facs =
     fs  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
                    foldr (\ (Edge atts l) ->
                              if Map.member l nts' then id else
-                               Map.insert l ([NodeLabel (show d) | (n, d) <- atts], getFac l lhs))
+                               Map.insert l (snds atts, getFac l lhs))
                          m es)
                 Map.empty rs''

@@ -65,11 +65,11 @@ Creates a rule.
 - es:  the right-hand side edges
 - xs:  the external node ids and labels -}
 
-mkRule :: Term -> [(NodeName, Type)] -> [Edge Type] -> [External] -> RuleM
+mkRule :: Term -> [(NodeName, Type)] -> [Edge] -> [External] -> RuleM
 mkRule = mkRuleReps 1
 
 -- Creates this rule `reps` times
-mkRuleReps :: Int -> Term -> [(NodeName, Type)] -> [Edge Type] -> [External] -> RuleM
+mkRuleReps :: Int -> Term -> [(NodeName, Type)] -> [Edge] -> [External] -> RuleM
 mkRuleReps reps lhs ns es xs =
   addRule reps (Rule (ElNonterminal lhs) (HGF (nub ns) es (nub xs)))
 
