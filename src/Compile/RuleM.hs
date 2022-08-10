@@ -91,15 +91,6 @@ setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
 
 {--- Functions for computing Weights for terminal-labeled Edges ---}
 
-{- getPairWeights tp1s tp2s
-
-   Returns the weights w[x,y,(x,y)] = 1, which is used for function
-   types tp1 -> tp2.  tp1s and tp2s are the sizes of the domains of x1
-   and x2, respectively. -}
-                                 
-getPairWeights :: Int -> Int -> Weights
-getPairWeights tp1s tp2s = tensorId [tp1s, tp2s]
-
 {- getCtorWeightsFlat dom c cs
 
    Computes the weights for a specific constructor.
@@ -148,7 +139,7 @@ getAmpWeights tpvs =
       (\ (j, vs) ->
           [Vector [Scalar (if l == k && i == j then 1 else 0) | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs]) (enumerate tpvs)) | (i, itpvs) <- enumerate tpvs]
 
-{- getProdWeightsV tpvs
+{- getProdWeights tpvs
 
    Computes the weights for the multiplicative product of a list of domains.
 
@@ -156,8 +147,8 @@ getAmpWeights tpvs =
 
    If tp = (tp1, ..., tpn), returns the tensor w[x1, ..., xn, (x1, ..., xn)] = 1. -}
   
-getProdWeightsV :: [[Value]] -> Weights
-getProdWeightsV tpvs = tensorId [length vs | vs <- tpvs]
+getProdWeights :: [[Value]] -> Weights
+getProdWeights tpvs = tensorId [length vs | vs <- tpvs]
 
 {- getEqWeights s n
 

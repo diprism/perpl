@@ -144,11 +144,11 @@ addProdFactors :: Ctxt -> [Type] -> RuleM
 addProdFactors g tps =
   let tpvs = [domainValues g tp | tp <- tps] in
     type2fgg g (TpProd Multiplicative tps) +>
-    addFactor (ElTerminal (prodFactorName tps)) (getProdWeightsV tpvs)
+    addFactor (ElTerminal (prodFactorName tps)) (getProdWeights tpvs)
 
 -- Adds factor for v=(tp -> tp')
 addPairFactor :: Ctxt -> Type -> Type -> RuleM
-addPairFactor g tp tp' = addFactor (ElTerminal (pairFactorName tp tp')) (getPairWeights (domainSize g tp) (domainSize g tp'))
+addPairFactor g tp tp' = addFactor (ElTerminal (pairFactorName tp tp')) (getProdWeights [domainValues g tp, domainValues g tp'])
 
 {- term2fgg g tm
 
