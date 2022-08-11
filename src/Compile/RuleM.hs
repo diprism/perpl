@@ -91,7 +91,7 @@ setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
 
 {--- Functions for computing Weights for terminal-labeled Edges ---}
 
-{- getCtorWeightsFlat dom c cs
+{- getCtorWeights dom c cs
 
    Computes the weights for a specific constructor.
 
@@ -101,18 +101,11 @@ setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
 
    Returns: If c = Ctor x ps, the tensor w[a1, ..., an, Ctor x as] = 1. -}
 
-getCtorWeightsFlat :: (Type -> [Value]) -> Ctor -> [Ctor] -> Weights
-getCtorWeightsFlat dom (Ctor x as) cs =
-  let (cs_before, cs_after) = splitCtorsAt cs x
-      csf = \ cs' -> sum [product (map (length . dom) as') | Ctor x' as' <- cs']
-      cs_b' = csf cs_before
-      cs_a' = csf cs_after
-      mkrow = \ mask -> replicate cs_b' 0 ++ mask ++ replicate cs_a' 0
-  in
-    foldr
-      (\ avs jl2ws j l -> Vector [jl2ws (l * i + j) (l * length avs) | i <- [0..length avs - 1]])
-      (\ j l -> vector (mkrow (tensorIdRow j l)))
-      (map dom as) 0 1
+getCtorWeights :: (Type -> [Value]) -> Ctor -> [Ctor] -> Weights
+getCtorWeights dom (Ctor x as) cs =
+  let shape = map (length . dom)
+      ts = [if x' == x then tensorId (shape as) else zeros (shape as ++ [product (shape as')]) | Ctor x' as' <- cs] in
+    tensorConcat (length as) ts
 
 {- getIdWeights n
 
@@ -120,28 +113,24 @@ getCtorWeightsFlat dom (Ctor x as) cs =
 
    Returns: the nxn identity matrix -}
       
-getIdWeights :: Int  -> Weights
+getIdWeights :: Int -> Weights
 getIdWeights n = tensorId [n]
 
-{- getAmpWeights tpvs
+{- getSumWeights tpvs
 
-   Computes the weights for the additive product of a list of domains.
+   Computes the weights for the direct sum of a list of domains.
 
    - tpvs: the list of domains
 
-   Returns: If tp = <tp1, ..., tpn>, a list of weights [w1, ..., wn] where
-   wi[x, <_, ..., x, ..., _>] = 1. -}
+   Returns: If tp = tp1 + ... + tpn, the tensor w[x, in(i) x] = 1. -}
 
-getAmpWeights :: [[Value]] -> [Weights]
-getAmpWeights tpvs =
-  [Vector
-    (concatMap
-      (\ (j, vs) ->
-          [Vector [Scalar (if l == k && i == j then 1 else 0) | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs]) (enumerate tpvs)) | (i, itpvs) <- enumerate tpvs]
+getSumWeights :: [[Value]] -> Int -> Weights
+getSumWeights tpvs k = let m = length (tpvs !! k) in
+  tensorConcat 1 [if k == k' then tensorId [m] else zeros [m, length d] | (k', d) <- enumerate tpvs]
 
 {- getProdWeights tpvs
 
-   Computes the weights for the multiplicative product of a list of domains.
+   Computes the weights for the tensor product of a list of domains.
 
    - tpvs: the list of domains
 

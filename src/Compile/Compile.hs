@@ -81,7 +81,7 @@ ctorRules g (Ctor x as) y cs =
   let as' = [(etaName x i, a) | (i, a) <- enumerate as]
       tm = TmVarG CtorVar x [] [] [(TmVarL a atp, atp) | (a, atp) <- as'] y
       fac = ElTerminal (ctorFactorName x as y) in
-    addFactor fac (getCtorWeightsFlat (domainValues g) (Ctor x as) cs) +>
+    addFactor fac (getCtorWeights (domainValues g) (Ctor x as) cs) +>
     foldr (\ tp r -> type2fgg g tp +> r) returnRule as +>
     let vy = (NnOut, y)
         as'' = paramsToExternals as' in
@@ -130,14 +130,14 @@ ampRule g all_fvs as i tm tp =
   in
     mkRule (TmProd Additive as) (vamp : vtp : tmxs ++ all_xs ++ unused_tms)
       [Edge (tmxs ++ [vtp]) (ElNonterminal tm),
-       Edge [vamp, vtp] (ElTerminal (ampFactorName tps i))]
+       Edge [vtp, vamp] (ElTerminal (ampFactorName tps i))]
       (all_xs ++ [vamp])
 
 -- Adds factors for the &-product of tps
 addAmpFactors :: Ctxt -> [Type] -> RuleM
 addAmpFactors g tps =
-  let ws = getAmpWeights (map (domainValues g) tps) in
-    foldr (\ (i, w) r -> r +> addFactor (ElTerminal (ampFactorName tps i)) w) returnRule (enumerate ws)
+  let ds = map (domainValues g) tps in
+    foldr (\ (i, tp) r -> r +> addFactor (ElTerminal (ampFactorName tps i)) (getSumWeights ds i)) returnRule (enumerate tps)
 
 -- Adds factors for the *-product of tps
 addProdFactors :: Ctxt -> [Type] -> RuleM
@@ -281,7 +281,7 @@ term2fgg g (TmElimProd Additive ptm ps tm tp) =
         (vtp : vptp : (x', xtp) : tmxs ++ ptmxs)
         [Edge (ptmxs ++ [vptp]) (ElNonterminal ptm),
          Edge (tmxs ++ [vtp]) (ElNonterminal tm),
-         Edge [vptp, (x', xtp)] (ElTerminal (ampFactorName tps o))]
+         Edge [(x', xtp), vptp] (ElTerminal (ampFactorName tps o))]
         (ptmxs ++ delete (x', xtp) tmxs ++ [vtp])
 
 term2fgg g (TmElimProd Multiplicative ptm ps tm tp) =

@@ -1,14 +1,8 @@
 {- Tensor code for FGG factor generation -}
 
 module Util.Tensor where
+import Util.Helpers (pickyZip)
 import Data.List (intercalate)
-
--- Prelude's `zip` doesn't throw an error when the lists
--- have different lengths, dropping from the longer list
-zipUnsafe :: [a] -> [b] -> [(a, b)]
-zipUnsafe [] [] = []
-zipUnsafe (a : as) (b : bs) = (a, b) : zipUnsafe as bs
-zipUnsafe _ _ = error "zipping lists of different lengths"
 
 -- Tensor can either be a Scalar or a Vector of more Tensors
 data Tensor a = Scalar a | Vector [Tensor a]
@@ -26,7 +20,7 @@ instance Applicative Tensor where
   pure = Scalar
   Scalar f <*> Scalar a = Scalar (f a)
   Scalar f <*> Vector ta = Vector [Scalar f <*> v | v <- ta]
-  Vector tf <*> Vector ta = Vector [vf <*> va | (vf, va) <- zipUnsafe tf ta]
+  Vector tf <*> Vector ta = Vector [vf <*> va | (vf, va) <- pickyZip tf ta]
   Vector tf <*> Scalar a = Vector [vf <*> Scalar a | vf <- tf]
 
 instance Monad Tensor where
@@ -78,6 +72,14 @@ tensorTimes ta tb = pure (*) <*> ta <*> tb
 tensorFlatten :: Tensor a -> [a]
 tensorFlatten (Scalar a) = [a]
 tensorFlatten (Vector ts) = concat (fmap tensorFlatten ts)
+
+tensorConcat2 :: Int -> Tensor a -> Tensor a -> Tensor a
+tensorConcat2 0 (Vector tas) (Vector tbs) = Vector (tas ++ tbs)
+tensorConcat2 n (Vector tas) (Vector tbs) = Vector (map (uncurry (tensorConcat2 (n-1))) (pickyZip tas tbs))
+tensorConcat2 _ _ _ = error "invalid input shapes"
+
+tensorConcat :: Int -> [Tensor a] -> Tensor a
+tensorConcat ax ts = foldr1 (tensorConcat2 ax) ts
 
 vector :: [a] -> Tensor a
 vector = Vector . map Scalar
