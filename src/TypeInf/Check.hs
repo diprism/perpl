@@ -80,10 +80,10 @@ instance Substitutable Constraint where
 type SolveVars = Map Var IsTag
 
 -- Proxy for location, storing the current definition we're inside and the current expression
-data Loc = Loc { curDef :: String, curExpr :: String }
+data Loc = Loc { curDef :: Maybe Var, curExpr :: String }
 
 instance Show Loc where
-  show l = intercalate ", " ((if null (curDef l) then ["somewhere"] else ["in the definition " ++ curDef l]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
+  show l = intercalate ", " ((case curDef l of Nothing -> ["somewhere"]; Just v -> ["in the definition " ++ show v]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
 
 -- Reader part of the RWST monad for inference/checking
 data CheckR = CheckR { checkEnv :: Ctxt, checkLoc :: Loc }
@@ -123,7 +123,7 @@ askLoc = checkLoc <$> ask
 
 -- Modify the current location, storing a as the current def we are in
 localCurDef :: Var -> CheckM b -> CheckM b
-localCurDef (Var a) = local (\ cr -> cr { checkLoc = (checkLoc cr) { curDef = a } })
+localCurDef a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curDef = Just a } })
 
 -- Modify the current location, storing a as the current expr we are in
 localCurExpr :: Show a => a -> CheckM b -> CheckM b

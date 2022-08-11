@@ -47,7 +47,7 @@ unify tp1 tp2
 
 -- For [(x1, y1), (x2, y2), ...], unify x1 and y1, unify x2 and y2, etc.
 unifyTypes' :: [(Type, Type)] -> Either TypeError Subst
-unifyTypes' tps = mapLeft fst $ unifyTypes [(tp1, tp2, Loc { curDef = "", curExpr = ""}) | (tp1, tp2) <- tps]
+unifyTypes' tps = mapLeft fst $ unifyTypes [(tp1, tp2, Loc { curDef = Nothing, curExpr = ""}) | (tp1, tp2) <- tps]
 
 -- For [(x1, y1), (x2, y2), ...], unify x1 and y1, unify x2 and y2, etc.
 unifyTypes :: [(Type, Type, Loc)] -> Either (TypeError, Loc) Subst
@@ -421,5 +421,5 @@ inferFile :: UsProgs -> Either String SProgs
 inferFile ps =
   either (\ (e, loc) -> Left (show e ++ ", " ++ show loc)) (\ (a, s, w) -> Right a)
     (runExcept (runRWST (inferProgs ps)
-                        (CheckR emptyCtxt (Loc "" "")) mempty))
+                        (CheckR emptyCtxt (Loc Nothing "")) mempty))
 
