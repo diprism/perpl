@@ -1,7 +1,6 @@
 module Scope.Name where
 import Data.List (intercalate)
 import Struct.Lib
-import Util.Helpers
 
 {- Naming conventions for internally-generated variables -}
 
@@ -14,26 +13,16 @@ eqFactorName tp n = "[" ++ show n ++ "]" ++ "==" ++ show tp
 pairFactorName tp1 tp2 = "v=(" ++ show (TpArr tp1 tp2) ++ ")"
 
 ampFactorName :: [Type] -> Int -> String
---ampFactorName i tps = "v=" ++ show (TpAmp tps) ++ "." ++ show i
 ampFactorName tps i = "v=<" ++ intercalate ", " [show tp | tp <- tps] ++ ">." ++ show i
 
-prodFactorName' tps = "v=(" ++ intercalate ", " tps ++ ")"
-prodFactorName tps = prodFactorName' (map show tps)
+prodFactorName :: [Type] -> String
+prodFactorName tps = "v=(" ++ intercalate ", " (map show tps) ++ ")" 
 
---prodValName' :: [String] -> String
-prodValName' tms = "(" ++ intercalate ", " tms ++ ")"
---prodValName :: Show x => [x] -> String
-prodValName xs = prodValName' (map show xs)
+prodValName :: [String] -> String
+prodValName tms = "(" ++ intercalate ", " tms ++ ")"
 
-internalFactorName tm = "v=" ++ show tm
-
--- Naming convention for constructor factor
-ctorFactorName :: Var -> [(Term, Type)] -> Type -> String
-ctorFactorName x as tp = internalFactorName (TmVarG CtorVar x [] [] as tp)
-
--- FGG factor name for the default ctor rule
-ctorFactorNameDefault :: Var -> [Type] -> Type -> String
-ctorFactorNameDefault x as = ctorFactorName x [(TmVarL (etaName x i) a, a) | (i, a) <- (enumerate as)]
+ctorFactorName :: Var -> [Type] -> Type -> String
+ctorFactorName x as tp = "v=" ++ show (TmVarG CtorVar x [] [] (paramsToArgs (nameParams x as)) tp)
 
 -- Establishes naming convention for eta-expanding a constructor/global def.
 etaName x i = "_" ++ x ++ show i
