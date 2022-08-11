@@ -80,7 +80,7 @@ ctorRules :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
 ctorRules g (Ctor x as) y cs =
   let as' = [(etaName x i, a) | (i, a) <- enumerate as]
       tm = TmVarG CtorVar x [] [] [(TmVarL a atp, atp) | (a, atp) <- as'] y
-      fac = ElTerminal (ctorFactorNameDefault x as y) in
+      fac = ElTerminal (ctorFactorName x as y) in
     addFactor fac (getCtorWeightsFlat (domainValues g) (Ctor x as) cs) +>
     foldr (\ tp r -> type2fgg g tp +> r) returnRule as +>
     let vy = (NnOut, y)
@@ -96,7 +96,7 @@ caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
       unused_ps = unusedExternals all_xs xs_xtm_as
       [vctp] = newNodeNames [TpData y [] []]
       vtp = (NnOut, tp)
-      fac = ElTerminal (ctorFactorName x (paramsToArgs (nameParams x (snds as))) (TpData y [] []))
+      fac = ElTerminal (ctorFactorName x (snds as) (TpData y [] []))
       as' = paramsToExternals as
   in
     mkRule (TmCase ctm (y, [], []) cs tp)
@@ -171,7 +171,7 @@ term2fgg g (TmVarG gv x [] [] as y) =
   [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
   let ps = newNodeNames (snds as)
       vy = (NnOut, y)
-      el = case gv of CtorVar -> ElTerminal (ctorFactorNameDefault x (snds as) y)
+      el = case gv of CtorVar -> ElTerminal (ctorFactorName x (snds as) y)
                       DefVar -> ElNonterminal (TmVarG gv x [] [] [] (joinArrows (snds as) y))
   in
     mkRule (TmVarG gv x [] [] as y) (vy : ps ++ concat xss)
@@ -390,7 +390,7 @@ domainValues' g = tpVals where
     let tpvs = map tpVals tps in
       concatMap (\ (i, vs) -> ["<" ++ intercalate ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
   tpVals (TpProd Multiplicative tps) =
-    [prodValName' tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
+    [prodValName tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
   tpVals tp = error ("Enumerating values of a " ++ show tp)
 
 domainSize :: Ctxt -> Type -> Int
