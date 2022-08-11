@@ -1,6 +1,7 @@
 {- Code for generating FGG rules, and the RuleM "monad-like" datatype -}
 
 module Compile.RuleM where
+import qualified Data.Map as Map
 import Data.List
 import Struct.Lib
 import Util.FGG
@@ -14,6 +15,8 @@ import Util.Tensor
 
 type External = (NodeName, Type)
 type Nonterminal = (EdgeLabel, [Type])
+type Factor = (EdgeLabel, Maybe Weights)
+
 -- RuleM stores the following:
 --   1. [(Int, Rule)]: a list of rules and how many times to duplicate them
 --                            (so amb True False True => p(True) = **2**, p(False) = 1)
@@ -44,6 +47,13 @@ r1 +> r2 = r1 +>= \ _ -> r2
 rs +>=* rf =
   let (r, xss) = foldl (\ (r, xss) r' -> let RuleM rs' xs' nts' fs' = r' in (r +> r', xs' : xss)) (returnRule, []) rs in
     r +> rf (reverse xss)
+
+-- Take the union of two lists of factors
+unionFactors :: [Factor] -> [Factor] -> [Factor]
+unionFactors [] gs = gs
+unionFactors ((x, tw) : fs) gs =
+  let hs = unionFactors fs gs in
+    maybe ((x, tw) : hs) (const hs) (lookup x hs)
 
 -- Add a list of external nodes
 addExts :: [External] -> RuleM
@@ -158,3 +168,46 @@ getEqWeights dom ntms =
     [0..ntms-1]
     True
     Nothing
+
+{- rulesToFGG dom start rs nts facs
+
+   Construct an FGG from:
+
+   - dom: function that gives the possible Values belonging to d
+   - start: start nonterminal
+   - rs: list of rules with repetition counts
+   - nts: list of nonterminal EdgeLabels and their "types"
+   - facs: list of factors -}
+             
+rulesToFGG :: (NodeLabel -> Domain) -> EdgeLabel -> [(Int, Rule)] -> [(EdgeLabel, [NodeLabel])] -> [Factor] -> FGG
+rulesToFGG dom start rs nts facs =
+  FGG ds fs nts' start rs'
+  where
+    rs' = nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs
+    rs'' = [r | (_, r) <- rs']
+
+    nls = concat (map (\ (Rule lhs (HGF ns es xs)) -> snds ns) rs'') ++
+          concat (snds nts)
+    
+    ds  = foldr (\ d m -> Map.insert d (dom d) m) Map.empty nls
+
+    domsEq = \ x d1 d2 -> if d1 == d2 then d1 else error
+      ("Conflicting types for nonterminal " ++ show x ++ ": " ++
+        show d1 ++ " versus " ++ show d2)
+
+    -- Nonterminals that were added directly by addNonterm(s)
+    nts'' = Map.fromList nts
+
+    -- Nonterminals from left-hand sides of rules get their "type" from the external nodes
+    nts' = foldr (\ (Rule lhs (HGF ns _ xs)) ->
+                    Map.insertWith (domsEq lhs) lhs (snds xs)) nts'' rs''
+
+    getFac = \ l lhs -> maybe (error ("In the rule " ++ show lhs ++ ", no factor named " ++ show l))
+                      id $ lookup l facs
+
+    fs  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
+                   foldr (\ (Edge atts l) ->
+                             if Map.member l nts' then id else
+                               Map.insert l (snds atts, getFac l lhs))
+                         m es)
+                Map.empty rs''
