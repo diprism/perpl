@@ -46,7 +46,7 @@ runSubst s r = let (a', r', ()) = runRWS r () s in a'
 -- substitution. This is done for every local (term or type) variable,
 -- and then x is α-converted to x' to avoid variable capture.
 freshen :: Var -> SubstM Var
-freshen "_" = freshen "_0" -- get rid of '_'s
+freshen (Var "_") = freshen (Var "_0") -- get rid of '_'s
 freshen x =
   fmap (newVar x) get >>= \ x' ->
   modify (Map.insert x' (SubVar x')) >>
@@ -91,10 +91,10 @@ substVar x fv ftm ftp ftg fn =
 -- Freshens params, and binds them in cont
 substParams :: AddMult -> [Param] -> SubstM a -> SubstM ([Param], a)
 substParams am [] cont = (,) [] <$> cont
-substParams Additive (("_", tp) : ps) cont =
+substParams Additive ((Var "_", tp) : ps) cont =
   substM tp >>= \ tp' ->
   substParams Additive ps cont >>= \ (ps', a) ->
-  return (("_", tp') : ps', a)
+  return ((Var "_", tp') : ps', a)
 substParams am ((x, tp) : ps) cont =
   freshen x >>= \ x' ->
   substM tp >>= \ tp' ->
@@ -157,7 +157,7 @@ instance Substitutable Type where
       -- Allow y := y' tg1 ....
       -- This is used in TypeInf.Solve in inferData to add tags to a datatype.
       (\ tp' -> case tp' of TpData y' tgs'' [] -> TpData y' (tgs'' ++ tgs') as'
-                            _ -> error ("kind error (" ++ y ++ " := " ++ show tp' ++ ")"))
+                            _ -> error ("kind error (" ++ show y ++ " := " ++ show tp' ++ ")"))
       (const (TpData y tgs' as'))
       (TpData y tgs' as')
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps

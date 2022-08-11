@@ -381,7 +381,7 @@ domainValues' g = tpVals where
   tpVals :: Type -> [String]
   tpVals (TpData y [] []) =
     maybe2 (ctxtLookupType g y) [] $ \ cs ->
-      concat [foldl (kronwith $ \ d da -> d ++ " " ++ parens da) [x] (map tpVals as)
+      concat [foldl (kronwith $ \ d da -> d ++ " " ++ parens da) [show x] (map tpVals as)
              | (Ctor x as) <- cs]
   tpVals (TpArr tp1 tp2) = uncurry arrVals (splitArrows (TpArr tp1 tp2))
   tpVals (TpProd Additive tps) =

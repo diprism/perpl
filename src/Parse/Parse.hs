@@ -102,28 +102,28 @@ parseBranches branch = parseDropSoft TkBar *> oneOrMore
 -- Parse a symbol.
 parseVar :: ParseM Var
 parseVar = parsePeek >>= \ t -> case t of
-  TkVar v -> parseEat *> pure v
+  TkVar v -> parseEat *> pure (Var v)
   _ -> parseErr (if t `elem` keywords then show t ++ " is a reserved keyword"
                   else "expected a variable name here")
 
 -- Parse zero or more symbols.
 parseVars :: ParseM [Var]
 parseVars = parsePeek >>= \ t -> case t of
-  TkVar v -> parseEat *> pure ((:) v) <*> parseVars
+  TkVar v -> parseEat *> pure ((:) (Var v)) <*> parseVars
   _ -> pure []
 
 -- Parse comma-delimited symbols
 parseVarsCommas :: Token -> Bool -> Bool -> ParseM [Var]
 parseVarsCommas close allow0 allow1 = parsePeeks 2 >>= \ ts -> case ts of
-  [TkVar v, TkComma] -> parseEat *> parseEat *> pure ((:) v) <*> parseVarsCommas close allow1 True
-  [TkVar v, t] | t==close -> if allow1 then parseEat *> parseEat *> pure [v] else parseErr "unary tuple of variables not allowed here"
+  [TkVar v, TkComma] -> parseEat *> parseEat *> pure ((:) (Var v)) <*> parseVarsCommas close allow1 True
+  [TkVar v, t] | t==close -> if allow1 then parseEat *> parseEat *> pure [Var v] else parseErr "unary tuple of variables not allowed here"
   [t, _] | t==close -> if allow0 then parseEat *> pure [] else parseErr "0-ary tuple of variables not allowed here"
   _ -> parseErr "expecting a tuple of variables"
 
 -- Parse a branch of a case expression.
 parseCase :: ParseM CaseUs
 parseCase = parsePeek >>= \ t -> case t of
-  TkVar c -> parseEat *> pure (CaseUs c) <*> parseVars <* parseDrop TkArr <*> parseTerm1
+  TkVar c -> parseEat *> pure (CaseUs (Var c)) <*> parseVars <* parseDrop TkArr <*> parseTerm1
   _ -> parseErr "expecting a case"
 
 -- Parse one or more branches of a case expression.
@@ -242,7 +242,7 @@ TERM5 ::=
 -- Var, Parens
 parseTerm5 :: ParseM UsTm
 parseTerm5 = parsePeek >>= \ t -> case t of
-  TkVar v -> parseEat *> pure (UsVar v)
+  TkVar v -> parseEat *> pure (UsVar (Var v))
   TkParenL -> parseEat *> (
     parsePeek >>= \ t -> case t of
         TkParenR -> pure (UsProd Multiplicative [])
@@ -294,7 +294,7 @@ TYPE2 ::=
 -- TypeVar
 parseType2 :: [Var] -> ParseM Type
 parseType2 ps = parsePeek >>= \ t -> case t of
-  TkVar v -> parseEat *> if v `elem` ps then pure (TpVar v) else pure (TpData v []) <*> parseTypes ps
+  TkVar v -> parseEat *> if (Var v) `elem` ps then pure (TpVar (Var v)) else pure (TpData (Var v) []) <*> parseTypes ps
   _ -> parseType3 ps
 
 
@@ -322,7 +322,7 @@ parseType3 ps = parsePeek >>= \ t -> case t of
         TkRangle -> pure (TpProd Additive [])
         _ -> pure (TpProd Additive) <*> (parseType1 ps >>= \ tp -> parseDelim (parseType1 ps) TkComma [tp])) <* parseDrop TkRangle
   TkBool -> parseEat *> pure tpBool
-  TkVar v -> parseEat *> pure (if v `elem` ps then TpVar v else TpData v [] [])
+  TkVar v -> parseEat *> pure (if (Var v) `elem` ps then TpVar (Var v) else TpData (Var v) [] [])
   _ -> parseErr "couldn't parse a type here; perhaps add parentheses?"
 
 -- List of Constructors

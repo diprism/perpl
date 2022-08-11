@@ -1,11 +1,10 @@
 {- Lexer code -}
 
 module Parse.Lex (Token (..), keywords, Pos, lexFile) where
-import Struct.Lib (Var)
 
 -- Possible tokens
 data Token =
-    TkVar Var -- "x"
+    TkVar String -- "x"
   | TkNum Double -- floating-point literal
   | TkLam -- "\"
   | TkParenL -- "("

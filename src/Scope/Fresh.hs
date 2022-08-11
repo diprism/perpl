@@ -1,17 +1,17 @@
 module Scope.Fresh (newVar, newVars) where
 import Util.Helpers
-import Struct.Lib (Var)
+import Struct.Lib (Var(..))
 import qualified Data.Map as Map
 import Data.Char
 
 data SplitVar = SplitVar String Int String
 succSplitVar (SplitVar pre i suf) = SplitVar pre (succ i) suf
-instance Show SplitVar where
-  show (SplitVar pre i suf) = pre ++ show i ++ suf
+rejoin :: SplitVar -> Var
+rejoin (SplitVar pre i suf) = Var (pre ++ show i ++ suf)
 
 -- Splits abc14'' into SplitVar "abc" 14 "\'\'"
 splitVar :: Var -> SplitVar
-splitVar x =
+splitVar (Var x) =
   let (pre, i, suf) = h True (reverse x)
       pre' = reverse pre
       i' = reverse i
@@ -36,7 +36,7 @@ splitVar x =
 newVar :: Var -> Map Var a -> Var
 newVar x g = if Map.member x g then h (splitVar x) else x
   where
-    h x = let x' = show x in if Map.member x' g then h (succSplitVar x) else x'
+    h x = let x' = rejoin x in if Map.member x' g then h (succSplitVar x) else x'
 
 newVars :: [Var] -> Map Var a -> [Var]
 newVars xs g =
