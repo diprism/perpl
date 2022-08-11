@@ -2,25 +2,27 @@
 
 module Compile.RuleM where
 import Data.List
-import qualified Data.Map as Map
 import Struct.Lib
 import Util.FGG
 import Util.Helpers
 import Util.Tensor
-import Scope.Name
 
--- RuleM monad-like datatype and functions
-type External = (Var, Type)
-type Nonterminal = (Var, [Type])
+{- RuleM is a monad-like type for building FGGs.
+
+   TODO: Its contents are not that different from FGG itself; could they be merged?
+ -}
+
+type External = (NodeName, Type)
+type Nonterminal = (EdgeLabel, [Type])
 -- RuleM stores the following:
---   1. [(Int, Rule Type)]: a list of rules and how many times to duplicate them
+--   1. [(Int, Rule)]: a list of rules and how many times to duplicate them
 --                            (so amb True False True => p(True) = **2**, p(False) = 1)
 --   2. [External]: list of external nodes from the expression
 --   3. [Nonterminal]: nonterminal accumulator
 --   4. [Factor]: factor accumulator
-data RuleM = RuleM [(Int, Rule Type)] [External] [Nonterminal] [Factor]
+data RuleM = RuleM [(Int, Rule)] [External] [Nonterminal] [Factor]
 
--- RuleM instances of >>= and >= (since not
+-- RuleM instances of >>= and >> (since not
 -- technically a monad, need to pick new names)
 infixl 1 +>=, +>, +>=*
 -- Like (>>=) but for RuleM
@@ -48,7 +50,7 @@ addExts :: [External] -> RuleM
 addExts xs = RuleM [] xs [] []
 
 -- Add a single external node
-addExt :: Var -> Type -> RuleM
+addExt :: NodeName -> Type -> RuleM
 addExt x tp = addExts [(x, tp)]
 
 -- Add a list of nonterminals with the types of their attachment nodes
@@ -56,23 +58,23 @@ addNonterms :: [Nonterminal] -> RuleM
 addNonterms nts = RuleM [] [] nts []
 
 -- Add a single nonterminal with the types of its attachment nodes
-addNonterm :: Var -> [Type] -> RuleM
+addNonterm :: EdgeLabel -> [Type] -> RuleM
 addNonterm x tps = addNonterms [(x, tps)]
 
 -- Add a list of rules
-addRules :: [(Int, Rule Type)] -> RuleM
+addRules :: [(Int, Rule)] -> RuleM
 addRules rs = RuleM rs [] [] []
 
 -- Add a single rule
-addRule :: Int -> Rule Type -> RuleM
+addRule :: Int -> Rule -> RuleM
 addRule reps r = addRules [(reps, r)]
 
 -- Adds an "incomplete" factor (extern)
-addIncompleteFactor :: Var -> RuleM
+addIncompleteFactor :: EdgeLabel -> RuleM
 addIncompleteFactor x = RuleM [] [] [] [(x, Nothing)]
 
 -- Adds a factor x with weights tensor w
-addFactor :: Var -> Weights -> RuleM
+addFactor :: EdgeLabel -> Weights -> RuleM
 addFactor x w = RuleM [] [] [] [(x, Just w)]
 
 -- Do nothing new
@@ -87,43 +89,28 @@ resetExts (RuleM rs xs nts fs) = RuleM rs [] nts fs
 setExts :: [External] -> RuleM -> RuleM
 setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
 
--- Returns if this lhs is already used
-isRule :: String -> RuleM -> Bool
-isRule lhs (RuleM rs xs nts fs) = any (\ (_, Rule lhs' _) -> lhs == lhs') rs
+{--- Functions for computing Weights for terminal-labeled Edges ---}
 
+{- getPairWeights tp1s tp2s
 
--- Returns the Weights for a function tp1 -> tp2
+   Returns the weights w[x,y,(x,y)] = 1, which is used for function
+   types tp1 -> tp2.  tp1s and tp2s are the sizes of the domains of x1
+   and x2, respectively. -}
+                                 
 getPairWeights :: Int -> Int -> Weights
 getPairWeights tp1s tp2s = tensorId [tp1s, tp2s]
 
--- Computes the weights for a function with params ps and return type tp
-getExternWeights :: (Type -> [String]) -> [Type] -> Type -> Weights
-getExternWeights dom ps tp =
-  zeros ([length (dom tp) | tp <- ps] ++ [length (dom tp)])
+{- getCtorWeightsFlat dom c cs
 
--- Computes the weights for a list of constructors
-getCtorWeightsAll :: (Type -> [String]) -> [Ctor] -> Type -> [(String, Weights)]
-getCtorWeightsAll dom cs y =
-  concat [[(ctorFactorName x [(TmVarL x atp, atp) | (x, atp) <- zip as' as] y, ws)
-          | (as', ws) <- getCtorWeights dom (Ctor x as) cs]
-         | Ctor x as <- cs]
+   Computes the weights for a specific constructor.
 
--- Computes the weights for a specific constructor
-getCtorWeights :: (Type -> [String]) -> Ctor -> [Ctor] -> [([String], Weights)]
-getCtorWeights dom (Ctor x as) cs =
-  let (cs_before, cs_after) = splitCtorsAt cs x
-      csf = \ cs' -> sum [product (map (length . dom) as') | (Ctor x' as') <- cs']
-      cs_b' = csf cs_before
-      cs_a' = csf cs_after
-      mkrow = \ mask -> vector (replicate cs_b' 0 ++ mask ++ replicate cs_a' 0)
-  in
-    flip map (kronpos (map dom as)) $ \ as' -> (,) [a | (_, _, a) <- as'] $
-      let (out, pos) = foldr (\ (i, o, _) (l, j) -> (l * o, l * i + j)) (1, 0) as'
-          row = mkrow (tensorIdRow pos out) in
-      foldr (\ (i, o, a) ws -> Vector [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]]) row as'
+   - dom: maps from node labels (Type) to domains ([Value])
+   - c:   a specific constructor
+   - cs:  list of all constructors (including c)
 
--- Computes the weights for a specific constructor (can't remember how this is different from getCtorWeights above :P)
-getCtorWeightsFlat :: (Type -> [String]) -> Ctor -> [Ctor] -> Weights
+   Returns: If c = Ctor x ps, the tensor w[a1, ..., an, Ctor x as] = 1. -}
+
+getCtorWeightsFlat :: (Type -> [Value]) -> Ctor -> [Ctor] -> Weights
 getCtorWeightsFlat dom (Ctor x as) cs =
   let (cs_before, cs_after) = splitCtorsAt cs x
       csf = \ cs' -> sum [product (map (length . dom) as') | Ctor x' as' <- cs']
@@ -136,34 +123,53 @@ getCtorWeightsFlat dom (Ctor x as) cs =
       (\ j l -> vector (mkrow (tensorIdRow j l)))
       (map dom as) 0 1
 
--- Identity matrix
-getCtorEqWeights :: Int {- num of possible values -} -> Weights
-getCtorEqWeights cs = tensorId [cs]
+{- getIdWeights n
 
--- Computes the weights for the &-product of a list of types (rather, their domains)
-getAmpWeights :: [[String]] -> [Weights]
+   -  n: number of possible values
+
+   Returns: the nxn identity matrix -}
+      
+getIdWeights :: Int  -> Weights
+getIdWeights n = tensorId [n]
+
+{- getAmpWeights tpvs
+
+   Computes the weights for the additive product of a list of domains.
+
+   - tpvs: the list of domains
+
+   Returns: If tp = <tp1, ..., tpn>, a list of weights [w1, ..., wn] where
+   wi[x, <_, ..., x, ..., _>] = 1. -}
+
+getAmpWeights :: [[Value]] -> [Weights]
 getAmpWeights tpvs =
   [Vector
     (concatMap
       (\ (j, vs) ->
           [Vector [Scalar (if l == k && i == j then 1 else 0) | (l, _) <- enumerate itpvs] | (k, _) <- enumerate vs]) (enumerate tpvs)) | (i, itpvs) <- enumerate tpvs]
 
--- Computes the weights for the *-product of a list of types (rather, their domains)
-getProdWeights :: [[String]] -> [([String], Weights)]
-getProdWeights tpvs =
-  [([a | (_, _, a) <- as'],
-    let (out, pos) = foldr (\ (i, o, _) (l, j) -> (l * o, l * i + j)) (1, 0) as' in
-      foldr (\ (i, o, a) ws ->
-               Vector [if i == j then ws else fmap (\ _ -> 0) ws | j <- [0..o - 1]])
-        (vector (tensorIdRow pos out)) as')
-  | as' <- kronpos tpvs]
+{- getProdWeightsV tpvs
 
--- Returns the weights tensor for when the individual elements
--- in a product equal the entire product (see tensorId for more info)
-getProdWeightsV :: [[String]] -> Weights
+   Computes the weights for the multiplicative product of a list of domains.
+
+   - tpvs: the list of domains
+
+   If tp = (tp1, ..., tpn), returns the tensor w[x1, ..., xn, (x1, ..., xn)] = 1. -}
+  
+getProdWeightsV :: [[Value]] -> Weights
 getProdWeightsV tpvs = tensorId [length vs | vs <- tpvs]
 
--- Returns the weights for (tm1 == tm2 == ... == tmn)
+{- getEqWeights s n
+
+   Returns the weights for (tm1 == tm2 == ... == tmn)
+
+   - s: the size of the domains of the terms
+   - n: the number of terms
+
+   Returns: s x   ....   x s x 2 tensor
+            |<- n copies ->|
+ -}
+
 getEqWeights :: Int -> Int -> Weights
 getEqWeights dom ntms =
   foldr
@@ -172,30 +178,3 @@ getEqWeights dom ntms =
     [0..ntms-1]
     True
     Nothing
-
--- TODO: it is no longer necessary to be this complex—now the we just need
--- to take and return a single (non-nested) list
-
--- Given a set of external nodes, this returns a pair where the first
--- is basically just the nub of the concatenated nodes, and the second
--- is a mapping from each node's original position to its new one in
--- the first part.
--- It takes a list of lists to allow you to more easily keep track of
--- where an arbitrary number of externals went.
-combineExts :: Ord a => [[(a, x)]] -> ([(a, x)], [[Int]])
-combineExts = h Map.empty 0 where
-
-  index :: Ord a => Map a Int -> Int -> [(a, x)] -> (Map a Int, [(a, x)])
-  index ixs i [] = (ixs, [])
-  index ixs i (a : as) = case Map.lookup (fst a) ixs of
-    Nothing -> fmap ((:) a) (index (Map.insert (fst a) i ixs) (succ i) as)
-    Just ia -> index ixs i as
-  
-  h :: Ord a => Map a Int -> Int -> [[(a, x)]] -> ([(a, x)], [[Int]])
-  h ixs i [] = ([], [])
-  h ixs i (as : rest) =
-    let (ixs', as') = index ixs i as
-        is = [ixs' Map.! a | (a, _) <- as]
-        (rs, ms) = h ixs' (i + length as') rest in
-      (as' ++ rs, is : ms)
-
