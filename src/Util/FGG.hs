@@ -1,83 +1,81 @@
-{- FGG datatype code -}
+{- A minimalist implementation of factor graph grammars (FGGs), which
+   are the main target of the compiler. For more information about
+   FGGs, see: David Chiang and Darcey Riley. Factor graph grammars. In
+   Proc. NeurIPS, 6648–6658. 2020. -}
 
 module Util.FGG where
 import qualified Data.Map as Map
 import Data.List
+import Struct.Lib
 import Util.Helpers
 import Util.Tensor
 import Util.JSON
 
--- Should the compiler make sure there aren't conflicting nonterminal domains?
--- This is only really a sanity check, and can be turned on/off as pleased
--- (though for the sake of efficiency, perhaps better off for stable releases)
-checkDomsEq = True
+type Domain = [Value]
+newtype Value = Value String
+  deriving Show
+type Factor = (EdgeLabel, Maybe Weights) -- TODO: move this to RuleM
+type Weight = Double
+type Weights = Tensor Weight
 
-type Domain = [String] -- list of values for some type
-type Factor = (String, Maybe Weights)
-type Prob = Double
-type Weights = Tensor Prob
-type Label = String
---type Nonterminal = (Label, String) -- domain must be a singleton
+{- Every node in an FGG has a NodeName, which is unique within its
+   Rule. Nodes are either internal or external, and we use different
+   NodeNames for the two kinds of nodes. -}
 
--- d = type of domain
-data Node d = Node {node_label :: Label, node_domain :: d}
+data NodeName =
+    NnOut           -- external node holding the value of an expression
+  | NnVar Var       -- external node holding the value of a free variable
+  | NnInternal Int  -- internal node
+  deriving (Eq, Ord)
+instance Show NodeName where
+  show NnOut = "*out*"
+  show (NnVar v) = v
+  show (NnInternal i) = "*" ++ show i ++ "*"
+  
+{- Every node in an FGG has a NodeLabel, which determines a set, called
+   a Domain, of possible Values that the node can have. For our
+   purposes, a NodeLabel is always a Type, and the corresponding
+   Domain is the set of String representations of all the inhabitants
+   of that Type. -}
 
-toNodes :: [(Label, d)] -> [Node d]
-toNodes = map (uncurry Node)
---type Node d = (Label, d) -- (label, domain)
---node = (,)
---node_label = fst
---node_domain = snd
+type NodeLabel = Type
 
-data Edge = Edge { edge_atts :: [Int], edge_label :: Label }
+{- Every Edge (really, a hyperedge) in an FGG has an EdgeLabel, which is
+   either terminal or nonterminal.
+
+   - Both terminals and nonterminals determine a list of NodeLabels of
+     the attachment nodes. In the FGG literature, this list is called
+     a "type," which we always write in scare quotes here.
+
+   - Terminals determine a function, called a factor, from the
+     attachment nodes' Values to a Weight; here, this function is
+     represented as a Tensor. TODO: Could list out possible functions
+     instead of using strings.
+
+   - Edges labeled with nonterminals can be rewritten using
+     Rules. Here, nonterminal labels always correspond to Terms. -}
+
+data EdgeLabel = ElNonterminal Term | ElTerminal String
+  deriving (Eq, Ord)
+instance Show EdgeLabel where
+  show (ElNonterminal tm) = show tm
+  show (ElTerminal s) = s
+
+data Edge = Edge { edge_atts :: [(NodeName, NodeLabel)], edge_label :: EdgeLabel }
   deriving Eq
-data HGF d = HGF { hgf_nodes :: [Node d], hgf_edges :: [Edge], hgf_exts :: [Int]}
+-- Hypergraph fragment (= hypergraph with external nodes)
+-- TODO: This could simply be merged into Rule.
+data HGF = HGF { hgf_nodes :: [(NodeName, NodeLabel)], hgf_edges :: [Edge], hgf_exts :: [(NodeName, NodeLabel)] }
   deriving Eq
-data Edge' d = Edge' { edge_atts' :: [(Label, d)], edge_label' :: Label }
+data Rule = Rule EdgeLabel HGF
   deriving Eq
-data HGF' d = HGF' { hgf_nodes' :: [(Label, d)], hgf_edges' :: [Edge' d], hgf_exts' :: [(Label, d)] }
-  deriving Eq
-data Rule d = Rule String (HGF d)
-  deriving Eq
-data FGG d = FGG {
-  domains :: Map String d,                  -- node label to values
-  factors :: Map String (d, Maybe Weights), -- edge label to att node labels, weights
-  nonterminals :: Map String d,             -- nt name to attachment node labels
-  start :: String,                          -- nt name
-  rules :: [(Int, Rule Label)]
+data FGG = FGG {
+  domains :: Map NodeLabel Domain,                       -- node label to set of values
+  factors :: Map EdgeLabel ([NodeLabel], Maybe Weights), -- edge label to att node labels, weights
+  nonterminals :: Map EdgeLabel [NodeLabel],             -- nt name to attachment node labels
+  start :: EdgeLabel,                                    -- start nt
+  rules :: [(Int, Rule)]                                 -- [(reps, rule)]: reps keeps track of duplicate rules that should not be deduplicated
 }
-
-instance Eq (Node d) where
-  Node n1 _ == Node n2 _ = n1 == n2
-instance Ord (Node d) where
-  compare (Node n1 _) (Node n2 _) = compare n1 n2
-instance Functor Node where
-  fmap f (Node l d) = Node l (f d)
-instance Functor HGF where
-  fmap f (HGF ns es xs) = HGF [fmap f n | n <- ns] es xs
-instance Functor Edge' where
-  fmap f (Edge' ns l) = Edge' [fmap f n | n <- ns] l
-instance Functor HGF' where
-  fmap f (HGF' ns es xs) =
-    HGF' [fmap f n | n <- ns] [fmap f e | e <- es] [fmap f x | x <- xs]
-instance Functor Rule where
-  fmap f (Rule l hgf) = Rule l (fmap f hgf)
-instance Functor FGG where
-  fmap f (FGG ds fs nts s rs) =
-    FGG (fmap f ds)
-        (fmap (\ (d, mws) -> (f d, mws)) fs)
-        (fmap f nts)
-        s
-        (fmap (\ (i, r) -> (i, fmap show r)) rs)
-
--- Convert a HGF' to a HFG
-castHGF :: HGF' d -> HGF d
-castHGF (HGF' ns es xs) =
-  let ns' = nub (toNodes ns)
-      m = Map.fromList (zip ns' [0..]) in
-    HGF ns'
-      [Edge [m Map.! n | n <- toNodes as] l | Edge' as l <- es]
-      (nub [m Map.! n | n <- toNodes xs])
 
 -- Take the union of two lists of factors
 unionFactors :: [Factor] -> [Factor] -> [Factor]
@@ -91,88 +89,104 @@ weights_to_json :: Weights -> JSON
 weights_to_json (Scalar n) = JSdouble n
 weights_to_json (Vector ts) = JSarray [weights_to_json v | v <- ts]
 
--- Convert an FGG into a JSON
-fgg_to_json :: FGG Domain -> JSON
+{- fgg_to_json fgg
+
+   Convert an FGG into a JSON. -}
+                              
+fgg_to_json :: FGG -> JSON
 fgg_to_json (FGG ds fs nts s rs) =
-  let mapToList = \ ds f -> JSobject $ Map.toList $ fmap f ds in
+  let mapToList = \ ds f -> JSobject $ map f (Map.toList ds) in
   JSobject
     [("grammar", JSobject 
       [("terminals", mapToList fs $
-         \ (d, mws) -> JSobject [("type", JSarray $ map JSstring d)]),
+         \ (el, (d, mws)) -> (show el, JSobject [("type", JSarray [JSstring (show nl) | nl <- d])])),
        ("nonterminals", mapToList nts $
-         \ d -> JSobject [
-           ("type", JSarray $ map JSstring d)
-         ]),
-        ("start", JSstring s),
-        ("rules", JSarray $ concat $ flip map (nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs) $
-          \ (reps, Rule lhs (HGF ns es xs)) -> replicate reps $ JSobject [
-             ("lhs", JSstring lhs),
+         \ (el, d) -> (show el, JSobject [
+           ("type", JSarray [JSstring (show nl) | nl <- d])
+         ])),
+       ("start", JSstring (show s)),
+       ("rules", JSarray $ concat $ flip map (nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs) $
+          \ (reps, Rule lhs (HGF ns es xs)) ->
+            let m = Map.fromList (zip (fsts ns) [0..]) in
+            replicate reps $ JSobject [
+             ("lhs", JSstring (show lhs)),
              ("rhs", JSobject [
-                 ("nodes", JSarray [JSobject [("label", JSstring d), ("id", JSstring n)] | Node n d <- ns]),
+                 ("nodes", JSarray [JSobject [("label", JSstring (show d)), ("id", JSstring (show n))] | (n, d) <- ns]),
                  ("edges", JSarray $ flip map es $
-                   \ (Edge atts l) -> JSobject [
-                     ("attachments", JSarray (map JSint atts)),
-                     ("label", JSstring l)
+                   \ (Edge atts el) -> JSobject [
+                     ("attachments", JSarray [JSint (m Map.! n) | (n, d) <- atts]),
+                     ("label", JSstring (show el))
                    ]),
-                 ("externals", JSarray $ map JSint xs)
+                 ("externals", JSarray [JSint (m Map.! n) | (n, d) <- xs])
                ])
          ])
       ]),
     ("interpretation", JSobject [
-      ("domains", mapToList ds $
-         \ ds' -> JSobject [
+       ("domains", mapToList ds $
+         \ (nl, dom) -> (show nl, JSobject [
            ("class", JSstring "finite"),
-           ("values", JSarray $ map JSstring ds')
-         ]),
-         ("factors",
+           ("values", JSarray $ [JSstring v | Value v <- dom])
+         ])),
+       ("factors",
           let fs_filtered = Map.mapMaybe (\ (d, mws) -> maybe Nothing (\ ws -> Just (d, ws)) mws) fs in
           mapToList fs_filtered $
-           \ (d, ws) -> JSobject [
+           \ (el, (d, ws)) -> (show el, JSobject [
              ("function", JSstring "finite"),
-               ("type", JSarray $ map JSstring d),
+               ("type", JSarray [JSstring (show nl) | nl <- d]),
                ("weights", weights_to_json ws)
-             ])
+             ]))
         ])
     ]
 
 
-showFGG :: FGG Domain -> String
+showFGG :: FGG -> String
 showFGG = pprint_json . fgg_to_json
 
--- Default FGG
-emptyFGG :: String -> FGG d
+{- emptyFGG s
+
+   An FGG with start nonterminal s and no rules. -}
+emptyFGG :: EdgeLabel -> FGG
 emptyFGG s = FGG Map.empty Map.empty Map.empty s []
 
--- Construct an FGG from a list of rules, a start symbol,
--- and a function that gives the possible values of each type
-rulesToFGG :: Show d => (d -> Domain) -> String -> [(Int, Rule d)] -> [(Label, [d])] -> [Factor] -> FGG Domain
+{- rulesToFGG dom start rs nts facs
+
+   Construct an FGG from:
+
+   - dom: function that gives the possible Values belonging to d
+   - start: start nonterminal
+   - rs: list of rules with repetition counts
+   - nts: list of nonterminal EdgeLabels and their "types"
+   - facs: list of factors -}
+             
+rulesToFGG :: (NodeLabel -> Domain) -> EdgeLabel -> [(Int, Rule)] -> [(EdgeLabel, [NodeLabel])] -> [Factor] -> FGG
 rulesToFGG dom start rs nts facs =
-  FGG ds fs nts' start rsdom
+  FGG ds fs nts' start rs'
   where
     rs' = nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs
     rs'' = [r | (_, r) <- rs']
-    rsdom = [(i, fmap show r) | (i, r) <- rs']
-    
-    ds  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
-                   foldr (\ (Node n d) -> Map.insert (show d) (dom d)) m ns) Map.empty rs''
 
-    domsEq = \ x d1 d2 -> if not checkDomsEq || d1 == d2 then d1 else error
-      ("Conflicting domains for nonterminal " ++ x ++ ": " ++
+    nls = concat (map (\ (Rule lhs (HGF ns es xs)) -> snds ns) rs'') ++
+          concat (snds nts)
+    
+    ds  = foldr (\ d m -> Map.insert d (dom d) m) Map.empty nls
+
+    domsEq = \ x d1 d2 -> if d1 == d2 then d1 else error
+      ("Conflicting types for nonterminal " ++ show x ++ ": " ++
         show d1 ++ " versus " ++ show d2)
 
     -- Nonterminals that were added directly by addNonterm(s)
-    nts'' = fmap (fmap show) (Map.fromList nts)
+    nts'' = Map.fromList nts
 
     -- Nonterminals from left-hand sides of rules get their "type" from the external nodes
     nts' = foldr (\ (Rule lhs (HGF ns _ xs)) ->
-                    Map.insertWith (domsEq lhs) lhs [show (node_domain (ns !! i)) | i <- xs]) nts'' rs''
+                    Map.insertWith (domsEq lhs) lhs (snds xs)) nts'' rs''
 
-    getFac = \ l lhs -> maybe (error ("In the rule " ++ lhs ++ ", no factor named " ++ l))
+    getFac = \ l lhs -> maybe (error ("In the rule " ++ show lhs ++ ", no factor named " ++ show l))
                       id $ lookup l facs
 
     fs  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
                    foldr (\ (Edge atts l) ->
                              if Map.member l nts' then id else
-                               Map.insert l ([show (node_domain (ns !! i)) {-node_label (ns !! i)-} | i <- atts], getFac l lhs))
+                               Map.insert l (snds atts, getFac l lhs))
                          m es)
                 Map.empty rs''
