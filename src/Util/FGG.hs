@@ -46,19 +46,29 @@ type NodeLabel = Type
      the attachment nodes. In the FGG literature, this list is called
      a "type," which we always write in scare quotes here.
 
-   - Terminals determine a function, called a factor, from the
+   - Terminals determine a function, called a Factor, from the
      attachment nodes' Values to a Weight; here, this function is
-     represented as a Tensor. TODO: Could list out possible functions
-     instead of using strings.
+     represented as a Tensor.
 
    - Edges labeled with nonterminals can be rewritten using
      Rules. Here, nonterminal labels always correspond to Terms. -}
 
-data EdgeLabel = ElNonterminal Term | ElTerminal String
+data EdgeLabel =
+    ElNonterminal Term
+  | ElTerminal Factor
   deriving (Eq, Ord)
 instance Show EdgeLabel where
   show (ElNonterminal tm) = show tm
-  show (ElTerminal s) = s
+  show (ElTerminal fac) = show fac
+
+data Factor =
+    FaScalar Weight                     -- just a scalar weight
+  | FaIdentity Type                     -- identity matrix for tp
+  | FaEqual Type Int                    -- k-way equality for tp
+  | FaSum [Type] Int                    -- matrix projecting tp1+...+tpn to tpk
+  | FaProduct [Type]                    -- tensor mapping (tp1,...,tpn) to tp1,...,tpn
+  | FaData [[Type]] Int                 -- equivalent to FaSum [FaProduct ..., ...] k
+  deriving (Show, Eq, Ord)
 
 data Edge = Edge { edge_atts :: [(NodeName, NodeLabel)], edge_label :: EdgeLabel }
   deriving Eq

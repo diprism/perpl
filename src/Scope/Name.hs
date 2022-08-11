@@ -1,28 +1,7 @@
 module Scope.Name where
-import Data.List (intercalate)
 import Struct.Lib
 
 {- Naming conventions for internally-generated variables -}
-
--- Naming convention for testing equality two terms of the same type
-typeFactorName tp = "==" ++ show tp
-
-eqFactorName tp n = "[" ++ show n ++ "]" ++ "==" ++ show tp
-
--- Naming convention for factor v=(v1,v2)
-pairFactorName tp1 tp2 = "v=(" ++ show (TpArr tp1 tp2) ++ ")"
-
-ampFactorName :: [Type] -> Int -> String
-ampFactorName tps i = "v=<" ++ intercalate ", " [show tp | tp <- tps] ++ ">." ++ show i
-
-prodFactorName :: [Type] -> String
-prodFactorName tps = "v=(" ++ intercalate ", " (map show tps) ++ ")" 
-
-prodValName :: [String] -> String
-prodValName tms = "(" ++ intercalate ", " tms ++ ")"
-
-ctorFactorName :: Var -> [Type] -> Type -> String
-ctorFactorName x as tp = "v=" ++ show (TmVarG CtorVar x [] [] (paramsToArgs (nameParams x as)) tp)
 
 -- Establishes naming convention for eta-expanding a constructor/global def.
 etaName x i = "_" ++ x ++ show i

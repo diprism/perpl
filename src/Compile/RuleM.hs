@@ -15,15 +15,15 @@ import Util.Tensor
 
 type External = (NodeName, Type)
 type Nonterminal = (EdgeLabel, [Type])
-type Factor = (EdgeLabel, Maybe Weights)
+type Terminal = (EdgeLabel, Maybe Weights)
 
 -- RuleM stores the following:
 --   1. [(Int, Rule)]: a list of rules and how many times to duplicate them
 --                            (so amb True False True => p(True) = **2**, p(False) = 1)
 --   2. [External]: list of external nodes from the expression
 --   3. [Nonterminal]: nonterminal accumulator
---   4. [Factor]: factor accumulator
-data RuleM = RuleM [(Int, Rule)] [External] [Nonterminal] [Factor]
+--   4. [Terminal]: terminal/factor accumulator
+data RuleM = RuleM [(Int, Rule)] [External] [Nonterminal] [Terminal]
 
 -- RuleM instances of >>= and >> (since not
 -- technically a monad, need to pick new names)
@@ -48,8 +48,8 @@ rs +>=* rf =
   let (r, xss) = foldl (\ (r, xss) r' -> let RuleM rs' xs' nts' fs' = r' in (r +> r', xs' : xss)) (returnRule, []) rs in
     r +> rf (reverse xss)
 
--- Take the union of two lists of factors
-unionFactors :: [Factor] -> [Factor] -> [Factor]
+-- Take the union of two lists of terminals
+unionFactors :: [Terminal] -> [Terminal] -> [Terminal]
 unionFactors [] gs = gs
 unionFactors ((x, tw) : fs) gs =
   let hs = unionFactors fs gs in
@@ -179,7 +179,7 @@ getEqWeights dom ntms =
    - nts: list of nonterminal EdgeLabels and their "types"
    - facs: list of factors -}
              
-rulesToFGG :: (NodeLabel -> Domain) -> EdgeLabel -> [(Int, Rule)] -> [(EdgeLabel, [NodeLabel])] -> [Factor] -> FGG
+rulesToFGG :: (NodeLabel -> Domain) -> EdgeLabel -> [(Int, Rule)] -> [(EdgeLabel, [NodeLabel])] -> [Terminal] -> FGG
 rulesToFGG dom start rs nts facs =
   FGG ds fs nts' start rs'
   where

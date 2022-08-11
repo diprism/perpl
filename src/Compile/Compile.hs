@@ -29,7 +29,7 @@ unusedExternals = deleteFirstsBy (\ (x1, _) (x2, _) -> x1 == x2)
 
 varRule :: Var -> Type -> RuleM
 varRule x tp = let ns = [(NnVar x, tp), (NnOut, tp)] in
-  mkRule (TmVarL x tp) ns [Edge ns (ElTerminal (typeFactorName tp))] ns
+  mkRule (TmVarL x tp) ns [Edge ns (ElTerminal (FaIdentity tp))] ns
 
 {- bindExts xs' rm
 
@@ -80,7 +80,8 @@ ctorRules :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
 ctorRules g (Ctor x as) y cs =
   let as' = [(etaName x i, a) | (i, a) <- enumerate as]
       tm = TmVarG CtorVar x [] [] [(TmVarL a atp, atp) | (a, atp) <- as'] y
-      fac = ElTerminal (ctorFactorName x as y) in
+      Just ci = findIndex (\ (Ctor x' _) -> x' == x) cs
+      fac = ElTerminal (FaData [cas | Ctor _ cas <- cs] ci) in
     addFactor fac (getCtorWeights (domainValues g) (Ctor x as) cs) +>
     foldr (\ tp r -> type2fgg g tp +> r) returnRule as +>
     let vy = (NnOut, y)
@@ -96,7 +97,9 @@ caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
       unused_ps = unusedExternals all_xs xs_xtm_as
       [vctp] = newNodeNames [TpData y [] []]
       vtp = (NnOut, tp)
-      fac = ElTerminal (ctorFactorName x (snds as) (TpData y [] []))
+      Just ctors = ctxtLookupType g y
+      Just ci = findIndex (\ (Ctor x' _) -> x' == x) ctors
+      fac = ElTerminal (FaData [cas | Ctor _ cas <- ctors] ci)
       as' = paramsToExternals as
   in
     mkRule (TmCase ctm (y, [], []) cs tp)
@@ -130,25 +133,25 @@ ampRule g all_fvs as i tm tp =
   in
     mkRule (TmProd Additive as) (vamp : vtp : tmxs ++ all_xs ++ unused_tms)
       [Edge (tmxs ++ [vtp]) (ElNonterminal tm),
-       Edge [vtp, vamp] (ElTerminal (ampFactorName tps i))]
+       Edge [vtp, vamp] (ElTerminal (FaSum tps i))]
       (all_xs ++ [vamp])
 
 -- Adds factors for the &-product of tps
 addAmpFactors :: Ctxt -> [Type] -> RuleM
 addAmpFactors g tps =
   let ds = map (domainValues g) tps in
-    foldr (\ (i, tp) r -> r +> addFactor (ElTerminal (ampFactorName tps i)) (getSumWeights ds i)) returnRule (enumerate tps)
+    foldr (\ (i, tp) r -> r +> addFactor (ElTerminal (FaSum tps i)) (getSumWeights ds i)) returnRule (enumerate tps)
 
 -- Adds factors for the *-product of tps
 addProdFactors :: Ctxt -> [Type] -> RuleM
 addProdFactors g tps =
   let tpvs = [domainValues g tp | tp <- tps] in
     type2fgg g (TpProd Multiplicative tps) +>
-    addFactor (ElTerminal (prodFactorName tps)) (getProdWeights tpvs)
+    addFactor (ElTerminal (FaProduct tps)) (getProdWeights tpvs)
 
 -- Adds factor for v=(tp -> tp')
 addPairFactor :: Ctxt -> Type -> Type -> RuleM
-addPairFactor g tp tp' = addFactor (ElTerminal (pairFactorName tp tp')) (getProdWeights [domainValues g tp, domainValues g tp'])
+addPairFactor g tp tp' = addFactor (ElTerminal (FaProduct [tp, tp'])) (getProdWeights [domainValues g tp, domainValues g tp'])
 
 {- term2fgg g tm
 
@@ -167,14 +170,18 @@ term2fgg g (TmVarL x tp) =
 term2fgg g (TmVarG gv x [] [] [] tp) =
   returnRule -- If this is a ctor/def with no args, we already add its rule when it gets defined
 
-term2fgg g (TmVarG gv x [] [] as y) =
+term2fgg g (TmVarG gv x [] [] as tp) =
   [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
   let ps = newNodeNames (snds as)
-      vy = (NnOut, y)
-      el = case gv of CtorVar -> ElTerminal (ctorFactorName x (snds as) y)
-                      DefVar -> ElNonterminal (TmVarG gv x [] [] [] (joinArrows (snds as) y))
+      vy = (NnOut, tp)
+      el = case gv of CtorVar ->
+                        let (TpData y [] []) = tp
+                            Just cs = ctxtLookupType g y
+                            Just ci = findIndex (\ (Ctor x' _) -> x' == x) cs in
+                          ElTerminal (FaData [cas | Ctor _ cas <- cs] ci)
+                      DefVar -> ElNonterminal (TmVarG gv x [] [] [] (joinArrows (snds as) tp))
   in
-    mkRule (TmVarG gv x [] [] as y) (vy : ps ++ concat xss)
+    mkRule (TmVarG gv x [] [] as tp) (vy : ps ++ concat xss)
       (Edge (ps ++ [vy]) el :
         [Edge (xs ++ [vtp]) (ElNonterminal atm) | (xs, (atm, atp), vtp) <- zip3 xss as ps])
       (concat xss ++ [vy])
@@ -191,13 +198,13 @@ term2fgg g (TmLam x tp tm tp') =
          vtp = (NnVar x, tp) in
        mkRule (TmLam x tp tm tp') (vtp : vtp' : varr : tmxs)
          [Edge (tmxs ++ [vtp']) (ElNonterminal tm),
-          Edge [vtp, vtp', varr] (ElTerminal (pairFactorName tp tp'))]
+          Edge [vtp, vtp', varr] (ElTerminal (FaProduct [tp, tp']))]
          (delete vtp tmxs ++ [varr]))
 
 term2fgg g (TmApp tm1 tm2 tp2 tp) =
   term2fgg g tm1 +>= \ xs1 ->
   term2fgg g tm2 +>= \ xs2 ->
-  let fac = ElTerminal (pairFactorName tp2 tp)
+  let fac = ElTerminal (FaProduct [tp2, tp])
       vtp = (NnOut, tp)
       [vtp2, varr] = newNodeNames [tp2, TpArr tp2 tp] in
     addPairFactor g tp2 tp +>
@@ -224,7 +231,7 @@ term2fgg g (TmAmb tms tp) =
 term2fgg g (TmFactor wt tm tp) =
   term2fgg g tm +>= \ xs ->
   let vtp = (NnOut, tp)
-      el = ElTerminal ("factor " ++ show wt) in
+      el = ElTerminal (FaScalar wt) in
   addFactor el (Scalar wt) +>
   mkRule (TmFactor wt tm tp) (vtp : xs)
     [Edge [] el,
@@ -260,7 +267,7 @@ term2fgg g (TmProd am@Multiplicative as) =
   in
     addProdFactors g tps +>
     mkRule (TmProd am as) (vptp : vtps ++ concat xss)
-      (Edge (vtps ++ [vptp]) (ElTerminal (prodFactorName (snds as))) :
+      (Edge (vtps ++ [vptp]) (ElTerminal (FaProduct (snds as))) :
         [Edge (tmxs ++ [vtp]) (ElNonterminal atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
       (concat xss ++ [vptp])
 
@@ -281,7 +288,7 @@ term2fgg g (TmElimProd Additive ptm ps tm tp) =
         (vtp : vptp : (x', xtp) : tmxs ++ ptmxs)
         [Edge (ptmxs ++ [vptp]) (ElNonterminal ptm),
          Edge (tmxs ++ [vtp]) (ElNonterminal tm),
-         Edge [(x', xtp), vptp] (ElTerminal (ampFactorName tps o))]
+         Edge [(x', xtp), vptp] (ElTerminal (FaSum tps o))]
         (ptmxs ++ delete (x', xtp) tmxs ++ [vtp])
 
 term2fgg g (TmElimProd Multiplicative ptm ps tm tp) =
@@ -299,7 +306,7 @@ term2fgg g (TmElimProd Multiplicative ptm ps tm tp) =
     mkRule (TmElimProd Multiplicative ptm ps tm tp)
       (vtp : vptp : ps' ++ unused_ps ++ tmxs ++ ptmxs)
       [Edge (ptmxs ++ [vptp]) (ElNonterminal ptm),
-       Edge (ps' ++ [vptp]) (ElTerminal (prodFactorName tps)),
+       Edge (ps' ++ [vptp]) (ElTerminal (FaProduct tps)),
        Edge (tmxs ++ [vtp]) (ElNonterminal tm)]
          (ptmxs ++ foldr delete tmxs ps' ++ [vtp])
 
@@ -307,7 +314,7 @@ term2fgg g (TmEqs tms) =
   [term2fgg g tm | tm <- tms] +>=* \ xss ->
   let tmstp = typeof (head tms)
       ntms = length tms
-      fac = ElTerminal (eqFactorName tmstp ntms)
+      fac = ElTerminal (FaEqual tmstp ntms)
       vbtp = (NnOut, tpBool)
       vtps = newNodeNames [typeof tm | tm <- tms] in
     addFactor fac (getEqWeights (domainSize g tmstp) ntms) +>
@@ -322,7 +329,7 @@ term2fgg g (TmEqs tms) =
 
 type2fgg :: Ctxt -> Type -> RuleM
 type2fgg g tp =
-  addFactor (ElTerminal (typeFactorName tp)) (getIdWeights (domainSize g tp)) +>
+  addFactor (ElTerminal (FaIdentity tp)) (getIdWeights (domainSize g tp)) +>
   type2fgg' g tp
   where
     type2fgg' :: Ctxt -> Type -> RuleM
@@ -390,7 +397,7 @@ domainValues' g = tpVals where
     let tpvs = map tpVals tps in
       concatMap (\ (i, vs) -> ["<" ++ intercalate ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
   tpVals (TpProd Multiplicative tps) =
-    [prodValName tmvs | tmvs <- kronall [tpVals tp | tp <- tps]]
+    ["(" ++ intercalate ", " tmvs ++ ")"| tmvs <- kronall [tpVals tp | tp <- tps]]
   tpVals tp = error ("Enumerating values of a " ++ show tp)
 
 domainSize :: Ctxt -> Type -> Int
