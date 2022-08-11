@@ -4,7 +4,8 @@ import Struct.Lib
 {- Naming conventions for internally-generated variables -}
 
 -- Establishes naming convention for eta-expanding a constructor/global def.
-etaName x i = "_" ++ x ++ show i
+etaName :: Var -> Int -> Var
+etaName (Var x) i = Var ("_" ++ x ++ show i)
 
 -- Returns the names of the args for a constructor
 nameParams :: Var -> [Type] -> [Param]
@@ -13,20 +14,21 @@ nameParams x = zip (map (etaName x) [0..])
 startName = "_start_"
 
 -- Names used for de-/refunctionalization
-applyName y = "_apply" ++ y ++ "_"
-unfoldName y = "_unapply" ++ y ++ "_"
-targetName = "_this_"
-foldCtorName y i = "_fold" ++ y ++ "_" ++ show i ++ "_"
-foldTypeName y = "_Fold" ++ y ++ "_"
-unfoldTypeName y = "_Unfold" ++ y ++ "_"
-unfoldCtorName y = "_unfold" ++ y ++ "_"
-unfoldCtorArgName y i = "_unfold" ++ y ++ "_" ++ show i ++ "_"
+applyName (Var y) = Var ("_apply" ++ y ++ "_")
+unfoldName (Var y) = Var ("_unapply" ++ y ++ "_")
+targetName = Var "_this_"
+targetName2 = Var "_this_'"
+foldCtorName (Var y) i = Var ("_fold" ++ y ++ "_" ++ show i ++ "_")
+foldTypeName (Var y) = Var ("_Fold" ++ y ++ "_")
+unfoldTypeName (Var y) = Var ("_Unfold" ++ y ++ "_")
+unfoldCtorName (Var y) = Var ("_unfold" ++ y ++ "_")
+unfoldCtorArgName (Var y) i = Var ("_unfold" ++ y ++ "_" ++ show i ++ "_")
 unfoldCtorArgNames y n = [unfoldCtorArgName y i | i <- [0..n-1]]
 
 
 -- Names used for affLin
-discardName y = "_discard" ++ y ++ "_"
+discardName y = Var ("_discard" ++ show y ++ "_")
 
 -- Names used for monomorphization
 instName :: Var -> Int -> Var
-instName x i = x ++ "_inst" ++ show i
+instName (Var x) i = Var (x ++ "_inst" ++ show i)

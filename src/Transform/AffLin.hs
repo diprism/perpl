@@ -71,15 +71,15 @@ alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
 -- For example, take x : Bool, which becomes
 -- case x of false -> unit | true -> unit
 discard' :: Term -> Type -> Term -> AffLinM Term
-discard' (TmVarL "_" tp') tp rtm = return rtm -- error ("discard' \"_\" " ++ show tp ++ " in the term " ++ show rtm)
+discard' (TmVarL (Var "_") tp') tp rtm = return rtm -- error ("discard' \"_\" " ++ show tp ++ " in the term " ++ show rtm)
 discard' x (TpArr tp1 tp2) rtm =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
 discard' x (TpProd Additive tps) rtm =
     return (TmElimProd Additive x
-             [(if i == length tps - 1 then "_x" else "_", tp)| (i, tp) <- enumerate tps]
+             [(if i == length tps - 1 then Var "_x" else Var "_", tp)| (i, tp) <- enumerate tps]
              rtm (typeof rtm))
 discard' x (TpProd Multiplicative tps) rtm =
-    let ps = [(etaName "_" i, tp) | (i, tp) <- enumerate tps] in
+    let ps = [(etaName (Var "_") i, tp) | (i, tp) <- enumerate tps] in
       discards (Map.fromList ps) rtm >>= \ rtm' ->
       return (TmElimProd Multiplicative x ps rtm' (typeof rtm'))
 discard' x xtp@(TpData y [] []) rtm =
@@ -162,8 +162,8 @@ affLin (TmApp tm1 tm2 tp2 tp) =
   let tp2' = affLinTp tp2
       tp'  = affLinTp tp
       tp1' = TpArr tp2' tp' in
-  return (TmApp (TmElimProd Additive tm1' [("x", tp1'), ("_", tpUnit)]
-                            (TmVarL "x" tp1') tp1')
+  return (TmApp (TmElimProd Additive tm1' [(Var "x", tp1'), (Var "_", tpUnit)]
+                            (TmVarL (Var "x") tp1') tp1')
                 tm2' tp2' tp')
 affLin (TmLet x xtm xtp tm tp) =
   -- L(let x : xtp = xtm in tm) => let x : L(xtp) = L(xtm) in let _ = Z({x} - FV(tm)) in L(tm)
@@ -204,7 +204,7 @@ affLin (TmElimProd Additive tm ps tm' tp) =
   --    let <x1, x2, ..., xn> = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')
   affLin tm >>= \ tm ->
   affLinParams ps tm' >>= \ (ps, tm') ->
-  return (TmElimProd Additive tm (ps ++ [("_", tpUnit)]) tm' (typeof tm'))
+  return (TmElimProd Additive tm (ps ++ [(Var "_", tpUnit)]) tm' (typeof tm'))
 affLin (TmElimProd Multiplicative tm ps tm' tp) =
   -- L(let (x1, x2, ..., xn) = tm in tm') =>
   --    let (x1, x2, ..., xn) = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')
@@ -227,8 +227,8 @@ affLinDiscards (p@(ProgData y cs) : ps) =
     let
       -- define _discardy_ = \x. case x of Con1 a11 a12 ... -> () | ...
       -- Linearizing this will generate recursive calls to discard as needed
-      defDiscard = ProgFun (discardName y) [("x", ytp)] body tpUnit
-      body = TmCase (TmVarL "x" ytp) (y, [], []) cases tpUnit
+      defDiscard = ProgFun (discardName y) [(Var "x", ytp)] body tpUnit
+      body = TmCase (TmVarL (Var "x") ytp) (y, [], []) cases tpUnit
       cases = [let atps' = nameParams c atps in Case c atps' tmUnit | Ctor c atps <- cs]
     in
       affLinDiscards ps >>= \ ps' ->

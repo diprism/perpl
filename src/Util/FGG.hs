@@ -28,7 +28,7 @@ data NodeName =
   deriving (Eq, Ord)
 instance Show NodeName where
   show NnOut = "*out*"
-  show (NnVar v) = v
+  show (NnVar v) = show v
   show (NnInternal i) = "*" ++ show i ++ "*"
   
 {- Every node in an FGG has a NodeLabel, which determines a set, called

@@ -2,7 +2,7 @@ module Main where
 import System.Exit
 import System.Environment
 import System.IO
-import Struct.Lib (Var, Progs, progBuiltins)
+import Struct.Lib (Var(..), Progs, progBuiltins)
 import Parse.Lib
 import TypeInf.Lib
 import Compile.Lib
@@ -69,9 +69,9 @@ processArgs' o ("-m" : as) = processArgs' (o {optMono = False}) as
 processArgs' o ("-e" : as) = processArgs' (o {optElimRecs = False}) as
 processArgs' o ("-l" : as) = processArgs' (o {optLin = False}) as
 processArgs' o ("-d" : a : as) =
-  processArgs' (o {optDerefun = map (flip (,) Defun) (words a) ++ optDerefun o}) as
+  processArgs' (o {optDerefun = map (flip (,) Defun) (Var <$> words a) ++ optDerefun o}) as
 processArgs' o ("-r" : a : as) =
-  processArgs' (o {optDerefun = map (flip (,) Refun) (words a) ++ optDerefun o}) as
+  processArgs' (o {optDerefun = map (flip (,) Refun) (Var <$> words a) ++ optDerefun o}) as
 processArgs' o ("-z" : as) = processArgs' (o {optSumProduct = True}) as  
 processArgs' o (('-' : _) : _) = Nothing
 processArgs' o (fn : as) = processArgs' (o {optInfile = fn}) as

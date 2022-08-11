@@ -7,7 +7,6 @@ import Util.FGG
 import Util.Helpers
 import Struct.Lib
 import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtDefLocal, ctxtLookupType)
-import Scope.Name
 import Scope.Subst (FreeVars, freeVars)
 
 newNodeNames :: [a] -> [(NodeName, a)]
@@ -74,19 +73,14 @@ mkRuleReps :: Int -> Term -> [(NodeName, Type)] -> [Edge] -> [External] -> RuleM
 mkRuleReps reps lhs ns es xs =
   addRule reps (Rule (ElNonterminal lhs) (HGF (nub ns) es (nub xs)))
 
-
--- Add rule for a constructor
-ctorRules :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
-ctorRules g (Ctor x as) y cs =
-  let as' = [(etaName x i, a) | (i, a) <- enumerate as]
-      tm = TmVarG CtorVar x [] [] [(TmVarL a atp, atp) | (a, atp) <- as'] y
-      Just ci = findIndex (\ (Ctor x' _) -> x' == x) cs
-      fac = ElTerminal (FaCtor cs ci) in
+-- Add factors for a constructor
+ctorFactors :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
+ctorFactors g (Ctor x as) y cs =
+  let
+    Just ci = findIndex (\ (Ctor x' _) -> x' == x) cs
+    fac = ElTerminal (FaCtor cs ci) in
     addFactor fac (getCtorWeights (domainValues g) (Ctor x as) cs) +>
-    foldr (\ tp r -> type2fgg g tp +> r) returnRule as +>
-    let vy = (NnOut, y)
-        as'' = paramsToExternals as' in
-      mkRule tm (vy : as'') [Edge (as'' ++ [vy]) fac] (as'' ++ [vy])
+    foldr (\ tp r -> type2fgg g tp +> r) returnRule as
 
 -- Add a rule for this particular case in a case-of statement
 caseRule :: Ctxt -> FreeVars -> [External] -> Term -> Var -> [Case] -> Type -> Case -> RuleM
@@ -167,8 +161,8 @@ term2fgg g (TmVarL x tp) =
   type2fgg g tp +>
   addExt (NnVar x) tp
 
-term2fgg g (TmVarG gv x [] [] [] tp) =
-  returnRule -- If this is a ctor/def with no args, we already add its rule when it gets defined
+term2fgg g (TmVarG DefVar x [] [] [] tp) =
+  returnRule -- If this is a def with no args, we already add its rule when it gets defined
 
 term2fgg g (TmVarG gv x [] [] as tp) =
   [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
@@ -359,8 +353,7 @@ prog2fgg g (ProgExtern x ps tp) =
     type2fgg g tp' +>
     addIncompleteFactor (ElNonterminal (TmVarG DefVar x [] [] [] tp'))
 prog2fgg g (ProgData y cs) =
-  -- Add constructor rules
-  foldr (\ (Ctor x as) r -> r +> ctorRules g (Ctor x as) (TpData y [] []) cs) returnRule cs +>
+  foldr (\ (Ctor x as) r -> r +> ctorFactors g (Ctor x as) (TpData y [] []) cs) returnRule cs +>
   type2fgg g (TpData y [] [])
 
 -- Goes through a program and adds all the rules for it
@@ -388,7 +381,7 @@ domainValues' g = tpVals where
   tpVals :: Type -> [String]
   tpVals (TpData y [] []) =
     maybe2 (ctxtLookupType g y) [] $ \ cs ->
-      concat [foldl (kronwith $ \ d da -> d ++ " " ++ parens da) [x] (map tpVals as)
+      concat [foldl (kronwith $ \ d da -> d ++ " " ++ parens da) [show x] (map tpVals as)
              | (Ctor x as) <- cs]
   tpVals (TpArr tp1 tp2) = uncurry arrVals (splitArrows (TpArr tp1 tp2))
   tpVals (TpProd Additive tps) =
