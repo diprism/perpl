@@ -25,7 +25,6 @@ data TypeError =
   | CtorError Var -- not a constructor
   | RobustType Type -- expected type to be robust
   | NoCases -- case-of with no cases
-  | ExpNonUnderscoreVar -- expected a non-"_" var
   | MissingCases [Var] -- missing cases for some constructors
   | WrongNumCases Int Int -- wrong number of cases
   | WrongNumArgs Int Int -- wrong number of args, in a case (`... | Cons h t bad -> ...`)
@@ -41,7 +40,6 @@ instance Show TypeError where
   show (UnificationError tp1 tp2) = "Failed to unify " ++ show tp1 ++ " and " ++ show tp2
   show (RobustType tp) = "Expected " ++ show tp ++ " to be a robust type (or if binding a var, it is used non-affinely)"
   show NoCases = "Can't have case-of with no cases"
-  show ExpNonUnderscoreVar = "Expected non-underscore variable here"
   show (MissingCases xs) = "Missing cases: " ++ intercalate ", " (show <$> xs)
   show (WrongNumCases exp act) = "Expected " ++ show exp ++ " cases, but got " ++ show act
   show (WrongNumArgs exp act) = "Expected " ++ show exp ++ " args, but got " ++ show act
@@ -276,8 +274,6 @@ infer tm = localCurExpr tm (infer' tm)
 infer' :: UsTm -> CheckM Term
 
 infer' (UsVar x) =
-  -- Disable use of "_"
-  guardM (x /= Var "_") ExpNonUnderscoreVar >>
   -- Lookup the type of x
   lookupTermVar x >>= \ etp ->
   case etp of

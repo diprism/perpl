@@ -262,6 +262,7 @@ TERM5 ::=
 -- Var, Parens
 parseTerm5 :: ParseM UsTm
 parseTerm5 = parsePeek >>= \ t -> case t of
+  TkVar "_" -> parseErr "Expected non-underscore variable here"
   TkVar v -> parseEat *> pure (UsVar (Var v))
   TkParenL -> parseEat *> (
     parsePeek >>= \ t -> case t of

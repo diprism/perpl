@@ -46,7 +46,6 @@ runSubst s r = let (a', r', ()) = runRWS r () s in a'
 -- substitution. This is done for every local (term or type) variable,
 -- and then x is α-converted to x' to avoid variable capture.
 freshen :: Var -> SubstM Var
-freshen (Var "_") = freshen (Var "_0") -- get rid of '_'s
 freshen x =
   fmap (newVar x) get >>= \ x' ->
   modify (Map.insert x' (SubVar x')) >>

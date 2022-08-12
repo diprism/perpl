@@ -71,15 +71,14 @@ alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
 -- For example, take x : Bool, which becomes
 -- case x of false -> unit | true -> unit
 discard' :: Term -> Type -> Term -> AffLinM Term
-discard' (TmVarL (Var "_") tp') tp rtm = return rtm -- error ("discard' \"_\" " ++ show tp ++ " in the term " ++ show rtm)
 discard' x (TpArr tp1 tp2) rtm =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
 discard' x (TpProd Additive tps) rtm =
     return (TmElimAdditive x (length tps) (length tps - 1)
-             (Var "_x", last tps)
+             (Var "_d", last tps)
              rtm (typeof rtm))
 discard' x (TpProd Multiplicative tps) rtm =
-    let ps = [(etaName (Var "_") i, tp) | (i, tp) <- enumerate tps] in
+    let ps = [(etaName (Var "d") i, tp) | (i, tp) <- enumerate tps] in
       discards (Map.fromList ps) rtm >>= \ rtm' ->
       return (TmElimMultiplicative x ps rtm' (typeof rtm'))
 discard' x xtp@(TpData y [] []) rtm =
