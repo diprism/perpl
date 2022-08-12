@@ -365,8 +365,6 @@ progs2fgg g (Progs ps tm) =
 
    Computes a list of all the possible inhabitants of a type. -}
 
--- TODO: Instead list out the inhabitants as Terms, then show them
-
 domainValues :: Ctxt -> Type -> [Value]
 domainValues g tp = Value <$> domainValues' g tp
 
@@ -385,10 +383,8 @@ domainValues' g = tpVals where
              | (Ctor x as) <- cs]
   tpVals (TpArr tp1 tp2) = uncurry arrVals (splitArrows (TpArr tp1 tp2))
   tpVals (TpProd Additive tps) =
-    -- The type of 0-ary additive tuples has no values, but this
-    -- is never going to happen anyway.
     let tpvs = map tpVals tps in
-      concatMap (\ (i, vs) -> ["<" ++ intercalate ", " [show tp | tp <- tps] ++ ">." ++ show i ++ "=" ++ tmv | tmv <- vs]) (enumerate tpvs)
+      concatMap (\ (i, vs) -> ["<" ++ intercalate ", " [if i == j then tmv else "_" | (j, tp) <- enumerate tps] ++ ">" | tmv <- vs]) (enumerate tpvs)
   tpVals (TpProd Multiplicative tps) =
     ["(" ++ intercalate ", " tmvs ++ ")"| tmvs <- kronall [tpVals tp | tp <- tps]]
   tpVals tp = error ("Enumerating values of a " ++ show tp)
