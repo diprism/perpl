@@ -15,7 +15,7 @@ multiTensorDistance mt1 mt2 =
     foldr max 0.0 (fmap (foldr max 0.0 . tensorFlatten) diff)
 
 nonterminalGraph :: FGG -> Map EdgeLabel (Set EdgeLabel)
-nonterminalGraph fgg = foldr (\ (Rule lhs rhs) g -> Map.insertWith Set.union lhs (nts rhs) g) (fmap (const mempty) (nonterminals fgg)) (repRules fgg)
+nonterminalGraph fgg = foldr (\ (Rule lhs rhs) g -> Map.insertWith Set.union lhs (nts rhs) g) (fmap (const mempty) (nonterminals fgg)) (rules fgg)
   where nts rhs = Set.fromList [edge_label e | e <- hgf_edges rhs, edge_label e `Map.member` nonterminals fgg]
 
 sumProduct :: FGG -> Tensor Weight
@@ -44,9 +44,6 @@ zero fgg nts =
 nonterminalShape :: FGG -> EdgeLabel -> [Int]
 nonterminalShape fgg x = [length ((domains fgg) Map.! nl) | nl <- (nonterminals fgg) Map.! x]
 
-repRules :: FGG -> [Rule]
-repRules fgg = concat [ replicate c r | (c, r) <- rules fgg ]
-  
 step :: FGG -> [EdgeLabel] -> MultiTensor -> MultiTensor
 step fgg nts z =
   Map.union (Map.fromList [ (x, stepNonterminal x) | x <- nts ]) z
@@ -54,7 +51,7 @@ step fgg nts z =
 
     stepNonterminal :: EdgeLabel -> Tensor Weight
     stepNonterminal x =
-      foldr tensorAdd (zeros (nonterminalShape fgg x)) [stepRHS rhs | Rule lhs rhs <- repRules fgg, lhs == x]
+      foldr tensorAdd (zeros (nonterminalShape fgg x)) [stepRHS rhs | Rule lhs rhs <- rules fgg, lhs == x]
 
     stepRHS :: HGF -> Tensor Weight
     stepRHS (HGF nodes edges exts) = h [] nodes'

@@ -5,7 +5,6 @@
 
 module Util.FGG where
 import qualified Data.Map as Map
-import Data.List
 import Struct.Lib
 import Util.Helpers
 import Util.Tensor
@@ -82,7 +81,7 @@ data FGG = FGG {
   factors :: Map EdgeLabel ([NodeLabel], Maybe Weights), -- edge label to att node labels, weights
   nonterminals :: Map EdgeLabel [NodeLabel],             -- nt name to attachment node labels
   start :: EdgeLabel,                                    -- start nt
-  rules :: [(Int, Rule)]                                 -- [(reps, rule)]: reps keeps track of duplicate rules that should not be deduplicated
+  rules :: [Rule]                                        -- rules
 }
 
 -- Creates a JSON object from a weights tensor
@@ -106,10 +105,10 @@ fgg_to_json (FGG ds fs nts s rs) =
            ("type", JSarray [JSstring (show nl) | nl <- d])
          ])),
        ("start", JSstring (show s)),
-       ("rules", JSarray $ concat $ flip map (nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs) $
-          \ (reps, Rule lhs (HGF ns es xs)) ->
+       ("rules", JSarray $ flip map rs $
+          \ (Rule lhs (HGF ns es xs)) ->
             let m = Map.fromList (zip (fsts ns) [0..]) in
-            replicate reps $ JSobject [
+            JSobject [
              ("lhs", JSstring (show lhs)),
              ("rhs", JSobject [
                  ("nodes", JSarray [JSobject [("label", JSstring (show d)), ("id", JSstring (show n))] | (n, d) <- ns]),
