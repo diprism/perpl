@@ -79,7 +79,7 @@ ctorFactors g (Ctor x as) y cs =
   let
     Just ci = findIndex (\ (Ctor x' _) -> x' == x) cs
     fac = ElTerminal (FaCtor cs ci) in
-    addFactor fac (getCtorWeights (domainValues g) (Ctor x as) cs) +>
+    addFactor fac (getCtorWeights (domainSize g) (Ctor x as) cs) +>
     foldr (\ tp r -> type2fgg g tp +> r) returnRule as
 
 -- Add a rule for this particular case in a case-of statement
@@ -133,19 +133,19 @@ ampRule g all_fvs as i tm tp =
 -- Adds factors for the &-product of tps
 addAmpFactors :: Ctxt -> [Type] -> RuleM
 addAmpFactors g tps =
-  let ds = map (domainValues g) tps in
-    foldr (\ (i, tp) r -> r +> addFactor (ElTerminal (FaAddProd tps i)) (getSumWeights ds i)) returnRule (enumerate tps)
+  let sizes = map (domainSize g) tps in
+    foldr (\ (i, tp) r -> r +> addFactor (ElTerminal (FaAddProd tps i)) (getSumWeights sizes i)) returnRule (enumerate tps)
 
 -- Adds factors for the *-product of tps
 addProdFactors :: Ctxt -> [Type] -> RuleM
 addProdFactors g tps =
-  let tpvs = [domainValues g tp | tp <- tps] in
+  let sizes = [domainSize g tp | tp <- tps] in
     type2fgg g (TpProd Multiplicative tps) +>
-    addFactor (ElTerminal (FaMulProd tps)) (getProdWeights tpvs)
+    addFactor (ElTerminal (FaMulProd tps)) (getProdWeights sizes)
 
 -- Adds factor for v=(tp -> tp')
 addPairFactor :: Ctxt -> Type -> Type -> RuleM
-addPairFactor g tp tp' = addFactor (ElTerminal (FaMulProd [tp, tp'])) (getProdWeights [domainValues g tp, domainValues g tp'])
+addPairFactor g tp tp' = addFactor (ElTerminal (FaMulProd [tp, tp'])) (getProdWeights [domainSize g tp, domainSize g tp'])
 
 {- term2fgg g tm
 
@@ -393,8 +393,19 @@ domainValues' g = tpVals where
     ["(" ++ intercalate ", " tmvs ++ ")"| tmvs <- kronall [tpVals tp | tp <- tps]]
   tpVals tp = error ("Enumerating values of a " ++ show tp)
 
+{- domainSize g tp
+
+   Computes the number of possible inhabitants of a type. -}
+    
 domainSize :: Ctxt -> Type -> Int
-domainSize g = length . domainValues g
+domainSize g = tpSize where
+  tpSize (TpData y [] []) = case ctxtLookupType g y of
+                              Nothing -> 0
+                              Just cs -> sum [product (tpSize <$> as) | (Ctor x as) <- cs]
+  tpSize (TpArr tp1 tp2) = (tpSize tp1) * (tpSize tp2)
+  tpSize (TpProd Additive tps) = sum (tpSize <$> tps)
+  tpSize (TpProd Multiplicative tps) = product (tpSize <$> tps)
+  tpSize tp = error ("Enumerating values of a " ++ show tp)
 
 {- compileFile progs
 

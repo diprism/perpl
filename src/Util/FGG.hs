@@ -73,7 +73,6 @@ data Factor =
 data Edge = Edge { edge_atts :: [(NodeName, NodeLabel)], edge_label :: EdgeLabel }
   deriving Eq
 -- Hypergraph fragment (= hypergraph with external nodes)
--- TODO: This could simply be merged into Rule.
 data HGF = HGF { hgf_nodes :: [(NodeName, NodeLabel)], hgf_edges :: [Edge], hgf_exts :: [(NodeName, NodeLabel)] }
   deriving Eq
 data Rule = Rule EdgeLabel HGF

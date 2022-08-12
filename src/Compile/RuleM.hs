@@ -105,16 +105,15 @@ setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
 
    Computes the weights for a specific constructor.
 
-   - dom: maps from node labels (Type) to domains ([Value])
-   - c:   a specific constructor
-   - cs:  list of all constructors (including c)
+   - size: maps from node labels (Type) to sizes (Int)
+   - c:    a specific constructor
+   - cs:   list of all constructors (including c)
 
    Returns: If c = Ctor x ps, the tensor w[a1, ..., an, Ctor x as] = 1. -}
 
-getCtorWeights :: (Type -> [Value]) -> Ctor -> [Ctor] -> Weights
-getCtorWeights dom (Ctor x as) cs =
-  let shape = map (length . dom)
-      ts = [if x' == x then tensorId (shape as) else zeros (shape as ++ [product (shape as')]) | Ctor x' as' <- cs] in
+getCtorWeights :: (Type -> Int) -> Ctor -> [Ctor] -> Weights
+getCtorWeights size (Ctor x as) cs =
+  let ts = [if x' == x then tensorId (map size as) else zeros (map size as ++ [product (map size as')]) | Ctor x' as' <- cs] in
     tensorConcat (length as) ts
 
 {- getIdWeights n
@@ -126,44 +125,44 @@ getCtorWeights dom (Ctor x as) cs =
 getIdWeights :: Int -> Weights
 getIdWeights n = tensorId [n]
 
-{- getSumWeights tpvs
+{- getSumWeights sizes
 
    Computes the weights for the direct sum of a list of domains.
 
-   - tpvs: the list of domains
+   - sizes: the list of domain sizes
 
    Returns: If tp = tp1 + ... + tpn, the tensor w[x, in(i) x] = 1. -}
 
-getSumWeights :: [[Value]] -> Int -> Weights
-getSumWeights tpvs k = let m = length (tpvs !! k) in
-  tensorConcat 1 [if k == k' then tensorId [m] else zeros [m, length d] | (k', d) <- enumerate tpvs]
+getSumWeights :: [Int] -> Int -> Weights
+getSumWeights tpsizes k = let m = tpsizes !! k in
+  tensorConcat 1 [if k == k' then tensorId [m] else zeros [m, size] | (k', size) <- enumerate tpsizes]
 
-{- getProdWeights tpvs
+{- getProdWeights sizes
 
    Computes the weights for the tensor product of a list of domains.
 
-   - tpvs: the list of domains
+   - sizes: the list of domain sizes
 
    If tp = (tp1, ..., tpn), returns the tensor w[x1, ..., xn, (x1, ..., xn)] = 1. -}
   
-getProdWeights :: [[Value]] -> Weights
-getProdWeights tpvs = tensorId [length vs | vs <- tpvs]
+getProdWeights :: [Int] -> Weights
+getProdWeights = tensorId
 
-{- getEqWeights s n
+{- getEqWeights size n
 
    Returns the weights for (tm1 == tm2 == ... == tmn)
 
-   - s: the size of the domains of the terms
+   - size: the size of the domains of the terms
    - n: the number of terms
 
-   Returns: s x   ....   x s x 2 tensor
+   Returns: size x   ....   x s x 2 tensor
             |<- n copies ->|
  -}
 
 getEqWeights :: Int -> Int -> Weights
-getEqWeights dom ntms =
+getEqWeights size ntms =
   foldr
-    (\ _ ws b mi -> Vector [ws (b && maybe True (== j) mi) (Just j) | j <- [0..dom-1]])
+    (\ _ ws b mi -> Vector [ws (b && maybe True (== j) mi) (Just j) | j <- [0..size-1]])
     (\ b _ -> Vector (if b then [Scalar 0, Scalar 1] else [Scalar 1, Scalar 0]))
     [0..ntms-1]
     True
