@@ -14,16 +14,9 @@ typeof (TmCase ctm y cs tp) = tp
 typeof (TmAmb tms tp) = tp
 typeof (TmFactor wt tm tp) = tp
 typeof (TmProd am as) = TpProd am (snds as)
-typeof (TmElimProd am tm ps tm' tp) = tp
+typeof (TmElimMultiplicative tm ps    tm' tp) = tp
+typeof (TmElimAdditive       tm n i p tm' tp) = tp
 typeof (TmEqs tms) = tpBool
-
--- Returns the index of the only non-underscore var
--- "let <_, _, x, _> in ..."  =>  index of x = 2
-injIndex :: [Var] -> Int
-injIndex = h . zip [0..] where
-  h [] = -1
-  h ((i, Var "_") : xs) = h xs
-  h ((i, x) : xs) = i
 
 -- Sorts cases according to the order they are appear in the datatype definition
 -- This allows you to do case tm of C2->... | C1->..., which then gets translated to

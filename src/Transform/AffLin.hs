@@ -71,21 +71,20 @@ alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
 -- For example, take x : Bool, which becomes
 -- case x of false -> unit | true -> unit
 discard' :: Term -> Type -> Term -> AffLinM Term
-discard' (TmVarL (Var "_") tp') tp rtm = return rtm -- error ("discard' \"_\" " ++ show tp ++ " in the term " ++ show rtm)
 discard' x (TpArr tp1 tp2) rtm =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
 discard' x (TpProd Additive tps) rtm =
-    return (TmElimProd Additive x
-             [(if i == length tps - 1 then Var "_x" else Var "_", tp)| (i, tp) <- enumerate tps]
+    return (TmElimAdditive x (length tps) (length tps - 1)
+             (Var "_d", last tps)
              rtm (typeof rtm))
 discard' x (TpProd Multiplicative tps) rtm =
-    let ps = [(etaName (Var "_") i, tp) | (i, tp) <- enumerate tps] in
+    let ps = [(etaName (Var "d") i, tp) | (i, tp) <- enumerate tps] in
       discards (Map.fromList ps) rtm >>= \ rtm' ->
-      return (TmElimProd Multiplicative x ps rtm' (typeof rtm'))
+      return (TmElimMultiplicative x ps rtm' (typeof rtm'))
 discard' x xtp@(TpData y [] []) rtm =
   ask >>= \ g ->
     -- let () = discard x in rtm
-    return (TmElimProd Multiplicative (TmVarG DefVar (discardName y) [] [] [(x, xtp)] tpUnit) [] rtm (typeof rtm))
+    return (TmElimMultiplicative (TmVarG DefVar (discardName y) [] [] [(x, xtp)] tpUnit) [] rtm (typeof rtm))
 discard' _ tp _ = error ("Trying to discard a " ++ show tp)
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard
@@ -162,8 +161,8 @@ affLin (TmApp tm1 tm2 tp2 tp) =
   let tp2' = affLinTp tp2
       tp'  = affLinTp tp
       tp1' = TpArr tp2' tp' in
-  return (TmApp (TmElimProd Additive tm1' [(Var "x", tp1'), (Var "_", tpUnit)]
-                            (TmVarL (Var "x") tp1') tp1')
+  return (TmApp (TmElimAdditive tm1' 2 0 (Var "x", tp1')
+                                (TmVarL (Var "x") tp1') tp1')
                 tm2' tp2' tp')
 affLin (TmLet x xtm xtp tm tp) =
   -- L(let x : xtp = xtm in tm) => let x : L(xtp) = L(xtm) in let _ = Z({x} - FV(tm)) in L(tm)
@@ -199,18 +198,19 @@ affLin (TmProd am as)
   | otherwise =
     -- L(tm1, tm2, ..., tmn) => (L(tm1), L(tm2), ..., L(tmn))
     pure (TmProd am) <*> mapArgsM affLin as
-affLin (TmElimProd Additive tm ps tm' tp) =
+affLin (TmElimAdditive tm n i (x,xtp) tm' tp) =
   -- L(let <x1, x2, ..., xn> = tm in tm') =>
   --    let <x1, x2, ..., xn> = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')
   affLin tm >>= \ tm ->
-  affLinParams ps tm' >>= \ (ps, tm') ->
-  return (TmElimProd Additive tm (ps ++ [(Var "_", tpUnit)]) tm' (typeof tm'))
-affLin (TmElimProd Multiplicative tm ps tm' tp) =
+  let xtp' = affLinTp xtp in
+  alBind x xtp' (affLin tm') >>= \ tm' ->
+  return (TmElimAdditive tm (n+1) i (x,xtp') tm' (typeof tm'))
+affLin (TmElimMultiplicative tm ps tm' tp) =
   -- L(let (x1, x2, ..., xn) = tm in tm') =>
   --    let (x1, x2, ..., xn) = L(tm) in let _ = Z({x1, x2, ..., xn} - FV(tm')) in L(tm')
   affLin tm >>= \ tm ->
   affLinParams ps tm' >>= \ (ps, tm') ->
-  return (TmElimProd Multiplicative tm ps tm' (typeof tm'))
+  return (TmElimMultiplicative tm ps tm' (typeof tm'))
 affLin (TmEqs tms) =
   -- L(tm1 == tm2 == ... == tmn) =>
   --   L(tm1) == L(tm2) == ... == L(tmn)

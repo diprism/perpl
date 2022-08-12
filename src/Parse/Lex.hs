@@ -1,6 +1,7 @@
 {- Lexer code -}
 
 module Parse.Lex (Token (..), keywords, Pos, lexFile) where
+import Data.Char (isAlpha, isDigit)
 
 -- Possible tokens
 data Token =
@@ -146,10 +147,10 @@ lexVar (c : s)
 
 -- Determines if c is a valid character for a variable name
 isVarFirstChar :: Char -> Bool
-isVarFirstChar c = ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('_' == c)
+isVarFirstChar c = '_' == c || isAlpha c
   
 isVarChar :: Char -> Bool
-isVarChar c = isVarFirstChar c || ('0' <= c && c <= '9') || ('\'' == c) 
+isVarChar c = '\'' == c || isVarFirstChar c || isDigit c
 
 -- Lex a keyword or a variable name
 lexKeywordOrVar :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]

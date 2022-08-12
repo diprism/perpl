@@ -82,14 +82,12 @@ liftAmb (TmProd am as)
     let as' = [[(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
       joinAmbs (map (TmProd am) (kronall as')) (TpProd am (snds as))
   | otherwise = TmProd am (mapArgs liftAmb as)
-{-liftAmb (TmElimProd Additive ptm ps tm tp) =
--- let <ps> = amb ptm in tm
-  let pambs = splitAmbs (liftAmb ptm)
-      tambs = splitAmbs (liftAmb tm) in    
-    joinAmbs [TmElimProd Additive ptm o tp | tm <- splitAmbs (liftAmb tm)] tp
--}
-liftAmb (TmElimProd am ptm ps tm tp) =
-  joinAmbs (kronwith (\ ptm' tm' -> TmElimProd am ptm' ps tm' tp)
+liftAmb (TmElimAdditive ptm n i p tm tp) =
+  joinAmbs (kronwith (\ ptm' tm' -> TmElimAdditive ptm' n i p tm' tp)
+             (splitAmbs (liftAmb ptm))
+             (splitAmbs (liftAmb tm))) tp
+liftAmb (TmElimMultiplicative ptm ps tm tp) =
+  joinAmbs (kronwith (\ ptm' tm' -> TmElimMultiplicative ptm' ps tm' tp)
              (splitAmbs (liftAmb ptm))
              (splitAmbs (liftAmb tm))) tp
 liftAmb (TmEqs tms) =
@@ -123,10 +121,10 @@ liftFail' (TmProd am as)
   | otherwise =
     let as' = map (mapArgM liftFail') as in
       pure (TmProd am [maybe (TmAmb [] tp, tp) id ma | ((_, tp), ma) <- zip as as'])
---liftFail' (TmElimAmp tm tps o) =
---  pure TmElimAmp <*> liftFail' tm <*> pure tps <*> pure o
-liftFail' (TmElimProd am tm ps tm' tp) =
-  pure (TmElimProd am) <*> liftFail' tm <*> pure ps <*> liftFail' tm' <*> pure tp
+liftFail' (TmElimAdditive tm n i p tm' tp) =
+  pure TmElimAdditive <*> liftFail' tm <*> pure n <*> pure i <*> pure p <*> liftFail' tm' <*> pure tp
+liftFail' (TmElimMultiplicative tm ps tm' tp) =
+  pure TmElimMultiplicative <*> liftFail' tm <*> pure ps <*> liftFail' tm' <*> pure tp
 liftFail' (TmEqs tms) =
   pure TmEqs <*> mapM liftFail' tms
 
@@ -173,8 +171,8 @@ safe2sub g x xtm tm =
     noDefsSamps (TmAmb tms tp) = False
     noDefsSamps (TmFactor wt tm tp) = False
     noDefsSamps (TmProd am as) = all (noDefsSamps . fst) as
---    noDefsSamps (TmElimAmp tm tps o) = noDefsSamps tm
-    noDefsSamps (TmElimProd am tm ps tm' tp) = noDefsSamps tm && noDefsSamps tm'
+    noDefsSamps (TmElimAdditive tm n i p tm' tp) = noDefsSamps tm && noDefsSamps tm'
+    noDefsSamps (TmElimMultiplicative tm ps tm' tp) = noDefsSamps tm && noDefsSamps tm'
     noDefsSamps (TmEqs tms) = all noDefsSamps tms
 
 -- Applies various optimizations to a term
@@ -225,12 +223,12 @@ optimizeTerm g (TmCase tm y cs tp) =
           joinLams ps' (TmCase tm' y cs' end)
 optimizeTerm g (TmAmb tms tp) = TmAmb (map (optimizeTerm g) tms) tp
 optimizeTerm g (TmProd am as) = TmProd am (mapArgs (optimizeTerm g) as)
-optimizeTerm g (TmElimProd Additive ptm ps tm tp) =
+optimizeTerm g (TmElimAdditive ptm n i (x,xtp) tm tp) =
   case optimizeTerm g ptm of
-    (TmProd Additive as) -> optimizeTerm g (substWithCtxt g (Map.fromList [(x, SubTm tm) | ((x, _), (tm, _)) <- zip ps as]) tm)
-    ptm' -> TmElimProd Additive ptm' ps (optimizeTerm (ctxtDeclArgs g ps) tm) tp
-optimizeTerm g (TmElimProd Multiplicative tm ps tm' tp) =
-  TmElimProd Multiplicative (optimizeTerm g tm) ps (optimizeTerm (ctxtDeclArgs g ps) tm') tp
+    TmProd Additive as -> optimizeTerm g (substWithCtxt g (Map.singleton x (SubTm (fst (as!!i)))) tm)
+    ptm' -> TmElimAdditive ptm' n i (x,xtp) (optimizeTerm (ctxtDefLocal g x xtp) tm) tp
+optimizeTerm g (TmElimMultiplicative tm ps tm' tp) =
+  TmElimMultiplicative (optimizeTerm g tm) ps (optimizeTerm (ctxtDeclArgs g ps) tm') tp
 optimizeTerm g (TmEqs tms) =
   TmEqs [optimizeTerm g tm | tm <- tms]
 

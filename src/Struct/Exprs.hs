@@ -72,7 +72,8 @@ data UsTm =
   | UsFactor Double UsTm                -- factor wt in tm
   | UsFail Type                         -- fail : tp
   | UsProd AddMult [UsTm]               -- (tm1, ..., tmn)/<tm1, ..., tmn>
-  | UsElimProd AddMult UsTm [Var] UsTm  -- let (x,y,z)/<x,y,z> = tm1 in tm2
+  | UsElimMultiplicative UsTm [Var] UsTm-- let (x,y,z) = tm1 in tm2
+  | UsElimAdditive UsTm Int Int Var UsTm-- let <_,y,_> = tm1 in tm2
   | UsTmBool Bool                       -- True / False
   | UsIf UsTm UsTm UsTm                 -- if tm1 then tm2 else tm3
   | UsEqs [UsTm]                        -- tm1 == tm2 == ...
@@ -93,7 +94,8 @@ data Term =
   | TmAmb [Term] Type                             -- amb tm1 tm2 ... tmn : tp
   | TmFactor Double Term Type                     -- factor wt in tm : tp
   | TmProd AddMult [Arg]                          -- (tm1 : tp1, tm2 : tp2, ..., tmn : tpn) / <...>
-  | TmElimProd AddMult Term [Param] Term Type     -- let (x:X,y:Y,z:Z)/<...> = tm1 in tm2 : tp
+  | TmElimMultiplicative Term [Param] Term Type   -- let (x:X,y:Y,z:Z) = tm1 in tm2 : tp
+  | TmElimAdditive Term Int Int Param Term Type   -- let <_..,y:Y,_..> = tm1 in tm2 : tp
   | TmEqs [Term]                                  -- tm1 == tm2 == ...
   deriving (Eq, Ord)
 
