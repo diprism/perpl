@@ -19,34 +19,35 @@ unusedExternals :: [External] -> [External] -> [External]
 unusedExternals = deleteFirstsBy (\ (x1, _) (x2, _) -> x1 == x2)
 
 
-{- varRule x tp
+{- varRule g x tp
 
    Create rule for local variable x:
 
      (v0)-[x]-(v1) -> (v0)-[v0=v1]-(v1)
  -}
 
-varRule :: Var -> Type -> RuleM
-varRule x tp = let ns = [(NnVar x, tp), (NnOut, tp)] in
+varRule :: Ctxt -> Var -> Type -> RuleM
+varRule g x tp = let ns = [(NnVar x, tp), (NnOut, tp)] in
+  addFactor (ElTerminal (FaIdentity tp)) (getIdWeights (domainSize g tp)) +>
   mkRule (TmVarL x tp) ns [Edge ns (ElTerminal (FaIdentity tp))] ns
 
-{- bindExts xs' rm
+{- bindExts g xs' rm
 
    Run rm, and for each variable x in xs', make x internal and create a rule for x. -}
     
-bindExts :: [Param] -> RuleM -> RuleM
-bindExts xs' (RuleM rs xs nts fs) =
+bindExts :: Ctxt -> [Param] -> RuleM -> RuleM
+bindExts g xs' (RuleM rs xs nts fs) =
   let keep (NnVar x, _) = not (elem x (fsts xs'))
       keep _ = error "expected an external node"
       rm = RuleM rs (filter keep xs) nts fs in
-    foldr (\ (x, tp) r -> varRule x tp +> r) rm xs'
+    foldr (\ (x, tp) r -> varRule g x tp +> r) rm xs'
 
-{- bindExt addVarRule x tp rm
+{- bindExt g x tp rm
 
    Like bindExt, but for a single variable. -}
     
-bindExt :: Var -> Type -> RuleM -> RuleM
-bindExt x tp = bindExts [(x, tp)]
+bindExt :: Ctxt -> Var -> Type -> RuleM -> RuleM
+bindExt g x tp = bindExts g [(x, tp)]
 
 {- bindCases xs rms
 
@@ -79,13 +80,12 @@ ctorFactors g (Ctor x as) y cs =
   let
     Just ci = findIndex (\ (Ctor x' _) -> x' == x) cs
     fac = ElTerminal (FaCtor cs ci) in
-    addFactor fac (getCtorWeights (domainSize g) (Ctor x as) cs) +>
-    foldr (\ tp r -> type2fgg g tp +> r) returnRule as
+    addFactor fac (getCtorWeights (domainSize g) (Ctor x as) cs)
 
 -- Add a rule for this particular case in a case-of statement
 caseRule :: Ctxt -> FreeVars -> [External] -> Term -> Var -> [Case] -> Type -> Case -> RuleM
 caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
-  bindExts as $
+  bindExts g as $
   term2fgg (ctxtDeclArgs g as) xtm +>= \ xs_xtm_as ->
   let all_xs = paramsToExternals (Map.toList all_fvs)
       unused_ps = unusedExternals all_xs xs_xtm_as
@@ -140,7 +140,6 @@ addAmpFactors g tps =
 addProdFactors :: Ctxt -> [Type] -> RuleM
 addProdFactors g tps =
   let sizes = [domainSize g tp | tp <- tps] in
-    type2fgg g (TpProd Multiplicative tps) +>
     addFactor (ElTerminal (FaMulProd tps)) (getProdWeights sizes)
 
 -- Adds factor for v=(tp -> tp')
@@ -158,7 +157,6 @@ term2fgg :: Ctxt -> Term -> RuleM
 
 -- The rule for local variables is already created in bindExt(s).
 term2fgg g (TmVarL x tp) =
-  type2fgg g tp +>
   addExt (NnVar x) tp
 
 term2fgg g (TmVarG DefVar x [] [] [] tp) =
@@ -183,10 +181,9 @@ term2fgg g (TmVarG gv x [] [] as tp) =
 term2fgg _ (TmVarG _ _ _ _ _ _) = error "Cannot compile polymorphic code"
 
 term2fgg g (TmLam x tp tm tp') =
-  bindExt x tp
+  bindExt g x tp
     (term2fgg (ctxtDefLocal g x tp) tm +>= \ tmxs ->
      addPairFactor g tp tp' +>
-     type2fgg g tp +>
      let [vtp'] = newNodeNames [tp']
          varr = (NnOut, TpArr tp tp')
          vtp = (NnVar x, tp) in
@@ -234,7 +231,7 @@ term2fgg g (TmFactor wt tm tp) =
   
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm +>= \ xtmxs ->
-  bindExt x xtp $
+  bindExt g x xtp $
   term2fgg (ctxtDefLocal g x xtp) tm +>= \ tmxs ->
   let vxtp = (NnVar x, xtp)
       vtp = (NnOut, tp) in -- TODO: if unused?
@@ -269,7 +266,7 @@ term2fgg g (TmElimProd Additive ptm ps tm tp) =
   term2fgg g ptm +>= \ ptmxs ->
   let o = injIndex [x | (x, _) <- ps]
       (x, xtp) = ps !! o in
-    bindExt x xtp $
+    bindExt g x xtp $
     term2fgg (ctxtDefLocal g x xtp) tm +>= \ tmxs ->
     let x' = NnVar x
         tps = snds ps
@@ -287,7 +284,7 @@ term2fgg g (TmElimProd Additive ptm ps tm tp) =
 
 term2fgg g (TmElimProd Multiplicative ptm ps tm tp) =
   term2fgg g ptm +>= \ ptmxs ->
-  bindExts ps $
+  bindExts g ps $
   term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
   let ps' = paramsToExternals ps
       tps = snds ps
@@ -317,29 +314,13 @@ term2fgg g (TmEqs tms) =
       (Edge (vtps ++ [vbtp]) fac : [Edge (xs ++ [vtp]) (ElNonterminal tm) | (tm, vtp, xs) <- zip3 tms vtps xss])
       (concat xss ++ [vbtp])
 
-{- type2fgg g tp
-
-   Adds factors for each subexpression in a type. -}
-
-type2fgg :: Ctxt -> Type -> RuleM
-type2fgg g tp =
-  addFactor (ElTerminal (FaIdentity tp)) (getIdWeights (domainSize g tp)) +>
-  type2fgg' g tp
-  where
-    type2fgg' :: Ctxt -> Type -> RuleM
-    type2fgg' g (TpData y [] []) = returnRule
-    type2fgg' g (TpArr tp1 tp2) = type2fgg g tp1 +> type2fgg g tp2
-    type2fgg' g (TpProd am tps) = foldr (\ tp r -> r +> type2fgg g tp) returnRule tps
-    type2fgg' g tp = error ("Compiling a " ++ show tp ++ " to FGG rule")
-
 {- prog2fgg g prog
 
    Adds the rules for a Prog. -}
     
 prog2fgg :: Ctxt -> Prog -> RuleM
 prog2fgg g (ProgFun x ps tm tp) = let tp' = joinArrows (snds ps) tp in
-  type2fgg g tp' +>= \ _ ->
-  bindExts ps $ term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
+  bindExts g ps $ term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
   let ps' = paramsToExternals ps
       unused_ps = unusedExternals ps' tmxs
       (unused_x, unused_tp) = unzip unused_ps
@@ -350,11 +331,9 @@ prog2fgg g (ProgFun x ps tm tp) = let tp' = joinArrows (snds ps) tp in
       (ps' ++ [vtp])
 prog2fgg g (ProgExtern x ps tp) =
   let tp' = (joinArrows ps tp) in
-    type2fgg g tp' +>
     addIncompleteFactor (ElNonterminal (TmVarG DefVar x [] [] [] tp'))
 prog2fgg g (ProgData y cs) =
-  foldr (\ (Ctor x as) r -> r +> ctorFactors g (Ctor x as) (TpData y [] []) cs) returnRule cs +>
-  type2fgg g (TpData y [] [])
+  foldr (\ (Ctor x as) r -> r +> ctorFactors g (Ctor x as) (TpData y [] []) cs) returnRule cs
 
 -- Goes through a program and adds all the rules for it
 progs2fgg :: Ctxt -> Progs -> RuleM
