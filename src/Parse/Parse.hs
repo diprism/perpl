@@ -3,6 +3,7 @@
 module Parse.Parse where
 import Parse.Lex
 import Struct.Lib
+import Util.Helpers (enumerate)
 
 -- Throws a parser error message (s) at a certain position (p)
 parseErr' p s = Left (p, s)
@@ -159,9 +160,28 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- \ x [: type] . term
   [TkLam, _] -> parseEat *> pure UsLam <*> parseVar <*> parseTpAnn <* parseDrop TkDot <*> parseTerm1
 -- let (x, y, ...) = term in term
-  [TkLet, TkParenL] -> parseEat *> parseEat *> pure (flip (UsElimProd Multiplicative)) <*> parseVarsCommas TkParenR True False <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
+  [TkLet, TkParenL] -> do
+    parseEat
+    parseEat
+    xs <- parseVarsCommas TkParenR True False
+    parseDrop TkEq
+    tm <- parseTerm1
+    parseDrop TkIn
+    tm' <- parseTerm1
+    return (UsElimMultiplicative tm xs tm')
 -- let <..., _, x, _, ...> = term in term
-  [TkLet, TkLangle] -> parseEat *> parseEat *> pure (flip (UsElimProd Additive)) <*> parseVarsCommas TkRangle False True <* parseDrop TkEq <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
+  [TkLet, TkLangle] -> do
+    parseEat
+    parseEat
+    xs <- parseVarsCommas TkRangle False True
+    case [ (i,x) | (i,x) <- enumerate xs, x /= Var "_" ] of
+      [(i,x)] -> do
+        parseDrop TkEq
+        tm <- parseTerm1
+        parseDrop TkIn
+        tm' <- parseTerm1
+        return (UsElimAdditive tm (length xs) i x tm')
+      _ -> parseErr "Expected exactly one non-underscore variable"
 -- let x = term [: type] in term
   [TkLet, _] -> parseEat *> pure UsLet <*> parseVar <* parseDrop TkEq
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1

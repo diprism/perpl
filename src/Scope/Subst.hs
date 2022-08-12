@@ -73,7 +73,7 @@ bind x x' m =
 
 -- Renames all xs to xs' (see bind) in m
 binds :: [Var] -> [Var] -> SubstM a -> SubstM a
-binds xs xs' m = foldr (uncurry bind) m (zip xs xs')
+binds xs xs' m = foldr (uncurry bind) m (pickyZip xs xs')
 
 -- Lookup a variable
 substVT :: Var -> SubstM SubT
@@ -88,17 +88,17 @@ substVar x fv ftm ftp ftg fn =
         {SubVar x' -> fv x'; SubTm tm -> ftm tm; SubTp tp -> ftp tp; SubTg tg -> ftg tg })
     (Map.lookup x s)
 
--- Freshens params, and binds them in cont
-substParams :: AddMult -> [Param] -> SubstM a -> SubstM ([Param], a)
-substParams am [] cont = (,) [] <$> cont
-substParams Additive ((Var "_", tp) : ps) cont =
-  substM tp >>= \ tp' ->
-  substParams Additive ps cont >>= \ (ps', a) ->
-  return ((Var "_", tp') : ps', a)
-substParams am ((x, tp) : ps) cont =
+-- Freshens param(s), and binds them in cont
+substParam :: Param -> SubstM a -> SubstM (Param, a)
+substParam (x, tp) cont =
   freshen x >>= \ x' ->
   substM tp >>= \ tp' ->
-  bind x x' (substParams am ps cont) >>= \ (ps', a) ->
+  bind x x' cont >>= \ a ->
+  return ((x', tp'), a)
+substParams :: [Param] -> SubstM a -> SubstM ([Param], a)
+substParams [] cont = (,) [] <$> cont
+substParams (p : ps) cont =
+  substParam p (substParams ps cont) >>= \ ((x', tp'), (ps', a)) ->
   return ((x', tp') : ps', a)
 
 -- "Substitutable" typeclass definition: must have freeVars and substM
@@ -191,10 +191,10 @@ instance Substitutable Term where
     pure TmFactor <*> pure wt <*> substM tm <*> substM tp
   substM (TmProd am as) =
     pure (TmProd am) <*> mapArgsM substM as
---  substM (TmElimAmp tm i tp) =
---    pure TmElimAmp <*> substM tm <*> pure i <*> substM tp
-  substM (TmElimProd am ptm ps tm tp) =
-    pure (TmElimProd am) <*> substM ptm <**> substParams am ps (substM tm) <*> substM tp
+  substM (TmElimAdditive ptm n i p tm tp) =
+    pure TmElimAdditive <*> substM ptm <*> pure n <*> pure i <**> substParam p (substM tm) <*> substM tp
+  substM (TmElimMultiplicative ptm ps tm tp) =
+    pure TmElimMultiplicative <*> substM ptm <**> substParams ps (substM tm) <*> substM tp
   substM (TmEqs tms) =
     pure TmEqs <*> substM tms
   
@@ -207,13 +207,13 @@ instance Substitutable Term where
   freeVars (TmAmb tms tp) = freeVars tms
   freeVars (TmFactor wt tm tp) = freeVars tm
   freeVars (TmProd am as) = freeVars (fsts as)
---  freeVars (TmElimAmp tm i tp) = freeVars tm
-  freeVars (TmElimProd am ptm ps tm tp) = Map.union (freeVars ptm) (foldr (Map.delete . fst) (freeVars tm) ps)
+  freeVars (TmElimAdditive ptm n i p tm tp) = Map.union (freeVars ptm) (Map.delete (fst p) (freeVars tm))
+  freeVars (TmElimMultiplicative ptm ps tm tp) = Map.union (freeVars ptm) (foldr (Map.delete . fst) (freeVars tm) ps)
   freeVars (TmEqs tms) = freeVars tms
 
 instance Substitutable Case where
   substM (Case x ps tm) =
-    pure (Case x) <**> substParams Multiplicative ps (substM tm)
+    pure (Case x) <**> substParams ps (substM tm)
   freeVars (Case x ps tm) =
     foldr (Map.delete . fst) (freeVars tm) ps
 
@@ -270,10 +270,14 @@ instance Substitutable UsTm where
     pure UsFail <*> substM tp
   substM (UsProd am tms) =
     pure (UsProd am) <*> substM tms
-  substM (UsElimProd am tm xs tm') =
-    pure (UsElimProd am) <*> substM tm
+  substM (UsElimMultiplicative tm xs tm') =
+    pure UsElimMultiplicative <*> substM tm
       <**> fmap (\ (ps, a) -> (fsts ps, a))
-                (substParams am [(x, NoTp) | x <- xs] (substM tm'))
+                (substParams [(x, NoTp) | x <- xs] (substM tm'))
+  substM (UsElimAdditive tm n i x tm') =
+    pure UsElimAdditive <*> substM tm <*> pure n <*> pure i
+      <**> fmap (\ (p, a) -> (fst p, a))
+                (substParam (x, NoTp) (substM tm'))
   substM (UsEqs tms) =
     pure UsEqs <*> substM tms
 
@@ -301,8 +305,10 @@ instance Substitutable UsTm where
 --    freeVars tm
   freeVars (UsProd am tms) =
     freeVars tms
-  freeVars (UsElimProd am tm xs tm') =
+  freeVars (UsElimMultiplicative tm xs tm') =
     Map.union (freeVars tm) (foldr Map.delete (freeVars tm') xs)
+  freeVars (UsElimAdditive tm n i x tm') =
+    Map.union (freeVars tm) (Map.delete x (freeVars tm'))
   freeVars (UsEqs tms) =
     freeVars tms
   
@@ -337,7 +343,7 @@ instance Substitutable Ctor where
 instance Substitutable Prog where
   substM (ProgFun x ps tm tp) =
     bind x x okay >>
-    pure (ProgFun x) <**> substParams Multiplicative ps (substM tm) <*> substM tp
+    pure (ProgFun x) <**> substParams ps (substM tm) <*> substM tp
   substM (ProgExtern x ps tp) =
     bind x x okay >>
     pure (ProgExtern x) <*> substM ps <*> substM tp

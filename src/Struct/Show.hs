@@ -20,7 +20,8 @@ toUsTm (TmAmb [] tp) = UsFail tp
 toUsTm (TmAmb tms tp) = UsAmb [toUsTm tm | tm <- tms]
 toUsTm (TmFactor wt tm tp) = UsFactor wt (toUsTm tm)
 toUsTm (TmProd am as) = UsProd am [toUsTm tm | (tm, _) <- as]
-toUsTm (TmElimProd am tm ps tm' tp) = UsElimProd am (toUsTm tm) [x | (x, _) <- ps] (toUsTm tm')
+toUsTm (TmElimMultiplicative tm ps    tm' tp) = UsElimMultiplicative (toUsTm tm) (fsts ps)   (toUsTm tm')
+toUsTm (TmElimAdditive       tm n i p tm' tp) = UsElimAdditive       (toUsTm tm) n i (fst p) (toUsTm tm')
 toUsTm (TmEqs tms) = UsEqs [toUsTm tm | tm <- tms]
 
 toCaseUs :: Case -> CaseUs
@@ -46,6 +47,18 @@ amParens :: AddMult -> (String, String)
 amParens Additive = ("<", ">")
 amParens Multiplicative = ("(", ")")
 
+showsPrecElim :: Int -> AddMult -> UsTm -> [ShowS] -> UsTm -> ShowS
+showsPrecElim p am tm xs tm' = showParen (p > 1)
+                             $ showString "let "
+                             . showString l
+                             . delimitWith ", " xs
+                             . showString r
+                             . showString " = "
+                             . shows tm
+                             . showString " in "
+                             . showsPrec (if p == 1 then 1 else 0) tm'
+  where (l, r) = amParens am
+
 instance Show CaseUs where
   showsPrec p (CaseUs x as tm) = delimitWith " " (map shows (x:as)) . showString " -> " . showsPrec p tm
 instance Show Case where
@@ -59,7 +72,8 @@ instance Show UsTm where
   showsPrec p (UsApp tm1 tm2) = showParen (p > 10) (showsPrec 10 tm1 . showChar ' ' . showsPrec 11 tm2)
   showsPrec p (UsLam x tp tm) = showParen (p > 1) (showString "\\ " . shows x . showString (showTpAnn tp) . showString ". " . showsPrec (if p == 1 then 1 else 0) tm)
   showsPrec p (UsLet x tm tm') = showParen (p > 1) (showString "let " . shows x . showString " = " . shows tm . showString " in " . showsPrec (if p == 1 then 1 else 0) tm')
-  showsPrec p (UsElimProd am tm xs tm') = showParen (p > 1) (let (l, r) = amParens am in showString "let " . showString l . delimitWith ", " (map shows xs) . showString r . showString " = " . shows tm . showString " in " . showsPrec (if p == 1 then 1 else 0) tm')
+  showsPrec p (UsElimMultiplicative tm xs    tm') = showsPrecElim p Multiplicative tm (map shows xs) tm'
+  showsPrec p (UsElimAdditive       tm n i x tm') = showsPrecElim p Additive tm [ if i==j then shows x else showString "_" | j <- [0..n-1] ] tm'
   showsPrec p (UsFactor wt tm) = showParen (p > 1) (showString "factor " . shows wt . showString " in " . showsPrec (if p == 1 then 1 else 0) tm)
   showsPrec p (UsIf tm1 tm2 tm3) = showParen (p > 1) (showString "if " . shows tm1 . showString " then " . shows tm2 . showString " else " . showsPrec (if p == 1 then 1 else 0) tm3)
   showsPrec p (UsCase tm cs) = showParen (p > 0) (showString "case " . shows tm . showString " of " . delimitWith " | " (map (showsPrec 1) cs))

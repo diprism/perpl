@@ -45,7 +45,8 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccs (UsFail tp) = Map.empty
 --    countOccs (UsElimAmp tm o) = countOccs tm
     countOccs (UsProd am tms) = Map.unionsWith (if am == Additive then max else (+)) (map countOccs tms)
-    countOccs (UsElimProd am tm xs tm') = Map.unionWith (+) (countOccs tm) (foldr Map.delete (countOccs tm') xs)
+    countOccs (UsElimMultiplicative tm xs tm') = Map.unionWith (+) (countOccs tm) (foldr Map.delete (countOccs tm') xs)
+    countOccs (UsElimAdditive tm n i x tm') = Map.unionWith (+) (countOccs tm) (Map.delete x (countOccs tm'))
     countOccs (UsEqs tms) = Map.unionsWith (+) (map countOccs tms)
     
     countOccsCase :: CaseUs -> Map Var Int
@@ -78,7 +79,8 @@ isLin x tm = h tm == LinYes where
   h (UsFail tp) = LinNo
 --  h (UsElimAmp tm o) = h tm
   h (UsProd am tms) = h_as (if am == Additive then LinYes else LinErr) tms
-  h (UsElimProd am tm xs tm') = if x `elem` xs then h tm else h_as LinErr [tm, tm']
+  h (UsElimMultiplicative tm xs tm') = if x `elem` xs then h tm else h_as LinErr [tm, tm']
+  h (UsElimAdditive tm n i y tm') = if x == y then h tm else h_as LinErr [tm, tm']
   h (UsEqs tms) = h_as LinErr tms
 
 -- Returns if x appears exactly once in a term
@@ -104,8 +106,9 @@ isLin' x = (LinYes ==) . h where
   h (TmAmb tms tp) = h_as LinYes tms
   h (TmFactor wt tm tp) = h tm
   h (TmProd am as) = h_as (if am == Additive then LinYes else LinErr) (fsts as)
---  h (TmElimAmp tm tps o) = h tm
-  h (TmElimProd am tm ps tm' tp) =
+  h (TmElimAdditive tm n i p tm' tp) =
+    if x == fst p then h tm else h_as LinErr [tm, tm']
+  h (TmElimMultiplicative tm ps tm' tp) =
     if x `elem` fsts ps then h tm else h_as LinErr [tm, tm']
   h (TmEqs tms) = h_as LinErr tms
 

@@ -265,27 +265,24 @@ term2fgg g (TmProd am@Multiplicative as) =
         [Edge (tmxs ++ [vtp]) (ElNonterminal atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
       (concat xss ++ [vptp])
 
-term2fgg g (TmElimProd Additive ptm ps tm tp) =
+term2fgg g (TmElimAdditive ptm n o (x, xtp) tm tp) =
   term2fgg g ptm +>= \ ptmxs ->
-  let o = injIndex [x | (x, _) <- ps]
-      (x, xtp) = ps !! o in
     bindExt x xtp $
     term2fgg (ctxtDefLocal g x xtp) tm +>= \ tmxs ->
     let x' = NnVar x
-        tps = snds ps
-        ptp = TpProd Additive tps
+        ptp@(TpProd Additive tps) = typeof ptm
         vtp = (NnOut, tp)
         [vptp] = newNodeNames [ptp]
     in
       addAmpFactors g tps +>
-      mkRule (TmElimProd Additive ptm ps tm tp)
+      mkRule (TmElimAdditive ptm n o (x, xtp) tm tp)
         (vtp : vptp : (x', xtp) : tmxs ++ ptmxs)
         [Edge (ptmxs ++ [vptp]) (ElNonterminal ptm),
          Edge (tmxs ++ [vtp]) (ElNonterminal tm),
          Edge [(x', xtp), vptp] (ElTerminal (FaAddProd tps o))]
         (ptmxs ++ delete (x', xtp) tmxs ++ [vtp])
 
-term2fgg g (TmElimProd Multiplicative ptm ps tm tp) =
+term2fgg g (TmElimMultiplicative ptm ps tm tp) =
   term2fgg g ptm +>= \ ptmxs ->
   bindExts ps $
   term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
@@ -297,7 +294,7 @@ term2fgg g (TmElimProd Multiplicative ptm ps tm tp) =
       [vptp] = newNodeNames [ptp]
   in
     addProdFactors g tps +>
-    mkRule (TmElimProd Multiplicative ptm ps tm tp)
+    mkRule (TmElimMultiplicative ptm ps tm tp)
       (vtp : vptp : ps' ++ unused_ps ++ tmxs ++ ptmxs)
       [Edge (ptmxs ++ [vptp]) (ElNonterminal ptm),
        Edge (ps' ++ [vptp]) (ElTerminal (FaMulProd tps)),

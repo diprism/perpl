@@ -26,7 +26,6 @@ data TypeError =
   | RobustType Type -- expected type to be robust
   | NoCases -- case-of with no cases
   | ExpNonUnderscoreVar -- expected a non-"_" var
-  | ExpOneNonUnderscoreVar -- expected exactly  one non-"_" var (`let <_, x, _> = ... in ...`)
   | MissingCases [Var] -- missing cases for some constructors
   | WrongNumCases Int Int -- wrong number of cases
   | WrongNumArgs Int Int -- wrong number of args, in a case (`... | Cons h t bad -> ...`)
@@ -43,7 +42,6 @@ instance Show TypeError where
   show (RobustType tp) = "Expected " ++ show tp ++ " to be a robust type (or if binding a var, it is used non-affinely)"
   show NoCases = "Can't have case-of with no cases"
   show ExpNonUnderscoreVar = "Expected non-underscore variable here"
-  show ExpOneNonUnderscoreVar = "Expected exactly one non-underscore variable"
   show (MissingCases xs) = "Missing cases: " ++ intercalate ", " (show <$> xs)
   show (WrongNumCases exp act) = "Expected " ++ show exp ++ " cases, but got " ++ show act
   show (WrongNumArgs exp act) = "Expected " ++ show exp ++ " args, but got " ++ show act
@@ -390,18 +388,28 @@ infer' (UsProd am tms) =
   mapM infer tms >>= \ tms' ->
   return (TmProd am [(tm, typeof tm) | tm <- tms'])
 
-infer' (UsElimProd am ptm xs tm) =
+infer' (UsElimMultiplicative ptm xs tm) =
   infer ptm >>= \ ptm' ->
-  -- Guard against `let <x, y, _> = ... in ...` (also against `let <_, _, _> = ... in ...`)
-  guardM (am /= Additive || 1 == length (filter (/= Var "_") xs)) ExpOneNonUnderscoreVar >>
-  -- Pick a fresh type var for each x in xs
+  -- Pick a fresh type var for each component
   mapM (\ x -> (,) x <$> freshTp) xs >>= \ ps ->
   -- For each (x : tp) in ps, if x is used more than affinely, constrain tp to be robust
   mapM (\ (x, tp) -> constrainIf (not $ isAff x tm) (Robust tp)) ps >>
-  -- Constraint: (typeof ptm') = (ps1 */& ps2 */& ... */& psn)
-  constrain (Unify (typeof ptm') (TpProd am (snds ps))) >>
+  -- Constraint: (typeof ptm') = (ps1 * ps2 * ... * psn)
+  constrain (Unify (typeof ptm') (TpProd Multiplicative (snds ps))) >>
   inEnvs ps (infer tm) >>= \ tm' ->
-  return (TmElimProd am ptm' ps tm' (typeof tm'))
+  return (TmElimMultiplicative ptm' ps tm' (typeof tm'))
+
+infer' (UsElimAdditive ptm n i x tm) =
+  infer ptm >>= \ ptm' ->
+  -- Pick a fresh type var for each component
+  replicateM n freshTp >>= \tps ->
+  -- If x:tp is used more than affinely, constrain tp to be robust
+  let xtp = tps !! i in
+  constrainIf (not $ isAff x tm) (Robust xtp) >>
+  -- Constraint: (typeof ptm') = (ps1 & ps2 & ... & psn)
+  constrain (Unify (typeof ptm') (TpProd Additive tps)) >>
+  inEnv x xtp (infer tm) >>= \ tm' ->
+  return (TmElimAdditive ptm' n i (x,xtp) tm' (typeof tm'))
 
 infer' (UsEqs tms) =
   mapM infer tms >>= \ tms' ->
