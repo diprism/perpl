@@ -9,6 +9,7 @@ import Struct.Lib
 import Util.Helpers
 import Util.Tensor
 import Util.JSON
+import Data.List (intercalate)
 
 type Domain = [Value]
 newtype Value = Value String
@@ -67,8 +68,16 @@ data Factor =
   | FaAddProd [Type] Int                -- matrix projecting tp1+...+tpn to tpk
   | FaMulProd [Type]                    -- tensor mapping (tp1,...,tpn) to tp1,...,tpn
   | FaCtor [Ctor] Int                   -- k'th constructor in cs
-  | FaExtern Type                       -- weights supplied externally
-  deriving (Show, Eq, Ord)
+  | FaExtern Var Type                   -- weights supplied externally
+  deriving (Eq, Ord)
+instance Show Factor where
+  show (FaScalar w) = show w
+  show (FaIdentity tp) = "Identity[" ++ show tp ++ "]"
+  show (FaEqual tp n) = "Equal[" ++ show tp ++ "^" ++ show n ++ "]"
+  show (FaAddProd tps k) = "AddProd[" ++ intercalate "," (show <$> tps) ++ ";" ++ show k ++ "]"
+  show (FaMulProd tps) = "MulProd[" ++ intercalate "," (show <$> tps) ++ "]"
+  show (FaCtor cs k) = show (cs !! k)
+  show (FaExtern x _) = show x
 
 data Edge = Edge { edge_atts :: [(NodeName, NodeLabel)], edge_label :: EdgeLabel }
   deriving Eq

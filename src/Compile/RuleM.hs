@@ -147,7 +147,7 @@ getWeights size = h where
   h (FaAddProd tps k) = Just (getSumWeights (size <$> tps) k)
   h (FaMulProd tps) = Just (getProdWeights (size <$> tps))
   h (FaCtor cs k) = Just (getCtorWeights size (cs !! k) cs)
-  h (FaExtern _) = Nothing
+  h (FaExtern _ _) = Nothing
 
 {- rulesToFGG dom start rs nts facs
 

@@ -84,7 +84,7 @@ discard' x (TpProd Multiplicative tps) rtm =
 discard' x xtp@(TpData y [] []) rtm =
   ask >>= \ g ->
     -- let () = discard x in rtm
-    return (TmElimMultiplicative (TmVarG DefVar (discardName y) [] [] [(x, xtp)] tpUnit) [] rtm (typeof rtm))
+    return (TmElimMultiplicative (TmVarG GlFun (discardName y) [] [] [(x, xtp)] tpUnit) [] rtm (typeof rtm))
 discard' _ tp _ = error ("Trying to discard a " ++ show tp)
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard

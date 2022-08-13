@@ -133,19 +133,22 @@ term2fgg :: Ctxt -> Term -> RuleM
 term2fgg g (TmVarL x tp) =
   addExt (NnVar x) tp
 
-term2fgg g (TmVarG DefVar x [] [] [] tp) =
+term2fgg g (TmVarG GlFun x [] [] [] tp) =
   returnRule -- If this is a def with no args, we already add its rule when it gets defined
 
 term2fgg g (TmVarG gv x [] [] as tp) =
   [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
   let ps = newNodeNames (snds as)
       vy = (NnOut, tp)
-      el = case gv of CtorVar ->
+      el = case gv of GlFun ->
+                        ElNonterminal (TmVarG gv x [] [] [] (joinArrows (snds as) tp))
+                      GlCtor ->
                         let (TpData y [] []) = tp
                             Just cs = ctxtLookupType g y
                             Just ci = findIndex (\ (Ctor x' _) -> x' == x) cs in
                           ElTerminal (FaCtor cs ci)
-                      DefVar -> ElNonterminal (TmVarG gv x [] [] [] (joinArrows (snds as) tp))
+                      GlExtern ->
+                        ElTerminal (FaExtern x (joinArrows (snds as) tp))
   in
     mkRule (TmVarG gv x [] [] as tp) (vy : ps ++ concat xss)
       (Edge (ps ++ [vy]) el :
@@ -286,18 +289,10 @@ prog2fgg g (ProgFun x ps tm tp) = let tp' = joinArrows (snds ps) tp in
       (unused_x, unused_tp) = unzip unused_ps
       vtp = (NnOut, tp)
   in
-    mkRule (TmVarG DefVar x [] [] [] tp') (vtp : tmxs ++ ps' ++ unused_ps)
+    mkRule (TmVarG GlFun x [] [] [] tp') (vtp : tmxs ++ ps' ++ unused_ps)
       [Edge (tmxs ++ [vtp]) (ElNonterminal tm)]
       (ps' ++ [vtp])
-prog2fgg g (ProgExtern x ps tp) =
-  let ps' = [(Var ("x" ++ show i), tp) | (i, tp) <- enumerate ps] in
-  bindExts g ps' $
-  let ps'' = paramsToExternals ps'
-      vtp = (NnOut, tp)
-      tp' = (joinArrows ps tp) in
-    mkRule (TmVarG DefVar x [] [] [] tp') (vtp : ps'')
-      [Edge (ps'' ++ [vtp]) (ElTerminal (FaExtern tp'))]
-      (ps'' ++ [vtp])
+prog2fgg g (ProgExtern x ps tp) = returnRule
 prog2fgg g (ProgData y cs) = returnRule
 
 -- Goes through a program and adds all the rules for it
