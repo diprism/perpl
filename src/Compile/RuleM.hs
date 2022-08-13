@@ -14,16 +14,12 @@ import Util.Tensor
  -}
 
 type External = (NodeName, Type)
-type Nonterminal = (EdgeLabel, [Type])
-type Terminal = (EdgeLabel, Maybe Weights)
 
 -- RuleM stores the following:
 --   1. [(Int, Rule)]: a list of rules and how many times to duplicate them
 --                            (so amb True False True => p(True) = **2**, p(False) = 1)
 --   2. [External]: list of external nodes from the expression
---   3. [Nonterminal]: nonterminal accumulator
---   4. [Terminal]: terminal/factor accumulator
-data RuleM = RuleM [(Int, Rule)] [External] [Nonterminal] [Terminal]
+data RuleM = RuleM [(Int, Rule)] [External]
 
 -- RuleM instances of >>= and >> (since not
 -- technically a monad, need to pick new names)
@@ -31,12 +27,10 @@ infixl 1 +>=, +>, +>=*
 -- Like (>>=) but for RuleM
 -- Second arg receives as input the external nodes from the first arg
 (+>=) :: RuleM -> ([External] -> RuleM) -> RuleM
-RuleM rs xs nts fs +>= g =
-  let RuleM rs' xs' nts' fs' = g xs in
+RuleM rs xs +>= g =
+  let RuleM rs' xs' = g xs in
     RuleM (rs ++ rs')
           (unionBy (\ (a, _) (a', _) -> a == a') xs xs')
-          (nts ++ nts')
-          (unionFactors fs fs')
 
 -- Like (>>) but for RuleM
 (+>) :: RuleM -> RuleM -> RuleM
@@ -45,59 +39,36 @@ r1 +> r2 = r1 +>= \ _ -> r2
 -- Sequence together RuleMs, collecting each's externals
 (+>=*) :: [RuleM] -> ([[External]] -> RuleM) -> RuleM
 rs +>=* rf =
-  let (r, xss) = foldl (\ (r, xss) r' -> let RuleM rs' xs' nts' fs' = r' in (r +> r', xs' : xss)) (returnRule, []) rs in
+  let (r, xss) = foldl (\ (r, xss) r' -> let RuleM rs' xs' = r' in (r +> r', xs' : xss)) (returnRule, []) rs in
     r +> rf (reverse xss)
-
--- Take the union of two lists of terminals
-unionFactors :: [Terminal] -> [Terminal] -> [Terminal]
-unionFactors [] gs = gs
-unionFactors ((x, tw) : fs) gs =
-  let hs = unionFactors fs gs in
-    maybe ((x, tw) : hs) (const hs) (lookup x hs)
 
 -- Add a list of external nodes
 addExts :: [External] -> RuleM
-addExts xs = RuleM [] xs [] []
+addExts xs = RuleM [] xs
 
 -- Add a single external node
 addExt :: NodeName -> Type -> RuleM
 addExt x tp = addExts [(x, tp)]
 
--- Add a list of nonterminals with the types of their attachment nodes
-addNonterms :: [Nonterminal] -> RuleM
-addNonterms nts = RuleM [] [] nts []
-
--- Add a single nonterminal with the types of its attachment nodes
-addNonterm :: EdgeLabel -> [Type] -> RuleM
-addNonterm x tps = addNonterms [(x, tps)]
-
 -- Add a list of rules
 addRules :: [(Int, Rule)] -> RuleM
-addRules rs = RuleM rs [] [] []
+addRules rs = RuleM rs []
 
 -- Add a single rule
 addRule :: Int -> Rule -> RuleM
 addRule reps r = addRules [(reps, r)]
 
--- Adds an "incomplete" factor (extern)
-addIncompleteFactor :: EdgeLabel -> RuleM
-addIncompleteFactor x = RuleM [] [] [] [(x, Nothing)]
-
--- Adds a factor x with weights tensor w
-addFactor :: EdgeLabel -> Weights -> RuleM
-addFactor x w = RuleM [] [] [] [(x, Just w)]
-
 -- Do nothing new
 returnRule :: RuleM
-returnRule = RuleM [] [] [] []
+returnRule = RuleM [] []
 
 -- Removes all external nodes from a RuleM
 resetExts :: RuleM -> RuleM
-resetExts (RuleM rs xs nts fs) = RuleM rs [] nts fs
+resetExts (RuleM rs xs) = RuleM rs []
 
 -- Overrides the external nodes from a RuleM
 setExts :: [External] -> RuleM -> RuleM
-setExts xs (RuleM rs _ nts fs) = RuleM rs xs nts fs
+setExts xs (RuleM rs _) = RuleM rs xs
 
 {--- Functions for computing Weights for terminal-labeled Edges ---}
 
@@ -176,7 +147,7 @@ getWeights size = h where
   h (FaAddProd tps k) = Just (getSumWeights (size <$> tps) k)
   h (FaMulProd tps) = Just (getProdWeights (size <$> tps))
   h (FaCtor cs k) = Just (getCtorWeights size (cs !! k) cs)
-  h  FaExtern = Nothing
+  h (FaExtern _) = Nothing
 
 {- rulesToFGG dom start rs nts facs
 

@@ -2,7 +2,6 @@ module Compile.Compile where
 import Data.List
 import qualified Data.Map as Map
 import Compile.RuleM
-import Util.Tensor
 import Util.FGG
 import Util.Helpers
 import Struct.Lib
@@ -28,7 +27,6 @@ unusedExternals = deleteFirstsBy (\ (x1, _) (x2, _) -> x1 == x2)
 
 varRule :: Ctxt -> Var -> Type -> RuleM
 varRule g x tp = let ns = [(NnVar x, tp), (NnOut, tp)] in
-  addFactor (ElTerminal (FaIdentity tp)) (getIdWeights (domainSize g tp)) +>
   mkRule (TmVarL x tp) ns [Edge ns (ElTerminal (FaIdentity tp))] ns
 
 {- bindExts g xs' rm
@@ -36,10 +34,10 @@ varRule g x tp = let ns = [(NnVar x, tp), (NnOut, tp)] in
    Run rm, and for each variable x in xs', make x internal and create a rule for x. -}
     
 bindExts :: Ctxt -> [Param] -> RuleM -> RuleM
-bindExts g xs' (RuleM rs xs nts fs) =
+bindExts g xs' (RuleM rs xs) =
   let keep (NnVar x, _) = not (elem x (fsts xs'))
       keep _ = error "expected an external node"
-      rm = RuleM rs (filter keep xs) nts fs in
+      rm = RuleM rs (filter keep xs) in
     foldr (\ (x, tp) r -> varRule g x tp +> r) rm xs'
 
 {- bindExt g x tp rm
@@ -73,14 +71,6 @@ mkRule = mkRuleReps 1
 mkRuleReps :: Int -> Term -> [(NodeName, Type)] -> [Edge] -> [External] -> RuleM
 mkRuleReps reps lhs ns es xs =
   addRule reps (Rule (ElNonterminal lhs) (HGF (nub ns) es (nub xs)))
-
--- Add factors for a constructor
-ctorFactors :: Ctxt -> Ctor -> Type -> [Ctor] -> RuleM
-ctorFactors g (Ctor x as) y cs =
-  let
-    Just ci = findIndex (\ (Ctor x' _) -> x' == x) cs
-    fac = ElTerminal (FaCtor cs ci) in
-    addFactor fac (getCtorWeights (domainSize g) (Ctor x as) cs)
 
 -- Add a rule for this particular case in a case-of statement
 caseRule :: Ctxt -> FreeVars -> [External] -> Term -> Var -> [Case] -> Type -> Case -> RuleM
@@ -130,22 +120,6 @@ ampRule g all_fvs as i tm tp =
        Edge [vtp, vamp] (ElTerminal (FaAddProd tps i))]
       (all_xs ++ [vamp])
 
--- Adds factors for the &-product of tps
-addAmpFactors :: Ctxt -> [Type] -> RuleM
-addAmpFactors g tps =
-  let sizes = map (domainSize g) tps in
-    foldr (\ (i, tp) r -> r +> addFactor (ElTerminal (FaAddProd tps i)) (getSumWeights sizes i)) returnRule (enumerate tps)
-
--- Adds factors for the *-product of tps
-addProdFactors :: Ctxt -> [Type] -> RuleM
-addProdFactors g tps =
-  let sizes = [domainSize g tp | tp <- tps] in
-    addFactor (ElTerminal (FaMulProd tps)) (getProdWeights sizes)
-
--- Adds factor for v=(tp -> tp')
-addPairFactor :: Ctxt -> Type -> Type -> RuleM
-addPairFactor g tp tp' = addFactor (ElTerminal (FaMulProd [tp, tp'])) (getProdWeights [domainSize g tp, domainSize g tp'])
-
 {- term2fgg g tm
 
    Traverse a term tm and add rules for it and all its subexpressions.
@@ -183,7 +157,6 @@ term2fgg _ (TmVarG _ _ _ _ _ _) = error "Cannot compile polymorphic code"
 term2fgg g (TmLam x tp tm tp') =
   bindExt g x tp
     (term2fgg (ctxtDefLocal g x tp) tm +>= \ tmxs ->
-     addPairFactor g tp tp' +>
      let [vtp'] = newNodeNames [tp']
          varr = (NnOut, TpArr tp tp')
          vtp = (NnVar x, tp) in
@@ -198,7 +171,6 @@ term2fgg g (TmApp tm1 tm2 tp2 tp) =
   let fac = ElTerminal (FaMulProd [tp2, tp])
       vtp = (NnOut, tp)
       [vtp2, varr] = newNodeNames [tp2, TpArr tp2 tp] in
-    addPairFactor g tp2 tp +>
     mkRule (TmApp tm1 tm2 tp2 tp) (vtp2 : vtp : varr : xs1 ++ xs2)
       [Edge (xs2 ++ [vtp2]) (ElNonterminal tm2),
        Edge (xs1 ++ [varr]) (ElNonterminal tm1),
@@ -212,9 +184,6 @@ term2fgg g (TmCase tm (y, [], []) cs tp) =
 
 term2fgg _ (TmCase _ _ _ _) = error "Cannot compile polymorphic code"
 
--- fail (i.e., amb with no arguments) doesn't generate any rules, but
--- should still generate the left-hand side nonterminal
-term2fgg g (TmAmb [] tp) = addNonterm (ElNonterminal (TmAmb [] tp)) [tp]
 term2fgg g (TmAmb tms tp) =
   let fvs = Map.unions (map freeVars tms) in
     bindCases (Map.toList fvs) (map (uncurry $ ambRule g fvs tms tp) (collectDups tms))
@@ -223,7 +192,6 @@ term2fgg g (TmFactor wt tm tp) =
   term2fgg g tm +>= \ xs ->
   let vtp = (NnOut, tp)
       el = ElTerminal (FaScalar wt) in
-  addFactor el (Scalar wt) +>
   mkRule (TmFactor wt tm tp) (vtp : xs)
     [Edge [] el,
      Edge (xs ++ [vtp]) (ElNonterminal tm)]
@@ -246,7 +214,6 @@ term2fgg g (TmProd Additive as) =
   -- so don't bother creating any FGG rules for <>.
   let (tms, tps) = unzip as
       fvs = freeVars tms in
-    addAmpFactors g tps +>
     bindCases (Map.toList fvs) [ampRule g fvs as i atm tp | (i, (atm, tp)) <- enumerate as]
     
 term2fgg g (TmProd am@Multiplicative as) =
@@ -256,7 +223,6 @@ term2fgg g (TmProd am@Multiplicative as) =
       vptp = (NnOut, ptp)
       vtps = newNodeNames tps
   in
-    addProdFactors g tps +>
     mkRule (TmProd am as) (vptp : vtps ++ concat xss)
       (Edge (vtps ++ [vptp]) (ElTerminal (FaMulProd (snds as))) :
         [Edge (tmxs ++ [vtp]) (ElNonterminal atm) | ((atm, atp), vtp, tmxs) <- zip3 as vtps xss])
@@ -271,7 +237,6 @@ term2fgg g (TmElimAdditive ptm n o (x, xtp) tm tp) =
         vtp = (NnOut, tp)
         [vptp] = newNodeNames [ptp]
     in
-      addAmpFactors g tps +>
       mkRule (TmElimAdditive ptm n o (x, xtp) tm tp)
         (vtp : vptp : (x', xtp) : tmxs ++ ptmxs)
         [Edge (ptmxs ++ [vptp]) (ElNonterminal ptm),
@@ -290,7 +255,6 @@ term2fgg g (TmElimMultiplicative ptm ps tm tp) =
       vtp = (NnOut, tp)
       [vptp] = newNodeNames [ptp]
   in
-    addProdFactors g tps +>
     mkRule (TmElimMultiplicative ptm ps tm tp)
       (vtp : vptp : ps' ++ unused_ps ++ tmxs ++ ptmxs)
       [Edge (ptmxs ++ [vptp]) (ElNonterminal ptm),
@@ -305,7 +269,6 @@ term2fgg g (TmEqs tms) =
       fac = ElTerminal (FaEqual tmstp ntms)
       vbtp = (NnOut, tpBool)
       vtps = newNodeNames [typeof tm | tm <- tms] in
-    addFactor fac (getEqWeights (domainSize g tmstp) ntms) +>
     mkRule (TmEqs tms)
       (vbtp : vtps ++ concat xss)
       (Edge (vtps ++ [vbtp]) fac : [Edge (xs ++ [vtp]) (ElNonterminal tm) | (tm, vtp, xs) <- zip3 tms vtps xss])
@@ -324,13 +287,18 @@ prog2fgg g (ProgFun x ps tm tp) = let tp' = joinArrows (snds ps) tp in
       vtp = (NnOut, tp)
   in
     mkRule (TmVarG DefVar x [] [] [] tp') (vtp : tmxs ++ ps' ++ unused_ps)
-      (Edge (tmxs ++ [vtp]) (ElNonterminal tm) : [])
+      [Edge (tmxs ++ [vtp]) (ElNonterminal tm)]
       (ps' ++ [vtp])
 prog2fgg g (ProgExtern x ps tp) =
-  let tp' = (joinArrows ps tp) in
-    addIncompleteFactor (ElNonterminal (TmVarG DefVar x [] [] [] tp'))
-prog2fgg g (ProgData y cs) =
-  foldr (\ (Ctor x as) r -> r +> ctorFactors g (Ctor x as) (TpData y [] []) cs) returnRule cs
+  let ps' = [(Var ("x" ++ show i), tp) | (i, tp) <- enumerate ps] in
+  bindExts g ps' $
+  let ps'' = paramsToExternals ps'
+      vtp = (NnOut, tp)
+      tp' = (joinArrows ps tp) in
+    mkRule (TmVarG DefVar x [] [] [] tp') (vtp : ps'')
+      [Edge (ps'' ++ [vtp]) (ElTerminal (FaExtern tp'))]
+      (ps'' ++ [vtp])
+prog2fgg g (ProgData y cs) = returnRule
 
 -- Goes through a program and adds all the rules for it
 progs2fgg :: Ctxt -> Progs -> RuleM
@@ -387,6 +355,6 @@ compileFile :: Progs -> Either String FGG
 compileFile ps =
   let g = ctxtDefProgs ps
       Progs _ end = ps
-      RuleM rs xs nts fs = progs2fgg g ps
+      RuleM rs xs = progs2fgg g ps
   in
       return (rulesToFGG (domainValues g) (ElNonterminal end) [typeof end] (reverse rs))

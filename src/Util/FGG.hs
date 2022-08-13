@@ -67,7 +67,7 @@ data Factor =
   | FaAddProd [Type] Int                -- matrix projecting tp1+...+tpn to tpk
   | FaMulProd [Type]                    -- tensor mapping (tp1,...,tpn) to tp1,...,tpn
   | FaCtor [Ctor] Int                   -- k'th constructor in cs
-  | FaExtern                            -- weights supplied externally
+  | FaExtern Type                       -- weights supplied externally
   deriving (Show, Eq, Ord)
 
 data Edge = Edge { edge_atts :: [(NodeName, NodeLabel)], edge_label :: EdgeLabel }
