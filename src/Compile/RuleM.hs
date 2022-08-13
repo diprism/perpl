@@ -168,6 +168,16 @@ getEqWeights size ntms =
     True
     Nothing
 
+getWeights :: (Type -> Int) -> Factor -> Maybe Weights
+getWeights size = h where
+  h (FaScalar w) = Just (Scalar w)
+  h (FaIdentity tp) = Just (getIdWeights (size tp))
+  h (FaEqual tp n) = Just (getEqWeights (size tp) n)
+  h (FaAddProd tps k) = Just (getSumWeights (size <$> tps) k)
+  h (FaMulProd tps) = Just (getProdWeights (size <$> tps))
+  h (FaCtor cs k) = Just (getCtorWeights size (cs !! k) cs)
+  h  FaExtern = Nothing
+
 {- rulesToFGG dom start rs nts facs
 
    Construct an FGG from:
@@ -178,35 +188,26 @@ getEqWeights size ntms =
    - nts: list of nonterminal EdgeLabels and their "types"
    - facs: list of factors -}
              
-rulesToFGG :: (NodeLabel -> Domain) -> EdgeLabel -> [(Int, Rule)] -> [(EdgeLabel, [NodeLabel])] -> [Terminal] -> FGG
-rulesToFGG dom start rs nts facs =
-  FGG ds fs nts' start rs''
+rulesToFGG :: (NodeLabel -> Domain) -> EdgeLabel -> [NodeLabel] -> [(Int, Rule)] -> FGG
+rulesToFGG dom start start_type rs =
+  FGG ds fs nts start rs''
   where
     rs' = nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs
     rs'' = concat [replicate reps r | (reps, r) <- rs']
 
-    nls = concat (map (\ (Rule lhs (HGF ns es xs)) -> snds ns) rs'') ++
-          concat (snds nts)
-    
+    -- get all NodeLabels from start symbol and rule right-hand sides
+    nls = concat (start_type : map (\ (Rule lhs (HGF ns es xs)) -> snds ns) rs'')
     ds  = foldr (\ d m -> Map.insert d (dom d) m) Map.empty nls
-
+    
+    -- get all nonterminal EdgeLabels
+    edges = concat [es | (Rule lhs (HGF _ es _)) <- rs'']
     domsEq = \ x d1 d2 -> if d1 == d2 then d1 else error
       ("Conflicting types for nonterminal " ++ show x ++ ": " ++
         show d1 ++ " versus " ++ show d2)
-
-    -- Nonterminals that were added directly by addNonterm(s)
-    nts'' = Map.fromList nts
-
-    -- Nonterminals from left-hand sides of rules get their "type" from the external nodes
-    nts' = foldr (\ (Rule lhs (HGF ns _ xs)) ->
-                    Map.insertWith (domsEq lhs) lhs (snds xs)) nts'' rs''
-
-    getFac = \ l lhs -> maybe (error ("In the rule " ++ show lhs ++ ", no factor named " ++ show l))
-                      id $ lookup l facs
-
-    fs  = foldr (\ (Rule lhs (HGF ns es xs)) m ->
-                   foldr (\ (Edge atts l) ->
-                             if Map.member l nts' then id else
-                               Map.insert l (snds atts, getFac l lhs))
-                         m es)
-                Map.empty rs''
+    (fs, nts) = foldr (\ (Edge atts el) (fs, nts) ->
+                         case el of ElTerminal fac ->
+                                      let w = getWeights (length . dom) fac in
+                                        (Map.insert el (snds atts, w) fs, nts)
+                                    ElNonterminal _ ->
+                                      (fs, Map.insertWith (domsEq el) el (snds atts) nts))
+                      (Map.empty, Map.fromList [(start, start_type)]) edges

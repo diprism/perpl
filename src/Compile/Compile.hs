@@ -389,4 +389,4 @@ compileFile ps =
       Progs _ end = ps
       RuleM rs xs nts fs = progs2fgg g ps
   in
-      return (rulesToFGG (domainValues g) (ElNonterminal end) (reverse rs) nts fs)
+      return (rulesToFGG (domainValues g) (ElNonterminal end) [typeof end] (reverse rs))
