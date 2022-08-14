@@ -8,18 +8,17 @@ import Util.FGG
 import Util.Helpers
 import Util.Tensor
 
-{- RuleM is a monad-like type for building FGGs.
-
-   TODO: Its contents are not that different from FGG itself; could they be merged?
- -}
-
 type External = (NodeName, Type)
 
--- RuleM stores the following:
---   1. [(Int, Rule)]: a list of rules and how many times to duplicate them
---                            (so amb True False True => p(True) = **2**, p(False) = 1)
---   2. [External]: list of external nodes from the expression
-data RuleM = RuleM [(Int, Rule)] [External]
+{- RuleM is a monad-like type for building FGGs.
+
+   It stores the following:
+
+   1. Map EdgeLabel HGF: rules, as a Map from lhs's to lists of rhs's
+   2. [RHS]: a list of rhs's not yet inserted into (1)
+   3. [External]: list of external nodes from the expression -}
+
+data RuleM = RuleM [Rule] [External]
 
 -- RuleM instances of >>= and >> (since not
 -- technically a monad, need to pick new names)
@@ -51,12 +50,12 @@ addExt :: NodeName -> Type -> RuleM
 addExt x tp = addExts [(x, tp)]
 
 -- Add a list of rules
-addRules :: [(Int, Rule)] -> RuleM
+addRules :: [Rule] -> RuleM
 addRules rs = RuleM rs []
 
 -- Add a single rule
-addRule :: Int -> Rule -> RuleM
-addRule reps r = addRules [(reps, r)]
+addRule :: Rule -> RuleM
+addRule r = addRules [r]
 
 -- Do nothing new
 returnRule :: RuleM
@@ -159,19 +158,16 @@ getWeights size = h where
    - nts: list of nonterminal EdgeLabels and their "types"
    - facs: list of factors -}
              
-rulesToFGG :: (NodeLabel -> Domain) -> EdgeLabel -> [NodeLabel] -> [(Int, Rule)] -> FGG
+rulesToFGG :: (NodeLabel -> Domain) -> EdgeLabel -> [NodeLabel] -> [Rule] -> FGG
 rulesToFGG dom start start_type rs =
-  FGG ds fs nts start rs''
+  FGG ds fs nts start rs
   where
-    rs' = nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs
-    rs'' = concat [replicate reps r | (reps, r) <- rs']
-
     -- get all NodeLabels from start symbol and rule right-hand sides
-    nls = concat (start_type : map (\ (Rule lhs (HGF ns es xs)) -> snds ns) rs'')
+    nls = concat (start_type : map (\ (Rule lhs (HGF ns es xs)) -> snds ns) rs)
     ds  = foldr (\ d m -> Map.insert d (dom d) m) Map.empty nls
     
     -- get all nonterminal EdgeLabels
-    edges = concat [es | (Rule lhs (HGF _ es _)) <- rs'']
+    edges = concat [es | (Rule lhs (HGF _ es _)) <- rs]
     domsEq = \ x d1 d2 -> if d1 == d2 then d1 else error
       ("Conflicting types for nonterminal " ++ show x ++ ": " ++
         show d1 ++ " versus " ++ show d2)

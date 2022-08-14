@@ -65,12 +65,8 @@ Creates a rule.
 - xs:  the external node ids and labels -}
 
 mkRule :: Term -> [(NodeName, Type)] -> [Edge] -> [External] -> RuleM
-mkRule = mkRuleReps 1
-
--- Creates this rule `reps` times
-mkRuleReps :: Int -> Term -> [(NodeName, Type)] -> [Edge] -> [External] -> RuleM
-mkRuleReps reps lhs ns es xs =
-  addRule reps (Rule (ElNonterminal lhs) (HGF (nub ns) es (nub xs)))
+mkRule lhs ns es xs =
+  addRule (Rule (ElNonterminal lhs) (HGF (nub ns) es (nub xs)))
 
 -- Add a rule for this particular case in a case-of statement
 caseRule :: Ctxt -> FreeVars -> [External] -> Term -> Var -> [Case] -> Type -> Case -> RuleM
@@ -94,14 +90,14 @@ caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
       (xs_ctm ++ all_xs ++ [vtp])
 
 -- Adds rule for the i-th term in an amb tm1 tm2 ... tmn
-ambRule :: Ctxt -> FreeVars -> [Term] -> Type -> Term -> Int -> RuleM
-ambRule g all_fvs tms tp tm reps =
+ambRule :: Ctxt -> FreeVars -> [Term] -> Type -> Term -> RuleM
+ambRule g all_fvs tms tp tm =
   term2fgg g tm +>= \ tmxs ->
   let all_xs = paramsToExternals (Map.toList all_fvs)
       unused_tms = unusedExternals all_xs tmxs
       vtp = (NnOut, tp)
   in
-    mkRuleReps reps (TmAmb tms tp) (vtp : tmxs ++ all_xs ++ unused_tms)
+    mkRule (TmAmb tms tp) (vtp : tmxs ++ all_xs ++ unused_tms)
       [Edge (tmxs ++ [vtp]) (ElNonterminal tm)]
       (all_xs ++ [vtp])
 
@@ -189,7 +185,7 @@ term2fgg _ (TmCase _ _ _ _) = error "Cannot compile polymorphic code"
 
 term2fgg g (TmAmb tms tp) =
   let fvs = Map.unions (map freeVars tms) in
-    bindCases (Map.toList fvs) (map (uncurry $ ambRule g fvs tms tp) (collectDups tms))
+    bindCases (Map.toList fvs) (map (ambRule g fvs tms tp) tms)
     
 term2fgg g (TmFactor wt tm tp) =
   term2fgg g tm +>= \ xs ->
@@ -352,4 +348,4 @@ compileFile ps =
       Progs _ end = ps
       RuleM rs xs = progs2fgg g ps
   in
-      return (rulesToFGG (domainValues g) (ElNonterminal end) [typeof end] (reverse rs))
+      return (rulesToFGG (domainValues g) (ElNonterminal end) [typeof end] (nub (reverse rs)))
