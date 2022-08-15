@@ -18,17 +18,6 @@ unusedNodes :: [Node] -> [Node] -> [Node]
 unusedNodes = deleteFirstsBy (\ (x1, _) (x2, _) -> x1 == x2)
 
 
-{- varRule g x tp
-
-   Create rule for local variable x:
-
-     (v0)-[x]-(v1) -> (v0)-[v0=v1]-(v1)
- -}
-
-varRule :: Ctxt -> Var -> Type -> RuleM [Node]
-varRule g x tp = let ns = [(NnVar x, tp), (NnOut, tp)] in
-  mkRule (TmVarL x tp) ns [Edge ns (ElTerminal (FaIdentity tp))] ns
-
 {- bindCases xs rms
 
    Runs all of rms and keeps only the external nodes in xs. -}
@@ -55,7 +44,6 @@ mkRule lhs ns es xs =
 -- Add a rule for this particular case in a case-of statement
 caseRule :: Ctxt -> FreeVars -> [Node] -> Term -> Var -> Type -> Case -> RuleM HGF
 caseRule g all_fvs xs_ctm ctm y tp (Case x as xtm) =
-  mapM_ (uncurry (varRule g)) as >>
   term2fgg (ctxtDeclArgs g as) xtm >>= \ xs_xtm_as ->
   let all_xs = paramsToNodes (Map.toList all_fvs)
       unused_ps = unusedNodes all_xs xs_xtm_as
@@ -108,9 +96,11 @@ ampRule g all_fvs as i tm tp =
 
 term2fgg :: Ctxt -> Term -> RuleM [Node]
 
--- The rule for local variables is already created in varRule.
+-- Local variables:
+--   (v0)-[x]-(v1) -> (v0)-[v0=v1]-(v1)
 term2fgg g (TmVarL x tp) =
-  return [(NnVar x, tp)]
+  let ns = [(NnVar x, tp), (NnOut, tp)] in
+    mkRule (TmVarL x tp) ns [Edge ns (ElTerminal (FaIdentity tp))] ns
 
 term2fgg g (TmVarG GlFun x [] [] [] tp) =
   return [] -- If this is a def with no args, we already add its rule when it gets defined
@@ -137,7 +127,6 @@ term2fgg g (TmVarG gv x [] [] as tp) =
 term2fgg _ (TmVarG _ _ _ _ _ _) = error "Cannot compile polymorphic code"
 
 term2fgg g (TmLam x tp tm tp') =
-  varRule g x tp >>
   term2fgg (ctxtDefLocal g x tp) tm >>= \ tmxs ->
    let [vtp'] = newNodeNames [tp']
        varr = (NnOut, TpArr tp tp')
@@ -186,7 +175,6 @@ term2fgg g (TmFactor wt tm tp) =
   
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm >>= \ xtmxs ->
-  varRule g x xtp >>
   term2fgg (ctxtDefLocal g x xtp) tm >>= \ tmxs ->
   let vxtp = (NnVar x, xtp)
       vtp = (NnOut, tp) in -- TODO: if unused?
@@ -219,7 +207,6 @@ term2fgg g (TmProd am@Multiplicative as) =
 
 term2fgg g (TmElimAdditive ptm n o (x, xtp) tm tp) =
   term2fgg g ptm >>= \ ptmxs ->
-  varRule g x xtp >>
   term2fgg (ctxtDefLocal g x xtp) tm >>= \ tmxs ->
   let x' = NnVar x
       ptp@(TpProd Additive tps) = typeof ptm
@@ -235,7 +222,6 @@ term2fgg g (TmElimAdditive ptm n o (x, xtp) tm tp) =
 
 term2fgg g (TmElimMultiplicative ptm ps tm tp) =
   term2fgg g ptm >>= \ ptmxs ->
-  mapM_ (uncurry (varRule g)) ps >>
   term2fgg (ctxtDeclArgs g ps) tm >>= \ tmxs ->
   let ps' = paramsToNodes ps
       tps = snds ps
@@ -269,7 +255,6 @@ term2fgg g (TmEqs tms) =
     
 prog2fgg :: Ctxt -> Prog -> RuleM ()
 prog2fgg g (ProgFun x ps tm tp) = let tp' = joinArrows (snds ps) tp in
-  mapM_ (uncurry (varRule g)) ps >>
   term2fgg (ctxtDeclArgs g ps) tm >>= \ tmxs ->
   let ps' = paramsToNodes ps
       unused_ps = unusedNodes ps' tmxs
