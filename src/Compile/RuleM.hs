@@ -3,7 +3,6 @@
 module Compile.RuleM where
 import qualified Data.Map as Map
 import Control.Monad.Writer.Lazy
-import Data.List
 import Struct.Lib
 import Util.FGG
 import Util.Helpers
@@ -29,19 +28,6 @@ runRuleM :: RuleM () -> [Rule]
 runRuleM rm =
   let ((), rs) = runWriter rm in
     concat [[Rule lhs rhs | rhs <- rhss] | (lhs, rhss) <- Map.toList rs]
-
-infixl 1 +>=, +>=*
--- Like (>>=) but for RuleM
--- Second arg receives as input the external nodes from the first arg  
-(+>=) :: RuleM [External] -> ([External] -> RuleM [External]) -> RuleM [External]
-rm +>= g =
-  rm >>= \ xs ->
-  g xs >>= \ xs' ->
-  return (unionBy (\ (a, _) (a', _) -> a == a') xs xs')
-
--- Sequence together RuleM [External], collecting each's externals
-(+>=*) :: [RuleM [External]] -> ([[External]] -> RuleM [External]) -> RuleM [External]
-rs +>=* rf = sequence rs >>= rf
 
 {--- Functions for computing Weights for terminal-labeled Edges ---}
 
@@ -128,7 +114,7 @@ getWeights size = h where
 
    - dom: function that gives the possible Values belonging to d
    - start: start nonterminal
-   - rs: list of rules with repetition counts
+   - rs: list of rules
    - nts: list of nonterminal EdgeLabels and their "types"
    - facs: list of factors -}
              

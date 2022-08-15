@@ -29,24 +29,6 @@ varRule :: Ctxt -> Var -> Type -> RuleM [External]
 varRule g x tp = let ns = [(NnVar x, tp), (NnOut, tp)] in
   mkRule (TmVarL x tp) ns [Edge ns (ElTerminal (FaIdentity tp))] ns
 
-{- bindExts g xs' rm
-
-   Run rm, and for each variable x in xs', make x internal and create a rule for x. -}
-    
-bindExts :: Ctxt -> [Param] -> RuleM [External] -> RuleM [External]
-bindExts g xs' rm = 
-  rm >>= \ xs -> mapM_ (uncurry (varRule g)) xs' >>
-  let keep (NnVar x, _) = not (elem x (fsts xs'))
-      keep (n, _) = error "expected an external node" in
-    return (filter keep xs)
-
-{- bindExt g x tp rm
-
-   Like bindExt, but for a single variable. -}
-    
-bindExt :: Ctxt -> Var -> Type -> RuleM [External] -> RuleM [External]
-bindExt g x tp = bindExts g [(x, tp)]
-
 {- bindCases xs rms
 
    Runs all of rms and keeps only the external nodes in xs. -}
@@ -126,15 +108,15 @@ ampRule g all_fvs as i tm tp =
 
 term2fgg :: Ctxt -> Term -> RuleM [External]
 
--- The rule for local variables is already created in bindExt(s).
+-- The rule for local variables is already created in varRule.
 term2fgg g (TmVarL x tp) =
   return [(NnVar x, tp)]
 
 term2fgg g (TmVarG GlFun x [] [] [] tp) =
   return [] -- If this is a def with no args, we already add its rule when it gets defined
 
-term2fgg g (TmVarG gv x [] [] as tp) = 
-  [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
+term2fgg g (TmVarG gv x [] [] as tp) =
+  mapM (\ (a, atp) -> term2fgg g a) as >>= \ xss ->
   let ps = newNodeNames (snds as)
       vy = (NnOut, tp)
       el = case gv of GlFun ->
@@ -155,19 +137,19 @@ term2fgg g (TmVarG gv x [] [] as tp) =
 term2fgg _ (TmVarG _ _ _ _ _ _) = error "Cannot compile polymorphic code"
 
 term2fgg g (TmLam x tp tm tp') =
-  bindExt g x tp
-    (term2fgg (ctxtDefLocal g x tp) tm +>= \ tmxs ->
-     let [vtp'] = newNodeNames [tp']
-         varr = (NnOut, TpArr tp tp')
-         vtp = (NnVar x, tp) in
-       mkRule (TmLam x tp tm tp') (vtp : vtp' : varr : tmxs)
-         [Edge (tmxs ++ [vtp']) (ElNonterminal tm),
-          Edge [vtp, vtp', varr] (ElTerminal (FaMulProd [tp, tp']))]
-         (delete vtp tmxs ++ [varr]))
+  varRule g x tp >>
+  term2fgg (ctxtDefLocal g x tp) tm >>= \ tmxs ->
+   let [vtp'] = newNodeNames [tp']
+       varr = (NnOut, TpArr tp tp')
+       vtp = (NnVar x, tp) in
+     mkRule (TmLam x tp tm tp') (vtp : vtp' : varr : tmxs)
+       [Edge (tmxs ++ [vtp']) (ElNonterminal tm),
+        Edge [vtp, vtp', varr] (ElTerminal (FaMulProd [tp, tp']))]
+       (delete vtp tmxs ++ [varr])
 
 term2fgg g (TmApp tm1 tm2 tp2 tp) =
-  term2fgg g tm1 +>= \ xs1 ->
-  term2fgg g tm2 +>= \ xs2 ->
+  term2fgg g tm1 >>= \ xs1 ->
+  term2fgg g tm2 >>= \ xs2 ->
   let fac = ElTerminal (FaMulProd [tp2, tp])
       vtp = (NnOut, tp)
       [vtp2, varr] = newNodeNames [tp2, TpArr tp2 tp] in
@@ -178,11 +160,12 @@ term2fgg g (TmApp tm1 tm2 tp2 tp) =
       (xs1 ++ xs2 ++ [vtp])    
 
 term2fgg g (TmCase tm (y, [], []) cs tp) =
-  term2fgg g tm +>= \ xs ->
+  term2fgg g tm >>= \ xs ->
   let fvs = freeVars cs in
     bindCases (Map.toList (Map.union (freeVars tm) fvs))
               (ElNonterminal (TmCase tm (y, [], []) cs tp))
-              (map (caseRule g fvs xs tm y tp) cs)
+              (map (caseRule g fvs xs tm y tp) cs) >>= \ xs' ->
+    return (nub (xs ++ xs'))
 
 term2fgg _ (TmCase _ _ _ _) = error "Cannot compile polymorphic code"
 
@@ -193,7 +176,7 @@ term2fgg g (TmAmb tms tp) =
               (map (ambRule g fvs tp) tms)
     
 term2fgg g (TmFactor wt tm tp) =
-  term2fgg g tm +>= \ xs ->
+  term2fgg g tm >>= \ xs ->
   let vtp = (NnOut, tp)
       el = ElTerminal (FaScalar wt) in
   mkRule (TmFactor wt tm tp) (vtp : xs)
@@ -202,9 +185,9 @@ term2fgg g (TmFactor wt tm tp) =
     (xs ++ [vtp])
   
 term2fgg g (TmLet x xtm xtp tm tp) =
-  term2fgg g xtm +>= \ xtmxs ->
-  bindExt g x xtp $
-  term2fgg (ctxtDefLocal g x xtp) tm +>= \ tmxs ->
+  term2fgg g xtm >>= \ xtmxs ->
+  varRule g x xtp >>
+  term2fgg (ctxtDefLocal g x xtp) tm >>= \ tmxs ->
   let vxtp = (NnVar x, xtp)
       vtp = (NnOut, tp) in -- TODO: if unused?
     mkRule (TmLet x xtm xtp tm tp) (vxtp : vtp : xtmxs ++ tmxs)
@@ -223,7 +206,7 @@ term2fgg g (TmProd Additive as) =
               [ampRule g fvs as i atm tp | (i, (atm, tp)) <- enumerate as]
     
 term2fgg g (TmProd am@Multiplicative as) =
-  [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
+  mapM (\ (a, atp) -> term2fgg g a) as >>= \ xss ->
   let tps = snds as
       ptp = TpProd am tps
       vptp = (NnOut, ptp)
@@ -235,25 +218,25 @@ term2fgg g (TmProd am@Multiplicative as) =
       (concat xss ++ [vptp])
 
 term2fgg g (TmElimAdditive ptm n o (x, xtp) tm tp) =
-  term2fgg g ptm +>= \ ptmxs ->
-    bindExt g x xtp $
-    term2fgg (ctxtDefLocal g x xtp) tm +>= \ tmxs ->
-    let x' = NnVar x
-        ptp@(TpProd Additive tps) = typeof ptm
-        vtp = (NnOut, tp)
-        [vptp] = newNodeNames [ptp]
-    in
-      mkRule (TmElimAdditive ptm n o (x, xtp) tm tp)
-        (vtp : vptp : (x', xtp) : tmxs ++ ptmxs)
-        [Edge (ptmxs ++ [vptp]) (ElNonterminal ptm),
-         Edge (tmxs ++ [vtp]) (ElNonterminal tm),
-         Edge [(x', xtp), vptp] (ElTerminal (FaAddProd tps o))]
-        (ptmxs ++ delete (x', xtp) tmxs ++ [vtp])
+  term2fgg g ptm >>= \ ptmxs ->
+  varRule g x xtp >>
+  term2fgg (ctxtDefLocal g x xtp) tm >>= \ tmxs ->
+  let x' = NnVar x
+      ptp@(TpProd Additive tps) = typeof ptm
+      vtp = (NnOut, tp)
+      [vptp] = newNodeNames [ptp]
+  in
+    mkRule (TmElimAdditive ptm n o (x, xtp) tm tp)
+      (vtp : vptp : (x', xtp) : tmxs ++ ptmxs)
+      [Edge (ptmxs ++ [vptp]) (ElNonterminal ptm),
+       Edge (tmxs ++ [vtp]) (ElNonterminal tm),
+       Edge [(x', xtp), vptp] (ElTerminal (FaAddProd tps o))]
+      (ptmxs ++ delete (x', xtp) tmxs ++ [vtp])
 
 term2fgg g (TmElimMultiplicative ptm ps tm tp) =
-  term2fgg g ptm +>= \ ptmxs ->
-  bindExts g ps $
-  term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
+  term2fgg g ptm >>= \ ptmxs ->
+  mapM_ (uncurry (varRule g)) ps >>
+  term2fgg (ctxtDeclArgs g ps) tm >>= \ tmxs ->
   let ps' = paramsToExternals ps
       tps = snds ps
       ptp = TpProd Multiplicative tps
@@ -269,7 +252,7 @@ term2fgg g (TmElimMultiplicative ptm ps tm tp) =
          (ptmxs ++ foldr delete tmxs ps' ++ [vtp])
 
 term2fgg g (TmEqs tms) =
-  [term2fgg g tm | tm <- tms] +>=* \ xss ->
+  mapM (term2fgg g) tms >>= \ xss ->
   let tmstp = typeof (head tms)
       ntms = length tms
       fac = ElTerminal (FaEqual tmstp ntms)
@@ -286,7 +269,8 @@ term2fgg g (TmEqs tms) =
     
 prog2fgg :: Ctxt -> Prog -> RuleM ()
 prog2fgg g (ProgFun x ps tm tp) = let tp' = joinArrows (snds ps) tp in
-  (bindExts g ps $ term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
+  mapM_ (uncurry (varRule g)) ps >>
+  term2fgg (ctxtDeclArgs g ps) tm >>= \ tmxs ->
   let ps' = paramsToExternals ps
       unused_ps = unusedExternals ps' tmxs
       (unused_x, unused_tp) = unzip unused_ps
@@ -294,7 +278,8 @@ prog2fgg g (ProgFun x ps tm tp) = let tp' = joinArrows (snds ps) tp in
   in
     mkRule (TmVarG GlFun x [] [] [] tp') (vtp : tmxs ++ ps' ++ unused_ps)
       [Edge (tmxs ++ [vtp]) (ElNonterminal tm)]
-      (ps' ++ [vtp])) >> return ()
+      (ps' ++ [vtp]) >>
+    return ()
 prog2fgg g (ProgExtern x ps tp) = return ()
 prog2fgg g (ProgData y cs) = return ()
 
