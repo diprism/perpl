@@ -1,0 +1,4 @@
+-- See issue #109.
+
+define double = \x. (x, x);
+let (f, g) = double (\y. y) in f ()

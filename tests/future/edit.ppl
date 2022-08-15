@@ -1,0 +1,17 @@
+{- Compute the Levenshtein distance between two strings.
+
+   There are various ways of writing this, but it's not convenient
+   unless, at minimum, a _ pattern is allowed that doesn't count
+   against linearity. See issue #98. -}
+
+data Symbol = A | B;
+data String = Nil | Cons Symbol String;
+define ins = \y: Symbol. factor 0.5 in ();
+define del = \x: Symbol. factor 0.5 in ();
+define sub = \x: Symbol. \y: Symbol. factor 0.5 in ();
+
+define distance = \xs. \ys.
+  amb (case (xs,ys) of (Nil, Nil) -> ())
+      (case (xs,ys) of (Cons x xs', _) -> let () = del x in distance xs' ys)
+      (case (xs,ys) of (_, Cons y ys') -> let () = ins y in distance xs ys')
+      (case (xs,ys) of (Cons x xs', Cons y ys') -> let () = sub x y in distance xs' ys')

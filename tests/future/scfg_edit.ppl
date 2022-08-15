@@ -1,0 +1,33 @@
+{- Compute the edit distance between two strings using a synchronous
+   context-free grammar.
+
+   This works but is currently too slow. See issue #61, #97. -}
+
+data String = Nil | Cons Terminal String;
+data Action = Stop | Left | Right | Both | Swap;
+data Terminal = A | B;
+
+define sample_act = amb Stop Left Right Both Swap;
+define sample_term = amb A B;
+
+define gen: (String -> String, String -> String) =
+  case sample_act of
+  | Stop  -> (\ys. ys, \zs. zs)
+  | Left  -> let x = sample_term in (\ys. Cons x ys, \zs.        zs)
+  | Right -> let x = sample_term in (\ys.        ys, \zs. Cons x zs)
+  | Both  -> let x = sample_term in (\ys. Cons x ys, \zs. Cons x zs)
+  | Swap  -> let (l1, r1) = gen in
+             let (l2, r2) = gen in
+             (\ys. l1 (l2 ys), \zs. r2 (r1 zs));
+
+define equal: String -> String -> () = \xs: String. \ys: String.
+  case xs of
+    | Nil -> (case ys of Nil -> () | Cons _ _ -> fail)
+    | Cons x xs -> (case ys of
+      | Nil -> fail
+      | Cons y ys -> if x == y then equal xs ys else fail);
+
+let (l, r) = gen in
+let () = equal (l Nil) (Cons A (Cons A (Cons B (Cons B Nil)))) in
+let () = equal (r Nil) (Cons B (Cons B (Cons A (Cons A Nil)))) in
+()
