@@ -1,4 +1,4 @@
-module Compile.Compile where
+module Compile.Compile (compileFile, domainSize) where
 import Data.List
 import qualified Data.Map as Map
 import Compile.RuleM

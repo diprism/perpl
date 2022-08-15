@@ -3,7 +3,11 @@
    FGGs, see: David Chiang and Darcey Riley. Factor graph grammars. In
    Proc. NeurIPS, 6648–6658. 2020. -}
 
-module Util.FGG where
+module Util.FGG (Node, NodeName(..), NodeLabel,
+                  Domain, Value(..),
+                  Edge(..), EdgeLabel(..),
+                  Factor(..), Weights, Weight,
+                  HGF(..), Rule(..), FGG(..), showFGG) where
 import qualified Data.Map as Map
 import Struct.Lib
 import Util.Helpers
@@ -152,10 +156,3 @@ fgg_to_json (FGG ds fs nts s rs) =
 
 showFGG :: FGG -> String
 showFGG = pprint_json . fgg_to_json
-
-{- emptyFGG s
-
-   An FGG with start nonterminal s and no rules. -}
-emptyFGG :: EdgeLabel -> FGG
-emptyFGG s = FGG Map.empty Map.empty Map.empty s []
-

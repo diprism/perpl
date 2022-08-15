@@ -1,6 +1,6 @@
 {- Code for generating FGG rules, and the RuleM monad. -}
 
-module Compile.RuleM where
+module Compile.RuleM (RuleM, addRuleBlock, runRuleM, getWeights, rulesToFGG) where
 import qualified Data.Map as Map
 import Control.Monad.Writer.Lazy
 import Struct.Lib
