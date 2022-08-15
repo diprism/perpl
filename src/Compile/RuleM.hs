@@ -1,73 +1,47 @@
-{- Code for generating FGG rules, and the RuleM "monad-like" datatype -}
+{- Code for generating FGG rules, and the RuleM monad. -}
 
 module Compile.RuleM where
 import qualified Data.Map as Map
+import Control.Monad.Writer.Lazy
 import Data.List
 import Struct.Lib
 import Util.FGG
 import Util.Helpers
 import Util.Tensor
 
-type External = (NodeName, Type)
+type External = (NodeName, NodeLabel)
 
-{- RuleM is a monad-like type for building FGGs.
+type RuleM = Writer (Map EdgeLabel [HGF])
 
-   It stores the following:
+{- addRuleBlock lhs rhss
 
-   1. Map EdgeLabel HGF: rules, as a Map from lhs's to lists of rhs's
-   2. [RHS]: a list of rhs's not yet inserted into (1)
-   3. [External]: list of external nodes from the expression -}
+   A "rule block" is a set of rules, all with the same lhs and the
+   same external nodes, that comprise all the rules with that lhs.
 
-data RuleM = RuleM [Rule] [External]
+   If there is already a rule block with this lhs, the new rule block
+   is discarded. (Theoretically the new rule block is identical to the
+   old one, but we do not check this.) -}
 
--- RuleM instances of >>= and >> (since not
--- technically a monad, need to pick new names)
-infixl 1 +>=, +>, +>=*
+addRuleBlock :: EdgeLabel -> [HGF] -> RuleM ()
+addRuleBlock lhs rhss = tell (Map.singleton lhs rhss)
+
+runRuleM :: RuleM () -> [Rule]
+runRuleM rm =
+  let ((), rs) = runWriter rm in
+    concat [[Rule lhs rhs | rhs <- rhss] | (lhs, rhss) <- Map.toList rs]
+
+infixl 1 +>=, +>=*
 -- Like (>>=) but for RuleM
--- Second arg receives as input the external nodes from the first arg
-(+>=) :: RuleM -> ([External] -> RuleM) -> RuleM
-RuleM rs xs +>= g =
-  let RuleM rs' xs' = g xs in
-    RuleM (rs ++ rs')
-          (unionBy (\ (a, _) (a', _) -> a == a') xs xs')
+-- Second arg receives as input the external nodes from the first arg  
+(+>=) :: RuleM [External] -> ([External] -> RuleM [External]) -> RuleM [External]
+rm +>= g =
+  rm >>= \ xs ->
+  g xs >>= \ xs' ->
+  return (unionBy (\ (a, _) (a', _) -> a == a') xs xs')
 
--- Like (>>) but for RuleM
-(+>) :: RuleM -> RuleM -> RuleM
-r1 +> r2 = r1 +>= \ _ -> r2
-
--- Sequence together RuleMs, collecting each's externals
-(+>=*) :: [RuleM] -> ([[External]] -> RuleM) -> RuleM
-rs +>=* rf =
-  let (r, xss) = foldl (\ (r, xss) r' -> let RuleM rs' xs' = r' in (r +> r', xs' : xss)) (returnRule, []) rs in
-    r +> rf (reverse xss)
-
--- Add a list of external nodes
-addExts :: [External] -> RuleM
-addExts xs = RuleM [] xs
-
--- Add a single external node
-addExt :: NodeName -> Type -> RuleM
-addExt x tp = addExts [(x, tp)]
-
--- Add a list of rules
-addRules :: [Rule] -> RuleM
-addRules rs = RuleM rs []
-
--- Add a single rule
-addRule :: Rule -> RuleM
-addRule r = addRules [r]
-
--- Do nothing new
-returnRule :: RuleM
-returnRule = RuleM [] []
-
--- Removes all external nodes from a RuleM
-resetExts :: RuleM -> RuleM
-resetExts (RuleM rs xs) = RuleM rs []
-
--- Overrides the external nodes from a RuleM
-setExts :: [External] -> RuleM -> RuleM
-setExts xs (RuleM rs _) = RuleM rs xs
+-- Sequence together RuleM [External], collecting each's externals
+(+>=*) :: [RuleM [External]] -> ([[External]] -> RuleM [External]) -> RuleM [External]
+rs +>=* rf = sequence rs >>= rf
 
 {--- Functions for computing Weights for terminal-labeled Edges ---}
 
@@ -162,19 +136,23 @@ rulesToFGG :: (NodeLabel -> Domain) -> EdgeLabel -> [NodeLabel] -> [Rule] -> FGG
 rulesToFGG dom start start_type rs =
   FGG ds fs nts start rs
   where
-    -- get all NodeLabels from start symbol and rule right-hand sides
+    -- Get all NodeLabels from start symbol and rule right-hand sides
     nls = concat (start_type : map (\ (Rule lhs (HGF ns es xs)) -> snds ns) rs)
     ds  = foldr (\ d m -> Map.insert d (dom d) m) Map.empty nls
     
-    -- get all nonterminal EdgeLabels
-    edges = concat [es | (Rule lhs (HGF _ es _)) <- rs]
+    -- Get all EdgeLabels from both left-hand sides and right-hand
+    -- sides. (The right-hand sides would be sufficient, but we want
+    -- to check the left-hand sides for errors.)
+    lhs_els = [(lhs, snds xs) | (Rule lhs (HGF _ es xs)) <- rs]
+    rhs_es = concat [es | (Rule lhs (HGF _ es _)) <- rs]
+    rhs_els = [(el, snds atts) | (Edge atts el) <- rhs_es]
     domsEq = \ x d1 d2 -> if d1 == d2 then d1 else error
       ("Conflicting types for nonterminal " ++ show x ++ ": " ++
         show d1 ++ " versus " ++ show d2)
-    (fs, nts) = foldr (\ (Edge atts el) (fs, nts) ->
+    (fs, nts) = foldr (\ (el, nls) (fs, nts) ->
                          case el of ElTerminal fac ->
                                       let w = getWeights (length . dom) fac in
-                                        (Map.insert el (snds atts, w) fs, nts)
+                                        (Map.insert el (nls, w) fs, nts)
                                     ElNonterminal _ ->
-                                      (fs, Map.insertWith (domsEq el) el (snds atts) nts))
-                      (Map.empty, Map.fromList [(start, start_type)]) edges
+                                      (fs, Map.insertWith (domsEq el) el nls nts))
+                      (Map.empty, Map.fromList [(start, start_type)]) (lhs_els ++ rhs_els)

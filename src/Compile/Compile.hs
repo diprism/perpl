@@ -25,7 +25,7 @@ unusedExternals = deleteFirstsBy (\ (x1, _) (x2, _) -> x1 == x2)
      (v0)-[x]-(v1) -> (v0)-[v0=v1]-(v1)
  -}
 
-varRule :: Ctxt -> Var -> Type -> RuleM
+varRule :: Ctxt -> Var -> Type -> RuleM [External]
 varRule g x tp = let ns = [(NnVar x, tp), (NnOut, tp)] in
   mkRule (TmVarL x tp) ns [Edge ns (ElTerminal (FaIdentity tp))] ns
 
@@ -33,27 +33,28 @@ varRule g x tp = let ns = [(NnVar x, tp), (NnOut, tp)] in
 
    Run rm, and for each variable x in xs', make x internal and create a rule for x. -}
     
-bindExts :: Ctxt -> [Param] -> RuleM -> RuleM
-bindExts g xs' (RuleM rs xs) =
+bindExts :: Ctxt -> [Param] -> RuleM [External] -> RuleM [External]
+bindExts g xs' rm = 
+  rm >>= \ xs -> mapM_ (uncurry (varRule g)) xs' >>
   let keep (NnVar x, _) = not (elem x (fsts xs'))
-      keep _ = error "expected an external node"
-      rm = RuleM rs (filter keep xs) in
-    foldr (\ (x, tp) r -> varRule g x tp +> r) rm xs'
+      keep (n, _) = error "expected an external node" in
+    return (filter keep xs)
 
 {- bindExt g x tp rm
 
    Like bindExt, but for a single variable. -}
     
-bindExt :: Ctxt -> Var -> Type -> RuleM -> RuleM
+bindExt :: Ctxt -> Var -> Type -> RuleM [External] -> RuleM [External]
 bindExt g x tp = bindExts g [(x, tp)]
 
 {- bindCases xs rms
 
    Runs all of rms and keeps only the external nodes in xs. -}
                           
-bindCases :: [Param] -> [RuleM] -> RuleM
-bindCases xs =
-  setExts (paramsToExternals xs) . foldr (\ rm rm' -> rm +> rm') returnRule
+bindCases :: [Param] -> EdgeLabel -> [RuleM HGF] -> RuleM [External]
+bindCases xs lhs rms =
+  sequence rms >>= addRuleBlock lhs >>
+  return (paramsToExternals xs)
 
 {- mkRule lhs ns es xs
 
@@ -64,15 +65,16 @@ Creates a rule.
 - es:  the right-hand side edges
 - xs:  the external node ids and labels -}
 
-mkRule :: Term -> [(NodeName, Type)] -> [Edge] -> [External] -> RuleM
+mkRule :: Term -> [(NodeName, Type)] -> [Edge] -> [External] -> RuleM [External]
 mkRule lhs ns es xs =
-  addRule (Rule (ElNonterminal lhs) (HGF (nub ns) es (nub xs)))
+  let xs' = nub xs in
+    addRuleBlock (ElNonterminal lhs) [HGF (nub ns) es xs'] >> return (init xs')
 
 -- Add a rule for this particular case in a case-of statement
-caseRule :: Ctxt -> FreeVars -> [External] -> Term -> Var -> [Case] -> Type -> Case -> RuleM
-caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
-  bindExts g as $
-  term2fgg (ctxtDeclArgs g as) xtm +>= \ xs_xtm_as ->
+caseRule :: Ctxt -> FreeVars -> [External] -> Term -> Var -> Type -> Case -> RuleM HGF
+caseRule g all_fvs xs_ctm ctm y tp (Case x as xtm) =
+  mapM_ (uncurry (varRule g)) as >>
+  term2fgg (ctxtDeclArgs g as) xtm >>= \ xs_xtm_as ->
   let all_xs = paramsToExternals (Map.toList all_fvs)
       unused_ps = unusedExternals all_xs xs_xtm_as
       [vctp] = newNodeNames [TpData y [] []]
@@ -82,39 +84,38 @@ caseRule g all_fvs xs_ctm ctm y cs tp (Case x as xtm) =
       fac = ElTerminal (FaCtor ctors ci)
       as' = paramsToExternals as
   in
-    mkRule (TmCase ctm (y, [], []) cs tp)
-      (vctp : vtp : xs_xtm_as ++ as' ++ xs_ctm ++ all_xs ++ unused_ps)
-      [Edge (xs_ctm ++ [vctp]) (ElNonterminal ctm),
-       Edge (xs_xtm_as ++ [vtp]) (ElNonterminal xtm),
-       Edge (as' ++ [vctp]) fac]
-      (xs_ctm ++ all_xs ++ [vtp])
+    return (HGF (nub (vctp : vtp : xs_xtm_as ++ as' ++ xs_ctm ++ all_xs ++ unused_ps))
+                [Edge (xs_ctm ++ [vctp]) (ElNonterminal ctm),
+                 Edge (xs_xtm_as ++ [vtp]) (ElNonterminal xtm),
+                 Edge (as' ++ [vctp]) fac]
+                (nub (xs_ctm ++ all_xs ++ [vtp])))
 
 -- Adds rule for the i-th term in an amb tm1 tm2 ... tmn
-ambRule :: Ctxt -> FreeVars -> [Term] -> Type -> Term -> RuleM
-ambRule g all_fvs tms tp tm =
-  term2fgg g tm +>= \ tmxs ->
+ambRule :: Ctxt -> FreeVars -> Type -> Term -> RuleM HGF
+ambRule g all_fvs tp tm =
+  term2fgg g tm >>= \ tmxs ->
   let all_xs = paramsToExternals (Map.toList all_fvs)
       unused_tms = unusedExternals all_xs tmxs
       vtp = (NnOut, tp)
   in
-    mkRule (TmAmb tms tp) (vtp : tmxs ++ all_xs ++ unused_tms)
-      [Edge (tmxs ++ [vtp]) (ElNonterminal tm)]
-      (all_xs ++ [vtp])
+    return (HGF (nub (vtp : tmxs ++ all_xs ++ unused_tms))
+                [Edge (tmxs ++ [vtp]) (ElNonterminal tm)]
+                (nub (all_xs ++ [vtp])))
 
 -- Adds rule for the i-th component of an &-product
-ampRule :: Ctxt -> FreeVars -> [Arg] -> Int -> Term -> Type -> RuleM
+ampRule :: Ctxt -> FreeVars -> [Arg] -> Int -> Term -> Type -> RuleM HGF
 ampRule g all_fvs as i tm tp =
-  term2fgg g tm +>= \ tmxs ->
+  term2fgg g tm >>= \ tmxs ->
   let tps = snds as
       all_xs = paramsToExternals (Map.toList all_fvs)
       unused_tms = unusedExternals all_xs tmxs
       [vamp] = newNodeNames [TpProd Additive tps]
       vtp = (NnOut, tp)
   in
-    mkRule (TmProd Additive as) (vamp : vtp : tmxs ++ all_xs ++ unused_tms)
-      [Edge (tmxs ++ [vtp]) (ElNonterminal tm),
-       Edge [vtp, vamp] (ElTerminal (FaAddProd tps i))]
-      (all_xs ++ [vamp])
+    return (HGF (nub (vamp : vtp : tmxs ++ all_xs ++ unused_tms))
+                [Edge (tmxs ++ [vtp]) (ElNonterminal tm),
+                 Edge [vtp, vamp] (ElTerminal (FaAddProd tps i))]
+                (nub (all_xs ++ [vamp])))
 
 {- term2fgg g tm
 
@@ -123,16 +124,16 @@ ampRule g all_fvs as i tm tp =
    Returns: A RuleM containing the rules, with an external node
    for each free variable in tm. -}
 
-term2fgg :: Ctxt -> Term -> RuleM
+term2fgg :: Ctxt -> Term -> RuleM [External]
 
 -- The rule for local variables is already created in bindExt(s).
 term2fgg g (TmVarL x tp) =
-  addExt (NnVar x) tp
+  return [(NnVar x, tp)]
 
 term2fgg g (TmVarG GlFun x [] [] [] tp) =
-  returnRule -- If this is a def with no args, we already add its rule when it gets defined
+  return [] -- If this is a def with no args, we already add its rule when it gets defined
 
-term2fgg g (TmVarG gv x [] [] as tp) =
+term2fgg g (TmVarG gv x [] [] as tp) = 
   [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
   let ps = newNodeNames (snds as)
       vy = (NnOut, tp)
@@ -179,13 +180,17 @@ term2fgg g (TmApp tm1 tm2 tp2 tp) =
 term2fgg g (TmCase tm (y, [], []) cs tp) =
   term2fgg g tm +>= \ xs ->
   let fvs = freeVars cs in
-    bindCases (Map.toList (Map.union (freeVars tm) fvs)) (map (caseRule g fvs xs tm y cs tp) cs)
+    bindCases (Map.toList (Map.union (freeVars tm) fvs))
+              (ElNonterminal (TmCase tm (y, [], []) cs tp))
+              (map (caseRule g fvs xs tm y tp) cs)
 
 term2fgg _ (TmCase _ _ _ _) = error "Cannot compile polymorphic code"
 
 term2fgg g (TmAmb tms tp) =
   let fvs = Map.unions (map freeVars tms) in
-    bindCases (Map.toList fvs) (map (ambRule g fvs tms tp) tms)
+    bindCases (Map.toList fvs)
+              (ElNonterminal (TmAmb tms tp))
+              (map (ambRule g fvs tp) tms)
     
 term2fgg g (TmFactor wt tm tp) =
   term2fgg g tm +>= \ xs ->
@@ -213,7 +218,9 @@ term2fgg g (TmProd Additive as) =
   -- so don't bother creating any FGG rules for <>.
   let (tms, tps) = unzip as
       fvs = freeVars tms in
-    bindCases (Map.toList fvs) [ampRule g fvs as i atm tp | (i, (atm, tp)) <- enumerate as]
+    bindCases (Map.toList fvs)
+              (ElNonterminal (TmProd Additive as))
+              [ampRule g fvs as i atm tp | (i, (atm, tp)) <- enumerate as]
     
 term2fgg g (TmProd am@Multiplicative as) =
   [term2fgg g a | (a, atp) <- as] +>=* \ xss ->
@@ -277,9 +284,9 @@ term2fgg g (TmEqs tms) =
 
    Adds the rules for a Prog. -}
     
-prog2fgg :: Ctxt -> Prog -> RuleM
+prog2fgg :: Ctxt -> Prog -> RuleM ()
 prog2fgg g (ProgFun x ps tm tp) = let tp' = joinArrows (snds ps) tp in
-  bindExts g ps $ term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
+  (bindExts g ps $ term2fgg (ctxtDeclArgs g ps) tm +>= \ tmxs ->
   let ps' = paramsToExternals ps
       unused_ps = unusedExternals ps' tmxs
       (unused_x, unused_tp) = unzip unused_ps
@@ -287,14 +294,14 @@ prog2fgg g (ProgFun x ps tm tp) = let tp' = joinArrows (snds ps) tp in
   in
     mkRule (TmVarG GlFun x [] [] [] tp') (vtp : tmxs ++ ps' ++ unused_ps)
       [Edge (tmxs ++ [vtp]) (ElNonterminal tm)]
-      (ps' ++ [vtp])
-prog2fgg g (ProgExtern x ps tp) = returnRule
-prog2fgg g (ProgData y cs) = returnRule
+      (ps' ++ [vtp])) >> return ()
+prog2fgg g (ProgExtern x ps tp) = return ()
+prog2fgg g (ProgData y cs) = return ()
 
 -- Goes through a program and adds all the rules for it
-progs2fgg :: Ctxt -> Progs -> RuleM
+progs2fgg :: Ctxt -> Progs -> RuleM ()
 progs2fgg g (Progs ps tm) =
-  foldr (\ p rm -> rm +> prog2fgg g p) (term2fgg g tm) ps
+  mapM (prog2fgg g) ps >> term2fgg g tm >> return ()
   
 {- domainValues g tp
 
@@ -346,6 +353,6 @@ compileFile :: Progs -> Either String FGG
 compileFile ps =
   let g = ctxtDefProgs ps
       Progs _ end = ps
-      RuleM rs xs = progs2fgg g ps
+      rs = runRuleM (progs2fgg g ps)
   in
-      return (rulesToFGG (domainValues g) (ElNonterminal end) [typeof end] (nub (reverse rs)))
+      return (rulesToFGG (domainValues g) (ElNonterminal end) [typeof end] rs)
