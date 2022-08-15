@@ -79,10 +79,11 @@ instance Show Factor where
   show (FaCtor cs k) = show (cs !! k)
   show (FaExtern x _) = show x
 
-data Edge = Edge { edge_atts :: [(NodeName, NodeLabel)], edge_label :: EdgeLabel }
+type Node = (NodeName, NodeLabel)
+data Edge = Edge { edge_atts :: [Node], edge_label :: EdgeLabel }
   deriving Eq
 -- Hypergraph fragment (= hypergraph with external nodes)
-data HGF = HGF { hgf_nodes :: [(NodeName, NodeLabel)], hgf_edges :: [Edge], hgf_exts :: [(NodeName, NodeLabel)] }
+data HGF = HGF { hgf_nodes :: [Node], hgf_edges :: [Edge], hgf_exts :: [Node] }
   deriving Eq
 data Rule = Rule EdgeLabel HGF
   deriving Eq

@@ -8,8 +8,6 @@ import Util.FGG
 import Util.Helpers
 import Util.Tensor
 
-type External = (NodeName, NodeLabel)
-
 type RuleM = Writer (Map EdgeLabel [HGF])
 
 {- addRuleBlock lhs rhss

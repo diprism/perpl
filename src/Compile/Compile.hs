@@ -11,11 +11,11 @@ import Scope.Subst (FreeVars, freeVars)
 newNodeNames :: [a] -> [(NodeName, a)]
 newNodeNames as = [(NnInternal j, atp) | (j, atp) <- enumerate as]
 
-paramsToExternals :: [Param] -> [External]
-paramsToExternals ps = [(NnVar x, tp) | (x, tp) <- ps]
+paramsToNodes :: [Param] -> [Node]
+paramsToNodes ps = [(NnVar x, tp) | (x, tp) <- ps]
 
-unusedExternals :: [External] -> [External] -> [External]
-unusedExternals = deleteFirstsBy (\ (x1, _) (x2, _) -> x1 == x2)
+unusedNodes :: [Node] -> [Node] -> [Node]
+unusedNodes = deleteFirstsBy (\ (x1, _) (x2, _) -> x1 == x2)
 
 
 {- varRule g x tp
@@ -25,7 +25,7 @@ unusedExternals = deleteFirstsBy (\ (x1, _) (x2, _) -> x1 == x2)
      (v0)-[x]-(v1) -> (v0)-[v0=v1]-(v1)
  -}
 
-varRule :: Ctxt -> Var -> Type -> RuleM [External]
+varRule :: Ctxt -> Var -> Type -> RuleM [Node]
 varRule g x tp = let ns = [(NnVar x, tp), (NnOut, tp)] in
   mkRule (TmVarL x tp) ns [Edge ns (ElTerminal (FaIdentity tp))] ns
 
@@ -33,10 +33,10 @@ varRule g x tp = let ns = [(NnVar x, tp), (NnOut, tp)] in
 
    Runs all of rms and keeps only the external nodes in xs. -}
                           
-bindCases :: [Param] -> EdgeLabel -> [RuleM HGF] -> RuleM [External]
+bindCases :: [Param] -> EdgeLabel -> [RuleM HGF] -> RuleM [Node]
 bindCases xs lhs rms =
   sequence rms >>= addRuleBlock lhs >>
-  return (paramsToExternals xs)
+  return (paramsToNodes xs)
 
 {- mkRule lhs ns es xs
 
@@ -47,24 +47,24 @@ Creates a rule.
 - es:  the right-hand side edges
 - xs:  the external node ids and labels -}
 
-mkRule :: Term -> [(NodeName, Type)] -> [Edge] -> [External] -> RuleM [External]
+mkRule :: Term -> [Node] -> [Edge] -> [Node] -> RuleM [Node]
 mkRule lhs ns es xs =
   let xs' = nub xs in
     addRuleBlock (ElNonterminal lhs) [HGF (nub ns) es xs'] >> return (init xs')
 
 -- Add a rule for this particular case in a case-of statement
-caseRule :: Ctxt -> FreeVars -> [External] -> Term -> Var -> Type -> Case -> RuleM HGF
+caseRule :: Ctxt -> FreeVars -> [Node] -> Term -> Var -> Type -> Case -> RuleM HGF
 caseRule g all_fvs xs_ctm ctm y tp (Case x as xtm) =
   mapM_ (uncurry (varRule g)) as >>
   term2fgg (ctxtDeclArgs g as) xtm >>= \ xs_xtm_as ->
-  let all_xs = paramsToExternals (Map.toList all_fvs)
-      unused_ps = unusedExternals all_xs xs_xtm_as
+  let all_xs = paramsToNodes (Map.toList all_fvs)
+      unused_ps = unusedNodes all_xs xs_xtm_as
       [vctp] = newNodeNames [TpData y [] []]
       vtp = (NnOut, tp)
       Just ctors = ctxtLookupType g y
       Just ci = findIndex (\ (Ctor x' _) -> x' == x) ctors
       fac = ElTerminal (FaCtor ctors ci)
-      as' = paramsToExternals as
+      as' = paramsToNodes as
   in
     return (HGF (nub (vctp : vtp : xs_xtm_as ++ as' ++ xs_ctm ++ all_xs ++ unused_ps))
                 [Edge (xs_ctm ++ [vctp]) (ElNonterminal ctm),
@@ -76,8 +76,8 @@ caseRule g all_fvs xs_ctm ctm y tp (Case x as xtm) =
 ambRule :: Ctxt -> FreeVars -> Type -> Term -> RuleM HGF
 ambRule g all_fvs tp tm =
   term2fgg g tm >>= \ tmxs ->
-  let all_xs = paramsToExternals (Map.toList all_fvs)
-      unused_tms = unusedExternals all_xs tmxs
+  let all_xs = paramsToNodes (Map.toList all_fvs)
+      unused_tms = unusedNodes all_xs tmxs
       vtp = (NnOut, tp)
   in
     return (HGF (nub (vtp : tmxs ++ all_xs ++ unused_tms))
@@ -89,8 +89,8 @@ ampRule :: Ctxt -> FreeVars -> [Arg] -> Int -> Term -> Type -> RuleM HGF
 ampRule g all_fvs as i tm tp =
   term2fgg g tm >>= \ tmxs ->
   let tps = snds as
-      all_xs = paramsToExternals (Map.toList all_fvs)
-      unused_tms = unusedExternals all_xs tmxs
+      all_xs = paramsToNodes (Map.toList all_fvs)
+      unused_tms = unusedNodes all_xs tmxs
       [vamp] = newNodeNames [TpProd Additive tps]
       vtp = (NnOut, tp)
   in
@@ -106,7 +106,7 @@ ampRule g all_fvs as i tm tp =
    Returns: A RuleM containing the rules, with an external node
    for each free variable in tm. -}
 
-term2fgg :: Ctxt -> Term -> RuleM [External]
+term2fgg :: Ctxt -> Term -> RuleM [Node]
 
 -- The rule for local variables is already created in varRule.
 term2fgg g (TmVarL x tp) =
@@ -237,10 +237,10 @@ term2fgg g (TmElimMultiplicative ptm ps tm tp) =
   term2fgg g ptm >>= \ ptmxs ->
   mapM_ (uncurry (varRule g)) ps >>
   term2fgg (ctxtDeclArgs g ps) tm >>= \ tmxs ->
-  let ps' = paramsToExternals ps
+  let ps' = paramsToNodes ps
       tps = snds ps
       ptp = TpProd Multiplicative tps
-      unused_ps = unusedExternals ps' tmxs
+      unused_ps = unusedNodes ps' tmxs
       vtp = (NnOut, tp)
       [vptp] = newNodeNames [ptp]
   in
@@ -271,8 +271,8 @@ prog2fgg :: Ctxt -> Prog -> RuleM ()
 prog2fgg g (ProgFun x ps tm tp) = let tp' = joinArrows (snds ps) tp in
   mapM_ (uncurry (varRule g)) ps >>
   term2fgg (ctxtDeclArgs g ps) tm >>= \ tmxs ->
-  let ps' = paramsToExternals ps
-      unused_ps = unusedExternals ps' tmxs
+  let ps' = paramsToNodes ps
+      unused_ps = unusedNodes ps' tmxs
       (unused_x, unused_tp) = unzip unused_ps
       vtp = (NnOut, tp)
   in
