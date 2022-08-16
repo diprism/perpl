@@ -46,7 +46,7 @@ collectUnfolds rtp (TmEqs tms) = concatMap (collectUnfolds rtp) tms
 collectFolds :: Var -> Term -> [(Var, FreeVars)]
 collectFolds rtp (TmVarL x tp) = []
 collectFolds rtp (TmVarG gv x _ _ as tp) =
-  let this = if TpData rtp [] [] == tp && gv == CtorVar then [(x, freeVarLs (fsts as))] else [] in
+  let this = if TpData rtp [] [] == tp && gv == GlCtor then [(x, freeVarLs (fsts as))] else [] in
     concatMap (\ (atm, atp) -> collectFolds rtp atm) as ++ this
 collectFolds rtp (TmLam x tp tm tp') = collectFolds rtp tm
 collectFolds rtp (TmApp tm1 tm2 tp2 tp) = collectFolds rtp tm1 ++ collectFolds rtp tm2
@@ -98,7 +98,7 @@ makeDisentangle g y us css =
                  (joinLams ps (TmCase (TmVarL x ytp) (y, [], []) cs' tp),
                    joinArrows (tpUnit : snds ps) tp)
              | (fvs, tp, cs, i) <- alls]
-      fun = ProgFun (unfoldName y) [(x, ytp)] (TmVarG CtorVar (unfoldCtorName y) [] [] [(TmProd Additive cscs, TpProd Additive (snds cscs))] utp) utp -- (TpArr ytp utp)
+      fun = ProgFun (unfoldName y) [(x, ytp)] (TmVarG GlCtor (unfoldCtorName y) [] [] [(TmProd Additive cscs, TpProd Additive (snds cscs))] utp) utp -- (TpArr ytp utp)
   in
     (dat, fun)
 
@@ -182,17 +182,17 @@ defoldTerm rtp = h where
   h :: Term -> DefoldM Term
   h (TmVarL x tp) = pure (TmVarL x tp)
   h (TmVarG gv x _ _ as tp)
-    | gv == CtorVar && tp == TpData rtp [] [] =
+    | gv == GlCtor && tp == TpData rtp [] [] =
         mapArgsM h as >>= \ as' ->
         State.get >>= \ fs ->
         let fvs = Map.toList (freeVarLs (fsts as'))
             cname = foldCtorName rtp (length fs)
             tname = foldTypeName rtp
             aname = applyName rtp
-            fld = TmVarG CtorVar cname [] [] (paramsToArgs fvs) (TpData tname [] [])
+            fld = TmVarG GlCtor cname [] [] (paramsToArgs fvs) (TpData tname [] [])
         in
-          State.put (fs ++ [TmVarG CtorVar x [] [] as' (TpData rtp [] [])]) >>
-          return (TmVarG DefVar aname [] [] [(fld, TpData tname [] [])] (TpData rtp [] []))
+          State.put (fs ++ [TmVarG GlCtor x [] [] as' (TpData rtp [] [])]) >>
+          return (TmVarG GlFun aname [] [] [(fld, TpData tname [] [])] (TpData rtp [] []))
     | otherwise = pure (TmVarG gv x [] []) <*> mapArgsM h as <*> pure tp
   h (TmLam x tp tm tp') = pure (TmLam x tp) <*> h tm <*> pure tp'
   h (TmApp tm1 tm2 tp2 tp) = pure TmApp <*> h tm1 <*> h tm2 <*> pure tp2 <*> pure tp
@@ -243,9 +243,9 @@ derefunTerm dr g rtp = fst . h where
   h' :: Term -> Term
   h' (TmVarL x tp) = let tp' = sub tp in TmVarL x tp'
   h' (TmVarG gv x _ _ as tp)
-    | dr == Refun && gv == CtorVar && tp == TpData rtp [] [] =
-      TmVarG DefVar unfoldN [] [] [(TmVarG gv x [] [] (h_as as) tp, tp)] (TpData unfoldTypeN [] [])
-    | dr == Defun && gv == DefVar && x == applyN =
+    | dr == Refun && gv == GlCtor && tp == TpData rtp [] [] =
+      TmVarG GlFun unfoldN [] [] [(TmVarG gv x [] [] (h_as as) tp, tp)] (TpData unfoldTypeN [] [])
+    | dr == Defun && gv == GlFun && x == applyN =
       let [(etm, etp)] = as in h' etm
     | otherwise =
       maybe2 (ctxtLookupTerm g x) (TmVarG gv x [] [] (h_as as) tp) $ \ tp' ->
@@ -269,7 +269,7 @@ derefunTerm dr g rtp = fst . h where
         let (tm1', tp1') = h tm1
             cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> typeof xtm in
-          TmCase (TmVarG DefVar applyN [] [] [(tm1', tp1')] (TpData rtp [] [])) (rtp, [], []) cs' tp2'
+          TmCase (TmVarG GlFun applyN [] [] [(tm1', tp1')] (TpData rtp [] [])) (rtp, [], []) cs' tp2'
     | otherwise =
         let (tm1', TpData tp1' [] []) = h tm1
             cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]

@@ -79,14 +79,14 @@ data UsTm =
   | UsEqs [UsTm]                        -- tm1 == tm2 == ...
   deriving (Eq, Ord)
 
-data GlobalVar = CtorVar | DefVar
-  deriving (Eq, Ord)
+data Global = GlFun | GlExtern | GlCtor
+  deriving (Eq, Ord, Show)
 
 -- With the exception of TmLam, the Type at the end of a constructor
 -- below is the type of that expression as a whole
 data Term =
     TmVarL Var Type                               -- Local var
-  | TmVarG GlobalVar Var [Tag] [Type] [Arg] Type -- Global var app: x [tg1] ... [ti1] ... arg1 ...
+  | TmVarG Global Var [Tag] [Type] [Arg] Type     -- Global var app: x [tg1] ... [ti1] ... arg1 ...
   | TmLam Var Type Term Type                      -- \ x : tp1. tm : tp2
   | TmApp Term Term Type {- -> -} Type            -- (tm1 : (tp1 -> tp2)) (tm2 : tp1) : tp2
   | TmLet Var Term Type Term Type                 -- let x : tp1 = tm1 in tp2 : tp2

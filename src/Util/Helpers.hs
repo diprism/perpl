@@ -37,10 +37,6 @@ kronwith f as bs = [f a b | (a, b) <- concat (kronecker as bs)]
 kronall :: [[a]] -> [[a]]
 kronall = foldr (\ vs ws -> [(v : xs) | v <- vs, xs <- ws ]) [[]]
 
--- kronall, but keeps track of the position (row, col) each element came from
-kronpos :: [[a]] -> [[(Int, Int, a)]]
-kronpos as = kronall [[(i, length as', a) | (i, a) <- enumerate as'] | as' <- as]
-
 -- [a, b, c, ...] -> [(0, a), (1, b), (2, c), ...]
 enumerate :: [a] -> [(Int, a)]
 enumerate = zip [0..]
@@ -89,12 +85,6 @@ pickyZipWith f = go where
 
 pickyZip :: [a] -> [b] -> [(a,b)]
 pickyZip = pickyZipWith (,)
-
--- Collects duplicates, counting how many
--- collectDups ['a', 'b', 'c', 'b', 'c', 'b'] = [('a', 1), ('b', 3), ('c', 2)]
-collectDups :: Ord a => [a] -> [(a, Int)]
-collectDups =
-  Map.toList . foldr (Map.alter $ Just . maybe 1 succ) Map.empty
 
 listDifference :: Ord a => [a] -> [a] -> [a]
 listDifference as1 as2 = Set.toList (Set.difference (Set.fromList as1) (Set.fromList as2))

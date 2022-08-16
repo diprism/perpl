@@ -170,8 +170,8 @@ tpBoolName = Var "Bool"
 tmTrueName = Var "True"
 tmFalseName = Var "False"
 tpBool = TpData tpBoolName [] []
-tmTrue = TmVarG CtorVar tmTrueName [] [] [] tpBool
-tmFalse = TmVarG CtorVar tmFalseName [] [] [] tpBool
+tmTrue = TmVarG GlCtor tmTrueName [] [] [] tpBool
+tmFalse = TmVarG GlCtor tmFalseName [] [] [] tpBool
 
 builtins :: [UsProg]
 builtins = [

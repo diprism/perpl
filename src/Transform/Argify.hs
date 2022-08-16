@@ -60,7 +60,7 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
 
   -- Argify an application of a global definition (TmVarG g x [] [] [] _)
   -- to zero or more arguments (as).
-  argifyAppG :: GlobalVar -> Var -> [Arg] -> Term
+  argifyAppG :: Global -> Var -> [Arg] -> Term
   argifyAppG g x as =
     -- as = the provided arguments
     -- tps = the argument types of x

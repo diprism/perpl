@@ -168,7 +168,7 @@ solvesM ms =
         -- to be done in a second pass because of mutual recursion.
         -- This substitution is possible because occurrences of f are actually
         -- local variables (TmVarL); they change into global variables (TmVarG) now.
-        s' = Map.fromList [(f, SubTm (TmVarG DefVar f (TgVar <$> tgs) (TpVar <$> xs') [] tp')) | (f, _, tgs, xs', tp') <- defs']
+        s' = Map.fromList [(f, SubTm (TmVarG GlFun f (TgVar <$> tgs) (TpVar <$> xs') [] tp')) | (f, _, tgs, xs', tp') <- defs']
         defs'' = [(f, subst s' tm', tgs, xs', tp') | (f, tm', tgs, xs', tp') <- defs']
       in
         return defs''
@@ -241,7 +241,7 @@ inferFuns fs m =
                   okay) >>
                return (x, tm', typeof tm')) (zip fs itps))) >>= \ xtmstps ->
     -- Add defs to env, and check remaining progs (m)
-    foldr (\ (x, tm, tgs, ps, tp) -> defTerm x tgs ps tp) m xtmstps >>= \ (SProgs ps end) ->
+    foldr (\ (x, tm, tgs, ps, tp) -> defGlobal x tgs ps tp) m xtmstps >>= \ (SProgs ps end) ->
     -- Add defs to returned (schemified) program
     let ps' = map (\ (x, tm, tgs, ps, tp) -> SProgFun x tgs ps tm tp) xtmstps in
     return (SProgs (ps' ++ ps) end)
@@ -378,7 +378,7 @@ inferExtern (x, tp) m =
   -- Make sure tp' doesn't use any recursive datatypes
   localCurDef x (guardExternRec tp') >>
   -- Add (x : tp') to env, checking rest of program
-  defTerm x [] [] tp' m >>= \ (SProgs ps end) ->
+  defExtern x tp' m >>= \ (SProgs ps end) ->
   -- Add (extern x : tp') to returned program
   return (SProgs (SProgExtern x tp' : ps) end)
 
@@ -422,4 +422,3 @@ inferFile ps =
   either (\ (e, loc) -> Left (show e ++ ", " ++ show loc)) (\ (a, s, w) -> Right a)
     (runExcept (runRWST (inferProgs ps)
                         (CheckR emptyCtxt (Loc Nothing "")) mempty))
-

@@ -12,7 +12,7 @@ import Util.Helpers
 import Scope.Fresh (newVar)
 import Scope.Subst (SubT(SubTp,SubTg), Substitutable, substM, subst, freeVars)
 import Scope.Free (isAff, isInfiniteType)
-import Scope.Ctxt (Ctxt, CtxtDef(..), DefTerm(..), DefType(..), ctxtDefLocal, ctxtDefGlobal, ctxtDefData)
+import Scope.Ctxt (Ctxt, CtxtDef(..), DefTerm(..), DefType(..), ctxtDefLocal, ctxtDefGlobal, ctxtDefExtern, ctxtDefData)
 
 -- Convention: expected type, then actual type
 -- TODO: Enforce this convention
@@ -155,8 +155,11 @@ guardExternRec tp =
   guardM (not (isInfiniteType env tp)) ExternRecData
 
 -- Defines a global function
-defTerm :: Var -> [Var] -> [Var] -> Type -> CheckM a -> CheckM a
-defTerm x tgs ps tp = local $ modifyEnv ( \ g -> ctxtDefGlobal g x tgs ps tp)
+defGlobal :: Var -> [Var] -> [Var] -> Type -> CheckM a -> CheckM a
+defGlobal x tgs ps tp = local $ modifyEnv ( \ g -> ctxtDefGlobal g x tgs ps tp)
+
+defExtern :: Var -> Type -> CheckM a -> CheckM a
+defExtern x tp = local $ modifyEnv ( \ g -> ctxtDefExtern g x tp)
 
 -- Defines a datatype and its constructors
 defData :: Var -> [Var] -> [Var] -> [Ctor] -> CheckM a -> CheckM a
@@ -278,8 +281,9 @@ infer' (UsVar x) =
   lookupTermVar x >>= \ etp ->
   case etp of
     DefLocal tp -> return (TmVarL x tp)
-    DefGlobal tgs tis tp -> h DefVar tgs tis tp
-    DefCtor tgs tis tp -> h CtorVar tgs tis tp
+    DefGlobal tgs tis tp -> h GlFun tgs tis tp
+    DefExtern tp -> h GlExtern [] [] tp
+    DefCtor tgs tis tp -> h GlCtor tgs tis tp
   where
     h gv tgs tis tp =
       -- pick new tags
@@ -351,7 +355,7 @@ infer' (UsIf tm1 tm2 tm3) =
 
 infer' (UsTmBool b) =
   -- Translate True/False into a constructor var
-  return (TmVarG CtorVar (if b then tmTrueName else tmFalseName) [] [] [] tpBool)
+  return (TmVarG GlCtor (if b then tmTrueName else tmFalseName) [] [] [] tpBool)
 
 infer' (UsLet x xtm tm) =
   -- Check the annotation xtp'

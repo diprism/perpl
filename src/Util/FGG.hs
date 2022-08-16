@@ -3,13 +3,17 @@
    FGGs, see: David Chiang and Darcey Riley. Factor graph grammars. In
    Proc. NeurIPS, 6648–6658. 2020. -}
 
-module Util.FGG where
+module Util.FGG (Node, NodeName(..), NodeLabel,
+                  Domain, Value(..),
+                  Edge(..), EdgeLabel(..),
+                  Factor(..), Weights, Weight,
+                  HGF(..), Rule(..), FGG(..), showFGG) where
 import qualified Data.Map as Map
-import Data.List
 import Struct.Lib
 import Util.Helpers
 import Util.Tensor
 import Util.JSON
+import Data.List (intercalate)
 
 type Domain = [Value]
 newtype Value = Value String
@@ -68,12 +72,22 @@ data Factor =
   | FaAddProd [Type] Int                -- matrix projecting tp1+...+tpn to tpk
   | FaMulProd [Type]                    -- tensor mapping (tp1,...,tpn) to tp1,...,tpn
   | FaCtor [Ctor] Int                   -- k'th constructor in cs
-  deriving (Show, Eq, Ord)
+  | FaExtern Var Type                   -- weights supplied externally
+  deriving (Eq, Ord)
+instance Show Factor where
+  show (FaScalar w) = show w
+  show (FaIdentity tp) = "Identity[" ++ show tp ++ "]"
+  show (FaEqual tp n) = "Equal[" ++ show tp ++ "^" ++ show n ++ "]"
+  show (FaAddProd tps k) = "AddProd[" ++ intercalate "," (show <$> tps) ++ ";" ++ show k ++ "]"
+  show (FaMulProd tps) = "MulProd[" ++ intercalate "," (show <$> tps) ++ "]"
+  show (FaCtor cs k) = show (cs !! k)
+  show (FaExtern x _) = show x
 
-data Edge = Edge { edge_atts :: [(NodeName, NodeLabel)], edge_label :: EdgeLabel }
+type Node = (NodeName, NodeLabel)
+data Edge = Edge { edge_atts :: [Node], edge_label :: EdgeLabel }
   deriving Eq
 -- Hypergraph fragment (= hypergraph with external nodes)
-data HGF = HGF { hgf_nodes :: [(NodeName, NodeLabel)], hgf_edges :: [Edge], hgf_exts :: [(NodeName, NodeLabel)] }
+data HGF = HGF { hgf_nodes :: [Node], hgf_edges :: [Edge], hgf_exts :: [Node] }
   deriving Eq
 data Rule = Rule EdgeLabel HGF
   deriving Eq
@@ -82,7 +96,7 @@ data FGG = FGG {
   factors :: Map EdgeLabel ([NodeLabel], Maybe Weights), -- edge label to att node labels, weights
   nonterminals :: Map EdgeLabel [NodeLabel],             -- nt name to attachment node labels
   start :: EdgeLabel,                                    -- start nt
-  rules :: [(Int, Rule)]                                 -- [(reps, rule)]: reps keeps track of duplicate rules that should not be deduplicated
+  rules :: [Rule]                                        -- rules
 }
 
 -- Creates a JSON object from a weights tensor
@@ -106,10 +120,10 @@ fgg_to_json (FGG ds fs nts s rs) =
            ("type", JSarray [JSstring (show nl) | nl <- d])
          ])),
        ("start", JSstring (show s)),
-       ("rules", JSarray $ concat $ flip map (nubBy (\ (_, r1) (_, r2) -> r1 == r2) rs) $
-          \ (reps, Rule lhs (HGF ns es xs)) ->
+       ("rules", JSarray $ flip map rs $
+          \ (Rule lhs (HGF ns es xs)) ->
             let m = Map.fromList (zip (fsts ns) [0..]) in
-            replicate reps $ JSobject [
+            JSobject [
              ("lhs", JSstring (show lhs)),
              ("rhs", JSobject [
                  ("nodes", JSarray [JSobject [("label", JSstring (show d)), ("id", JSstring (show n))] | (n, d) <- ns]),
@@ -142,10 +156,3 @@ fgg_to_json (FGG ds fs nts s rs) =
 
 showFGG :: FGG -> String
 showFGG = pprint_json . fgg_to_json
-
-{- emptyFGG s
-
-   An FGG with start nonterminal s and no rules. -}
-emptyFGG :: EdgeLabel -> FGG
-emptyFGG s = FGG Map.empty Map.empty Map.empty s []
-

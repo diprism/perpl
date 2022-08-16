@@ -13,6 +13,7 @@ data CtxtDef =
 data DefTerm =    
     DefLocal Type
   | DefGlobal [Var] [Var] Type -- tags, type params, type
+  | DefExtern Type
   | DefCtor [Var] [Var] Type   -- tags, type params, type
   deriving Show
 
@@ -38,6 +39,9 @@ ctxtDeclArgs = foldl $ uncurry . ctxtDefLocal
 -- Add a global term to the context
 ctxtDefGlobal :: Ctxt -> Var -> [Var] -> [Var] -> Type -> Ctxt
 ctxtDefGlobal g x tgs ps tp = Map.insert x (DefTerm (DefGlobal tgs ps tp)) g
+
+ctxtDefExtern :: Ctxt -> Var -> Type -> Ctxt
+ctxtDefExtern g x tp = Map.insert x (DefTerm (DefExtern tp)) g
 
 -- Add a constructor to the context
 ctxtDefCtor :: Ctxt -> Ctor -> Var -> [Var] -> [Var] -> Ctxt
@@ -83,7 +87,7 @@ ctxtBinds = flip Map.member
 -- Adds all definitions from a raw file to context
 ctxtDefUsProg :: Ctxt -> UsProg -> Ctxt
 ctxtDefUsProg g (UsProgFun x tm tp) = ctxtDefGlobal g x [] [] tp
-ctxtDefUsProg g (UsProgExtern x tp) = ctxtDefGlobal g x [] [] tp
+ctxtDefUsProg g (UsProgExtern x tp) = ctxtDefExtern g x tp
 ctxtDefUsProg g (UsProgData y ps cs) = ctxtDefData g y [] ps cs
 
 -- Populates a context with the definitions from a raw file
@@ -93,7 +97,7 @@ ctxtDefUsProgs (UsProgs ps end) = foldl ctxtDefUsProg emptyCtxt ps
 -- Adds all definitions from a scheme-ified file to context
 ctxtDefSProg :: Ctxt -> SProg -> Ctxt
 ctxtDefSProg g (SProgFun x tgs ps tm tp) = ctxtDefGlobal g x tgs ps tp
-ctxtDefSProg g (SProgExtern x tp) = ctxtDefGlobal g x [] [] tp
+ctxtDefSProg g (SProgExtern x tp) = ctxtDefExtern g x tp
 ctxtDefSProg g (SProgData y tgs ps cs) = ctxtDefData g y tgs ps cs
 
 -- Populates a context with the definitions from a scheme-ified file
@@ -103,10 +107,9 @@ ctxtDefSProgs (SProgs ps end) = foldl ctxtDefSProg emptyCtxt ps
 -- Adds all definitions from a file to context
 ctxtDefProg :: Ctxt -> Prog -> Ctxt
 ctxtDefProg g (ProgFun x ps tm tp) = ctxtDefGlobal g x [] [] (joinArrows (map snd ps) tp)
-ctxtDefProg g (ProgExtern x ps tp) = ctxtDefGlobal g x [] [] (joinArrows ps tp)
+ctxtDefProg g (ProgExtern x ps tp) = ctxtDefExtern g x (joinArrows ps tp)
 ctxtDefProg g (ProgData y cs) = ctxtDefData g y [] [] cs
 
 -- Populates a context with the definitions from a file
 ctxtDefProgs :: Progs -> Ctxt
 ctxtDefProgs (Progs ps end) = foldl ctxtDefProg emptyCtxt ps
-
