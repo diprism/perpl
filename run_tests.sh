@@ -35,7 +35,7 @@ do
     fi
 done
 
-for file in tests/bad/{type_mismatch,case_of_zero_cases,case_without_bar,data_with_zero_cons,data_without_bar,infinite_extern,type_parameter_different,type_parameter_swap,polymorphic_recursion,polymorphic_type_recursion{,2},answer_function,answer_recursive,answer_amp,elim_zero_add_prod,unbound_type_var,forall_positive}.ppl
+for file in tests/bad/{type_mismatch,case_of_zero_cases,case_without_bar,data_with_zero_cons,data_without_bar,infinite_extern,type_parameter_different,type_parameter_swap,polymorphic_recursion,polymorphic_type_recursion{,2},answer_function,answer_recursive,answer_amp,elim_zero_add_prod,unbound_type_var,forall_positive,nonlinear_let}.ppl
 do
     printf '%-40s' "Compiling ${file}... "
     my_err=$(./perplc $file -o /dev/null 2>&1 > /dev/null)
