@@ -25,7 +25,7 @@ addRuleBlock lhs rhss = tell (Map.singleton lhs rhss)
 runRuleM :: RuleM () -> [Rule]
 runRuleM rm =
   let ((), rs) = runWriter rm in
-    concat [[Rule lhs rhs | rhs <- rhss] | (lhs, rhss) <- Map.toList rs]
+    [Rule lhs rhs | (lhs, rhss) <- Map.toList rs, rhs <- rhss]
 
 {--- Functions for computing Weights for terminal-labeled Edges ---}
 
