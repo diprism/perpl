@@ -5,7 +5,7 @@ import Data.List
 import Struct.Lib
 import Util.Helpers
 import Scope.Free (getRecursiveTypeNames)
-import Scope.Subst (Substitutable, SubT(SubVar), subst, FreeVars, freeVars)
+import Scope.Subst (Substitutable, FreeVars, freeVars, substDatatype)
 import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtLookupTerm, ctxtLookupType)
 import Scope.Fresh (newVar)
 import Scope.Name
@@ -216,7 +216,7 @@ data DeRe = Defun | Refun
 
 -- Substitute from a datatype name to its Unfold/Fold datatype's name
 derefunSubst :: DeRe -> Var -> Type -> Type
-derefunSubst dr rtp = subst (Map.fromList [(rtp, SubVar (if dr == Defun then foldTypeName rtp else unfoldTypeName rtp))])
+derefunSubst dr rtp = substDatatype rtp (if dr == Defun then foldTypeName rtp else unfoldTypeName rtp)
 
 defunTerm = derefunTerm Defun
 refunTerm = derefunTerm Refun

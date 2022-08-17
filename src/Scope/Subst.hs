@@ -4,7 +4,7 @@
 module Scope.Subst (SubT(..), Subst, compose,
                     Substitutable,
                     substM, subst, substWithCtxt, alphaRename,
-                    substTags,
+                    substTags, substDatatype,
                     FreeVars, freeVars) where
 import qualified Data.Map as Map
 import Control.Monad.RWS.Lazy
@@ -382,9 +382,24 @@ instance Substitutable SProgs where
 
 --- The following functions don't use Subst.
 
+{- substDatatype xi xf tp
+
+   Rename all occurrences of datatype name xi to xf in type tp. -}
+  
+substDatatype :: Var -> Var -> Type -> Type
+substDatatype xi xf (TpVar y) =
+  TpVar y
+substDatatype xi xf (TpData y tgs as) =
+  TpData (if xi == y then xf else y) tgs (map (substDatatype xi xf) as)
+substDatatype xi xf (TpArr tp1 tp2) =
+  TpArr (substDatatype xi xf tp1) (substDatatype xi xf tp2)
+substDatatype xi xf (TpProd am tps) =
+  TpProd am [substDatatype xi xf tp | tp <- tps]
+substDatatype xi xf NoTp = NoTp
+
 {- substTags ytgs tp
 
-   Adds tags to type vars.
+   Adds tags to type vars in type tp.
 
    - ytgs: Map from Vars (which are datatype names) to lists of Vars
      (which are tag names). -}
@@ -398,8 +413,8 @@ substTags ytgs (TpData y tgs as) =
     if y `Map.member` ytgs then
       error ("can't add tags to a datatype that already has tags")
     else
-      let as' = map (substTags ytgs) as in
-        TpData y tgs as'
+      TpData y tgs (map (substTags ytgs) as)
+        
 substTags ytgs (TpArr tp1 tp2) =
   TpArr (substTags ytgs tp1) (substTags ytgs tp2)
 substTags ytgs (TpProd am tps) =
