@@ -4,6 +4,7 @@
 module Scope.Subst (SubT(..), Subst, compose,
                     Substitutable,
                     substM, subst, substWithCtxt, alphaRename,
+                    substTags,
                     FreeVars, freeVars) where
 import qualified Data.Map as Map
 import Control.Monad.RWS.Lazy
@@ -119,9 +120,7 @@ Subst s is a Map from variables x to three kinds of substitutions:
 - x := SubTm tm replaces:
   * free occurrences of local variables x (TmVarL x but not UsVar x)
 - x := SubTp tp replaces:
-  * free occurrences of type variables x (TpVar x)
-  * if x is a datatype name (TpData x) and tp has no type parameters,
-    x is changed to tp's name, and tp's tags are prepended. -}
+  * free occurrences of type variables x (TpVar x) -}
   
 subst :: Substitutable a => Subst -> a -> a
 subst s a = runSubst s (substM a)
@@ -153,10 +152,7 @@ instance Substitutable Type where
     substVar y
       (\ y' -> TpData y' tgs' as')
       (const (TpData y tgs' as'))
-      -- Allow y := y' tg1 ....
-      -- This is used in TypeInf.Solve in inferData to add tags to a datatype.
-      (\ tp' -> case tp' of TpData y' tgs'' [] -> TpData y' (tgs'' ++ tgs') as'
-                            _ -> error ("kind error (" ++ show y ++ " := " ++ show tp' ++ ")"))
+      (const (TpData y tgs' as'))
       (const (TpData y tgs' as'))
       (TpData y tgs' as')
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
@@ -383,3 +379,29 @@ instance Substitutable SProgs where
     pure SProgs <*> substM ps <*> substM tm
   freeVars (SProgs ps tm) =
     Map.union (freeVars ps) (freeVars tm)
+
+--- The following functions don't use Subst.
+
+{- substTags ytgs tp
+
+   Adds tags to type vars.
+
+   - ytgs: Map from Vars (which are datatype names) to lists of Vars
+     (which are tag names). -}
+
+substTags :: Map Var [Var] -> Type -> Type
+substTags ytgs (TpVar y) = TpVar y
+substTags ytgs (TpData y [] as) =
+  let as' = map (substTags ytgs) as in
+    TpData y (maybe [] (TgVar <$>) (ytgs Map.!? y)) as'
+substTags ytgs (TpData y tgs as) =
+    if y `Map.member` ytgs then
+      error ("can't add tags to a datatype that already has tags")
+    else
+      let as' = map (substTags ytgs) as in
+        TpData y tgs as'
+substTags ytgs (TpArr tp1 tp2) =
+  TpArr (substTags ytgs tp1) (substTags ytgs tp2)
+substTags ytgs (TpProd am tps) =
+  TpProd am (map (substTags ytgs) tps)
+substTags ytgs NoTp = NoTp
