@@ -1,5 +1,4 @@
 module Transform.Optimize where
---import Data.Maybe
 import qualified Data.Map as Map
 import Struct.Lib
 import Util.Helpers
@@ -203,7 +202,7 @@ optimizeTerm g (TmApp tm1 tm2 tp2 tp) =
       rtm = joinLams rem_ls (joinApps let_tm rem_as)
   in
     if null lets then rtm else optimizeTerm g rtm
-optimizeTerm g (TmCase tm y cs tp) =
+optimizeTerm g orig@(TmCase tm y cs tp) =
   let tm' = optimizeTerm g tm in
     case splitLets tm' of
       (ds, TmVarG GlCtor x tgs tis as _) ->
@@ -211,12 +210,16 @@ optimizeTerm g (TmCase tm y cs tp) =
             p_a_ds = zipWith (\ (tm, _) (x', tp) -> (x', tm, tp)) as cps in
           optimizeTerm g (joinLets (ds ++ p_a_ds) ctm)
       _ ->
+        -- case tm of Ctor1 ... -> \x. tm1 | Ctor2 ... -> \x. tm2
+        --  becomes
+        -- \x. case tm of Ctor1 ... -> tm1 | Ctor2 ... -> tm2
+        -- BUG: g does not contain arguments of TmProgFun
         let (ps, end) = splitArrows tp
             g_ps = foldr (\ (Case x xps xtm) g -> ctxtDeclArgs g xps) g cs
             (_, _, rps') = foldl (\ (e, g', ps') p ->
                                     let e' = newVar e g' in
                                       (e', ctxtDefLocal g' e' p, (e', p) : ps'))
-                           (etaName localName 0, g_ps, []) ps
+                           (localName, g_ps, []) ps
             ps' = reverse rps'
             cs' = [let g' = ctxtDeclArgs g (ps' ++ xps) in Case x xps (peelLams g' ps' (optimizeTerm g' xtm)) | Case x xps xtm <- cs]
         in

@@ -7,7 +7,6 @@ import Struct.Lib
 etaName :: Var -> Int -> Var
 etaName (Var x) i = Var ("_" ++ x ++ show i)
 localName = Var "x"
-localName2 = Var "y"
 
 -- Used in monomorphization for instance of function or datatype x
 instName :: Var -> Int -> Var

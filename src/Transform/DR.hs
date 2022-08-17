@@ -139,13 +139,17 @@ disentangleTerm rtp cases = h where
   h (TmLet x xtm xtp tm tp) =
     pure (TmLet x) <*> h xtm <*> pure xtp <*> h tm <*> pure tp
   h (TmCase tm (y, _, _) cs tp)
+    -- case tm of ...
+    --   becomes
+    -- case tm of _unfoldY_ x' -> let <_, ..., x'', ..., _> = x' in x''
     | y == rtp =
       h tm >>= \ tm' ->
       mapCasesM (\ _ _ -> h) cs >>= \ cs' ->
       State.get >>= \ unfolds ->
       let i = length unfolds
-          x' = localName -- TODO: pick fresh var?
-          x'' = localName2 -- TODO: pick a fresher var?
+          -- Because there are no other free variables, this is safe
+          x' = localName
+          x'' = localName
           get_ps = \ (cfvs, ctp2) -> Map.toList cfvs
           get_as = \ (cfvs, ctp2) -> paramsToArgs (Map.toList cfvs)
           get_arr = \ (cfvs, ctp2) -> joinArrows (snds (get_ps (cfvs, ctp2))) ctp2

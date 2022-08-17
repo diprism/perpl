@@ -73,12 +73,20 @@ alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
 discard' :: Term -> Type -> Term -> AffLinM Term
 discard' x (TpArr tp1 tp2) rtm =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
+-- discard x : <tp1, ..., ()> in rtm
+--  becomes
+-- let <_, ..., localName> = x in rtm
+-- BUG: localName must be free in rtm
 discard' x (TpProd Additive tps) rtm =
     return (TmElimAdditive x (length tps) (length tps - 1)
              (localName, last tps)
              rtm (typeof rtm))
+-- discard x : (tp1, ...) in rtm
+--  becomes
+-- let (localName0, ...) = x in discard localName0 in discard ... in rtm
+-- BUG: localName0, ... must be free in rtm
 discard' x (TpProd Multiplicative tps) rtm =
-    let ps = [(etaName localName i, tp) | (i, tp) <- enumerate tps] in
+    let ps = [(etaName (Var "x") i, tp) | (i, tp) <- enumerate tps] in
       discards (Map.fromList ps) rtm >>= \ rtm' ->
       return (TmElimMultiplicative x ps rtm' (typeof rtm'))
 discard' x xtp@(TpData y [] []) rtm =
@@ -155,7 +163,7 @@ affLin (TmLam x xtp tm tp) =
   discards fvs tmUnit >>= \ ntm ->
   return (TmProd Additive [(TmLam x xtp' tm' tp', TpArr xtp' tp'), (ntm, tpUnit)])
 affLin (TmApp tm1 tm2 tp2 tp) =
-  -- L(tm1 tm2 : tp) => let <f, _> = L(tm1 : tp1) in f L(tm2 : tp2)
+  -- L(tm1 tm2 : tp) => (let <localName, _> = L(tm1 : tp1) in localName) L(tm2 : tp2)
   affLin tm1 >>= \ tm1' -> affLin tm2 >>= \ tm2' ->
   let tp2' = affLinTp tp2
       tp'  = affLinTp tp

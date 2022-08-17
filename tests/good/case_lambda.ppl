@@ -1,0 +1,7 @@
+-- both should become: \x. \x0. case x of True -> (\y. x0) | False -> (\y. x0)
+define f = \z. case z of True -> (\y. z) | False -> (\y. z);
+define g = \x. case x of True -> (\y. x) | False -> (\y. x);
+
+(f False (), g False ())
+
+-- correct: [1, 0, 0, 0]
