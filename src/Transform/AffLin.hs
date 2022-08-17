@@ -75,10 +75,10 @@ discard' x (TpArr tp1 tp2) rtm =
   error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
 discard' x (TpProd Additive tps) rtm =
     return (TmElimAdditive x (length tps) (length tps - 1)
-             (Var "_d", last tps)
+             (localName, last tps)
              rtm (typeof rtm))
 discard' x (TpProd Multiplicative tps) rtm =
-    let ps = [(etaName (Var "d") i, tp) | (i, tp) <- enumerate tps] in
+    let ps = [(etaName localName i, tp) | (i, tp) <- enumerate tps] in
       discards (Map.fromList ps) rtm >>= \ rtm' ->
       return (TmElimMultiplicative x ps rtm' (typeof rtm'))
 discard' x xtp@(TpData y [] []) rtm =
@@ -97,8 +97,7 @@ discard x tp tm =
   ask >>= \ g ->
   if robust g tp
     then return tm
-    else (discard' (TmVarL x tp) tp tm){- >>= \ dtm ->
-          return (TmLet "_" dtm tpUnit tm (typeof tm)))-}
+    else (discard' (TmVarL x tp) tp tm)
 
 -- Discard a set of variables
 discards :: FreeVars -> Term -> AffLinM Term
@@ -161,8 +160,8 @@ affLin (TmApp tm1 tm2 tp2 tp) =
   let tp2' = affLinTp tp2
       tp'  = affLinTp tp
       tp1' = TpArr tp2' tp' in
-  return (TmApp (TmElimAdditive tm1' 2 0 (Var "x", tp1')
-                                (TmVarL (Var "x") tp1') tp1')
+  return (TmApp (TmElimAdditive tm1' 2 0 (localName, tp1')
+                                (TmVarL localName tp1') tp1')
                 tm2' tp2' tp')
 affLin (TmLet x xtm xtp tm tp) =
   -- L(let x : xtp = xtm in tm) => let x : L(xtp) = L(xtm) in let _ = Z({x} - FV(tm)) in L(tm)
@@ -227,9 +226,9 @@ affLinDiscards (p@(ProgData y cs) : ps) =
     let
       -- define _discardy_ = \x. case x of Con1 a11 a12 ... -> () | ...
       -- Linearizing this will generate recursive calls to discard as needed
-      defDiscard = ProgFun (discardName y) [(Var "x", ytp)] body tpUnit
-      body = TmCase (TmVarL (Var "x") ytp) (y, [], []) cases tpUnit
-      cases = [let atps' = nameParams c atps in Case c atps' tmUnit | Ctor c atps <- cs]
+      defDiscard = ProgFun (discardName y) [(localName, ytp)] body tpUnit
+      body = TmCase (TmVarL localName ytp) (y, [], []) cases tpUnit
+      cases = [let atps' = zip (etaName localName <$> [0..]) atps in Case c atps' tmUnit | Ctor c atps <- cs]
     in
       affLinDiscards ps >>= \ ps' ->
       return (defDiscard : p : ps')

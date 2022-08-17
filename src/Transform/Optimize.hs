@@ -216,7 +216,7 @@ optimizeTerm g (TmCase tm y cs tp) =
             (_, _, rps') = foldl (\ (e, g', ps') p ->
                                     let e' = newVar e g' in
                                       (e', ctxtDefLocal g' e' p, (e', p) : ps'))
-                           (etaName (Var "e") 0, g_ps, []) ps
+                           (etaName localName 0, g_ps, []) ps
             ps' = reverse rps'
             cs' = [let g' = ctxtDeclArgs g (ps' ++ xps) in Case x xps (peelLams g' ps' (optimizeTerm g' xtm)) | Case x xps xtm <- cs]
         in
