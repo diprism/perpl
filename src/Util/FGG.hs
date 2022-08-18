@@ -69,6 +69,7 @@ data Factor =
     FaScalar Weight                     -- just a scalar weight
   | FaIdentity Type                     -- identity matrix for tp
   | FaEqual Type Int                    -- k-way equality for tp
+  | FaArrow Type Type                   -- tensor mapping (tp1, tp2) to tp1, tp2
   | FaAddProd [Type] Int                -- matrix projecting tp1+...+tpn to tpk
   | FaMulProd [Type]                    -- tensor mapping (tp1,...,tpn) to tp1,...,tpn
   | FaCtor [Ctor] Int                   -- k'th constructor in cs
@@ -78,6 +79,7 @@ instance Show Factor where
   show (FaScalar w) = show w
   show (FaIdentity tp) = "Identity[" ++ show tp ++ "]"
   show (FaEqual tp n) = "Equal[" ++ show tp ++ "^" ++ show n ++ "]"
+  show (FaArrow tp1 tp2) = "Arrow[" ++ show tp1 ++ "," ++ show tp2 ++ "]"
   show (FaAddProd tps k) = "AddProd[" ++ intercalate "," (show <$> tps) ++ ";" ++ show k ++ "]"
   show (FaMulProd tps) = "MulProd[" ++ intercalate "," (show <$> tps) ++ "]"
   show (FaCtor cs k) = show (cs !! k)

@@ -133,7 +133,7 @@ term2fgg g (TmLam x tp tm tp') =
        vtp = (NnVar x, tp) in
      mkRule (TmLam x tp tm tp') (vtp : vtp' : varr : tmxs)
        [Edge (tmxs ++ [vtp']) (ElNonterminal tm),
-        Edge [vtp, vtp', varr] (ElTerminal (FaMulProd [tp, tp']))]
+        Edge [vtp, vtp', varr] (ElTerminal (FaArrow tp tp'))]
        (delete vtp tmxs ++ [varr])
 
 term2fgg g (TmApp tm1 tm2 tp2 tp) =
