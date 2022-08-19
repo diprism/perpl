@@ -140,12 +140,14 @@ rulesToFGG dom start start_type rs =
       ("Conflicting types for terminal " ++ show x ++ ": " ++
         show d1 ++ " versus " ++ show d2)
 
-    checkWeights nls (Just w) =
-      if tensorShape w == [length (dom nl) | nl <- nls] then
+    checkWeights el nls (Just w) =
+      -- Compute expected shape, but after a 0, drop everything
+      let shape = foldr (\ nl shape -> if null (dom nl) then [0] else length (dom nl) : shape) [] nls in
+      if tensorShape w == shape then
         Just w
       else
-        error "Weight tensor has wrong shape"
-    checkWeights nls Nothing = Nothing
+        error ("Weight tensor for terminal " ++ show el ++ " has wrong shape (" ++ show (tensorShape w) ++ ", expected " ++ show shape ++ ")")
+    checkWeights _ nls Nothing = Nothing
 
     checkRule r@(Rule lhs (HGF ns es xs)) =
       let count = Map.fromListWith (+) [(nn, 1) | (nn, nl) <- ns]
@@ -157,7 +159,7 @@ rulesToFGG dom start start_type rs =
 
     (fs, nts) = foldr (\ (el, nls) (fs, nts) ->
                          case el of ElTerminal fac ->
-                                      let w = checkWeights nls (getWeights (length . dom) fac) in
+                                      let w = checkWeights el nls (getWeights (length . dom) fac) in
                                           (Map.insertWith (checkTerm el) el (nls, w) fs, nts)
                                     ElNonterminal _ ->
                                       (fs, Map.insertWith (checkNonterm el) el nls nts))
