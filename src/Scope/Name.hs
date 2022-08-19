@@ -3,26 +3,28 @@ import Struct.Lib
 
 {- Naming conventions for internally-generated variables -}
 
+delim = "/" -- should be unlexable
+
 -- Used in various places for generating local variables
 localName = Var "x"
 
 -- Used in monomorphization for instance of function or datatype x
 instName :: Var -> Int -> Var
-instName (Var x) i = Var (x ++ "_inst" ++ show i)
+instName (Var x) i = Var (x ++ delim ++ "inst" ++ show i)
 
 -- Used in affine-to-linear transform for discarding recursive datatype y
 -- global function
-discardName y = Var ("_discard" ++ show y ++ "_")
+discardName y = Var ("discard" ++ delim ++ show y)
 
 -- Used for de-/refunctionalizing recursive datatype y
 -- global functions
-applyName (Var y) = Var ("_apply" ++ y ++ "_")
-unfoldName (Var y) = Var ("_unapply" ++ y ++ "_")
+applyName (Var y) = Var ("unfold" ++ delim ++ y)
+unapplyName (Var y) = Var ("fold" ++ delim ++ y)
 -- datatypes and their constructors
-foldCtorName (Var y) i = Var ("_fold" ++ y ++ "_" ++ show i ++ "_")
-foldTypeName (Var y) = Var ("_Fold" ++ y ++ "_")
-unfoldTypeName (Var y) = Var ("_Unfold" ++ y ++ "_")
-unfoldCtorName (Var y) = Var ("_unfold" ++ y ++ "_")
+defunTypeName (Var y) = Var ("Folded" ++ delim ++ y)
+defunCtorName (Var y) i = Var ("folded" ++ delim ++ y ++ delim ++ "site" ++ show i)
+refunTypeName (Var y) = Var ("Folded" ++ delim ++ y)
+refunCtorName (Var y) = Var ("folded" ++ delim ++ y)
 
 {- Although not defined here, here are some other internally-generated names:
 

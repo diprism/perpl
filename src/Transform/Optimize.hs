@@ -205,14 +205,13 @@ optimizeTerm g (TmApp tm1 tm2 tp2 tp) =
 optimizeTerm g (TmCase tm y cs tp) =
   let tm' = optimizeTerm g tm in
     case splitLets tm' of
+      -- Optimization (3): case-of-known-constructor
       (ds, TmVarG GlCtor x tgs tis as _) ->
         let [Case _ cps ctm] = filter (\ (Case x' _ _) -> x == x') cs
             p_a_ds = zipWith (\ (tm, _) (x', tp) -> (x', tm, tp)) as cps in
           optimizeTerm g (joinLets (ds ++ p_a_ds) ctm)
+      -- Optimization (1): move lambda out of case
       _ ->
-        -- case tm of Ctor1 ... -> \x. tm1 | Ctor2 ... -> \x. tm2
-        --  becomes
-        -- \x. case tm of Ctor1 ... -> tm1 | Ctor2 ... -> tm2
         let (ps, end) = splitArrows tp
             g_ps = foldr (\ (Case x xps xtm) g -> ctxtDeclArgs g xps) g cs
             (_, _, rps') = foldl (\ (e, g', ps') p ->
