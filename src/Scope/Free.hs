@@ -5,7 +5,7 @@
 module Scope.Free where
 import Struct.Lib
 import Util.Helpers
-import Scope.Subst (SubT(SubTp,SubTg), subst, freeVars)
+import Scope.Subst (SubT(SubTp,SubTg), subst)
 import Scope.Ctxt (Ctxt, ctxtLookupType2)
 import qualified Data.Map as Map
 
@@ -23,10 +23,6 @@ linIf LinErr y n e = e
 
 linIf' :: Lin -> Lin -> Lin -> Lin
 linIf' i y n = linIf i y n LinErr
-
--- Returns if x appears free in tm
-isFree :: Var -> UsTm -> Bool
-isFree x tm = Map.member x (freeVars tm)
 
 -- Returns if x occurs at most once in tm
 isAff :: Var -> UsTm -> Bool
@@ -52,40 +48,9 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccsCase :: CaseUs -> Map Var Int
     countOccsCase (CaseUs c xs tm) = foldr Map.delete (countOccs tm) xs
 
--- Returns if x appears exactly once in a user-term
-isLin :: Var -> UsTm -> Bool
-isLin x tm = h tm == LinYes where
-  linCase :: CaseUs -> Lin
-  linCase (CaseUs x' as tm') = if any ((==) x) as then LinNo else h tm'
-
-  h_as dup = foldr (\ tm l -> linIf' l (linIf' (h tm) dup LinYes) (h tm)) LinNo
-  
-  h :: UsTm -> Lin
-  h (UsVar x') = if x == x' then LinYes else LinNo
-  h (UsLam x' tp tm) = if x == x' then LinNo else h tm
-  h (UsApp tm tm') = h_as LinErr [tm, tm']
-  h (UsCase tm []) = h tm
-  h (UsCase tm cs) = linIf' (h tm)
-    -- make sure x is not in any of the cases
-    (foldr (\ c -> linIf' (linCase c) LinErr) LinYes cs)
-    -- make sure x is linear in all the cases, or in none of the cases
-    (foldr (\ c l -> if linCase c == l then l else LinErr) (linCase (head cs)) (tail cs))
-  h (UsIf tm1 tm2 tm3) = linIf' (h tm1) (h_as LinErr [tm2, tm3]) (h_as LinYes [tm2, tm3])
-  h (UsTmBool b) = LinNo
-  h (UsLet x' tm tm') =
-    if x == x' then h tm else h_as LinErr [tm, tm']
-  h (UsAmb tms) = h_as LinYes tms
-  h (UsFactor wt tm) = h tm
-  h (UsFail tp) = LinNo
---  h (UsElimAmp tm o) = h tm
-  h (UsProd am tms) = h_as (if am == Additive then LinYes else LinErr) tms
-  h (UsElimMultiplicative tm xs tm') = if x `elem` xs then h tm else h_as LinErr [tm, tm']
-  h (UsElimAdditive tm n i y tm') = if x == y then h tm else h_as LinErr [tm, tm']
-  h (UsEqs tms) = h_as LinErr tms
-
 -- Returns if x appears exactly once in a term
-isLin' :: Var -> Term -> Bool
-isLin' x = (LinYes ==) . h where
+isLin :: Var -> Term -> Bool
+isLin x = (LinYes ==) . h where
   linCase :: Case -> Lin
   linCase (Case x' ps tm) = if any ((x ==) . fst) ps then LinNo else h tm
 
