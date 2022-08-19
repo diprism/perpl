@@ -2,7 +2,7 @@ module Transform.Optimize where
 import qualified Data.Map as Map
 import Struct.Lib
 import Util.Helpers
-import Scope.Name
+import Scope.Name (localName)
 import Scope.Free (isLin', robust)
 import Scope.Subst (SubT(SubTm), substWithCtxt, FreeVars, freeVars)
 import Scope.Fresh (newVar)

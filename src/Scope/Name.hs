@@ -4,8 +4,6 @@ import Struct.Lib
 {- Naming conventions for internally-generated variables -}
 
 -- Used in various places for generating local variables
-etaName :: Var -> Int -> Var
-etaName (Var x) i = Var ("_" ++ x ++ show i)
 localName = Var "x"
 
 -- Used in monomorphization for instance of function or datatype x

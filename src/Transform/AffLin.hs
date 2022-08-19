@@ -3,7 +3,7 @@ import qualified Data.Map as Map
 import Control.Monad.RWS
 import Struct.Lib
 import Scope.Ctxt (Ctxt, ctxtDefLocal, ctxtDefProgs, emptyCtxt)
-import Scope.Name
+import Scope.Name (localName, discardName)
 import Scope.Free (robust)
 import Scope.Fresh (newVar, newVars)
 import Scope.Subst (FreeVars)
@@ -241,7 +241,7 @@ affLinDiscards (p@(ProgData y cs) : ps) =
       -- Linearizing this will generate recursive calls to discard as needed
       defDiscard = ProgFun (discardName y) [(localName, ytp)] body tpUnit
       body = TmCase (TmVarL localName ytp) (y, [], []) cases tpUnit
-      cases = [let atps' = zip (etaName localName <$> [0..]) atps in Case c atps' tmUnit | Ctor c atps <- cs]
+      cases = [let atps' = zip (newVars (replicate (length atps) localName) g) atps in Case c atps' tmUnit | Ctor c atps <- cs]
     in
       affLinDiscards ps >>= \ ps' ->
       return (defDiscard : p : ps')
