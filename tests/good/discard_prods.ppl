@@ -1,0 +1,19 @@
+define id = \a. a;
+
+-- affine-to-linear should give:
+-- define f = \y. let p = (<id, ()>, <id, ()>) in let (_x0, _x1) = p in let <_, z> = _x1 in let <_, z> = _x0 in y
+define f = \y. let p = (id, id) in y;
+-- and this should not let _x0 be captured
+define g = \_x0. let p = (id, id) in _x0;
+
+-- affine-to-linear should give:
+-- define f = \y. let p = <<id, ()>, ()> in let <_, x> = p in y
+define h = \y. let p = <id> in y;
+-- and this should not let x be captured
+define i = \x. let p = <id> in x;
+
+(f (), g (), h True, i True)
+
+-- correct: [0,0,0,1]
+
+

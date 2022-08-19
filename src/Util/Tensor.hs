@@ -109,7 +109,7 @@ infixl 9 !!!
 ta !!! [] = ta
 Scalar a !!! (SliceIndex i : ss) = tensorIndexError
 Scalar a !!! (SliceRange s e : ss) = tensorIndexError
-Vector a !!! (SliceIndex i : ss) = a !! i !!! ss
+Vector a !!! (SliceIndex i : ss) = if 0 <= i && i < length a then a !! i !!! ss else error ("tensor index " ++ show i ++ " out of bounds [0," ++ show (length a) ++ ")")
 Vector a !!! (SliceRange s e : ss) =
   let s' = maybe 0 id s
       a' = maybe id (\ e' -> take (e' - s')) e (drop s' a)

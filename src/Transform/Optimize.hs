@@ -1,9 +1,8 @@
 module Transform.Optimize where
---import Data.Maybe
 import qualified Data.Map as Map
 import Struct.Lib
 import Util.Helpers
-import Scope.Name
+import Scope.Name (localName)
 import Scope.Free (isLin', robust)
 import Scope.Subst (SubT(SubTm), substWithCtxt, FreeVars, freeVars)
 import Scope.Fresh (newVar)
@@ -206,17 +205,19 @@ optimizeTerm g (TmApp tm1 tm2 tp2 tp) =
 optimizeTerm g (TmCase tm y cs tp) =
   let tm' = optimizeTerm g tm in
     case splitLets tm' of
+      -- Optimization (3): case-of-known-constructor
       (ds, TmVarG GlCtor x tgs tis as _) ->
         let [Case _ cps ctm] = filter (\ (Case x' _ _) -> x == x') cs
             p_a_ds = zipWith (\ (tm, _) (x', tp) -> (x', tm, tp)) as cps in
           optimizeTerm g (joinLets (ds ++ p_a_ds) ctm)
+      -- Optimization (1): move lambda out of case
       _ ->
         let (ps, end) = splitArrows tp
             g_ps = foldr (\ (Case x xps xtm) g -> ctxtDeclArgs g xps) g cs
             (_, _, rps') = foldl (\ (e, g', ps') p ->
                                     let e' = newVar e g' in
                                       (e', ctxtDefLocal g' e' p, (e', p) : ps'))
-                           (etaName (Var "e") 0, g_ps, []) ps
+                           (localName, g_ps, []) ps
             ps' = reverse rps'
             cs' = [let g' = ctxtDeclArgs g (ps' ++ xps) in Case x xps (peelLams g' ps' (optimizeTerm g' xtm)) | Case x xps xtm <- cs]
         in
@@ -236,8 +237,15 @@ optimizeTerm g (TmEqs tms) =
 optimizeArgs :: Ctxt -> [Arg] -> [Arg]
 optimizeArgs g as = [(optimizeTerm g atm, atp) | (atm, atp) <- as]
 
+optimizeProg :: Ctxt -> Prog -> Prog
+optimizeProg g (ProgFun x ps tm tp) =
+  let g' = ctxtDeclArgs g ps in
+  ProgFun x ps ((liftFail . optimizeTerm g' . liftFail {- . liftAmb-}) tm) tp
+optimizeProg g (ProgExtern x ps tp) = ProgExtern x ps tp
+optimizeProg g (ProgData y cs) = ProgData y cs
+
 -- Applies the optimizations specified at the BOF to a program
 optimizeFile :: Progs -> Either String Progs
-optimizeFile ps =
+optimizeFile ps@(Progs defs end) =
   let g = ctxtDefProgs ps in
-    mapProgsM (return . liftFail . optimizeTerm g . liftFail {- . liftAmb-}) ps
+    return (Progs (optimizeProg g<$> defs) (optimizeTerm g end))

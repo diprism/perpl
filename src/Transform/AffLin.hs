@@ -2,10 +2,10 @@ module Transform.AffLin where
 import qualified Data.Map as Map
 import Control.Monad.RWS
 import Struct.Lib
-import Util.Helpers
 import Scope.Ctxt (Ctxt, ctxtDefLocal, ctxtDefProgs, emptyCtxt)
-import Scope.Name
+import Scope.Name (localName, discardName)
 import Scope.Free (robust)
+import Scope.Fresh (newVar, newVars)
 import Scope.Subst (FreeVars)
 
 {- ====== Affine to Linear Functions ====== -}
@@ -67,25 +67,38 @@ alBind x tp m =
 alBinds :: [Param] -> AffLinM Term -> AffLinM Term
 alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
 
--- Maps something to Unit
--- For example, take x : Bool, which becomes
--- case x of false -> unit | true -> unit
-discard' :: Term -> Type -> Term -> AffLinM Term
-discard' x (TpArr tp1 tp2) rtm =
-  error ("Can't discard " ++ show x ++ " : " ++ show (TpArr tp1 tp2))
-discard' x (TpProd Additive tps) rtm =
-    return (TmElimAdditive x (length tps) (length tps - 1)
-             (Var "_d", last tps)
-             rtm (typeof rtm))
-discard' x (TpProd Multiplicative tps) rtm =
-    let ps = [(etaName (Var "d") i, tp) | (i, tp) <- enumerate tps] in
-      discards (Map.fromList ps) rtm >>= \ rtm' ->
-      return (TmElimMultiplicative x ps rtm' (typeof rtm'))
-discard' x xtp@(TpData y [] []) rtm =
+{- discard' x tp rtm
+
+   Generates a term that discards x : tp and evaluates rtm (which does
+   not contain x free). -}
+               
+discard' :: Var -> Type -> Term -> AffLinM Term
+-- discard x : <tp1, ..., ()> in rtm
+--  becomes
+-- let <_, ..., localName> = x in rtm
+discard' x xtp@(TpProd Additive tps) rtm =
   ask >>= \ g ->
+  let y = newVar localName g
+      ytp@(TpProd Multiplicative []) = last tps in
+    alBind y ytp (return rtm) >>= \ rtm' ->
+    return (TmElimAdditive (TmVarL x xtp) (length tps) (length tps - 1) (y, ytp)
+             rtm' (typeof rtm'))
+-- discard x : (tp1, ...) in rtm
+--  becomes
+-- let (localName0, ...) = x in discard localName0 in discard ... in rtm
+discard' x xtp@(TpProd Multiplicative tps) rtm =
+  ask >>= \ g ->
+  let ps = zip (newVars (replicate (length tps) localName) g) tps in
+  alBinds ps (return rtm) >>= \ rtm' ->
+    return (TmElimMultiplicative (TmVarL x xtp) ps rtm' (typeof rtm'))
+-- discard x : datatype in rtm
+--  becomes
+-- let () = discard_datatype x in rtm
+-- where discard_datatype is a global function created in affLinDiscards
+discard' x xtp@(TpData y [] []) rtm =
     -- let () = discard x in rtm
-    return (TmElimMultiplicative (TmVarG GlFun (discardName y) [] [] [(x, xtp)] tpUnit) [] rtm (typeof rtm))
-discard' _ tp _ = error ("Trying to discard a " ++ show tp)
+    return (TmElimMultiplicative (TmVarG GlFun (discardName y) [] [] [(TmVarL x xtp, xtp)] tpUnit) [] rtm (typeof rtm))
+discard' x tp _ = error ("Can't discard " ++ show x ++ " : " ++ show tp)
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard
 -- it to maintain correct probabilities, but without changing the value or type
@@ -97,8 +110,7 @@ discard x tp tm =
   ask >>= \ g ->
   if robust g tp
     then return tm
-    else (discard' (TmVarL x tp) tp tm){- >>= \ dtm ->
-          return (TmLet "_" dtm tpUnit tm (typeof tm)))-}
+    else (discard' x tp tm)
 
 -- Discard a set of variables
 discards :: FreeVars -> Term -> AffLinM Term
@@ -156,13 +168,13 @@ affLin (TmLam x xtp tm tp) =
   discards fvs tmUnit >>= \ ntm ->
   return (TmProd Additive [(TmLam x xtp' tm' tp', TpArr xtp' tp'), (ntm, tpUnit)])
 affLin (TmApp tm1 tm2 tp2 tp) =
-  -- L(tm1 tm2 : tp) => let <f, _> = L(tm1 : tp1) in f L(tm2 : tp2)
+  -- L(tm1 tm2 : tp) => (let <localName, _> = L(tm1 : tp1) in localName) L(tm2 : tp2)
   affLin tm1 >>= \ tm1' -> affLin tm2 >>= \ tm2' ->
   let tp2' = affLinTp tp2
       tp'  = affLinTp tp
       tp1' = TpArr tp2' tp' in
-  return (TmApp (TmElimAdditive tm1' 2 0 (Var "x", tp1')
-                                (TmVarL (Var "x") tp1') tp1')
+  return (TmApp (TmElimAdditive tm1' 2 0 (localName, tp1')
+                                (TmVarL localName tp1') tp1')
                 tm2' tp2' tp')
 affLin (TmLet x xtm xtp tm tp) =
   -- L(let x : xtp = xtm in tm) => let x : L(xtp) = L(xtm) in let _ = Z({x} - FV(tm)) in L(tm)
@@ -227,9 +239,9 @@ affLinDiscards (p@(ProgData y cs) : ps) =
     let
       -- define _discardy_ = \x. case x of Con1 a11 a12 ... -> () | ...
       -- Linearizing this will generate recursive calls to discard as needed
-      defDiscard = ProgFun (discardName y) [(Var "x", ytp)] body tpUnit
-      body = TmCase (TmVarL (Var "x") ytp) (y, [], []) cases tpUnit
-      cases = [let atps' = nameParams c atps in Case c atps' tmUnit | Ctor c atps <- cs]
+      defDiscard = ProgFun (discardName y) [(localName, ytp)] body tpUnit
+      body = TmCase (TmVarL localName ytp) (y, [], []) cases tpUnit
+      cases = [let atps' = zip (newVars (replicate (length atps) localName) g) atps in Case c atps' tmUnit | Ctor c atps <- cs]
     in
       affLinDiscards ps >>= \ ps' ->
       return (defDiscard : p : ps')

@@ -99,7 +99,7 @@ processContents (CmdArgs ifn ofn c m e dr l o z) s =
   return s
   -- String to UsProgs
   >>= parse
-  -- Pick a unique name for each bound var
+  -- Pick a unique name for each bound var, needed by infer (and anything else?)
   >>= alphaRenameProgs ctxtDefUsProgs
   -- Add Bool, True, False
   >>= Right . progBuiltins
@@ -116,7 +116,7 @@ processContents (CmdArgs ifn ofn c m e dr l o z) s =
   >>= doIf e' (elimRecTypes dr)
   -- Apply various optimizations (again) (disabled for now; joinApps problem after aff2lin introduces maybe types)
   >>= doIf o optimizeFile
-  -- Pick a unique name for each bound var (again)
+  -- Pick a unique name for each bound var (again), needed by compileFile
   >>= alphaRenameProgs ctxtDefProgs
   -- Compile to FGG
   >>= if c' then

@@ -76,19 +76,19 @@ collectFoldsFile = collectFile . collectFolds
 
 -- Makes the _UnfoldY_ datatype, given results from collectUnfolds
 makeUnfoldDatatype :: Var -> [(FreeVars, Type)] -> Prog
-makeUnfoldDatatype y us = ProgData (unfoldTypeName y) [Ctor (unfoldCtorName y) [TpProd Additive [joinArrows (Map.elems fvs) tp | (fvs, tp) <- us]]]
+makeUnfoldDatatype y us = ProgData (refunTypeName y) [Ctor (refunCtorName y) [TpProd Additive [joinArrows (Map.elems fvs) tp | (fvs, tp) <- us]]]
 
 -- Makes the _FoldY_ datatype, given results from collectFolds
 --makeFoldDatatype :: Var -> [(Var, FreeVars)] -> Prog
---makeFoldDatatype y fs = ProgData (foldTypeName y) [Ctor (foldCtorName y i) (snds (Map.toList fvs)) | (i, (x, fvs)) <- enumerate fs]
+--makeFoldDatatype y fs = ProgData (defunTypeName y) [Ctor (defunCtorName y i) (snds (Map.toList fvs)) | (i, (x, fvs)) <- enumerate fs]
 
 -- Makes the "unapply" function and Unfold datatype
 makeDisentangle :: Ctxt -> Var -> [(FreeVars, Type)] -> [[Case]] -> (Prog, Prog)
 makeDisentangle g y us css =
   let ytp = TpData y [] []
-      utp = TpData (unfoldTypeName y) [] []
+      utp = TpData (refunTypeName y) [] []
       dat = makeUnfoldDatatype y us
-      x = newVar targetName g
+      x = newVar localName g
       sub_ps ps = [(x, derefunSubst Refun y tp) | (x, tp) <- ps]
       alls = zipWith3 (\ (fvs, tp) cs i -> (fvs, tp, cs, i)) us css [0..]
       cscs = [let ps = sub_ps (Map.toList fvs)
@@ -98,7 +98,7 @@ makeDisentangle g y us css =
                  (joinLams ps (TmCase (TmVarL x ytp) (y, [], []) cs' tp),
                    joinArrows (tpUnit : snds ps) tp)
              | (fvs, tp, cs, i) <- alls]
-      fun = ProgFun (unfoldName y) [(x, ytp)] (TmVarG GlCtor (unfoldCtorName y) [] [] [(TmProd Additive cscs, TpProd Additive (snds cscs))] utp) utp -- (TpArr ytp utp)
+      fun = ProgFun (unapplyName y) [(x, ytp)] (TmVarG GlCtor (refunCtorName y) [] [] [(TmProd Additive cscs, TpProd Additive (snds cscs))] utp) utp -- (TpArr ytp utp)
   in
     (dat, fun)
 
@@ -106,11 +106,11 @@ makeDisentangle g y us css =
 makeDefold :: Ctxt  -> Var -> [Term] -> (Prog, Prog)
 makeDefold g y tms =
   let fname = applyName y
-      tname = foldTypeName y
-      x = newVar targetName g
+      tname = defunTypeName y
+      x = newVar localName g
       ftp = TpData tname [] []
       ps = [(x, ftp)]
-      casesf = \ (i, tm) -> let ps' = Map.toList (freeVarLs tm) in Case (foldCtorName y i) ps' (derefunTerm Defun (ctxtDeclArgs g ps') y tm)
+      casesf = \ (i, tm) -> let ps' = Map.toList (freeVarLs tm) in Case (defunCtorName y i) ps' (derefunTerm Defun (ctxtDeclArgs g ps') y tm)
       cases = map casesf (enumerate tms)
       ctors = [Ctor x (snds ps) | Case x ps tm <- cases]
       tm = TmCase (TmVarL x ftp) (tname, [], []) cases (TpData y [] [])
@@ -139,20 +139,24 @@ disentangleTerm rtp cases = h where
   h (TmLet x xtm xtp tm tp) =
     pure (TmLet x) <*> h xtm <*> pure xtp <*> h tm <*> pure tp
   h (TmCase tm (y, _, _) cs tp)
+    -- case tm of ...
+    --   becomes
+    -- case tm of _unfoldY_ x' -> let <_, ..., x'', ..., _> = x' in x''
     | y == rtp =
       h tm >>= \ tm' ->
       mapCasesM (\ _ _ -> h) cs >>= \ cs' ->
       State.get >>= \ unfolds ->
       let i = length unfolds
-          x' = targetName -- TODO: pick fresh var?
-          x'' = targetName2 -- TODO: pick a fresher var?
+          -- Because there are no other free variables, this is safe
+          x' = localName
+          x'' = localName
           get_ps = \ (cfvs, ctp2) -> Map.toList cfvs
           get_as = \ (cfvs, ctp2) -> paramsToArgs (Map.toList cfvs)
           get_arr = \ (cfvs, ctp2) -> joinArrows (snds (get_ps (cfvs, ctp2))) ctp2
           xtps = map get_arr cases
           xtp = TpProd Additive xtps
-          cs'' = [Case (unfoldCtorName rtp) [(x', xtp)] (let cfvstp2 = cases !! i in joinApps (TmElimAdditive (TmVarL x' xtp) (length xtps) i (x'', xtps !! i) (TmVarL x'' (xtps !! i)) (xtps !! i)) (get_as cfvstp2))]
-          rtm = TmCase tm (unfoldTypeName rtp, [], []) cs'' tp
+          cs'' = [Case (refunCtorName rtp) [(x', xtp)] (let cfvstp2 = cases !! i in joinApps (TmElimAdditive (TmVarL x' xtp) (length xtps) i (x'', xtps !! i) (TmVarL x'' (xtps !! i)) (xtps !! i)) (get_as cfvstp2))]
+          rtm = TmCase tm (refunTypeName rtp, [], []) cs'' tp
       in
         State.put (unfolds ++ [cs']) >>
         pure rtm
@@ -186,8 +190,8 @@ defoldTerm rtp = h where
         mapArgsM h as >>= \ as' ->
         State.get >>= \ fs ->
         let fvs = Map.toList (freeVarLs (fsts as'))
-            cname = foldCtorName rtp (length fs)
-            tname = foldTypeName rtp
+            cname = defunCtorName rtp (length fs)
+            tname = defunTypeName rtp
             aname = applyName rtp
             fld = TmVarG GlCtor cname [] [] (paramsToArgs fvs) (TpData tname [] [])
         in
@@ -214,9 +218,9 @@ defoldTerm rtp = h where
 data DeRe = Defun | Refun
   deriving (Eq, Show)
 
--- Substitute from a datatype name to its Unfold/Fold datatype's name
+-- Substitute from a datatype name to its Fold datatype's name
 derefunSubst :: DeRe -> Var -> Type -> Type
-derefunSubst dr rtp = substDatatype rtp (if dr == Defun then foldTypeName rtp else unfoldTypeName rtp)
+derefunSubst dr rtp = substDatatype rtp (if dr == Defun then defunTypeName rtp else refunTypeName rtp)
 
 defunTerm = derefunTerm Defun
 refunTerm = derefunTerm Refun
@@ -225,10 +229,10 @@ refunTerm = derefunTerm Refun
 derefunTerm :: DeRe -> Ctxt -> Var -> Term -> Term
 derefunTerm dr g rtp = fst . h where
 
-  foldTypeN = foldTypeName rtp
+  foldTypeN = defunTypeName rtp
   applyN = applyName rtp
-  unfoldN = unfoldName rtp
-  unfoldTypeN = unfoldTypeName rtp
+  unfoldN = unapplyName rtp
+  unfoldTypeN = refunTypeName rtp
   
   sub = derefunSubst dr rtp
 
