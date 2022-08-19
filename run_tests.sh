@@ -2,7 +2,7 @@
 
 round () {
     # Round all floats to 1 decimal place.
-    perl -pe 's/(-?\d+(\.\d+(e-?\d+)?)?)/sprintf("%.1f",$1)/ge'
+    perl -pe 's/(-?\d+(\.\d+(e-?\d+)?)?)/sprintf("%.1f",$1)/ge; s/ //g;'
 }
 
 my_errs=()

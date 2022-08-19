@@ -202,7 +202,7 @@ optimizeTerm g (TmApp tm1 tm2 tp2 tp) =
       rtm = joinLams rem_ls (joinApps let_tm rem_as)
   in
     if null lets then rtm else optimizeTerm g rtm
-optimizeTerm g orig@(TmCase tm y cs tp) =
+optimizeTerm g (TmCase tm y cs tp) =
   let tm' = optimizeTerm g tm in
     case splitLets tm' of
       (ds, TmVarG GlCtor x tgs tis as _) ->
@@ -213,7 +213,6 @@ optimizeTerm g orig@(TmCase tm y cs tp) =
         -- case tm of Ctor1 ... -> \x. tm1 | Ctor2 ... -> \x. tm2
         --  becomes
         -- \x. case tm of Ctor1 ... -> tm1 | Ctor2 ... -> tm2
-        -- BUG: g does not contain arguments of TmProgFun
         let (ps, end) = splitArrows tp
             g_ps = foldr (\ (Case x xps xtm) g -> ctxtDeclArgs g xps) g cs
             (_, _, rps') = foldl (\ (e, g', ps') p ->
@@ -239,8 +238,15 @@ optimizeTerm g (TmEqs tms) =
 optimizeArgs :: Ctxt -> [Arg] -> [Arg]
 optimizeArgs g as = [(optimizeTerm g atm, atp) | (atm, atp) <- as]
 
+optimizeProg :: Ctxt -> Prog -> Prog
+optimizeProg g (ProgFun x ps tm tp) =
+  let g' = ctxtDeclArgs g ps in
+  ProgFun x ps ((liftFail . optimizeTerm g' . liftFail {- . liftAmb-}) tm) tp
+optimizeProg g (ProgExtern x ps tp) = ProgExtern x ps tp
+optimizeProg g (ProgData y cs) = ProgData y cs
+
 -- Applies the optimizations specified at the BOF to a program
 optimizeFile :: Progs -> Either String Progs
-optimizeFile ps =
+optimizeFile ps@(Progs defs end) =
   let g = ctxtDefProgs ps in
-    mapProgsM (return . liftFail . optimizeTerm g . liftFail {- . liftAmb-}) ps
+    return (Progs (optimizeProg g<$> defs) (optimizeTerm g end))
