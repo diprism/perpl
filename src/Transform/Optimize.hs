@@ -3,7 +3,7 @@ import qualified Data.Map as Map
 import Struct.Lib
 import Util.Helpers
 import Scope.Name (localName)
-import Scope.Free (isLin', robust)
+import Scope.Free (isLin, robust)
 import Scope.Subst (SubT(SubTm), substWithCtxt, FreeVars, freeVars)
 import Scope.Fresh (newVar)
 import Scope.Ctxt (Ctxt, ctxtDeclArgs, ctxtDefLocal, ctxtDefProgs)
@@ -153,7 +153,7 @@ peelLams g ps tm =
 -- no free vars that aren't also free in the other term, and no effects
 safe2sub :: Ctxt -> Var -> Term -> Term -> Bool
 safe2sub g x xtm tm =
-  isLin' x tm || (noDefsSamps xtm && fvsOkay (freeVars xtm))
+  isLin x tm || (noDefsSamps xtm && fvsOkay (freeVars xtm))
   where
     fvsOkay :: FreeVars -> Bool
     -- TODO: don't need to check isInfiniteType g tp, once we can copy terms with recursive datatypes
