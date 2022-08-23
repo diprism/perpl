@@ -1,7 +1,9 @@
 module Main where
-import System.Exit
-import System.Environment
-import System.IO
+import Control.Monad (foldM)
+import System.Console.GetOpt
+import System.Exit (die, exitSuccess)
+import System.Environment (getArgs, getProgName)
+import System.IO (hPutStr, hPutStrLn, stdin, stdout, stderr, openFile, IOMode(..), hGetContents)
 import Struct.Lib (Var(..), Progs, progBuiltins)
 import Parse.Lib
 import TypeInf.Lib
@@ -17,8 +19,8 @@ import Util.FGG
 import Util.SumProduct
 
 data CmdArgs = CmdArgs {
-  optInfile :: String,
-  optOutfile :: String,
+  optInfile :: Maybe String,
+  optOutfile :: Maybe String,
   optCompile :: Bool,
   optMono :: Bool,
   optElimRecs :: Bool,
@@ -29,8 +31,8 @@ data CmdArgs = CmdArgs {
 }
 
 optionsDefault = CmdArgs {
-  optInfile = "/dev/stdin",
-  optOutfile = "/dev/stdout",
+  optInfile = Nothing,
+  optOutfile = Nothing,
   optCompile = True,
   optMono = True,
   optElimRecs = True,
@@ -40,46 +42,53 @@ optionsDefault = CmdArgs {
   optSumProduct = False
 }
 
+options =
+  [Option ['m'] [] (NoArg (\ opts -> return (opts {optMono = False})))
+     "Don't monomorphize (implies -lec)",
+   Option ['l'] [] (NoArg (\ opts -> return (opts {optLin = False})))
+     "Don't linearize (implies -ec)",
+   Option ['e'] [] (NoArg (\ opts -> return (opts {optElimRecs = False})))
+     "Don't eliminate recursive datatypes (implies -c)",
+   Option ['c'] [] (NoArg (\ opts -> return (opts {optCompile = False})))
+     "Compile only to PPL code (not to FGG)",
+   Option ['z'] [] (NoArg (\ opts -> return (opts {optSumProduct = True})))
+     "Compute sum-product",
+   Option ['o'] [] (ReqArg processOutfileArg "OUTFILE")
+     "Output to OUTFILE",
+   Option ['O'] [] (ReqArg processOptimArg "LEVEL")
+     "Optimization level (0 = off, 1 = on)",
+   Option ['d'] [] (ReqArg (\ d opts -> return (opts {optDerefun = (Var d, Defun) : optDerefun opts})) "DTYPE")
+     "Defunctionalize recursive datatype DTYPE",
+   Option ['r'] [] (ReqArg (\ d opts -> return (opts {optDerefun = (Var d, Refun) : optDerefun opts})) "DTYPE")
+     "Refunctionalize recursive datatype DTYPE"]
+
+processOptimArg :: String -> CmdArgs -> Either String CmdArgs
+processOptimArg level opts = case level of
+  "0" -> Right (opts { optOptimize = False })
+  "1" -> Right (opts { optOptimize = True })
+  _ -> Left "invalid optimization level (valid levels are 0 and 1)\n"
+
+processOutfileArg :: String -> CmdArgs -> Either String CmdArgs
+processOutfileArg fn opts = case optOutfile opts of
+  Nothing -> Right (opts {optOutfile = Just fn})
+  Just _ -> Left "at most one output filename allowed\n"
+
+processInfileArg :: String -> CmdArgs -> Either String CmdArgs
+processInfileArg fn opts = case optInfile opts of
+  Nothing -> Right (opts {optInfile = Just fn})
+  Just _ -> Left "at most one input filename allowed\n"
+
+processArgs :: [String] -> Either String CmdArgs
+processArgs argv =
+  case getOpt Permute options argv of
+    (o, n, []) ->
+      foldM (flip processInfileArg) optionsDefault n >>= \ opts' ->
+      foldM (flip id) opts' o
+    (_, _, errs) ->
+      Left (head errs)
+
 putStrLnErr :: String -> IO ()
 putStrLnErr = hPutStrLn stderr
-
-help :: IO ()
-help =
-  getProgName >>= \ name ->
-  die (name ++
-        " [options] filename.ppl\n" ++
-        "Options:\n" ++
-        "  -o OUTFILE  Output to OUTFILE\n" ++
-        "  -O0 -O1     Optimization level (0 = off, 1 = on, for now)\n" ++
-        "  -c          Compile only to PPL code (not to FGG)\n" ++
-        "  -e          Don't eliminate recursive datatypes (implies -c)\n" ++
-        "  -m          Don't monomorphize (implies -e)\n" ++
-        "  -l          Don't linearize the file (implies -e)\n" ++
-        "  -d DTYPES   Defunctionalize recursive datatypes DTYPES\n" ++
-        "  -r DTYPES   Refunctionalize recursive datatypes DTYPES\n" ++
-        "  -z          Compute sum-product")
-        
-
-processArgs' :: CmdArgs -> [String] -> Maybe CmdArgs
-processArgs' o ("-o" : fn : as) = processArgs' (o {optOutfile = fn}) as
-processArgs' o ("-O0" : as) = processArgs' (o {optOptimize = False}) as
-processArgs' o ("-O1" : as) = processArgs' (o {optOptimize = True}) as
-processArgs' o ("-c" : as) = processArgs' (o {optCompile = False}) as
-processArgs' o ("-m" : as) = processArgs' (o {optMono = False}) as
-processArgs' o ("-e" : as) = processArgs' (o {optElimRecs = False}) as
-processArgs' o ("-l" : as) = processArgs' (o {optLin = False}) as
-processArgs' o ("-d" : a : as) =
-  processArgs' (o {optDerefun = map (flip (,) Defun) (Var <$> words a) ++ optDerefun o}) as
-processArgs' o ("-r" : a : as) =
-  processArgs' (o {optDerefun = map (flip (,) Refun) (Var <$> words a) ++ optDerefun o}) as
-processArgs' o ("-z" : as) = processArgs' (o {optSumProduct = True}) as  
-processArgs' o (('-' : _) : _) = Nothing
-processArgs' o (fn : as) = processArgs' (o {optInfile = fn}) as
-processArgs' o [] = Just o
-
-processArgs :: IO (Either () CmdArgs)
-processArgs =
-  maybe (Left ()) Right <$> processArgs' optionsDefault <$> getArgs
 
 doIf :: Bool -> (a -> Either String a) -> a -> Either String a
 doIf True f = f
@@ -93,8 +102,8 @@ alphaRenameProgs gf a = return (alphaRename (gf a) a)
 
 processContents :: CmdArgs -> String -> Either String String
 processContents (CmdArgs ifn ofn c m e dr l o z) s =
-  let e' = e && m && l
-      c' = c && e
+  let e' = e && l
+      c' = c && e'
   in
   return s
   -- String to UsProgs
@@ -103,7 +112,7 @@ processContents (CmdArgs ifn ofn c m e dr l o z) s =
   >>= alphaRenameProgs ctxtDefUsProgs
   -- Add Bool, True, False
   >>= Right . progBuiltins
-  -- Type check the file (:: UsProgs -> Progs)
+  -- Type che`ck the file (:: UsProgs -> Progs)
   >>= infer
   >>= if not m then return . show else (\ x -> (Right . monomorphizeFile) x
   >>= Right . argifyFile
@@ -131,8 +140,13 @@ processContents (CmdArgs ifn ofn c m e dr l o z) s =
 
 -- Parse a file, check and elaborate it, then compile to FGG and output it
 main :: IO ()
-main =
-  processArgs >>= either (const help) (\ opts ->
-    (openFile (optInfile opts) ReadMode) >>= \ fh ->
-     hGetContents fh >>= \ input ->
-     either die (\ a -> writeFile (optOutfile opts) a >> exitSuccess) (processContents opts input))
+main = getArgs >>= \ argv -> case processArgs argv of
+  Right opts ->
+    maybe (return stdin) (\ fn -> openFile fn ReadMode) (optInfile opts) >>= \ifh ->
+    maybe (return stdout) (\ fn -> openFile fn WriteMode) (optOutfile opts) >>= \ofh ->
+    hGetContents ifh >>= \ input ->
+    either die (\ a -> hPutStr ofh a >> exitSuccess) (processContents opts input)    
+
+  Left err ->
+    getProgName >>= \ name ->
+    putStrLnErr (name ++ ": " ++ err ++ usageInfo ("usage: " ++ name ++ " [OPTION ...] INFILE.ppl") options)
