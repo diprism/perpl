@@ -1,4 +1,11 @@
 -- See issue #109.
 
+-- ∀ a . a positive => a -> (a, a)
 define double = \x. (x, x);
-let (f, g) = double (\y. y) in f ()
+-- ∀ a . (a, Bool) positive => a -> ((a, Bool), (a, Bool))
+define doubletrue = \x. double (x, True);
+
+-- Neither of these should typecheck.
+--let (f, g) = double (\y. y) in f ()
+let (ftrue, gtrue) = doubletrue (\y. y) in let (f, true) = ftrue in f ()
+
