@@ -10,7 +10,6 @@ import Struct.Lib
 import Scope.Subst (SubT(SubTm,SubTp,SubTg), Subst, compose, subst, freeVars, substTags)
 import Scope.Free (robust)
 import Scope.Ctxt (Ctxt, emptyCtxt)
-import Debug.Trace
 
 bindTp :: Var -> Type -> Either TypeError Subst
 bindTp x tp
@@ -366,7 +365,7 @@ inferData dsccs cont = foldr h cont dsccs
       
       let tgs = Map.keys (Map.filter id vs)
           s = Map.fromList [(y, tgs) | (y, ps, cs) <- dscc']
-      in traceShow s $
+      in
         return [(y, tgs, ps, mapCtors (substTags s) cs) | (y, ps, cs) <- dscc']
 
 
