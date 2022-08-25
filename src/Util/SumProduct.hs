@@ -1,7 +1,7 @@
-module Util.SumProduct (sumProduct) where
+module Util.SumProduct (sumProduct, prettySumProduct) where
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.List (sortOn)
+import Data.List (sortOn, intercalate)
 import Util.FGG
 import Util.Tensor
 import Util.Helpers
@@ -36,6 +36,21 @@ sumProductSCC fgg nts z = h (Map.union (zero fgg nts) z) where
     let cur = step fgg nts prev
         diff = multiTensorDistance cur prev
     in if diff < 1e-3 then cur else h cur
+
+tensorToAssoc :: FGG -> EdgeLabel -> Tensor a -> [([Value], a)]
+tensorToAssoc fgg el = h (nonterminals fgg Map.! el) where
+  h [] (Scalar w) =
+      [([], w)]
+  h (nl:nls) (Vector ts) =
+    let vals = (domains fgg) Map.! nl
+        maps = [h nls t | t <- ts]
+    in
+      [(v:vs, w) | (v, m) <- zip vals maps, (vs, w) <- m]
+  h _ _ =
+    error "nonterminal label and weight tensor have different shapes"
+
+prettySumProduct fgg =
+  intercalate "\n" [intercalate " " [s | Value s <- vals] ++ "\t" ++ show w | (vals, w) <- (tensorToAssoc fgg (start fgg) (sumProduct fgg))]
 
 zero :: FGG -> [EdgeLabel] -> MultiTensor
 zero fgg nts =
