@@ -25,17 +25,20 @@ sumProduct fgg =
     -- in topological order
     g = nonterminalGraph fgg
     nodes = reachable g (start fgg)
-    sccs = filter (\c -> head c `elem` nodes) (scc g)
+    sccs = filter f (scc g) where
+      f (TrivialSCC v) = v `elem` nodes
+      f (NontrivialSCC vs) = head vs `elem` nodes
     z = foldr (sumProductSCC fgg) mempty (reverse sccs)
   in
     z Map.! (start fgg)
 
-sumProductSCC :: FGG -> [EdgeLabel] -> MultiTensor -> MultiTensor
-sumProductSCC fgg nts z = h (Map.union (zero fgg nts) z) where
+sumProductSCC :: FGG -> SCC EdgeLabel -> MultiTensor -> MultiTensor
+sumProductSCC fgg (NontrivialSCC nts) z = h (Map.union (zero fgg nts) z) where
   h prev =
     let cur = step fgg nts prev
         diff = multiTensorDistance cur prev
     in if diff < 1e-3 then cur else h cur
+sumProductSCC fgg (TrivialSCC nt) z = step fgg [nt] (Map.union (zero fgg [nt]) z)
 
 tensorToAssoc :: FGG -> EdgeLabel -> Tensor a -> [([Value], a)]
 tensorToAssoc fgg el = h (nonterminals fgg Map.! el) where

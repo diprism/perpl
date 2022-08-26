@@ -5,7 +5,7 @@ import Control.Monad.RWS.Lazy
 import Control.Monad.Except
 import TypeInf.Check
 import Util.Helpers
-import Util.Graph (scc)
+import Util.Graph (scc, SCC(..))
 import Struct.Lib
 import Scope.Subst (SubT(SubTm,SubTp,SubTg), Subst, compose, subst, freeVars, substTags)
 import Scope.Free (robust)
@@ -216,8 +216,12 @@ splitProgs (UsProgs ps end) =
 -- Infers a set of mutually-defined global functions,
 -- adding their inferred types to the env when inferring
 -- the rest of the program, and adding their defs to the returned (schemified) program
-inferFuns :: [(Var, Type, UsTm)] -> CheckM SProgs -> CheckM SProgs
-inferFuns fs m =
+inferFuns :: SCC (Var, Type, UsTm) -> CheckM SProgs -> CheckM SProgs
+inferFuns (TrivialSCC f) = inferFuns' [f]
+inferFuns (NontrivialSCC fs) = inferFuns' fs
+
+inferFuns' :: [(Var, Type, UsTm)] -> CheckM SProgs -> CheckM SProgs
+inferFuns' fs m =
   -- Get a fresh type var for each function in fs
   mapM (const freshTp) fs >>= \ itps ->
   -- ftps is the set of function names with their type (var)
@@ -256,26 +260,19 @@ Infers all datatypes in dsccs:
   - add each datatype def to env for inferring the rest of the program
   - add each datatype def to the returned (schemified) program -}
 
-inferData :: [[(Var, [Var], [Ctor])]] -> CheckM SProgs -> CheckM SProgs
+inferData :: [SCC (Var, [Var], [Ctor])] -> CheckM SProgs -> CheckM SProgs
 inferData dsccs cont = foldr h cont dsccs
   where
     -- Check with hPerhapsRec and add defs to returned (schemified) program
-    h :: [(Var, [Var], [Ctor])] -> CheckM SProgs -> CheckM SProgs
+    h :: SCC (Var, [Var], [Ctor]) -> CheckM SProgs -> CheckM SProgs
     h dscc cont =
       hPerhapsRec dscc >>= \ dscc' ->
       addDefs dscc' cont
 
     -- Helper wrapper: if recursive, use hRec; otherwise, use hNonRec
-    hPerhapsRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
-    hPerhapsRec dscc = if sccIsRec dscc then hRec dscc else hNonRec dscc
-
-    -- Returns if an SCC (strongly-connected component) is (mutually) recursive.
-    -- If the SCC has 2+ datatypes, they must be mutually recursive.
-    -- If the SCC is a singleton, it is recursive iff its only node has a self-loop.
-    -- Since the graph has been discarded, we look at its free variables again.
-    sccIsRec :: [(Var, [Var], [Ctor])] -> Bool
-    sccIsRec [(y, ps, cs)] = Map.member y (freeVars cs)
-    sccIsRec _ = True -- Mutually-recursive datatypes are recursive
+    hPerhapsRec :: SCC (Var, [Var], [Ctor]) -> CheckM [(Var, [Var], [Var], [Ctor])]
+    hPerhapsRec (TrivialSCC ypscs) = hNonRec ypscs
+    hPerhapsRec (NontrivialSCC dscc) = hRec dscc
 
     -- Like checkType for datatypes
     checkData :: (Var, [Var], [Ctor]) -> CheckM (Var, [Var], [Ctor])
@@ -297,12 +294,11 @@ inferData dsccs cont = foldr h cont dsccs
     -- Handles checking a single, non-recursive datatype
     -- Input: a singleton (datatype name, type param names, constructors)
     -- Return: a singleton (datatype name, tag vars, type param names, constructors)
-    hNonRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
-    hNonRec [(y, ps, cs)] =
+    hNonRec :: (Var, [Var], [Ctor]) -> CheckM [(Var, [Var], [Var], [Ctor])]
+    hNonRec (y, ps, cs) =
       listenSolveVars (checkData (y, ps, cs)) >>= \ ((_, _, cs'), vs) ->
       let tgs = Map.keys (Map.filter id vs) in
         return [(y, tgs, ps, cs')]
-    hNonRec _ = error "this shouldn't happen"
 
     -- The remaining functions are for the recursive case.
 
@@ -402,8 +398,8 @@ inferProgs ps =
       -- all the functions in each strongly connected set
       funSCCs   = scc fdeps
       dataSCCs  = scc ddeps
-      funSCCs'  = [[let (tp, tm) = mfs Map.! x in (x, tp, tm) | x <- scc] | scc <- funSCCs]
-      dataSCCs' = [[let (ps, cs) = mds Map.! x in (x, ps, cs) | x <- scc] | scc <- dataSCCs]
+      funSCCs'  = map (fmap (\x -> let (tp, tm) = mfs Map.! x in (x, tp, tm))) funSCCs
+      dataSCCs' = map (fmap (\x -> let (ps, cs) = mds Map.! x in (x, ps, cs))) dataSCCs
   in
     anyDupDefs ps >>
     -- TODO: maybe sort progs back into original order?

@@ -1,9 +1,14 @@
-module Util.Graph (scc, reachable) where
+module Util.Graph (scc, SCC(..), reachable) where
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 type Graph a = Map.Map a (Set.Set a)
+
+data SCC a = TrivialSCC a | NontrivialSCC [a]
+instance Functor SCC where
+  fmap f (TrivialSCC a) = TrivialSCC (f a)
+  fmap f (NontrivialSCC as) = NontrivialSCC (fmap f as)
 
 -- Implementation of Tarjan's strongly connected components algorithm
 -- Adapted from the pseudocode from
@@ -15,7 +20,7 @@ data TarjanData a = TarjanData {
   lowlinks :: Map.Map a Int,
   onStack :: Set.Set a,
   sStack :: [a],
-  sccs :: [[a]]
+  sccs :: [SCC a]
 }
 
 defaultData :: Ord a => TarjanData a
@@ -40,13 +45,13 @@ modOnStack f t = t { onStack = f (onStack t) }
 modStack :: Ord a => ([a] -> [a]) -> TarjanData a -> TarjanData a
 modStack f t = t { sStack = f (sStack t) }
 
-modSccs :: Ord a => ([[a]] -> [[a]]) -> TarjanData a -> TarjanData a
+modSccs :: Ord a => ([SCC a] -> [SCC a]) -> TarjanData a -> TarjanData a
 modSccs f t = t { sccs = f (sccs t) }
 
 
 -- Tarjan's algorithm implementation: goes from a graph to a
 -- topologically-sorted array of strongly connected components
-scc :: (Eq a, Ord a) => Graph a -> [[a]]
+scc :: (Eq a, Ord a) => Graph a -> [SCC a]
 scc deps =
   reverse $ sccs $
   foldr (\ v t -> if Map.member v (indices t) then t else strongconnect v t)
@@ -58,10 +63,14 @@ scc deps =
     mkScc v t =
       let h [] = []
           h (w : ws) = if w == v then [w] else (w : h ws)
-          scc = h (sStack t) in
+          scc_nodes = h (sStack t)
+          scc = case scc_nodes of
+            [v] | not (v `elem` deps Map.! v) -> TrivialSCC v
+            _ -> NontrivialSCC scc_nodes 
+      in
         modSccs ((:) scc) $
-        modStack (drop (length scc)) $
-        modOnStack (\ os -> Set.difference os (Set.fromList scc)) t
+        modStack (drop (length scc_nodes)) $
+        modOnStack (\ os -> Set.difference os (Set.fromList scc_nodes)) t
     
     -- strongconnect :: a -> TarjanData a -> TarjanData a
     strongconnect v t =
@@ -81,6 +90,7 @@ scc deps =
           t''' = if lowlinks t'' Map.! v == indices t'' Map.! v then mkScc v t'' else t''
       in
         t'''
+
 
 {- Find all nodes reachable from a given source node. -}
 
