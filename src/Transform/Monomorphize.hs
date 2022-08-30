@@ -112,7 +112,7 @@ renameCallsTp xis tp = tp
 -- Set up a map with an empty entry ([]) for each definition
 makeEmptyInsts :: [SProg] -> Insts
 makeEmptyInsts = mconcat . map h where
-  h (SProgFun x tgs ys tm tp) = Semimap (Map.singleton x mempty)
+  h (SProgDefine x tgs ys tm tp) = Semimap (Map.singleton x mempty)
   h (SProgExtern x tp) = Semimap (Map.singleton x mempty)
   h (SProgData y tgs ps cs) = Semimap (Map.fromList ((y, mempty) : map (\ (Ctor x tps) -> (x, mempty)) cs))
 
@@ -120,7 +120,7 @@ makeEmptyInsts = mconcat . map h where
 -- to other definitions and how it instantiates them
 makeDefMap :: [SProg] -> DefMap
 makeDefMap = semimap . mconcat . map h where  
-  h (SProgFun x tgs ys tm tp) = Semimap (Map.singleton x (collectCalls tm))
+  h (SProgDefine x tgs ys tm tp) = Semimap (Map.singleton x (collectCalls tm))
   h (SProgExtern x tp) = Semimap (Map.singleton x (collectCallsTp tp))
   h (SProgData y tgs ps cs) =
     let ccs = map (\ (Ctor x tps) -> (x, mconcat (map collectCallsTp tps))) cs in
@@ -129,7 +129,7 @@ makeDefMap = semimap . mconcat . map h where
 -- Store the tag and type vars each definition is polymorphic over
 makeTypeParams :: [SProg] -> TypeParams
 makeTypeParams = mconcat . map h where
-  h (SProgFun x tgs ys tm tp) = Map.singleton x (tgs, ys)
+  h (SProgDefine x tgs ys tm tp) = Map.singleton x (tgs, ys)
   h (SProgExtern x tp) = Map.singleton x ([], [])
   h (SProgData y tgs ps cs) = Map.fromList ((y, (tgs, ps)) : map (\ (Ctor x tps) -> (x, (tgs, ps))) cs)
 
@@ -157,19 +157,19 @@ addInsts dm tpms xis x tgs tis
 
 -- Given a map from def name to its instance names, duplicate a def for each instantation
 makeInstantiations :: Map Var (Map ([Tag], [Type]) Int) -> SProg -> [Prog]
-makeInstantiations xis (SProgFun x [] [] tm tp) =
+makeInstantiations xis (SProgDefine x [] [] tm tp) =
   if null (Map.toList (xis Map.! x)) then
     -- if x is never instantiated even with [] (since it has no tags/type vars),
     -- then this def is never used so we can just delete it
     []
   else
-    [ProgFun x [] (renameCalls xis tm) (renameCallsTp xis tp)]
-makeInstantiations xis (SProgFun x tgs ps tm tp) =
+    [ProgDefine x [] (renameCalls xis tm) (renameCallsTp xis tp)]
+makeInstantiations xis (SProgDefine x tgs ps tm tp) =
   let tiss = Map.toList (xis Map.! x) in
     map (\ ((tgs', tis), i) ->
            let s = Map.fromList (pickyZip tgs (SubTg <$> tgs') ++
                                  pickyZip ps  (SubTp <$> tis )) in
-             ProgFun
+             ProgDefine
                (instName x i) -- new name for this particular instantiation
                [] -- args are [], for now (see Transform.Argify)
                (renameCalls xis (subst s tm))

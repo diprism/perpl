@@ -2,7 +2,7 @@ module Transform.AffLin where
 import qualified Data.Map as Map
 import Control.Monad.RWS
 import Struct.Lib
-import Scope.Ctxt (Ctxt, ctxtDefLocal, ctxtDefProgs, emptyCtxt)
+import Scope.Ctxt (Ctxt, ctxtAddLocal, ctxtAddProgs, emptyCtxt)
 import Scope.Name (localName, discardName)
 import Scope.Free (robust)
 import Scope.Fresh (newVar, newVars)
@@ -58,7 +58,7 @@ type AffLinM a = RWS Ctxt FreeVars () a
 alBind :: Var -> Type -> AffLinM Term -> AffLinM Term
 alBind x tp m =
   censor (Map.delete x) -- Delete x from FVs
-         (listen (local (\ g -> ctxtDefLocal g x tp) m) >>= \ (tm, fvs) ->
+         (listen (local (\ g -> ctxtAddLocal g x tp) m) >>= \ (tm, fvs) ->
             -- Discard if necessary
             if Map.member x fvs then return tm else discard x tp tm)
 
@@ -97,7 +97,7 @@ discard' x xtp@(TpProd Multiplicative tps) rtm =
 -- where discard_datatype is a global function created in affLinDiscards
 discard' x xtp@(TpData y [] []) rtm =
     -- let () = discard x in rtm
-    return (TmElimMultiplicative (TmVarG GlFun (discardName y) [] [] [(TmVarL x xtp, xtp)] tpUnit) [] rtm (typeof rtm))
+    return (TmElimMultiplicative (TmVarG GlDefine (discardName y) [] [] [(TmVarL x xtp, xtp)] tpUnit) [] rtm (typeof rtm))
 discard' x tp _ = error ("Can't discard " ++ show x ++ " : " ++ show tp)
 
 -- If x : tp contains an affinely-used function, we sometimes need to discard
@@ -239,7 +239,7 @@ affLinDiscards (p@(ProgData y cs) : ps) =
     let
       -- define _discardy_ = \x. case x of Con1 a11 a12 ... -> () | ...
       -- Linearizing this will generate recursive calls to discard as needed
-      defDiscard = ProgFun (discardName y) [(localName, ytp)] body tpUnit
+      defDiscard = ProgDefine (discardName y) [(localName, ytp)] body tpUnit
       body = TmCase (TmVarL localName ytp) (y, [], []) cases tpUnit
       cases = [let atps' = zip (newVars (replicate (length atps) localName) g) atps in Case c atps' tmUnit | Ctor c atps <- cs]
     in
@@ -252,10 +252,10 @@ affLinDiscards [] = return []
 affLinProg :: Prog -> AffLinM Prog
 affLinProg (ProgData y cs) =
   pure (ProgData y (mapCtors affLinTp cs))
-affLinProg (ProgFun x as tm tp) =
+affLinProg (ProgDefine x as tm tp) =
   let as' = mapParams affLinTp as
       tp' = affLinTp tp
-  in pure (\tm' -> ProgFun x as' tm' tp') <*> alBinds as' (affLin tm)
+  in pure (\tm' -> ProgDefine x as' tm' tp') <*> alBinds as' (affLin tm)
 affLinProg (ProgExtern x ps tp) =
   pure (ProgExtern x (map affLinTp ps) (affLinTp tp))
 
@@ -263,8 +263,8 @@ affLinProg (ProgExtern x ps tp) =
 affLinDefine :: Prog -> Prog
 affLinDefine (ProgData y cs) =
   ProgData y (mapCtors affLinTp cs)
-affLinDefine (ProgFun x as tm tp) =
-  ProgFun x (mapParams affLinTp as) tm (affLinTp tp)
+affLinDefine (ProgDefine x as tm tp) =
+  ProgDefine x (mapParams affLinTp as) tm (affLinTp tp)
 affLinDefine (ProgExtern x ps tp) =
   ProgExtern x (map affLinTp ps) (affLinTp tp)
 
@@ -272,7 +272,7 @@ affLinDefine (ProgExtern x ps tp) =
 affLinDefines :: Progs -> Ctxt
 affLinDefines (Progs ps end) =
   let ps' = map affLinDefine ps in
-  ctxtDefProgs (Progs ps' end)
+  ctxtAddProgs (Progs ps' end)
 
 -- Applies L to all the defs in a file
 affLinProgs :: Progs -> AffLinM Progs
