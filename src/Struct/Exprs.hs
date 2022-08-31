@@ -14,14 +14,14 @@ data UsProgs = UsProgs [UsProg] UsTm    -- definitions, main
 
 -- Individual user-level definition
 data UsProg =
-    UsProgFun Var UsTm Type             -- lhs, rhs, type
+    UsProgDefine Var UsTm Type             -- lhs, rhs, type
   | UsProgExtern Var Type               -- lhs, type
   | UsProgData Var [Var] [Ctor]         -- lhs, type params, constructors
   deriving (Eq, Ord)
 
 -- Scheme-ified definition
 data SProg =
-    SProgFun Var [Var] [Var] Term Type  -- lhs, tags, type params, rhs, type
+    SProgDefine Var [Var] [Var] Term Type  -- lhs, tags, type params, rhs, type
   | SProgExtern Var Type                -- lhs, type
   | SProgData Var [Var] [Var] [Ctor]    -- lhs, tags, type params, constructors
   deriving (Eq, Ord)
@@ -32,7 +32,7 @@ data SProgs = SProgs [SProg] Term       -- definitions, main
 
 -- Elaborated definition
 data Prog =
-    ProgFun Var [Param] Term Type       -- lhs, params, rhs, return type
+    ProgDefine Var [Param] Term Type       -- lhs, params, rhs, return type
   | ProgExtern Var [Type] Type          -- lhs, param types, return type
   | ProgData Var [Ctor]                 -- lhs, constructors
   deriving (Eq, Ord)
@@ -79,7 +79,7 @@ data UsTm =
   | UsEqs [UsTm]                        -- tm1 == tm2 == ...
   deriving (Eq, Ord)
 
-data Global = GlFun | GlExtern | GlCtor
+data Global = GlDefine | GlExtern | GlCtor
   deriving (Eq, Ord, Show)
 
 -- With the exception of TmLam, the Type at the end of a constructor

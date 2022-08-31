@@ -314,9 +314,9 @@ instance Substitutable CaseUs where
   freeVars (CaseUs x ps tm) = foldr Map.delete (freeVars tm) ps
 
 instance Substitutable UsProg where
-  substM (UsProgFun x tp tm) =
+  substM (UsProgDefine x tp tm) =
     bind x x okay >>
-    pure (UsProgFun x) <*> substM tp <*> substM tm
+    pure (UsProgDefine x) <*> substM tp <*> substM tm
   substM (UsProgExtern x tp) =
     bind x x okay >>
     pure (UsProgExtern x) <*> substM tp
@@ -336,9 +336,9 @@ instance Substitutable Ctor where
   freeVars (Ctor x tps) = freeVars tps
 
 instance Substitutable Prog where
-  substM (ProgFun x ps tm tp) =
+  substM (ProgDefine x ps tm tp) =
     bind x x okay >>
-    pure (ProgFun x) <**> substParams ps (substM tm) <*> substM tp
+    pure (ProgDefine x) <**> substParams ps (substM tm) <*> substM tp
   substM (ProgExtern x ps tp) =
     bind x x okay >>
     pure (ProgExtern x) <*> substM ps <*> substM tp
@@ -349,13 +349,13 @@ instance Substitutable Prog where
   freeVars p = error "freeVars on a Prog"
 
 instance Substitutable SProg where
-  substM (SProgFun x tgs tpms tp tm) =
+  substM (SProgDefine x tgs tpms tp tm) =
     bind x x okay >>
     freshens tgs >>= \ tgs' ->
     binds tgs tgs'
       (freshens tpms >>= \ tpms' ->
        binds tpms tpms'
-         (pure (SProgFun x tgs' tpms') <*> substM tp <*> substM tm))
+         (pure (SProgDefine x tgs' tpms') <*> substM tp <*> substM tm))
   substM (SProgExtern x tp) =
     bind x x okay >>
     pure (SProgExtern x) <*> substM tp

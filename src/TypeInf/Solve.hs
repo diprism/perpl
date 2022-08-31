@@ -168,7 +168,7 @@ solvesM ms =
         -- to be done in a second pass because of mutual recursion.
         -- This substitution is possible because occurrences of f are actually
         -- local variables (TmVarL); they change into global variables (TmVarG) now.
-        s' = Map.fromList [(f, SubTm (TmVarG GlFun f (TgVar <$> tgs) (TpVar <$> xs') [] tp')) | (f, _, tgs, xs', tp') <- defs']
+        s' = Map.fromList [(f, SubTm (TmVarG GlDefine f (TgVar <$> tgs) (TpVar <$> xs') [] tp')) | (f, _, tgs, xs', tp') <- defs']
         defs'' = [(f, subst s' tm', tgs, xs', tp') | (f, tm', tgs, xs', tp') <- defs']
       in
         return defs''
@@ -192,7 +192,7 @@ getDeps (UsProgs ps end) =
     -- free vars.  The free vars include many kinds of variables, but
     -- we only care about the defines and datatypes.
     h :: UsProg -> (Map Var (Set Var), Map Var (Set Var)) -> (Map Var (Set Var), Map Var (Set Var))
-    h (UsProgFun x tm mtp) (fdeps, ddeps) =
+    h (UsProgDefine x tm mtp) (fdeps, ddeps) =
       (Map.insert x (Set.fromList (Map.keys (freeVars tm))) fdeps, ddeps)
     h (UsProgExtern x tp) deps = deps
     h (UsProgData y ps cs) (fdeps, ddeps) =
@@ -200,7 +200,7 @@ getDeps (UsProgs ps end) =
 
 -- Helper for splitProgsH
 splitProgsH :: UsProg -> ([(Var, Type, UsTm)], [(Var, Type)], [(Var, [Var], [Ctor])])
-splitProgsH (UsProgFun x tm mtp) = ([(x, mtp, tm)], [], [])
+splitProgsH (UsProgDefine x tm mtp) = ([(x, mtp, tm)], [], [])
 splitProgsH (UsProgExtern x tp) = ([], [(x, tp)], [])
 splitProgsH (UsProgData y ps cs) = ([], [], [(y, ps, cs)])
 
@@ -226,7 +226,7 @@ inferFuns' fs m =
   mapM (const freshTp) fs >>= \ itps ->
   -- ftps is the set of function names with their type (var)
   let ftps = [(x, itp) | ((x, _, _), itp) <- zip fs itps] in
-    -- add ftps to env as local variables (DefLocal) for now;
+    -- add ftps to env as local variables (CtLocal) for now;
     -- they will be changed to global variables inside solvesM
     inEnvs ftps
     (solvesM
@@ -247,7 +247,7 @@ inferFuns' fs m =
     -- Add defs to env, and check remaining progs (m)
     foldr (\ (x, tm, tgs, ps, tp) -> defGlobal x tgs ps tp) m xtmstps >>= \ (SProgs ps end) ->
     -- Add defs to returned (schemified) program
-    let ps' = map (\ (x, tm, tgs, ps, tp) -> SProgFun x tgs ps tm tp) xtmstps in
+    let ps' = map (\ (x, tm, tgs, ps, tp) -> SProgDefine x tgs ps tm tp) xtmstps in
     return (SProgs (ps' ++ ps) end)
 
 {- inferData dsccs cont

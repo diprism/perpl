@@ -5,7 +5,7 @@ import Compile.RuleM
 import Util.FGG
 import Util.Helpers
 import Struct.Lib
-import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtDefLocal, ctxtLookupType)
+import Scope.Ctxt (Ctxt, ctxtAddProgs, ctxtAddArgs, ctxtAddLocal, ctxtLookupType)
 import Scope.Subst (FreeVars, freeVars)
 
 newNodeNames :: [a] -> [(NodeName, a)]
@@ -44,7 +44,7 @@ mkRule lhs ns es xs =
 -- Add a rule for this particular case in a case-of statement
 caseRule :: Ctxt -> FreeVars -> [Node] -> Term -> Var -> Type -> Case -> RuleM HGF
 caseRule g all_fvs xs_ctm ctm y tp (Case x as xtm) =
-  term2fgg (ctxtDeclArgs g as) xtm >>= \ xs_xtm_as ->
+  term2fgg (ctxtAddArgs g as) xtm >>= \ xs_xtm_as ->
   let all_xs = paramsToNodes (Map.toList all_fvs)
       unused_ps = unusedNodes all_xs xs_xtm_as
       [vctp] = newNodeNames [TpData y [] []]
@@ -102,14 +102,14 @@ term2fgg g (TmVarL x tp) =
   let ns = [(NnVar x, tp), (NnOut, tp)] in
     mkRule (TmVarL x tp) ns [Edge ns (ElTerminal (FaIdentity tp))] ns
 
-term2fgg g (TmVarG GlFun x [] [] [] tp) =
+term2fgg g (TmVarG GlDefine x [] [] [] tp) =
   return [] -- If this is a def with no args, we already add its rule when it gets defined
 
 term2fgg g (TmVarG gv x [] [] as tp) =
   mapM (\ (a, atp) -> term2fgg g a) as >>= \ xss ->
   let ps = newNodeNames (snds as)
       vy = (NnOut, tp)
-      el = case gv of GlFun ->
+      el = case gv of GlDefine ->
                         ElNonterminal (TmVarG gv x [] [] [] (joinArrows (snds as) tp))
                       GlCtor ->
                         let (TpData y [] []) = tp
@@ -127,7 +127,7 @@ term2fgg g (TmVarG gv x [] [] as tp) =
 term2fgg _ (TmVarG _ _ _ _ _ _) = error "Cannot compile polymorphic code"
 
 term2fgg g (TmLam x tp tm tp') =
-  term2fgg (ctxtDefLocal g x tp) tm >>= \ tmxs ->
+  term2fgg (ctxtAddLocal g x tp) tm >>= \ tmxs ->
    let [vtp'] = newNodeNames [tp']
        varr = (NnOut, TpArr tp tp')
        vtp = (NnVar x, tp) in
@@ -175,7 +175,7 @@ term2fgg g (TmFactor wt tm tp) =
   
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm >>= \ xtmxs ->
-  term2fgg (ctxtDefLocal g x xtp) tm >>= \ tmxs ->
+  term2fgg (ctxtAddLocal g x xtp) tm >>= \ tmxs ->
   let vxtp = (NnVar x, xtp)
       vtp = (NnOut, tp) in -- TODO: if unused?
     mkRule (TmLet x xtm xtp tm tp) (vxtp : vtp : xtmxs ++ tmxs)
@@ -207,7 +207,7 @@ term2fgg g (TmProd am@Multiplicative as) =
 
 term2fgg g (TmElimAdditive ptm n o (x, xtp) tm tp) =
   term2fgg g ptm >>= \ ptmxs ->
-  term2fgg (ctxtDefLocal g x xtp) tm >>= \ tmxs ->
+  term2fgg (ctxtAddLocal g x xtp) tm >>= \ tmxs ->
   let x' = NnVar x
       ptp@(TpProd Additive tps) = typeof ptm
       vtp = (NnOut, tp)
@@ -222,7 +222,7 @@ term2fgg g (TmElimAdditive ptm n o (x, xtp) tm tp) =
 
 term2fgg g (TmElimMultiplicative ptm ps tm tp) =
   term2fgg g ptm >>= \ ptmxs ->
-  term2fgg (ctxtDeclArgs g ps) tm >>= \ tmxs ->
+  term2fgg (ctxtAddArgs g ps) tm >>= \ tmxs ->
   let ps' = paramsToNodes ps
       tps = snds ps
       ptp = TpProd Multiplicative tps
@@ -254,14 +254,14 @@ term2fgg g (TmEqs tms) =
    Adds the rules for a Prog. -}
     
 prog2fgg :: Ctxt -> Prog -> RuleM ()
-prog2fgg g (ProgFun x ps tm tp) = let tp' = joinArrows (snds ps) tp in
-  term2fgg (ctxtDeclArgs g ps) tm >>= \ tmxs ->
+prog2fgg g (ProgDefine x ps tm tp) = let tp' = joinArrows (snds ps) tp in
+  term2fgg (ctxtAddArgs g ps) tm >>= \ tmxs ->
   let ps' = paramsToNodes ps
       unused_ps = unusedNodes ps' tmxs
       (unused_x, unused_tp) = unzip unused_ps
       vtp = (NnOut, tp)
   in
-    mkRule (TmVarG GlFun x [] [] [] tp') (vtp : tmxs ++ ps' ++ unused_ps)
+    mkRule (TmVarG GlDefine x [] [] [] tp') (vtp : tmxs ++ ps' ++ unused_ps)
       [Edge (tmxs ++ [vtp]) (ElNonterminal tm)]
       (ps' ++ [vtp]) >>
     return ()
@@ -321,7 +321,7 @@ domainSize g = tpSize where
 
 compileFile :: Progs -> Either String FGG
 compileFile ps =
-  let g = ctxtDefProgs ps
+  let g = ctxtAddProgs ps
       Progs _ end = ps
       rs = runRuleM (progs2fgg g ps)
   in

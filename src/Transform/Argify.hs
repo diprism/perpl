@@ -1,6 +1,6 @@
 {-
 Applies the following transformations:
-1. ProgFun f [] (TmLam x (... tm)) (TpArr xtp (... tp))   =>   ProgFun f [(x,xtp), ...] tm tp
+1. ProgDefine f [] (TmLam x (... tm)) (TpArr xtp (... tp))   =>   ProgDefine f [(x,xtp), ...] tm tp
 2. TmApp (TmApp (TmVarG x []) tm1) tm2...   =>   TmVarG x [tm1, tm2, ...]
    with partial applications η-expanded.
 
@@ -28,7 +28,7 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
   -- have no arguments.
   
   arity :: Prog -> [(Var, ([Type], Type))]
-  arity (ProgFun x [] tm tp) = let (ls, etm) = splitLams tm in [(x, (snds ls, typeof etm))]
+  arity (ProgDefine x [] tm tp) = let (ls, etm) = splitLams tm in [(x, (snds ls, typeof etm))]
   arity (ProgExtern x [] tp) = let (tps, etp) = splitArrows tp in [(x, (tps, etp))]
   arity (ProgData x cs) = [(y, (tps, TpData x [] [])) | Ctor y tps <- cs]
   arity prog = error ("arity received a definition that is already argified: " ++ show prog)
@@ -84,11 +84,11 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
   -- Argify a definition.
   
   argifyProg :: Prog -> Prog
-  argifyProg (ProgFun x [] tm tp) =
+  argifyProg (ProgDefine x [] tm tp) =
     let (ls, etm) = splitLams tm
         etm' = argifyTerm etm
     in
-      ProgFun x ls etm' (typeof etm')
+      ProgDefine x ls etm' (typeof etm')
   argifyProg (ProgExtern x [] tp) =
     let (tps, etp) = splitArrows tp in
       ProgExtern x tps etp

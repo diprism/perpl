@@ -6,7 +6,7 @@ import Scope.Name (localName)
 import Scope.Free (isLin, robust)
 import Scope.Subst (SubT(SubTm), substWithCtxt, FreeVars, freeVars)
 import Scope.Fresh (newVar)
-import Scope.Ctxt (Ctxt, ctxtDeclArgs, ctxtDefLocal, ctxtDefProgs)
+import Scope.Ctxt (Ctxt, ctxtAddArgs, ctxtAddLocal, ctxtAddProgs)
 
 {- Provides various optimizations:
 1. (case t of C1 a* -> \x. t1 | C2 b* -> \y. t2 | C3 c* -> t3)
@@ -181,13 +181,13 @@ optimizeTerm g (TmVarG gv x tgs tis as tp) =
   TmVarG gv x tgs tis (optimizeArgs g as) tp
 optimizeTerm g (TmLet x xtm xtp tm tp) =
   let xtm' = optimizeTerm g xtm
-      tm' = optimizeTerm (ctxtDefLocal g x xtp) tm in
+      tm' = optimizeTerm (ctxtAddLocal g x xtp) tm in
   if safe2sub g x xtm' tm'
     then optimizeTerm g (substWithCtxt g (Map.fromList [(x, SubTm xtm')]) tm')
     else TmLet x xtm' xtp tm' tp
 optimizeTerm g (TmFactor wt tm tp) = TmFactor wt (optimizeTerm g tm) tp
 optimizeTerm g (TmLam x tp tm tp') =
-  TmLam x tp (optimizeTerm (ctxtDefLocal g x tp) tm) tp'
+  TmLam x tp (optimizeTerm (ctxtAddLocal g x tp) tm) tp'
 optimizeTerm g (TmApp tm1 tm2 tp2 tp) =
   let (body, as) = splitApps (TmApp tm1 tm2 tp2 tp)
       body1 = optimizeTerm g body
@@ -213,13 +213,13 @@ optimizeTerm g (TmCase tm y cs tp) =
       -- Optimization (1): move lambda out of case
       _ ->
         let (ps, end) = splitArrows tp
-            g_ps = foldr (\ (Case x xps xtm) g -> ctxtDeclArgs g xps) g cs
+            g_ps = foldr (\ (Case x xps xtm) g -> ctxtAddArgs g xps) g cs
             (_, _, rps') = foldl (\ (e, g', ps') p ->
                                     let e' = newVar e g' in
-                                      (e', ctxtDefLocal g' e' p, (e', p) : ps'))
+                                      (e', ctxtAddLocal g' e' p, (e', p) : ps'))
                            (localName, g_ps, []) ps
             ps' = reverse rps'
-            cs' = [let g' = ctxtDeclArgs g (ps' ++ xps) in Case x xps (peelLams g' ps' (optimizeTerm g' xtm)) | Case x xps xtm <- cs]
+            cs' = [let g' = ctxtAddArgs g (ps' ++ xps) in Case x xps (peelLams g' ps' (optimizeTerm g' xtm)) | Case x xps xtm <- cs]
         in
           joinLams ps' (TmCase tm' y cs' end)
 optimizeTerm g (TmAmb tms tp) = TmAmb (map (optimizeTerm g) tms) tp
@@ -227,9 +227,9 @@ optimizeTerm g (TmProd am as) = TmProd am (mapArgs (optimizeTerm g) as)
 optimizeTerm g (TmElimAdditive ptm n i (x,xtp) tm tp) =
   case optimizeTerm g ptm of
     TmProd Additive as -> optimizeTerm g (substWithCtxt g (Map.singleton x (SubTm (fst (as!!i)))) tm)
-    ptm' -> TmElimAdditive ptm' n i (x,xtp) (optimizeTerm (ctxtDefLocal g x xtp) tm) tp
+    ptm' -> TmElimAdditive ptm' n i (x,xtp) (optimizeTerm (ctxtAddLocal g x xtp) tm) tp
 optimizeTerm g (TmElimMultiplicative tm ps tm' tp) =
-  TmElimMultiplicative (optimizeTerm g tm) ps (optimizeTerm (ctxtDeclArgs g ps) tm') tp
+  TmElimMultiplicative (optimizeTerm g tm) ps (optimizeTerm (ctxtAddArgs g ps) tm') tp
 optimizeTerm g (TmEqs tms) =
   TmEqs [optimizeTerm g tm | tm <- tms]
 
@@ -238,14 +238,14 @@ optimizeArgs :: Ctxt -> [Arg] -> [Arg]
 optimizeArgs g as = [(optimizeTerm g atm, atp) | (atm, atp) <- as]
 
 optimizeProg :: Ctxt -> Prog -> Prog
-optimizeProg g (ProgFun x ps tm tp) =
-  let g' = ctxtDeclArgs g ps in
-  ProgFun x ps ((liftFail . optimizeTerm g' . liftFail {- . liftAmb-}) tm) tp
+optimizeProg g (ProgDefine x ps tm tp) =
+  let g' = ctxtAddArgs g ps in
+  ProgDefine x ps ((liftFail . optimizeTerm g' . liftFail {- . liftAmb-}) tm) tp
 optimizeProg g (ProgExtern x ps tp) = ProgExtern x ps tp
 optimizeProg g (ProgData y cs) = ProgData y cs
 
 -- Applies the optimizations specified at the BOF to a program
 optimizeFile :: Progs -> Either String Progs
 optimizeFile ps@(Progs defs end) =
-  let g = ctxtDefProgs ps in
+  let g = ctxtAddProgs ps in
     return (Progs (optimizeProg g<$> defs) (optimizeTerm g end))

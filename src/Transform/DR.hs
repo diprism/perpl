@@ -6,7 +6,7 @@ import Struct.Lib
 import Util.Helpers
 import Scope.Free (getRecursiveTypeNames)
 import Scope.Subst (Substitutable, FreeVars, freeVars, substDatatype)
-import Scope.Ctxt (Ctxt, ctxtDefProgs, ctxtDeclArgs, ctxtLookupTerm, ctxtLookupType)
+import Scope.Ctxt (Ctxt, ctxtAddProgs, ctxtAddArgs, ctxtLookupTerm, ctxtLookupType)
 import Scope.Fresh (newVar)
 import Scope.Name
 
@@ -61,7 +61,7 @@ collectFolds rtp (TmEqs tms) = concatMap (collectFolds rtp) tms
 
 -- Runs collect[Un]folds on a Prog
 collectProg :: (Term -> [a]) -> Prog -> [a]
-collectProg f (ProgFun _ _ tm _) = f tm
+collectProg f (ProgDefine _ _ tm _) = f tm
 collectProg f _ = []
 
 -- Runs collect[Un]folds on a file
@@ -92,13 +92,13 @@ makeDisentangle g y us css =
       sub_ps ps = [(x, derefunSubst Refun y tp) | (x, tp) <- ps]
       alls = zipWith3 (\ (fvs, tp) cs i -> (fvs, tp, cs, i)) us css [0..]
       cscs = [let ps = sub_ps (Map.toList fvs)
-                  g' = \ xps -> ctxtDeclArgs g (xps ++ ps)
+                  g' = \ xps -> ctxtAddArgs g (xps ++ ps)
                   cs' = [Case cx (sub_ps cps) (derefunTerm Refun (g' cps) y ctm)
                         | Case cx cps ctm <- cs] in
                  (joinLams ps (TmCase (TmVarL x ytp) (y, [], []) cs' tp),
                    joinArrows (tpUnit : snds ps) tp)
              | (fvs, tp, cs, i) <- alls]
-      fun = ProgFun (unapplyName y) [(x, ytp)] (TmVarG GlCtor (refunCtorName y) [] [] [(TmProd Additive cscs, TpProd Additive (snds cscs))] utp) utp -- (TpArr ytp utp)
+      fun = ProgDefine (unapplyName y) [(x, ytp)] (TmVarG GlCtor (refunCtorName y) [] [] [(TmProd Additive cscs, TpProd Additive (snds cscs))] utp) utp -- (TpArr ytp utp)
   in
     (dat, fun)
 
@@ -110,14 +110,14 @@ makeDefold g y tms =
       x = newVar localName g
       ftp = TpData tname [] []
       ps = [(x, ftp)]
-      casesf = \ (i, tm) -> let ps' = Map.toList (freeVarLs tm) in Case (defunCtorName y i) ps' (derefunTerm Defun (ctxtDeclArgs g ps') y tm)
+      casesf = \ (i, tm) -> let ps' = Map.toList (freeVarLs tm) in Case (defunCtorName y i) ps' (derefunTerm Defun (ctxtAddArgs g ps') y tm)
       cases = map casesf (enumerate tms)
       ctors = [Ctor x (snds ps) | Case x ps tm <- cases]
       tm = TmCase (TmVarL x ftp) (tname, [], []) cases (TpData y [] [])
   in
 --    error (tname ++ " | " ++ show ctors ++ " | " ++ show cases)
     (ProgData tname ctors,
-     ProgFun fname ps tm (TpData y [] []))
+     ProgDefine fname ps tm (TpData y [] []))
 
 --------------------------------------------------
 
@@ -196,7 +196,7 @@ defoldTerm rtp = h where
             fld = TmVarG GlCtor cname [] [] (paramsToArgs fvs) (TpData tname [] [])
         in
           State.put (fs ++ [TmVarG GlCtor x [] [] as' (TpData rtp [] [])]) >>
-          return (TmVarG GlFun aname [] [] [(fld, TpData tname [] [])] (TpData rtp [] []))
+          return (TmVarG GlDefine aname [] [] [(fld, TpData tname [] [])] (TpData rtp [] []))
     | otherwise = pure (TmVarG gv x [] []) <*> mapArgsM h as <*> pure tp
   h (TmLam x tp tm tp') = pure (TmLam x tp) <*> h tm <*> pure tp'
   h (TmApp tm1 tm2 tp2 tp) = pure TmApp <*> h tm1 <*> h tm2 <*> pure tp2 <*> pure tp
@@ -248,8 +248,8 @@ derefunTerm dr g rtp = fst . h where
   h' (TmVarL x tp) = let tp' = sub tp in TmVarL x tp'
   h' (TmVarG gv x _ _ as tp)
     | dr == Refun && gv == GlCtor && tp == TpData rtp [] [] =
-      TmVarG GlFun unfoldN [] [] [(TmVarG gv x [] [] (h_as as) tp, tp)] (TpData unfoldTypeN [] [])
-    | dr == Defun && gv == GlFun && x == applyN =
+      TmVarG GlDefine unfoldN [] [] [(TmVarG gv x [] [] (h_as as) tp, tp)] (TpData unfoldTypeN [] [])
+    | dr == Defun && gv == GlDefine && x == applyN =
       let [(etm, etp)] = as in h' etm
     | otherwise =
       maybe2 (ctxtLookupTerm g x) (TmVarG gv x [] [] (h_as as) tp) $ \ tp' ->
@@ -273,7 +273,7 @@ derefunTerm dr g rtp = fst . h where
         let (tm1', tp1') = h tm1
             cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]
             tp2' = case cs' of [] -> sub tp2; (Case x ps xtm : _) -> typeof xtm in
-          TmCase (TmVarG GlFun applyN [] [] [(tm1', tp1')] (TpData rtp [] [])) (rtp, [], []) cs' tp2'
+          TmCase (TmVarG GlDefine applyN [] [] [(tm1', tp1')] (TpData rtp [] [])) (rtp, [], []) cs' tp2'
     | otherwise =
         let (tm1', TpData tp1' [] []) = h tm1
             cs' = [Case x (h_ps ps) (fst (h xtm)) | Case x ps xtm <- cs]
@@ -302,7 +302,7 @@ derefunTerm dr g rtp = fst . h where
     TmEqs [h' tm | tm <- tms]
 
 derefunProgTypes :: DeRe -> Var -> Prog -> Prog
-derefunProgTypes dr rtp (ProgFun x ps tm tp) = ProgFun x (map (fmap (derefunSubst dr rtp)) ps) tm (derefunSubst dr rtp tp)
+derefunProgTypes dr rtp (ProgDefine x ps tm tp) = ProgDefine x (map (fmap (derefunSubst dr rtp)) ps) tm (derefunSubst dr rtp tp)
 derefunProgTypes dr rtp (ProgExtern x ps tp) = ProgExtern x ps tp
 derefunProgTypes dr rtp (ProgData y cs) = ProgData y [Ctor x [derefunSubst dr rtp tp | tp <- tps] | Ctor x tps <- cs]
 
@@ -311,13 +311,13 @@ derefunProgsTypes dr rtp (Progs ps end) =
   Progs (map (derefunProgTypes dr rtp) ps) end
 
 derefunProg' :: DeRe -> Ctxt -> Var -> Prog -> Prog
-derefunProg' dr g rtp (ProgFun x ps tm tp) = ProgFun x ps (derefunTerm dr g rtp tm) tp
+derefunProg' dr g rtp (ProgDefine x ps tm tp) = ProgDefine x ps (derefunTerm dr g rtp tm) tp
 derefunProg' dr g rtp (ProgExtern x ps tp) = ProgExtern x ps tp
 derefunProg' dr g rtp (ProgData y cs) = ProgData y cs
 
 derefun :: DeRe -> Var -> [Prog] -> Progs -> Either String Progs
 derefun dr rtp new_ps (Progs ps end) =
-  let g = ctxtDefProgs (Progs (ps ++ new_ps) end)
+  let g = ctxtAddProgs (Progs (ps ++ new_ps) end)
       rps = (map (derefunProg' dr g rtp) ps)
       rtm = (derefunTerm dr g rtp end)
       --dr' = if dr == Defun then "defunctionalize" else "refunctionalize"
@@ -329,7 +329,7 @@ derefunThis :: DeRe -> Var -> Progs -> (Progs, Prog, Prog)
 derefunThis Defun rtp ps =
   let (ps', fs) = State.runState (mapProgsM (defoldTerm rtp) ps) []
       ps'' = derefunProgsTypes Defun rtp ps'
-      g = ctxtDefProgs ps''
+      g = ctxtAddProgs ps''
       (dat, fun) = makeDefold g rtp fs
   in
     (ps'', dat, fun)
@@ -337,7 +337,7 @@ derefunThis Refun rtp ps =
   let fvs_tps = collectUnfoldsFile rtp ps
       (ps', cs) = State.runState (mapProgsM (disentangleTerm rtp fvs_tps) ps) []
       ps'' = derefunProgsTypes Refun rtp ps'
-      g = ctxtDefProgs ps''
+      g = ctxtAddProgs ps''
       (dat, fun) = makeDisentangle g rtp fvs_tps cs
   in
     (ps'', dat, fun)
@@ -447,7 +447,7 @@ spanGraph explicit_drs res =
 -- Given some explicit datatypes to de- or refun, compute which to do on the rest
 whichDR :: [(Var, DeRe)] -> Progs -> Either String [(Var, DeRe)]
 whichDR explicit_drs ps =
-  let g = ctxtDefProgs ps in
+  let g = ctxtAddProgs ps in
     spanGraph explicit_drs (initGraph g ps (getRecursiveTypeNames g))
 
 

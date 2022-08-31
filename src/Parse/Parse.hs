@@ -375,7 +375,7 @@ parseProg = parsePeek >>= \ t -> case t of
         parseTpAnn >>= \ tp ->
         parseDrop TkEq >>
         parseTerm1 >>= \ tm ->
-        pure (UsProgFun x tm tp) <* parseDrop TkSemicolon)
+        pure (UsProgDefine x tm tp) <* parseDrop TkSemicolon)
 -- extern x [: type]; ...
   TkExtern -> parseEat *> pure Just <*> (pure UsProgExtern <*> parseVar <*> parseTpAnn
                 <* parseDrop TkSemicolon)

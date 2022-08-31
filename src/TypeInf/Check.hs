@@ -12,7 +12,7 @@ import Util.Helpers
 import Scope.Fresh (newVar)
 import Scope.Subst (SubT(SubTp,SubTg), Substitutable, substM, subst, freeVars)
 import Scope.Free (isAff, isInfiniteType)
-import Scope.Ctxt (Ctxt, CtxtDef(..), DefTerm(..), DefType(..), ctxtDefLocal, ctxtDefGlobal, ctxtDefExtern, ctxtDefData)
+import Scope.Ctxt (Ctxt, CtxtDef(..), CtTerm(..), CtType(..), ctxtAddLocal, ctxtAddDefine, ctxtAddExtern, ctxtAddData)
 
 -- Convention: expected type, then actual type
 -- TODO: Enforce this convention
@@ -127,7 +127,7 @@ localCurExpr a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curExpr = show a
 
 -- Add (x : tp) to env
 inEnv :: Var -> Type -> CheckM a -> CheckM a
-inEnv x tp = local $ modifyEnv (\ g -> ctxtDefLocal g x tp)
+inEnv x tp = local $ modifyEnv (\ g -> ctxtAddLocal g x tp)
 
 -- Checks for any duplicate definitions
 anyDupDefs :: UsProgs -> CheckM ()
@@ -143,7 +143,7 @@ anyDupDefs (UsProgs ps etm) =
       | otherwise = Right (Set.insert x xs)
     
     h :: Set Var -> UsProg -> Either Var (Set Var)
-    h xs (UsProgFun x atp tm) = addDef x xs
+    h xs (UsProgDefine x atp tm) = addDef x xs
     h xs (UsProgExtern x tp) = addDef x xs
     h xs (UsProgData y ps cs) =
       foldlM (\ xs' (Ctor x tps) -> addDef x xs') (addDef y xs) cs
@@ -156,14 +156,14 @@ guardExternRec tp =
 
 -- Defines a global function
 defGlobal :: Var -> [Var] -> [Var] -> Type -> CheckM a -> CheckM a
-defGlobal x tgs ps tp = local $ modifyEnv ( \ g -> ctxtDefGlobal g x tgs ps tp)
+defGlobal x tgs ps tp = local $ modifyEnv ( \ g -> ctxtAddDefine g x tgs ps tp)
 
 defExtern :: Var -> Type -> CheckM a -> CheckM a
-defExtern x tp = local $ modifyEnv ( \ g -> ctxtDefExtern g x tp)
+defExtern x tp = local $ modifyEnv ( \ g -> ctxtAddExtern g x tp)
 
 -- Defines a datatype and its constructors
 defData :: Var -> [Var] -> [Var] -> [Ctor] -> CheckM a -> CheckM a
-defData y tgs ps cs = local $ modifyEnv (\ g -> ctxtDefData g y tgs ps cs)
+defData y tgs ps cs = local $ modifyEnv (\ g -> ctxtAddData g y tgs ps cs)
 
 -- Add (x1 : tp1), (x2 : tp2), ... to env
 inEnvs :: [(Var, Type)] -> CheckM a -> CheckM a
@@ -174,17 +174,17 @@ lookupDatatype :: Var -> CheckM ([Var], [Var], [Ctor])
 lookupDatatype x =
   askEnv >>= \ g ->
   case Map.lookup x g of
-    Just (DefType (DefData tgs ps cs)) -> return (tgs, ps, cs)
+    Just (CtType (CtData tgs ps cs)) -> return (tgs, ps, cs)
     _ -> err (ScopeError x)
 
 -- Lookup a term variable
-lookupTermVar :: Var -> CheckM DefTerm
+lookupTermVar :: Var -> CheckM CtTerm
 lookupTermVar x =
   askEnv >>= \ g ->
   case Map.lookup x g of
     Nothing -> err (ScopeError x)
-    Just (DefType _ ) -> err (ScopeError x)
-    Just (DefTerm d) -> return d
+    Just (CtType _ ) -> err (ScopeError x)
+    Just (CtTerm d) -> return d
 
 -- Lookup the datatype that cases split on
 lookupCtorType :: [CaseUs] -> CheckM (Var, [Var], [Var], [Ctor])
@@ -192,7 +192,7 @@ lookupCtorType [] = err NoCases
 lookupCtorType (CaseUs x _ _ : _) =
   lookupTermVar x >>= \ d ->
   case d of
-    DefCtor _ _ ctp -> case splitArrows ctp of
+    CtCtor _ _ ctp -> case splitArrows ctp of
       (_, TpData y _ _) -> lookupDatatype y >>= \ (tgs, xs, cs) -> return (y, tgs, xs, cs)
       (_, etp) -> error "This shouldn't happen"
     _ -> err (CtorError x)
@@ -280,10 +280,10 @@ infer' (UsVar x) =
   -- Lookup the type of x
   lookupTermVar x >>= \ etp ->
   case etp of
-    DefLocal tp -> return (TmVarL x tp)
-    DefGlobal tgs tis tp -> h GlFun tgs tis tp
-    DefExtern tp -> h GlExtern [] [] tp
-    DefCtor tgs tis tp -> h GlCtor tgs tis tp
+    CtLocal tp -> return (TmVarL x tp)
+    CtDefine tgs tis tp -> h GlDefine tgs tis tp
+    CtExtern tp -> h GlExtern [] [] tp
+    CtCtor tgs tis tp -> h GlCtor tgs tis tp
   where
     h gv tgs tis tp =
       -- pick new tags
