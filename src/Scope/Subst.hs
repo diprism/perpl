@@ -353,9 +353,12 @@ instance Substitutable SProg where
     bind x x okay >>
     freshens tgs >>= \ tgs' ->
     binds tgs tgs'
-      (freshens tpms >>= \ tpms' ->
-       binds tpms tpms'
-         (pure (SProgDefine x tgs' tpms') <*> substM tp <*> substM tm))
+      (let (tpmxs, tpmrs) = unzip [(x, r) | Forall x r <- tpms]
+           tpms' = [Forall x r | (x, r) <- zip tpmxs tpmrs]
+       in
+         freshens tpmxs >>= \ tpmxs' ->
+          binds tpmxs tpmxs'
+            (pure (SProgDefine x tgs' tpms') <*> substM tp <*> substM tm))
   substM (SProgExtern x tp) =
     bind x x okay >>
     pure (SProgExtern x) <*> substM tp

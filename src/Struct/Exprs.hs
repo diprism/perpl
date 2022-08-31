@@ -19,9 +19,12 @@ data UsProg =
   | UsProgData Var [Var] [Ctor]         -- lhs, type params, constructors
   deriving (Eq, Ord)
 
+data Forall = Forall Var Bool -- name, is robust
+  deriving (Eq, Ord)
+
 -- Scheme-ified definition
 data SProg =
-    SProgDefine Var [Var] [Var] Term Type  -- lhs, tags, type params, rhs, type
+    SProgDefine Var [Var] [Forall] Term Type  -- lhs, tags, type params, rhs, type
   | SProgExtern Var Type                -- lhs, type
   | SProgData Var [Var] [Var] [Ctor]    -- lhs, tags, type params, constructors
   deriving (Eq, Ord)

@@ -12,7 +12,7 @@ data CtxtDef =
 
 data CtTerm =
     CtLocal Type
-  | CtDefine [Var] [Var] Type -- tags, type params, type
+  | CtDefine [Var] [Forall] Type -- tags, type params, type
   | CtExtern Type
   | CtCtor [Var] [Var] Type   -- tags, type params, type
   deriving Show
@@ -37,7 +37,7 @@ ctxtAddArgs :: Ctxt -> [Param] -> Ctxt
 ctxtAddArgs = foldl $ uncurry . ctxtAddLocal
 
 -- Add a global term to the context
-ctxtAddDefine :: Ctxt -> Var -> [Var] -> [Var] -> Type -> Ctxt
+ctxtAddDefine :: Ctxt -> Var -> [Var] -> [Forall] -> Type -> Ctxt
 ctxtAddDefine g x tgs ps tp = Map.insert x (CtTerm (CtDefine tgs ps tp)) g
 
 ctxtAddExtern :: Ctxt -> Var -> Type -> Ctxt

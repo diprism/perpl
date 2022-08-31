@@ -129,7 +129,7 @@ makeDefMap = semimap . mconcat . map h where
 -- Store the tag and type vars each definition is polymorphic over
 makeTypeParams :: [SProg] -> TypeParams
 makeTypeParams = mconcat . map h where
-  h (SProgDefine x tgs ys tm tp) = Map.singleton x (tgs, ys)
+  h (SProgDefine x tgs ys tm tp) = Map.singleton x (tgs, [y | Forall y r <- ys])
   h (SProgExtern x tp) = Map.singleton x ([], [])
   h (SProgData y tgs ps cs) = Map.fromList ((y, (tgs, ps)) : map (\ (Ctor x tps) -> (x, (tgs, ps))) cs)
 
@@ -165,10 +165,11 @@ makeInstantiations xis (SProgDefine x [] [] tm tp) =
   else
     [ProgDefine x [] (renameCalls xis tm) (renameCallsTp xis tp)]
 makeInstantiations xis (SProgDefine x tgs ps tm tp) =
-  let tiss = Map.toList (xis Map.! x) in
+  let tiss = Map.toList (xis Map.! x)
+      ps' = [y | Forall y r <- ps] in
     map (\ ((tgs', tis), i) ->
            let s = Map.fromList (pickyZip tgs (SubTg <$> tgs') ++
-                                 pickyZip ps  (SubTp <$> tis )) in
+                                 pickyZip ps' (SubTp <$> tis )) in
              ProgDefine
                (instName x i) -- new name for this particular instantiation
                [] -- args are [], for now (see Transform.Argify)
