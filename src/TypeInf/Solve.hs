@@ -179,24 +179,28 @@ a program.  The nodes of the function dependency graph are the defines
 (not externs), and there is an edge from every define to every define
 that it uses. Similarly for the datatype dependency graph. -}
 
-getDeps :: UsProgs -> (Map Var (Set Var), Map Var (Set Var))
-getDeps (UsProgs ps end) =
-  let (fdeps, ddeps) = foldr h mempty ps in
-    (clean fdeps, clean ddeps)
+getFunDeps :: UsProgs -> Map Var (Set Var)
+getFunDeps (UsProgs ps end) = clean (foldr h mempty ps)
   where
     -- Removes ctors, externs, type parameters from each set in the map
     clean :: Map Var (Set Var) -> Map Var (Set Var)
     clean m = let s = Set.fromList (Map.keys m) in fmap (Set.intersection s) m
 
-    -- Create an edge from every define or datatype lhs to its rhs's
+    -- Create an edge from every define lhs to its rhs's
     -- free vars.  The free vars include many kinds of variables, but
-    -- we only care about the defines and datatypes.
-    h :: UsProg -> (Map Var (Set Var), Map Var (Set Var)) -> (Map Var (Set Var), Map Var (Set Var))
-    h (UsProgDefine x tm mtp) (fdeps, ddeps) =
-      (Map.insert x (Set.fromList (Map.keys (freeVars tm))) fdeps, ddeps)
-    h (UsProgExtern x tp) deps = deps
-    h (UsProgData y ps cs) (fdeps, ddeps) =
-      (fdeps, Map.insert y (Set.unions [freeDatatypes tp | Ctor _ tps <- cs, tp <- tps]) ddeps)
+    -- we only care about the defines.
+    h :: UsProg -> Map Var (Set Var) -> Map Var (Set Var)
+    h (UsProgDefine x tm mtp) deps =
+      Map.insert x (Set.fromList (Map.keys (freeVars tm))) deps
+    h _ deps = deps
+
+getDataDeps :: UsProgs -> Map Var (Set Var)
+getDataDeps (UsProgs ps end) = foldr h mempty ps
+  where
+    h :: UsProg -> Map Var (Set Var) -> Map Var (Set Var)
+    h (UsProgData y ps cs) deps =
+      Map.insert y (Set.unions [freeDatatypes tp | Ctor _ tps <- cs, tp <- tps]) deps
+    h _ deps = deps
 
 -- Helper for splitProgsH
 splitProgsH :: UsProg -> ([(Var, Type, UsTm)], [(Var, Type)], [(Var, [Var], [Ctor])])
@@ -389,7 +393,8 @@ inferEnd end =
 -- Infers an entire program, returning a schemified, elaborated one
 inferProgs :: UsProgs -> CheckM SProgs
 inferProgs ps =
-  let (fdeps, ddeps) = getDeps ps
+  let fdeps = getFunDeps ps
+      ddeps = getDataDeps ps
       (fs, es, ds, end) = splitProgs ps
       mfs = Map.fromList [(x, (tp, tm)) | (x, tp, tm) <- fs]
       mds = Map.fromList [(x, (ps, cs)) | (x, ps, cs) <- ds]

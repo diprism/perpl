@@ -400,7 +400,7 @@ freeDatatypes NoTp = Set.empty
 
 {- substTags ytgs tp
 
-   Adds tags to type vars in type tp.
+   Adds tags to datatypes in type tp.
 
    - ytgs: Map from Vars (which are datatype names) to lists of Vars
      (which are tag names). -}
