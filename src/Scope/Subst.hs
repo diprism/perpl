@@ -4,9 +4,10 @@
 module Scope.Subst (SubT(..), Subst, compose,
                     Substitutable,
                     substM, subst, substWithCtxt, alphaRename,
-                    substTags, substDatatype,
+                    substTags, substDatatype, freeDatatypes,
                     FreeVars, freeVars) where
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Control.Monad.RWS.Lazy
 import Util.Helpers
 import Scope.Ctxt (Ctxt)
@@ -33,8 +34,7 @@ type SubstM = RWS () () Subst
    free, while in Terms, occurrences of global variables (TmVarG) are
    considered not free.
 
-   Uses of datatype names (TpData x) are considered free. (This is
-   currently used during type inference to find recursive types.) -}
+   Uses of datatype names (TpData x) are considered not free. -}
 
 type FreeVars = Map Var Type
 
@@ -116,7 +116,6 @@ Subst s is a Map from variables x to three kinds of substitutions:
   * global variables x (UsVar x but not TmVarG x)
   * free occurrences of local variables x (TmVarL x or UsVar x)
   * free occurrences of type variables x (TpVar x)
-  * uses of datatype x (TpData x)
 - x := SubTm tm replaces:
   * free occurrences of local variables x (TmVarL x but not UsVar x)
 - x := SubTp tp replaces:
@@ -144,23 +143,14 @@ freeVarsF = foldMap freeVars
 
 instance Substitutable Type where
   substM (TpArr tp1 tp2) = pure TpArr <*> substM tp1 <*> substM tp2
-  substM tp@(TpVar y) =
-    substVar y TpVar (const tp) id (const tp) tp
-  substM (TpData y tgs as) =
-    substM tgs >>= \ tgs' ->
-    substM as >>= \ as' ->
-    substVar y
-      (\ y' -> TpData y' tgs' as')
-      (const (TpData y tgs' as'))
-      (const (TpData y tgs' as'))
-      (const (TpData y tgs' as'))
-      (TpData y tgs' as')
+  substM tp@(TpVar y) = substVar y TpVar (const tp) id (const tp) tp
+  substM (TpData y tgs as) = pure (TpData y) <*> substM tgs <*> substM as
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
   substM NoTp = pure NoTp
 
   freeVars (TpArr tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
   freeVars (TpVar y) = Map.singleton y NoTp
-  freeVars (TpData y tgs as) = Map.singleton y NoTp <> freeVars tgs <> freeVars as
+  freeVars (TpData y tgs as) = freeVars tgs <> freeVars as
   freeVars (TpProd am tps) = Map.unions (freeVars <$> tps)
   freeVars NoTp = Map.empty
 
@@ -169,7 +159,7 @@ instance Substitutable Term where
     let tmx x' = pure (TmVarL x') <*> substM tp in
       substVar x tmx pure (const (tmx x)) (const (tmx x)) (tmx x) >>= id
   substM (TmVarG g x tgs tis as tp) =
-    pure (TmVarG g x) <*> substM tgs <*> substM tis <*> mapArgsM substM as <*> substM tp -- TODO: for consistency, should x be substitutable?
+    pure (TmVarG g x) <*> substM tgs <*> substM tis <*> mapArgsM substM as <*> substM tp
   substM (TmLam x xtp tm tp) =
     freshen x >>= \ x' ->
     pure (TmLam x') <*> substM xtp <*> bind x x' (substM tm) <*> substM tp
@@ -194,7 +184,7 @@ instance Substitutable Term where
     pure TmEqs <*> substM tms
   
   freeVars (TmVarL x tp) = Map.singleton x tp
-  freeVars (TmVarG g x tgs tis as tp) = freeVars tgs <> freeVars tis <> freeVars (fsts as) -- TODO: for consistency, should x be included?
+  freeVars (TmVarG g x tgs tis as tp) = freeVars tgs <> freeVars tis <> freeVars (fsts as)
   freeVars (TmLam x xtp tm tp) = Map.delete x (freeVars tm)
   freeVars (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars tm1) (freeVars tm2)
   freeVars (TmLet x xtm xtp tm tp) = Map.union (freeVars xtm) (Map.delete x (freeVars tm))
@@ -396,6 +386,17 @@ substDatatype xi xf (TpArr tp1 tp2) =
 substDatatype xi xf (TpProd am tps) =
   TpProd am [substDatatype xi xf tp | tp <- tps]
 substDatatype xi xf NoTp = NoTp
+
+{- freeDatatypes tp
+
+   The set of datatypes used in tp. -}
+
+freeDatatypes :: Type -> Set Var
+freeDatatypes (TpVar y) = Set.empty
+freeDatatypes (TpData y tgs as) = Set.singleton y <> Set.unions (map freeDatatypes as)
+freeDatatypes (TpArr tp1 tp2) = freeDatatypes tp1 <> freeDatatypes tp2
+freeDatatypes (TpProd am tps) = Set.unions (map freeDatatypes tps)
+freeDatatypes NoTp = Set.empty
 
 {- substTags ytgs tp
 

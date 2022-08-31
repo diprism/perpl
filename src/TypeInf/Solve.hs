@@ -7,7 +7,7 @@ import TypeInf.Check
 import Util.Helpers
 import Util.Graph (scc, SCC(..))
 import Struct.Lib
-import Scope.Subst (SubT(SubTm,SubTp,SubTg), Subst, compose, subst, freeVars, substTags)
+import Scope.Subst (SubT(SubTm,SubTp,SubTg), Subst, compose, subst, freeVars, freeDatatypes, substTags)
 import Scope.Free (robust)
 import Scope.Ctxt (Ctxt, emptyCtxt)
 
@@ -196,7 +196,7 @@ getDeps (UsProgs ps end) =
       (Map.insert x (Set.fromList (Map.keys (freeVars tm))) fdeps, ddeps)
     h (UsProgExtern x tp) deps = deps
     h (UsProgData y ps cs) (fdeps, ddeps) =
-      (fdeps, Map.insert y (Set.fromList (Map.keys (freeVars cs))) ddeps)
+      (fdeps, Map.insert y (Set.unions [freeDatatypes tp | Ctor _ tps <- cs, tp <- tps]) ddeps)
 
 -- Helper for splitProgsH
 splitProgsH :: UsProg -> ([(Var, Type, UsTm)], [(Var, Type)], [(Var, [Var], [Ctor])])
