@@ -71,13 +71,26 @@ unifyTags = foldr
                       return (s' `compose` s))
   (Right Map.empty)
 
--- Makes sure that robust-constrained solved type vars have robust solutions
+{- solvedWell e s cs xs
+
+   Makes sure that robust-constrained solved type vars have robust solutions.
+   ∀-quantifies all free type variables.
+
+   - e: environment
+   - s: the substitution found by solving the constraints
+   - cs: the constraints
+   - xs: free type variables
+
+   Returns: list of ∀-quantified type variables -}
+
 solvedWell :: Ctxt -> Subst -> [(Constraint, Loc)] -> [Var] -> Either (TypeError, Loc) [Forall]
 solvedWell e s cs xs =
   Map.unions <$> sequence [ h (subst s c) l | (c, l) <- cs ] >>= \ rfvs ->
   -- Mark each x as robust if it appears in rfvs (free vars in robust types)
   Right [Forall x (x `Map.member` rfvs) | x <- xs]
   where
+    -- Returns map of free variables in robust-constrained types
+    h :: Constraint -> Loc -> Either (TypeError, Loc) (Map Var Type)
     h (Unify tp1 tp2) l -- Not sure if checking tp1 == tp2 is necessary, but better be safe?
       | tp1 /= tp2 = Left (ConflictingTypes tp1 tp2, l)
       | otherwise = Right mempty

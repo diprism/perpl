@@ -285,12 +285,14 @@ infer' (UsVar x) =
     CtExtern tp -> h GlExtern [] [] tp
     CtCtor tgs tis tp -> h GlCtor tgs [Forall y False | y <- tis] tp
   where
+    -- Any ∀-quantified type variables should be instantiated to fresh type variables
     h gv tgs tis tp =
      let ytis = [y | Forall y r <- tis] in
       -- pick new tags
       mapM (const freshTag) tgs >>= \ tgs' ->
       -- pick new type vars
       mapM (const freshTp) ytis >>= \ tis' ->
+      -- ...that inherit any robustness constraints
       mapM (\ (Forall y r, ytp) -> constrainIf r (Robust ytp)) (zip tis tis') >>
       -- substitute old tags/type vars for new ones
        let tp' = subst (Map.fromList (pickyZip tgs (SubTg <$> tgs') ++
