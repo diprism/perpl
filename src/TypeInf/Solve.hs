@@ -415,6 +415,7 @@ inferProgs ps =
 -- Try to infer an entire file, running the CheckM monad
 inferFile :: UsProgs -> Either String SProgs
 inferFile ps =
-  either (\ (e, loc) -> Left (show e ++ ", " ++ show loc)) (\ (a, s, w) -> Right a)
+  either (\ (e, loc) -> Left (if null (show loc) then show e else show e ++ ", " ++ show loc))
+         (\ (a, s, w) -> Right a)
     (runExcept (runRWST (inferProgs ps)
                         (CheckR emptyCtxt (Loc Nothing "")) mempty))
