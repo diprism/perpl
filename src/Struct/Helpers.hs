@@ -161,7 +161,10 @@ mapProgsM :: Monad m => (Term -> m Term) -> Progs -> m Progs
 mapProgsM f (Progs ps end) =
   pure Progs <*> mapM (mapProgM f) ps <*> f end
 
--- Built-in datatype Bool
+-- Built-in datatypes
+
+tpZeroName = Var "_Zero"
+tpZero = TpData tpZeroName [] []
 
 tmUnit = TmProd Multiplicative []
 tpUnit = TpProd Multiplicative []
@@ -175,6 +178,7 @@ tmFalse = TmVarG GlCtor tmFalseName [] [] [] tpBool
 
 builtins :: [UsProg]
 builtins = [
+  UsProgData tpZeroName [] [],
   UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []]
   ]
 
