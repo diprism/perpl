@@ -79,7 +79,7 @@ type SolveVars = Map Var IsTag
 data Loc = Loc { curDef :: Maybe Var, curExpr :: String }
 
 instance Show Loc where
-  show l = intercalate ", " ((case curDef l of Nothing -> ["somewhere"]; Just v -> ["in the definition " ++ show v]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
+  show l = intercalate ", " ((case curDef l of Nothing -> []; Just v -> ["in the definition " ++ show v]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
 
 -- Reader part of the RWST monad for inference/checking
 data CheckR = CheckR { checkEnv :: Ctxt, checkLoc :: Loc }
