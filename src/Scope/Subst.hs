@@ -11,7 +11,7 @@ import qualified Data.Set as Set
 import Control.Monad.RWS.Lazy
 import Util.Helpers
 import Scope.Ctxt (Ctxt)
-import Scope.Fresh (newVar, newVars)
+import Scope.Fresh (newVar)
 import Struct.Lib
 
 ----------------------------------------
@@ -47,11 +47,15 @@ runSubst s r = let (a', r', ()) = runRWS r () s in a'
 -- substitution. This is done for every local (term or type) variable,
 -- and then x is α-converted to x' to avoid variable capture.
 freshen :: Var -> SubstM Var
-freshen x = fmap (newVar x) get
+freshen x =
+  fmap (newVar x) get >>= \ x' ->
+  modify (Map.insert x' (SubVar x')) >>
+  return x'
 
 -- Pick fresh names (see freshen) for a list of vars
 freshens :: [Var] -> SubstM [Var]
-freshens xs = fmap (newVars xs) get
+freshens [] = return []
+freshens (x : xs) = freshen x >>= \ x' -> pure ((:) x') <*> bind x x' (freshens xs)
 
 -- Rename x := x' in m. Also performs the trivial substitution x' :=
 -- x', because any further α-conversions performed inside m need to
