@@ -6,25 +6,27 @@ import Struct.Lib
 delim = "/" -- should be unlexable
 
 -- Used in various places for generating local variables
-localName = Var "x"
+localName = TmV "x"
 
 -- Used in monomorphization for instance of function or datatype x
-instName :: Var -> Int -> Var
-instName (Var x) i = Var (x ++ delim ++ "inst" ++ show i)
+instTmName :: TmName -> Int -> TmName
+instTmName (TmN x) i = TmN (x ++ delim ++ "inst" ++ show i)
+instTpName :: TpName -> Int -> TpName
+instTpName (TpN x) i = TpN (x ++ delim ++ "inst" ++ show i)
 
 -- Used in affine-to-linear transform for discarding recursive datatype y
 -- global function
-discardName y = Var ("discard" ++ delim ++ show y)
+discardName y = TmN ("discard" ++ delim ++ show y)
 
 -- Used for de-/refunctionalizing recursive datatype y
 -- global functions
-applyName (Var y) = Var ("unfold" ++ delim ++ y)
-unapplyName (Var y) = Var ("fold" ++ delim ++ y)
+applyName (TpN y) = TmN ("unfold" ++ delim ++ y)
+unapplyName (TpN y) = TmN ("fold" ++ delim ++ y)
 -- datatypes and their constructors
-defunTypeName (Var y) = Var ("Folded" ++ delim ++ y)
-defunCtorName (Var y) i = Var ("folded" ++ delim ++ y ++ delim ++ "site" ++ show i)
-refunTypeName (Var y) = Var ("Folded" ++ delim ++ y)
-refunCtorName (Var y) = Var ("folded" ++ delim ++ y)
+defunTypeName (TpN y) = TpN ("Folded" ++ delim ++ y)
+defunCtorName (TpN y) i = TmN ("folded" ++ delim ++ y ++ delim ++ "site" ++ show i)
+refunTypeName (TpN y) = TpN ("Folded" ++ delim ++ y)
+refunCtorName (TpN y) = TmN ("folded" ++ delim ++ y)
 
 {- Although not defined here, here are some other internally-generated names:
 

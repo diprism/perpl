@@ -6,7 +6,7 @@ import Util.FGG
 import Util.Helpers
 import Struct.Lib
 import Scope.Ctxt (Ctxt, ctxtAddProgs, ctxtAddArgs, ctxtAddLocal, ctxtLookupType)
-import Scope.Subst (FreeVars, freeVars)
+import Scope.Subst (FreeTmVars, freeVarLs)
 
 newNodeNames :: [a] -> [(NodeName, a)]
 newNodeNames as = [(NnInternal j, atp) | (j, atp) <- enumerate as]
@@ -42,7 +42,7 @@ mkRule lhs ns es xs =
     addRuleBlock (ElNonterminal lhs) [HGF (nub ns) es xs'] >> return (init xs')
 
 -- Add a rule for this particular case in a case-of statement
-caseRule :: Ctxt -> FreeVars -> [Node] -> Term -> Var -> Type -> Case -> RuleM HGF
+caseRule :: Ctxt -> FreeTmVars -> [Node] -> Term -> TpName -> Type -> Case -> RuleM HGF
 caseRule g all_fvs xs_ctm ctm y tp (Case x as xtm) =
   term2fgg (ctxtAddArgs g as) xtm >>= \ xs_xtm_as ->
   let all_xs = paramsToNodes (Map.toList all_fvs)
@@ -61,7 +61,7 @@ caseRule g all_fvs xs_ctm ctm y tp (Case x as xtm) =
                 (nub (xs_ctm ++ all_xs ++ [vtp])))
 
 -- Adds rule for the i-th term in an amb tm1 tm2 ... tmn
-ambRule :: Ctxt -> FreeVars -> Type -> Term -> RuleM HGF
+ambRule :: Ctxt -> FreeTmVars -> Type -> Term -> RuleM HGF
 ambRule g all_fvs tp tm =
   term2fgg g tm >>= \ tmxs ->
   let all_xs = paramsToNodes (Map.toList all_fvs)
@@ -73,7 +73,7 @@ ambRule g all_fvs tp tm =
                 (nub (all_xs ++ [vtp])))
 
 -- Adds rule for the i-th component of an &-product
-ampRule :: Ctxt -> FreeVars -> [Arg] -> Int -> Term -> Type -> RuleM HGF
+ampRule :: Ctxt -> FreeTmVars -> [Arg] -> Int -> Term -> Type -> RuleM HGF
 ampRule g all_fvs as i tm tp =
   term2fgg g tm >>= \ tmxs ->
   let tps = snds as
@@ -150,8 +150,8 @@ term2fgg g (TmApp tm1 tm2 tp2 tp) =
 
 term2fgg g (TmCase tm (y, [], []) cs tp) =
   term2fgg g tm >>= \ xs ->
-  let fvs = freeVars cs in
-    bindCases (Map.toList (Map.union (freeVars tm) fvs))
+  let fvs = freeVarLs cs in
+    bindCases (Map.toList (Map.union (freeVarLs tm) fvs))
               (ElNonterminal (TmCase tm (y, [], []) cs tp))
               (map (caseRule g fvs xs tm y tp) cs) >>= \ xs' ->
     return (nub (xs ++ xs'))
@@ -159,7 +159,7 @@ term2fgg g (TmCase tm (y, [], []) cs tp) =
 term2fgg _ (TmCase _ _ _ _) = error "Cannot compile polymorphic code"
 
 term2fgg g (TmAmb tms tp) =
-  let fvs = Map.unions (map freeVars tms) in
+  let fvs = Map.unions (map freeVarLs tms) in
     bindCases (Map.toList fvs)
               (ElNonterminal (TmAmb tms tp))
               (map (ambRule g fvs tp) tms)
@@ -188,7 +188,7 @@ term2fgg g (TmProd Additive as) =
   -- But linearity requires that every additive product be destructed exactly once,
   -- so don't bother creating any FGG rules for <>.
   let (tms, tps) = unzip as
-      fvs = freeVars tms in
+      fvs = freeVarLs tms in
     bindCases (Map.toList fvs)
               (ElNonterminal (TmProd Additive as))
               [ampRule g fvs as i atm tp | (i, (atm, tp)) <- enumerate as]

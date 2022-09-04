@@ -27,7 +27,7 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
   -- considered. So define f = factor 2.0 in \x. ... is considered to
   -- have no arguments.
   
-  arity :: Prog -> [(Var, ([Type], Type))]
+  arity :: Prog -> [(TmName, ([Type], Type))]
   arity (ProgDefine x [] tm tp) = let (ls, etm) = splitLams tm in [(x, (snds ls, typeof etm))]
   arity (ProgExtern x [] tp) = let (tps, etp) = splitArrows tp in [(x, (tps, etp))]
   arity (ProgData x cs) = [(y, (tps, TpData x [] [])) | Ctor y tps <- cs]
@@ -60,7 +60,7 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
 
   -- Argify an application of a global definition (TmVarG g x [] [] [] _)
   -- to zero or more arguments (as).
-  argifyAppG :: Global -> Var -> [Arg] -> Term
+  argifyAppG :: Global -> TmName -> [Arg] -> Term
   argifyAppG g x as =
     -- as = the provided arguments
     -- tps = the argument types of x
@@ -75,7 +75,7 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
         remtps -> -- list of missing argument types
           -- This is a partial (or non-) application, so η-expand with the missing arguments.
           let
-            lxs = newVars (replicate (length remtps) localName) Map.empty
+            lxs = newVars (replicate (length remtps) localName) (const False)
             ls = zip lxs remtps
             as'' = as' ++ paramsToArgs ls
           in

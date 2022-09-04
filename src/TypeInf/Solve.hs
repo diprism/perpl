@@ -1,24 +1,25 @@
 module TypeInf.Solve where
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.String (IsString(fromString))
 import Control.Monad.RWS.Lazy
 import Control.Monad.Except
 import TypeInf.Check
 import Util.Helpers
 import Util.Graph (scc, SCC(..))
 import Struct.Lib
-import Scope.Subst (SubT(SubTm,SubTp,SubTg), Subst, compose, subst, freeVars, freeDatatypes, substTags)
+import Scope.Subst (Subst(tmVars, tpVars, tags), STerm(Replace), FreeVars(freeTmVars, freeTpVars), subst, freeVars, freeDatatypes, substTags)
 import Scope.Free (robust)
 import Scope.Ctxt (Ctxt, emptyCtxt)
 
-bindTp :: Var -> Type -> Either TypeError Subst
+bindTp :: TpVar -> Type -> Either TypeError Subst
 bindTp x tp
   -- Trying to bind x = x, so nothing needs to be done
-  | tp == TpVar x = Right Map.empty
+  | tp == TpVar x = Right mempty
   -- If x occurs in tp, then substituting would lead to an infinite type
   | occursCheck x tp = Left (InfiniteType x tp)
   -- Add (x := tp) to substitution
-  | otherwise = Right (Map.singleton x (SubTp tp))
+  | otherwise = Right mempty{tpVars = Map.singleton x tp}
 
 -- Try to unify two types
 unify :: Type -> Type -> Either TypeError Subst
@@ -28,12 +29,12 @@ unify tp1@(TpData y1 tgs1 as1) tp2@(TpData y2 tgs2 as2)
   | y1 == y2 && length tgs1 == length tgs2 && length as1 == length as2 =
       unifyTags (zip tgs1 tgs2) >>= \ s ->
       unifyTypes' (zip as1 as2) >>= \ s' ->
-      return (s' `compose` s)
+      return (s' <> s)
   | otherwise = Left (UnificationError tp1 tp2)
 unify (TpArr l1 r1) (TpArr l2 r2) =
   unify l1 l2 >>= \ sl ->
   unify (subst sl r1) (subst sl r2) >>= \ sr ->
-  return (sr `compose` sl)
+  return (sr <> sl)
 unify (TpProd am1 tps1) (TpProd am2 tps2)
   | (am1 /= am2) || (length tps1 /= length tps2) =
       Left (UnificationError (TpProd am1 tps1) (TpProd am2 tps2))
@@ -42,7 +43,7 @@ unify (TpProd am1 tps1) (TpProd am2 tps2)
 unify NoTp tp = error "unify should not receive a NoTp"
 unify tp NoTp = error "unify should not receive a NoTp"
 unify tp1 tp2
-  | tp1 == tp2 = Right Map.empty
+  | tp1 == tp2 = Right mempty
   | otherwise  = Left (UnificationError tp1 tp2)
 
 -- For [(x1, y1), (x2, y2), ...], unify x1 and y1, unify x2 and y2, etc.
@@ -56,20 +57,20 @@ unifyTypes =
     (\ (tp1, tp2, l) s ->
         s >>= \ s ->
         mapLeft (\ e -> (e, l)) (unify (subst s tp1) (subst s tp2)) >>= \ s' ->
-        return (s' `compose` s))
-    (Right Map.empty)
+        return (s' <> s))
+    (Right mempty)
 
 unifyTag :: Tag -> Tag -> Either TypeError Subst
-unifyTag (TgVar x) (TgVar y)
-  | x /= y = Right (Map.singleton x (SubTg (TgVar y)))
-  | otherwise = Right Map.empty
+unifyTag x y
+  | x /= y = Right mempty{tags = Map.singleton x y}
+  | otherwise = Right mempty
 
 unifyTags :: [(Tag, Tag)] -> Either TypeError Subst
 unifyTags = foldr
   (\ (tg1, tg2) es -> es >>= \ s ->
                       unifyTag (subst s tg1) (subst s tg2) >>= \ s' ->
-                      return (s' `compose` s))
-  (Right Map.empty)
+                      return (s' <> s))
+  (Right mempty)
 
 -- Makes sure that robust-constrained solved type vars have robust solutions
 solvedWell :: Ctxt -> Subst -> [(Constraint, Loc)] -> Either (TypeError, Loc) ()
@@ -86,16 +87,16 @@ solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
 -- return type, simply solve those internal vars to Unit
 -- Example: `let f = \ x. x in True`
 -- Returns (new subst, remaining type vars, remaining tag vars)
-solveInternal :: SolveVars -> Subst -> Type -> (Subst, [Var], [Var])
-solveInternal vs s rtp =
-  let unsolved = Map.difference vs s
-      (utgs, utpvs) = Map.partition id unsolved -- split into tag and type vars
-      fvs = freeVars (subst s rtp) -- get vars that occur in the return type
-      internalUnsolved = Map.difference utpvs fvs
-      s' = fmap (\ False -> SubTp tpUnit) internalUnsolved -- substitute for Unit
-      s'' = s' `compose` s -- Add to Unit substitutions to s
+solveInternal :: SolveVars -> Subst -> Type -> (Subst, [TpVar], [Tag])
+solveInternal (tgs, tpvs) s rtp =
+  let utgs  = Set.difference tgs  (Map.keysSet (tags   s))
+      utpvs = Set.difference tpvs (Map.keysSet (tpVars s))
+      fvs = Map.keysSet (freeTpVars (freeVars (subst s rtp))) -- get vars that occur in the return type
+      internalUnsolved = Set.difference utpvs fvs
+      s' = mempty{tpVars = Map.fromSet (const tpUnit) internalUnsolved} -- substitute for Unit
+      s'' = s' <> s -- Add to Unit substitutions to s
   in
-    (s'', Map.keys (Map.intersection utpvs fvs), Map.keys utgs)
+    (s'', Set.toList (Set.intersection utpvs fvs), Set.toList utgs)
 
 {- solve g vs rtp cs
 
@@ -108,7 +109,7 @@ Tries to solve a set of constraints
 If no error, returns (solution subst, remaining type vars, remaining tag vars)
 -}
 
-solve :: Ctxt -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var], [Var])
+solve :: Ctxt -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [TpVar], [Tag])
 solve g vs rtp cs =
   unifyTypes (getUnifications cs) >>= \ s ->
   let (s', xs, tgs) = solveInternal vs s rtp in
@@ -126,7 +127,7 @@ Returns: (tm, tp, tgs), where
 - tp: its type
 - tgs: list of remaining tags -}
 
-solveM :: CheckM Term -> CheckM (Term, Type, [Var])
+solveM :: CheckM Term -> CheckM (Term, Type, [Tag])
 solveM m =
   listenSolveVars (listen m) >>= \ ((a, cs), vs) ->
   -- Because we use NoTp below, there are no FVs in the type, so all
@@ -149,7 +150,7 @@ Returns: [(x1, tm1, tgs1, ps1, tp1)], where
 - ps: type variables
 - tp: the type of tm -}
 
-solvesM :: CheckM [(Var, Term, Type)] -> CheckM [(Var, Term, [Var], [Var], Type)]
+solvesM :: CheckM [(TmName, Term, Type)] -> CheckM [(TmName, Term, [Tag], [TpVar], Type)]
 solvesM ms =
   listenSolveVars (listen ms) >>= \ ((defs, cs), vs) ->
   askEnv >>= \ g ->
@@ -161,14 +162,14 @@ solvesM ms =
         defs' = map (\ (f, tm, tp) ->
                         let tm' = subst s tm
                             tp' = subst s tp
-                            xs' = [x | x <- xs, x `Map.member` freeVars tp']
+                            xs' = [x | x <- xs, x `Map.member` freeTpVars (freeVars tp')]
                         in
                           (f, tm', tgs, xs', tp')) defs
         -- Add tag/type parameters to right-hand side terms. This has
         -- to be done in a second pass because of mutual recursion.
         -- This substitution is possible because occurrences of f are actually
         -- local variables (TmVarL); they change into global variables (TmVarG) now.
-        s' = Map.fromList [(f, SubTm (TmVarG GlDefine f (TgVar <$> tgs) (TpVar <$> xs') [] tp')) | (f, _, tgs, xs', tp') <- defs']
+        s' = mempty{tmVars = Map.fromList [(fromString (show f), Replace (TmVarG GlDefine f tgs (TpVar <$> xs') [] tp')) | (f, _, tgs, xs', tp') <- defs']}
         defs'' = [(f, subst s' tm', tgs, xs', tp') | (f, tm', tgs, xs', tp') <- defs']
       in
         return defs''
@@ -179,37 +180,37 @@ a program.  The nodes of the function dependency graph are the defines
 (not externs), and there is an edge from every define to every define
 that it uses. Similarly for the datatype dependency graph. -}
 
-getFunDeps :: UsProgs -> Map Var (Set Var)
+getFunDeps :: UsProgs -> Map TmName (Set TmName)
 getFunDeps (UsProgs ps end) = clean (foldr h mempty ps)
   where
     -- Removes ctors, externs, type parameters from each set in the map
-    clean :: Map Var (Set Var) -> Map Var (Set Var)
-    clean m = let s = Set.fromList (Map.keys m) in fmap (Set.intersection s) m
+    clean :: Map TmName (Set TmName) -> Map TmName (Set TmName)
+    clean m = let s = Map.keysSet m in fmap (Set.intersection s) m
 
     -- Create an edge from every define lhs to its rhs's
     -- free vars.  The free vars include many kinds of variables, but
     -- we only care about the defines.
-    h :: UsProg -> Map Var (Set Var) -> Map Var (Set Var)
+    h :: UsProg -> Map TmName (Set TmName) -> Map TmName (Set TmName)
     h (UsProgDefine x tm mtp) deps =
-      Map.insert x (Set.fromList (Map.keys (freeVars tm))) deps
+      Map.insert x (Set.mapMonotonic (fromString.show) (Map.keysSet (freeTmVars (freeVars tm)))) deps
     h _ deps = deps
 
-getDataDeps :: UsProgs -> Map Var (Set Var)
+getDataDeps :: UsProgs -> Map TpName (Set TpName)
 getDataDeps (UsProgs ps end) = foldr h mempty ps
   where
-    h :: UsProg -> Map Var (Set Var) -> Map Var (Set Var)
+    h :: UsProg -> Map TpName (Set TpName) -> Map TpName (Set TpName)
     h (UsProgData y ps cs) deps =
       Map.insert y (Set.unions [freeDatatypes tp | Ctor _ tps <- cs, tp <- tps]) deps
     h _ deps = deps
 
--- Helper for splitProgsH
-splitProgsH :: UsProg -> ([(Var, Type, UsTm)], [(Var, Type)], [(Var, [Var], [Ctor])])
+-- Helper for splitProgs
+splitProgsH :: UsProg -> ([(TmName, Type, UsTm)], [(TmName, Type)], [(TpName, [TpVar], [Ctor])])
 splitProgsH (UsProgDefine x tm mtp) = ([(x, mtp, tm)], [], [])
 splitProgsH (UsProgExtern x tp) = ([], [(x, tp)], [])
 splitProgsH (UsProgData y ps cs) = ([], [], [(y, ps, cs)])
 
 -- Splits a program up into (functions, externs, datatypes)
-splitProgs :: UsProgs -> ([(Var, Type, UsTm)], [(Var, Type)], [(Var, [Var], [Ctor])], UsTm)
+splitProgs :: UsProgs -> ([(TmName, Type, UsTm)], [(TmName, Type)], [(TpName, [TpVar], [Ctor])], UsTm)
 splitProgs (UsProgs ps end) =
   let (fs, es, ds) = foldr (\ p (fs, es, ds) ->
                                let (fs', es', ds') = splitProgsH p in
@@ -220,16 +221,16 @@ splitProgs (UsProgs ps end) =
 -- Infers a set of mutually-defined global functions,
 -- adding their inferred types to the env when inferring
 -- the rest of the program, and adding their defs to the returned (schemified) program
-inferFuns :: SCC (Var, Type, UsTm) -> CheckM SProgs -> CheckM SProgs
+inferFuns :: SCC (TmName, Type, UsTm) -> CheckM SProgs -> CheckM SProgs
 inferFuns (TrivialSCC f) = inferFuns' [f]
 inferFuns (NontrivialSCC fs) = inferFuns' fs
 
-inferFuns' :: [(Var, Type, UsTm)] -> CheckM SProgs -> CheckM SProgs
+inferFuns' :: [(TmName, Type, UsTm)] -> CheckM SProgs -> CheckM SProgs
 inferFuns' fs m =
   -- Get a fresh type var for each function in fs
   mapM (const freshTp) fs >>= \ itps ->
   -- ftps is the set of function names with their type (var)
-  let ftps = [(x, itp) | ((x, _, _), itp) <- zip fs itps] in
+  let ftps = [(fromString (show x), itp) | ((x, _, _), itp) <- zip fs itps] in
     -- add ftps to env as local variables (CtLocal) for now;
     -- they will be changed to global variables inside solvesM
     inEnvs ftps
@@ -264,22 +265,22 @@ Infers all datatypes in dsccs:
   - add each datatype def to env for inferring the rest of the program
   - add each datatype def to the returned (schemified) program -}
 
-inferData :: [SCC (Var, [Var], [Ctor])] -> CheckM SProgs -> CheckM SProgs
+inferData :: [SCC (TpName, [TpVar], [Ctor])] -> CheckM SProgs -> CheckM SProgs
 inferData dsccs cont = foldr h cont dsccs
   where
     -- Check with hPerhapsRec and add defs to returned (schemified) program
-    h :: SCC (Var, [Var], [Ctor]) -> CheckM SProgs -> CheckM SProgs
+    h :: SCC (TpName, [TpVar], [Ctor]) -> CheckM SProgs -> CheckM SProgs
     h dscc cont =
       hPerhapsRec dscc >>= \ dscc' ->
       addDefs dscc' cont
 
     -- Helper wrapper: if recursive, use hRec; otherwise, use hNonRec
-    hPerhapsRec :: SCC (Var, [Var], [Ctor]) -> CheckM [(Var, [Var], [Var], [Ctor])]
+    hPerhapsRec :: SCC (TpName, [TpVar], [Ctor]) -> CheckM [(TpName, [Tag], [TpVar], [Ctor])]
     hPerhapsRec (TrivialSCC ypscs) = hNonRec ypscs
     hPerhapsRec (NontrivialSCC dscc) = hRec dscc
 
     -- Like checkType for datatypes
-    checkData :: (Var, [Var], [Ctor]) -> CheckM (Var, [Var], [Ctor])
+    checkData :: (TpName, [TpVar], [Ctor]) -> CheckM (TpName, [TpVar], [Ctor])
     checkData (y, ps, cs) =
       localCurDef y $
       -- checkType doesn't look for bound type variables ps,
@@ -289,7 +290,7 @@ inferData dsccs cont = foldr h cont dsccs
 
     -- Adds datatype defs and ctors to env, and adds them to returned
     -- (schemified) program
-    addDefs :: [(Var, [Var], [Var], [Ctor])] -> CheckM SProgs -> CheckM SProgs
+    addDefs :: [(TpName, [Tag], [TpVar], [Ctor])] -> CheckM SProgs -> CheckM SProgs
     addDefs [] cont = cont
     addDefs ((y, tgs, ps, cs) : ds) cont =
       defData y tgs ps cs (addDefs ds cont) >>= \ (SProgs sps etm) ->
@@ -298,11 +299,10 @@ inferData dsccs cont = foldr h cont dsccs
     -- Handles checking a single, non-recursive datatype
     -- Input: a singleton (datatype name, type param names, constructors)
     -- Return: a singleton (datatype name, tag vars, type param names, constructors)
-    hNonRec :: (Var, [Var], [Ctor]) -> CheckM [(Var, [Var], [Var], [Ctor])]
+    hNonRec :: (TpName, [TpVar], [Ctor]) -> CheckM [(TpName, [Tag], [TpVar], [Ctor])]
     hNonRec (y, ps, cs) =
-      listenSolveVars (checkData (y, ps, cs)) >>= \ ((_, _, cs'), vs) ->
-      let tgs = Map.keys (Map.filter id vs) in
-        return [(y, tgs, ps, cs')]
+      listenSolveVars (checkData (y, ps, cs)) >>= \ ((_, _, cs'), (tgs, _)) ->
+        return [(y, Set.toList tgs, ps, cs')]
 
     -- The remaining functions are for the recursive case.
 
@@ -312,7 +312,7 @@ inferData dsccs cont = foldr h cont dsccs
     -- types in the SCC are not yet polymorphic. This prevents
     -- datatypes like
     --     data FullBinaryTree a = Leaf | FullBinaryTree (a, a)
-    constrainData :: (Var, [Var], [Ctor]) -> CheckM ()
+    constrainData :: (TpName, [TpVar], [Ctor]) -> CheckM ()
     constrainData (y, ps, cs) = localCurDef y (mapCtorsM_ constrainTpApps cs)
     constrainTpApps :: Type -> CheckM ()
     constrainTpApps (TpArr tp1 tp2) = constrainTpApps tp1 >> constrainTpApps tp2
@@ -330,29 +330,29 @@ inferData dsccs cont = foldr h cont dsccs
     -- substitutions in the solution.
     solveDataSCC :: CheckM a -> CheckM ()
     solveDataSCC m =
-      listenSolveVars (listen m) >>= \ ((dscc, cs), vs) ->
+      listenSolveVars (listen m) >>= \ ((dscc, cs), vs@(_, tpvs)) ->
       askEnv >>= \ g ->
       either
         throwError
         (\ (s, xs, tgs) -> return ())
-        (solve g vs (TpProd Multiplicative [TpVar v | v <- Map.keys vs]) cs)
+        (solve g vs (TpProd Multiplicative [TpVar v | v <- Set.toList tpvs]) cs)
 
     -- Like defType, but for a list of datatypes. This lets all the
     -- datatypes in the SCC see one another in the type environment.
-    defDataSCC :: [(Var, [Var], [Ctor])] -> CheckM a -> CheckM a
+    defDataSCC :: [(TpName, [TpVar], [Ctor])] -> CheckM a -> CheckM a
     defDataSCC dscc m =
       foldl (\ m (y, ps, cs) -> defData y [] ps [] m) m dscc
 
     -- Handles checking mutually-recursive datatypes
     -- Input: a list of (datatype name, type param names, constructors)
     -- Return: a list of (datatype name, tag vars, type param names, constructors)
-    hRec :: [(Var, [Var], [Ctor])] -> CheckM [(Var, [Var], [Var], [Ctor])]
+    hRec :: [(TpName, [TpVar], [Ctor])] -> CheckM [(TpName, [Tag], [TpVar], [Ctor])]
     hRec dscc =
       -- Check all the datatype definitions.
       listenSolveVars
         (defDataSCC dscc
            (freshTagVar >> mapM checkData dscc))
-        >>= \ (dscc', vs) ->
+        >>= \ (dscc', (tgs, _)) ->
       -- Infer type variables, which amounts to just checking that a
       -- type doesn't recursively use itself with different
       -- parameters.
@@ -363,14 +363,13 @@ inferData dsccs cont = foldr h cont dsccs
       -- Add tag vars in vs to the recursive uses of types in dscc
       -- by substituting y := y tgs.
       
-      let tgs = Map.keys (Map.filter id vs)
-          s = Map.fromList [(y, tgs) | (y, ps, cs) <- dscc']
+      let s = Map.fromList [(y, Set.toList tgs) | (y, ps, cs) <- dscc']
       in
-        return [(y, tgs, ps, mapCtors (substTags s) cs) | (y, ps, cs) <- dscc']
+        return [(y, Set.toList tgs, ps, mapCtors (substTags s) cs) | (y, ps, cs) <- dscc']
 
 
 -- Checks an extern declaration
-inferExtern :: (Var, Type) -> CheckM SProgs -> CheckM SProgs
+inferExtern :: (TmName, Type) -> CheckM SProgs -> CheckM SProgs
 inferExtern (x, tp) m =
   -- It's possible that checkType tp introduces new tag variables,
   -- but only within an unused type parameter, so it's safe to ignore them.

@@ -23,7 +23,7 @@ typeof (TmEqs tms) = tpBool
 -- case tm of C1->... | C2->... for ease of use internally
 sortCases :: [Ctor] -> [CaseUs] -> [CaseUs]
 sortCases ctors cases = snds $ sortBy (\ (a, _) (b, _) -> compare a b) (label cases) where
-  getIdx :: Int -> Var -> [Ctor] -> Int
+  getIdx :: Int -> TmName -> [Ctor] -> Int
   getIdx i x [] = i + 1
   getIdx i x (Ctor x' tp : cs)
     | x == x' = i
@@ -74,13 +74,13 @@ joinLams as tm = fst $ foldr
   (toArg tm) as
 
 -- Splits let x2 = tm2 in let x3 = tm3 in ... let xn = tmn in tm1 into ([(x2, tm2, tp2), (x3, tm3, tp3), ..., (xn, tmn, tpn)], tm1)
-splitLets :: Term -> ([(Var, Term, Type)], Term)
+splitLets :: Term -> ([(TmVar, Term, Type)], Term)
 splitLets (TmLet x xtm xtp tm tp) =
   let (ds, end) = splitLets tm in ((x, xtm, xtp) : ds, end)
 splitLets tm = ([], tm)
 
 -- Joins ([(x2, tm2, tp2), (x3, tm3, tp3), ..., (xn, tmn, tpn)], tm1) into let x2 = tm2 in let x3 = tm3 in ... let xn = tmn in tm1
-joinLets :: [(Var, Term, Type)] -> Term -> Term
+joinLets :: [(TmVar, Term, Type)] -> Term -> Term
 joinLets ds tm = h ds where
   tp = typeof tm
   h [] = tm
@@ -134,7 +134,7 @@ mapParams :: (Type -> Type) -> [Param] -> [Param]
 mapParams = map . mapParam
 
 -- Maps over the terms in a list of cases
-mapCasesM :: Monad m => (Var -> [Param] -> Term -> m Term) -> [Case] -> m [Case]
+mapCasesM :: Monad m => (TmName -> [Param] -> Term -> m Term) -> [Case] -> m [Case]
 mapCasesM f = mapM $ \ (Case x ps tm) -> pure (Case x ps) <*> f x ps tm
 
 -- Applies f to all the types in a list of ctors
@@ -166,9 +166,9 @@ mapProgsM f (Progs ps end) =
 tmUnit = TmProd Multiplicative []
 tpUnit = TpProd Multiplicative []
 
-tpBoolName = Var "Bool"
-tmTrueName = Var "True"
-tmFalseName = Var "False"
+tpBoolName = TpN "Bool"
+tmTrueName = TmN "True"
+tmFalseName = TmN "False"
 tpBool = TpData tpBoolName [] []
 tmTrue = TmVarG GlCtor tmTrueName [] [] [] tpBool
 tmFalse = TmVarG GlCtor tmFalseName [] [] [] tpBool

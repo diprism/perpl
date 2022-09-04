@@ -1,34 +1,48 @@
 -- Adapted from http://dev.stephendiehl.com/fun/006_hindley_milner.html
 {- Substitution code -}
 
-module Scope.Subst (SubT(..), Subst, compose,
+module Scope.Subst (Subst(..), FreeVars(..), STerm(..),
                     Substitutable,
                     substM, subst, substWithCtxt, alphaRename,
                     substTags, substDatatype, freeDatatypes,
-                    FreeVars, freeVars) where
+                    freeVars, FreeTmVars, freeVarLs) where
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.String (IsString)
+import Data.Maybe (fromMaybe)
 import Control.Monad.RWS.Lazy
+import Struct.Exprs
 import Util.Helpers
 import Scope.Ctxt (Ctxt)
-import Scope.Fresh (newVar)
+import qualified Scope.Ctxt as C
+import Scope.Fresh (newVar, newVars)
 import Struct.Lib
 
 ----------------------------------------
 
-data SubT = SubVar Var | SubTm Term | SubTp Type | SubTg Tag
-  deriving (Eq, Ord, Show)
-type Subst = Map Var SubT
+data STerm = Rename TmVar -- `Rename v` means `TmVarL v unchanged`
+           | Replace Term
+  deriving Show
+data Subst = Subst { tmVars :: Map TmVar STerm
+                   , tpVars :: Map TpVar Type
+                   , tags   :: Map Tag   Tag }
+  deriving Show
 
--- Composes two substitutions
-compose :: Subst -> Subst -> Subst
-s1 `compose` s2 = Map.map (subst s1) s2 `Map.union` s1
+instance Semigroup Subst where
+  -- Composes two substitutions
+  s1@(Subst m1 p1 g1) <> s2@(Subst m2 p2 g2) =
+    Subst (Map.map (subst s1) m2 `Map.union` m1)
+          (Map.map (subst s1) p2 `Map.union` p1)
+          (Map.map (subst s1) g2 `Map.union` g1)
+
+instance Monoid Subst where
+  mempty = Subst Map.empty Map.empty Map.empty
 
 -- State monad, where s = Subst
 type SubstM = RWS () () Subst
 
 {- The return type of freeVars. It maps from a variable x to its type if
-   x is a term variable, and NoTp otherwise.
+   x is a term variable, and () otherwise.
 
    In UsTms, occurrences of global variables (UsVar x) are considered
    free, while in Terms, occurrences of global variables (TmVarG) are
@@ -36,57 +50,82 @@ type SubstM = RWS () () Subst
 
    Uses of datatype names (TpData x) are considered not free. -}
 
-type FreeVars = Map Var Type
+data FreeVars = FreeVars { freeTmVars :: Map TmVar Type
+                         , freeTpVars :: Map TpVar ()
+                         , freeTags   :: Map Tag () }
+  deriving Show
+
+instance Semigroup FreeVars where
+  FreeVars m1 p1 g1 <> FreeVars m2 p2 g2 = FreeVars (m1 `Map.union` m2)
+                                                    (p1 `Map.union` p2)
+                                                    (g1 `Map.union` g2)
+
+instance Monoid FreeVars where
+  mempty = FreeVars Map.empty Map.empty Map.empty
+  mconcat fvs = FreeVars (Map.unions (map freeTmVars fvs))
+                         (Map.unions (map freeTpVars fvs))
+                         (Map.unions (map freeTags   fvs))
+
+-- Returns the free local variables of a Substitutable.
+type FreeTmVars = Map TmVar Type
+freeVarLs :: Substitutable a => a -> FreeTmVars
+freeVarLs = freeTmVars . freeVars
 
 -- Runs the substitution monad
 runSubst :: Subst -> SubstM a -> a
 runSubst s r = let (a', r', ()) = runRWS r () s in a'
 
+class (Ord var, Show var, IsString var) => Var var where
+  member :: var -> Subst -> Bool
+  insert :: var -> var -> Subst -> (Subst, Subst -> Subst)
+
+insertVar :: (Ord a, Show a) => a -> b -> b -> Map a b -> (Map a b, Map a b -> Map a b)
+insertVar x x' y g = let (old, g') = Map.insertLookupWithKey (const const) x y g
+                     in (g', Map.insert x (fromMaybe x' old))
+
+instance Var TmVar where
+  member   y g = y `Map.member` tmVars g
+  insert x y g = let (g', f) = insertVar x (Rename x) (Rename y) (tmVars g)
+                 in (g{tmVars = g'}, \s -> s{tmVars = f (tmVars s)})
+
+instance Var TpVar where
+  member   y g = y `Map.member` tpVars g
+  insert x y g = let (g', f) = insertVar x (TpVar x) (TpVar y) (tpVars g)
+                 in (g{tpVars = g'}, \s -> s{tpVars = f (tpVars s)})
+
+instance Var Tag where
+  member   y g = y `Map.member` tags g
+  insert x y g = let (g', f) = insertVar x x y (tags g)
+                 in (g{tags = g'}, \s -> s{tags = f (tags s)})
+
 -- Picks a name x', derived from x, that is fresh in the sense that it
 -- is different from any y such that y := ... is in the current
 -- substitution. This is done for every local (term or type) variable,
 -- and then x is α-converted to x' to avoid variable capture.
-freshen :: Var -> SubstM Var
-freshen x =
-  fmap (newVar x) get >>= \ x' ->
-  modify (Map.insert x' (SubVar x')) >>
-  return x'
+freshen :: (Var var) => var -> SubstM var
+freshen x = state (\g -> let y = newVar x (`member` g)
+                         in (y, fst (insert y y g)))
 
 -- Pick fresh names (see freshen) for a list of vars
-freshens :: [Var] -> SubstM [Var]
-freshens [] = return []
-freshens (x : xs) = freshen x >>= \ x' -> pure ((:) x') <*> bind x x' (freshens xs)
+freshens :: (Var var) => [var] -> SubstM [var]
+freshens xs = state (\g -> let ys = newVars xs (`member` g)
+                           in (ys, foldr (\y -> fst . insert y y) g ys))
 
 -- Rename x := x' in m. Also performs the trivial substitution x' :=
 -- x', because any further α-conversions performed inside m need to
 -- avoid both x and x'.
-bind :: Var -> Var -> SubstM a -> SubstM a
-bind x x' m =
-  substVT x >>= \ oldx ->
-  substVT x' >>= \ oldx' ->
-  modify (Map.insert x (SubVar x')) >>
-  modify (Map.insert x' (SubVar x')) >>
-  m >>= \ a ->
-  modify (Map.insert x oldx) >>
-  modify (Map.insert x' oldx') >>
+bind :: (Var var) => var -> var -> SubstM a -> SubstM a
+bind x y m = do
+  f <- state (\g0 -> let (g1, f1) = insert x y g0
+                         (g2, f2) = insert y y g1
+                     in (f2 . f1, g2))
+  a <- m
+  modify f
   return a
 
 -- Renames all xs to xs' (see bind) in m
-binds :: [Var] -> [Var] -> SubstM a -> SubstM a
-binds xs xs' m = foldr (uncurry bind) m (pickyZip xs xs')
-
--- Lookup a variable
-substVT :: Var -> SubstM SubT
-substVT x = get >>= \ s -> return (maybe (SubVar x) id (Map.lookup x s))
-
--- Lookup a variable, with continuations for var, term, type, tag, and if undefined
-substVar :: Var -> (Var -> a) -> (Term -> a) -> (Type -> a) -> (Tag -> a) -> a -> SubstM a
-substVar x fv ftm ftp ftg fn =
-  get >>= \ s ->
-  return $ maybe fn
-    (\ st -> case st of
-        {SubVar x' -> fv x'; SubTm tm -> ftm tm; SubTp tp -> ftp tp; SubTg tg -> ftg tg })
-    (Map.lookup x s)
+binds :: (Var var) => [var] -> [var] -> SubstM a -> SubstM a
+binds xs ys m = foldr (uncurry bind) m (pickyZip xs ys)
 
 -- Freshens param(s), and binds them in cont
 substParam :: Param -> SubstM a -> SubstM (Param, a)
@@ -126,11 +165,13 @@ subst s a = runSubst s (substM a)
 
 -- Run substM under a given context
 substWithCtxt :: Substitutable a => Ctxt -> Subst -> a -> a
-substWithCtxt g s = subst (Map.union (Map.mapWithKey (const . SubVar) g) s)
+substWithCtxt g = subst . remember (C.tmVars  g)
+  where remember :: (Var var) => Map var val -> Subst -> Subst
+        remember = appEndo . Map.foldMapWithKey (\x _ -> Endo (fst . insert x x))
 
 -- Run substM with no substitutions, so just alpha-rename bound vars
 alphaRename :: Substitutable a => Ctxt -> a -> a
-alphaRename g = substWithCtxt g Map.empty
+alphaRename g = substWithCtxt g mempty
 
 -- Substitutes inside a Functor/Traversable t
 substF :: (Functor t, Traversable t, Substitutable a) => t a -> SubstM (t a)
@@ -143,21 +184,28 @@ freeVarsF = foldMap freeVars
 
 instance Substitutable Type where
   substM (TpArr tp1 tp2) = pure TpArr <*> substM tp1 <*> substM tp2
-  substM tp@(TpVar y) = substVar y TpVar (const tp) id (const tp) tp
+  substM tp@(TpVar y) = fmap (Map.findWithDefault tp y . tpVars) get
   substM (TpData y tgs as) = pure (TpData y) <*> substM tgs <*> substM as
   substM (TpProd am tps) = pure (TpProd am) <*> substM tps
   substM NoTp = pure NoTp
 
-  freeVars (TpArr tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
-  freeVars (TpVar y) = Map.singleton y NoTp
+  freeVars (TpArr tp1 tp2) = mappend (freeVars tp1) (freeVars tp2)
+  freeVars (TpVar y) = mempty{freeTpVars = Map.singleton y ()}
   freeVars (TpData y tgs as) = freeVars tgs <> freeVars as
-  freeVars (TpProd am tps) = Map.unions (freeVars <$> tps)
-  freeVars NoTp = Map.empty
+  freeVars (TpProd am tps) = mconcat (freeVars <$> tps)
+  freeVars NoTp = mempty
+
+instance Substitutable STerm where
+  substM (Rename x) = fmap (Map.findWithDefault (Rename x) x . tmVars) get
+  substM (Replace tm) = Replace <$> substM tm
+  freeVars (Rename x) = mempty{freeTmVars = Map.singleton x NoTp}
+  freeVars (Replace tm) = freeVars tm
 
 instance Substitutable Term where
   substM (TmVarL x tp) =
-    let tmx x' = pure (TmVarL x') <*> substM tp in
-      substVar x tmx pure (const (tmx x)) (const (tmx x)) (tmx x) >>= id
+    fmap (Map.findWithDefault (Rename x) x . tmVars) get >>= \rhs -> case rhs of
+      Rename y -> pure (TmVarL y) <*> substM tp
+      Replace t -> pure t
   substM (TmVarG g x tgs tis as tp) =
     pure (TmVarG g x) <*> substM tgs <*> substM tis <*> mapArgsM substM as <*> substM tp
   substM (TmLam x xtp tm tp) =
@@ -183,30 +231,28 @@ instance Substitutable Term where
   substM (TmEqs tms) =
     pure TmEqs <*> substM tms
   
-  freeVars (TmVarL x tp) = Map.singleton x tp
+  freeVars (TmVarL x tp) = mempty{freeTmVars = Map.singleton x tp}
   freeVars (TmVarG g x tgs tis as tp) = freeVars tgs <> freeVars tis <> freeVars (fsts as)
-  freeVars (TmLam x xtp tm tp) = Map.delete x (freeVars tm)
-  freeVars (TmApp tm1 tm2 tp2 tp) = Map.union (freeVars tm1) (freeVars tm2)
-  freeVars (TmLet x xtm xtp tm tp) = Map.union (freeVars xtm) (Map.delete x (freeVars tm))
-  freeVars (TmCase tm y cs tp) = Map.union (freeVars tm) (freeVars cs)
+  freeVars (TmLam x xtp tm tp) = let fv = freeVars tm in fv{freeTmVars = Map.delete x (freeTmVars fv)}
+  freeVars (TmApp tm1 tm2 tp2 tp) = freeVars tm1 <> freeVars tm2
+  freeVars (TmLet x xtm xtp tm tp) = freeVars xtm <> let fv = freeVars tm in fv{freeTmVars = Map.delete x (freeTmVars fv)}
+  freeVars (TmCase tm y cs tp) = freeVars tm <> freeVars cs
   freeVars (TmAmb tms tp) = freeVars tms
   freeVars (TmFactor wt tm tp) = freeVars tm
   freeVars (TmProd am as) = freeVars (fsts as)
-  freeVars (TmElimAdditive ptm n i p tm tp) = Map.union (freeVars ptm) (Map.delete (fst p) (freeVars tm))
-  freeVars (TmElimMultiplicative ptm ps tm tp) = Map.union (freeVars ptm) (foldr (Map.delete . fst) (freeVars tm) ps)
+  freeVars (TmElimAdditive ptm n i p tm tp) = freeVars ptm <> let fv = freeVars tm in fv{freeTmVars = Map.delete (fst p) (freeTmVars fv)}
+  freeVars (TmElimMultiplicative ptm ps tm tp) = freeVars ptm <> let fv = freeVars tm in fv{freeTmVars = foldr (Map.delete . fst) (freeTmVars fv) ps}
   freeVars (TmEqs tms) = freeVars tms
 
 instance Substitutable Case where
   substM (Case x ps tm) =
     pure (Case x) <**> substParams ps (substM tm)
   freeVars (Case x ps tm) =
-    foldr (Map.delete . fst) (freeVars tm) ps
+    let fv = freeVars tm in fv{freeTmVars = foldr (Map.delete . fst) (freeTmVars fv) ps}
 
 instance Substitutable Tag where
-  substM tg@(TgVar x) =
-    substVar x TgVar (const tg) (const tg) id tg
-  freeVars (TgVar x) =
-    Map.singleton x NoTp
+  substM tg = fmap (Map.findWithDefault tg tg . tags) get
+  freeVars tg = mempty{freeTags = Map.singleton tg ()}
 
 instance Substitutable a => Substitutable [a] where
   substM = substF
@@ -215,24 +261,14 @@ instance Substitutable a => Substitutable (Maybe a) where
   substM = substF
   freeVars = freeVarsF
 
-instance Substitutable SubT where
-  substM (SubTm tm) = pure SubTm <*> substM tm
-  substM (SubTp tp) = pure SubTp <*> substM tp
-  substM (SubTg tg) = pure SubTg <*> substM tg
-  substM (SubVar x) = substVT x
-
-  freeVars (SubTm tm) = freeVars tm
-  freeVars (SubTp tp) = freeVars tp
-  freeVars (SubTg tg) = freeVars tg
-  freeVars (SubVar x) = Map.singleton x NoTp
-
 instance Substitutable v => Substitutable (Map.Map k v) where
   substM m = sequence (Map.map substM m)
   freeVars = error "freeVars called on a Subst (undefined behavior)"
 
 instance Substitutable UsTm where
-  substM (UsVar x) =
-    pure UsVar <*> substVar x id (const x) (const x) (const x) x
+  substM (UsVar x) = fmap (f . Map.findWithDefault (Rename x) x . tmVars) get
+    where f (Rename y) = UsVar y
+          f (Replace _) = UsVar x
   substM (UsLam x tp tm) =
     freshen x >>= \ x' ->
     pure (UsLam x') <*> substM tp <*> bind x x' (substM tm)
@@ -267,33 +303,33 @@ instance Substitutable UsTm where
     pure UsEqs <*> substM tms
 
   freeVars (UsVar x) =
-    Map.singleton x NoTp
+    mempty{freeTmVars = Map.singleton x NoTp}
   freeVars (UsLam x tp tm) =
-    Map.delete x (freeVars tm)
+    let fv = freeVars tm in fv{freeTmVars = Map.delete x (freeTmVars fv)}
   freeVars (UsApp tm1 tm2) =
-    Map.union (freeVars tm1) (freeVars tm2)
+    freeVars tm1 <> freeVars tm2
   freeVars (UsCase tm cs) =
-    Map.union (freeVars tm) (freeVars cs)
+    freeVars tm <> freeVars cs
   freeVars (UsIf tm1 tm2 tm3) =
-    Map.unions [freeVars tm1, freeVars tm2, freeVars tm3]
+    mconcat [freeVars tm1, freeVars tm2, freeVars tm3]
   freeVars (UsTmBool b) =
-    Map.empty
+    mempty
   freeVars (UsLet x xtm tm) =
-    Map.union (freeVars xtm) (Map.delete x (freeVars tm))
+    freeVars xtm <> let fv = freeVars tm in fv{freeTmVars = Map.delete x (freeTmVars fv)}
   freeVars (UsAmb tms) =
     freeVars tms
   freeVars (UsFactor wt tm) =
     freeVars tm
   freeVars (UsFail tp) =
-    Map.empty
+    mempty
 --  freeVars (UsElimAmp tm o) =
 --    freeVars tm
   freeVars (UsProd am tms) =
     freeVars tms
   freeVars (UsElimMultiplicative tm xs tm') =
-    Map.union (freeVars tm) (foldr Map.delete (freeVars tm') xs)
+    freeVars tm <> let fv = freeVars tm' in fv{freeTmVars = foldr Map.delete (freeTmVars fv) xs}
   freeVars (UsElimAdditive tm n i x tm') =
-    Map.union (freeVars tm) (Map.delete x (freeVars tm'))
+    freeVars tm <> let fv = freeVars tm' in fv{freeTmVars = Map.delete x (freeTmVars fv)}
   freeVars (UsEqs tms) =
     freeVars tms
   
@@ -301,7 +337,7 @@ instance Substitutable CaseUs where
   substM (CaseUs x ps tm) =
     freshens ps >>= \ ps' ->
     pure (CaseUs x ps') <*> binds ps ps' (substM tm)
-  freeVars (CaseUs x ps tm) = foldr Map.delete (freeVars tm) ps
+  freeVars (CaseUs x ps tm) = let fv = freeVars tm in fv{freeTmVars = foldr Map.delete (freeTmVars fv) ps}
 
 instance Substitutable UsProg where
   substM (UsProgDefine x tp tm) =
@@ -353,21 +389,22 @@ instance Substitutable Progs where
   substM (Progs ps tm) =
     pure Progs <*> substM ps <*> substM tm
   freeVars (Progs ps tm) =
-    Map.union (freeVars ps) (freeVars tm)
+    freeVars ps <> freeVars tm
 
 instance Substitutable SProgs where
   substM (SProgs ps tm) =
     pure SProgs <*> substM ps <*> substM tm
   freeVars (SProgs ps tm) =
-    Map.union (freeVars ps) (freeVars tm)
+    freeVars ps <> freeVars tm
 
 --- The following functions don't use Subst.
+--- TODO: use Subst now?
 
 {- substDatatype xi xf tp
 
    Rename all occurrences of datatype name xi to xf in type tp. -}
   
-substDatatype :: Var -> Var -> Type -> Type
+substDatatype :: TpName -> TpName -> Type -> Type
 substDatatype xi xf (TpVar y) =
   TpVar y
 substDatatype xi xf (TpData y tgs as) =
@@ -382,7 +419,7 @@ substDatatype xi xf NoTp = NoTp
 
    The set of datatypes used in tp. -}
 
-freeDatatypes :: Type -> Set Var
+freeDatatypes :: Type -> Set TpName
 freeDatatypes (TpVar y) = Set.empty
 freeDatatypes (TpData y tgs as) = Set.singleton y <> Set.unions (map freeDatatypes as)
 freeDatatypes (TpArr tp1 tp2) = freeDatatypes tp1 <> freeDatatypes tp2
@@ -396,11 +433,11 @@ freeDatatypes NoTp = Set.empty
    - ytgs: Map from Vars (which are datatype names) to lists of Vars
      (which are tag names). -}
 
-substTags :: Map Var [Var] -> Type -> Type
+substTags :: Map TpName [Tag] -> Type -> Type
 substTags ytgs (TpVar y) = TpVar y
 substTags ytgs (TpData y [] as) =
   let as' = map (substTags ytgs) as in
-    TpData y (maybe [] (TgVar <$>) (ytgs Map.!? y)) as'
+    TpData y (fromMaybe [] (ytgs Map.!? y)) as'
 substTags ytgs (TpData y tgs as) =
     if y `Map.member` ytgs then
       error ("can't add tags to a datatype that already has tags")

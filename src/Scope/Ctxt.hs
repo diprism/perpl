@@ -5,84 +5,71 @@ import qualified Data.Map as Map
 import Struct.Lib
 import Util.Helpers
 
-data CtxtDef =
-    CtTerm CtTerm
-  | CtType CtType
-  deriving Show
-
 data CtTerm =
-    CtLocal Type
-  | CtDefine [Var] [Var] Type -- tags, type params, type
+    CtDefine [Tag] [TpVar] Type -- tag params, type params, type
   | CtExtern Type
-  | CtCtor [Var] [Var] Type   -- tags, type params, type
+  | CtCtor [Tag] [TpVar] Type   -- tag params, type params, type
   deriving Show
 
 data CtType =
-  CtData [Var] [Var] [Ctor] -- tags, type params, ctors
+  CtData [Tag] [TpVar] [Ctor] -- tag params, type params, ctors
   -- CtTypeVar -- not currently used
   deriving Show
 
-type Ctxt = Map Var CtxtDef
+data Ctxt = Ctxt { tpNames :: Map TpName CtType
+                 , tmNames :: Map TmName CtTerm
+                 , tmVars  :: Map TmVar  Type }
+  deriving Show
 
 -- Default context
 emptyCtxt :: Ctxt
-emptyCtxt = Map.empty
+emptyCtxt = Ctxt Map.empty Map.empty Map.empty
 
 -- Add a local term to the context
-ctxtAddLocal :: Ctxt -> Var -> Type -> Ctxt
-ctxtAddLocal g x tp = Map.insert x (CtTerm (CtLocal tp)) g
+ctxtAddLocal :: Ctxt -> TmVar -> Type -> Ctxt
+ctxtAddLocal g x tp = g{tmVars = Map.insert x tp (tmVars g)}
 
 -- Add params to context
 ctxtAddArgs :: Ctxt -> [Param] -> Ctxt
 ctxtAddArgs = foldl $ uncurry . ctxtAddLocal
 
 -- Add a global term to the context
-ctxtAddDefine :: Ctxt -> Var -> [Var] -> [Var] -> Type -> Ctxt
-ctxtAddDefine g x tgs ps tp = Map.insert x (CtTerm (CtDefine tgs ps tp)) g
+ctxtAddDefine :: Ctxt -> TmName -> [Tag] -> [TpVar] -> Type -> Ctxt
+ctxtAddDefine g x tgs ps tp = g{tmNames = Map.insert x (CtDefine tgs ps tp) (tmNames g)}
 
-ctxtAddExtern :: Ctxt -> Var -> Type -> Ctxt
-ctxtAddExtern g x tp = Map.insert x (CtTerm (CtExtern tp)) g
+ctxtAddExtern :: Ctxt -> TmName -> Type -> Ctxt
+ctxtAddExtern g x tp = g{tmNames = Map.insert x (CtExtern tp) (tmNames g)}
 
 -- Add a constructor to the context
-ctxtAddCtor :: Ctxt -> Ctor -> Var -> [Var] -> [Var] -> Ctxt
+ctxtAddCtor :: Ctxt -> Ctor -> TpName -> [Tag] -> [TpVar] -> Ctxt
 ctxtAddCtor g (Ctor x tps) y tgs ps =
-  let tp = joinArrows tps (TpData y (TgVar <$> tgs) (TpVar <$> ps)) in
-  Map.insert x (CtTerm (CtCtor tgs ps tp)) g
+  let tp = joinArrows tps (TpData y tgs (TpVar <$> ps)) in
+  g{tmNames = Map.insert x (CtCtor tgs ps tp) (tmNames g)}
 
 -- Add a datatype definition to the context,
 -- and all its constructors
-ctxtAddData :: Ctxt -> Var -> [Var] -> [Var] -> [Ctor] -> Ctxt
+ctxtAddData :: Ctxt -> TpName -> [Tag] -> [TpVar] -> [Ctor] -> Ctxt
 ctxtAddData g y tgs ps ctors =
   foldr (\ c g -> ctxtAddCtor g c y tgs ps)
-    (Map.insert y (CtType (CtData tgs ps ctors)) g) ctors
+    g{tpNames = Map.insert y (CtData tgs ps ctors) (tpNames g)} ctors
   
--- Lookup a term in the context
-ctxtLookupTerm :: Ctxt -> Var -> Maybe Type
-ctxtLookupTerm g x = Map.lookup x g >>= \ d -> case d of
-  CtTerm dt -> case dt of
-    CtLocal tp -> Just tp
+-- Lookup a (global) term in the context
+ctxtLookupTerm :: Ctxt -> TmName -> Maybe Type
+ctxtLookupTerm g x = Map.lookup x (tmNames g) >>= \ dt -> case dt of
     CtDefine [] [] tp -> Just tp
-    CtCtor [] [] tp -> Just tp
-    _ -> error "this shouldn't happen"
-  CtType _ -> Nothing
+    CtExtern       tp -> Just tp
+    CtCtor   [] [] tp -> Just tp
+    -- better use only for monomorphized code
 
 -- Lookup a datatype in the context
-ctxtLookupType :: Ctxt -> Var -> Maybe [Ctor]
-ctxtLookupType g x = Map.lookup x g >>= \ d -> case d of
-  CtTerm _ -> Nothing
-  CtType dt -> case dt of
+ctxtLookupType :: Ctxt -> TpName -> Maybe [Ctor]
+ctxtLookupType g x = Map.lookup x (tpNames g) >>= \ dt -> case dt of
     CtData [] [] cs -> Just cs
-    _ -> error "this shouldn't happen"
+    -- better use only for monomorphized code
 
-ctxtLookupType2 :: Ctxt -> Var -> Maybe ([Var], [Var], [Ctor])
-ctxtLookupType2 g x = Map.lookup x g >>= \ d -> case d of
-  CtTerm _ -> Nothing
-  CtType dt -> case dt of
+ctxtLookupType2 :: Ctxt -> TpName -> Maybe ([Tag], [TpVar], [Ctor])
+ctxtLookupType2 g x = Map.lookup x (tpNames g) >>= \ dt -> case dt of
     CtData tgs ps cs -> Just (tgs, ps, cs)
-  
--- Is this var bound in this context?
-ctxtBinds :: Ctxt -> Var -> Bool
-ctxtBinds = flip Map.member
 
 -- Adds all definitions from a raw file to context
 ctxtAddUsProg :: Ctxt -> UsProg -> Ctxt

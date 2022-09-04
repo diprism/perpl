@@ -101,30 +101,30 @@ parseBranches branch = parseDropSoft TkBar *> oneOrMore
           _ -> pure []
 
 -- Parse a symbol.
-parseVar :: ParseM Var
+parseVar :: ParseM String
 parseVar = parsePeek >>= \ t -> case t of
-  TkVar v -> parseEat *> pure (Var v)
+  TkVar v -> parseEat *> pure v
   _ -> parseErr (if t `elem` keywords then show t ++ " is a reserved keyword"
                   else "expected a variable name here")
 
 -- Parse zero or more symbols.
-parseVars :: ParseM [Var]
+parseVars :: ParseM [String]
 parseVars = parsePeek >>= \ t -> case t of
-  TkVar v -> parseEat *> pure ((:) (Var v)) <*> parseVars
+  TkVar v -> parseEat *> pure (v:) <*> parseVars
   _ -> pure []
 
 -- Parse comma-delimited symbols
-parseVarsCommas :: Token -> Bool -> Bool -> ParseM [Var]
+parseVarsCommas :: Token -> Bool -> Bool -> ParseM [String]
 parseVarsCommas close allow0 allow1 = parsePeeks 2 >>= \ ts -> case ts of
-  [TkVar v, TkComma] -> parseEat *> parseEat *> pure ((:) (Var v)) <*> parseVarsCommas close allow1 True
-  [TkVar v, t] | t==close -> if allow1 then parseEat *> parseEat *> pure [Var v] else parseErr "unary tuple of variables not allowed here"
+  [TkVar v, TkComma] -> parseEat *> parseEat *> pure (v:) <*> parseVarsCommas close allow1 True
+  [TkVar v, t] | t==close -> if allow1 then parseEat *> parseEat *> pure [v] else parseErr "unary tuple of variables not allowed here"
   [t, _] | t==close -> if allow0 then parseEat *> pure [] else parseErr "0-ary tuple of variables not allowed here"
   _ -> parseErr "expecting a tuple of variables"
 
 -- Parse a branch of a case expression.
 parseCase :: ParseM CaseUs
 parseCase = parsePeek >>= \ t -> case t of
-  TkVar c -> parseEat *> pure (CaseUs (Var c)) <*> parseVars <* parseDrop TkArr <*> parseTerm1
+  TkVar c -> parseEat *> pure (CaseUs (TmN c) . map TmV) <*> parseVars <* parseDrop TkArr <*> parseTerm1
   _ -> parseErr "expecting a case"
 
 -- Parse one or more branches of a case expression.
@@ -158,7 +158,7 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- if term then term else term
   [TkIf, _] -> parseEat *> pure UsIf <*> parseTerm1 <* parseDrop TkThen <*> parseTerm1 <* parseDrop TkElse <*> parseTerm1
 -- \ x [: type] . term
-  [TkLam, _] -> parseEat *> pure UsLam <*> parseVar <*> parseTpAnn <* parseDrop TkDot <*> parseTerm1
+  [TkLam, _] -> parseEat *> pure (UsLam . TmV) <*> parseVar <*> parseTpAnn <* parseDrop TkDot <*> parseTerm1
 -- let (x, y, ...) = term in term
   [TkLet, TkParenL] -> do
     parseEat
@@ -168,22 +168,22 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
     tm <- parseTerm1
     parseDrop TkIn
     tm' <- parseTerm1
-    return (UsElimMultiplicative tm xs tm')
+    return (UsElimMultiplicative tm (map TmV xs) tm')
 -- let <..., _, x, _, ...> = term in term
   [TkLet, TkLangle] -> do
     parseEat
     parseEat
     xs <- parseVarsCommas TkRangle False True
-    case [ (i,x) | (i,x) <- enumerate xs, x /= Var "_" ] of
+    case [ (i,x) | (i,x) <- enumerate xs, x /= "_" ] of
       [(i,x)] -> do
         parseDrop TkEq
         tm <- parseTerm1
         parseDrop TkIn
         tm' <- parseTerm1
-        return (UsElimAdditive tm (length xs) i x tm')
+        return (UsElimAdditive tm (length xs) i (TmV x) tm')
       _ -> parseErr "Expected exactly one non-underscore variable"
 -- let x = term [: type] in term
-  [TkLet, _] -> parseEat *> pure UsLet <*> parseVar <* parseDrop TkEq
+  [TkLet, _] -> parseEat *> pure (UsLet . TmV) <*> parseVar <* parseDrop TkEq
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- factor wt
   [TkFactor, _] -> parseEat *> pure UsFactor <*> parseNum <* parseDrop TkIn <*> parseTerm1
@@ -263,7 +263,7 @@ TERM5 ::=
 parseTerm5 :: ParseM UsTm
 parseTerm5 = parsePeek >>= \ t -> case t of
   TkVar "_" -> parseErr "Expected non-underscore variable here"
-  TkVar v -> parseEat *> pure (UsVar (Var v))
+  TkVar v -> parseEat *> pure (UsVar (TmV v))
   TkParenL -> parseEat *> (
     parsePeek >>= \ t -> case t of
         TkParenR -> pure (UsProd Multiplicative [])
@@ -298,7 +298,7 @@ TYPE1 ::=
  -}
 
 -- Arrow
-parseType1 :: [Var] -> ParseM Type
+parseType1 :: [TpVar] -> ParseM Type
 parseType1 ps = parseType2 ps >>= \ tp -> parsePeek >>= \ t -> case t of
   TkArr -> parseEat *> pure (TpArr tp) <*> parseType1 ps
   _ -> pure tp
@@ -313,9 +313,9 @@ TYPE2 ::=
  -}
 
 -- TypeVar
-parseType2 :: [Var] -> ParseM Type
+parseType2 :: [TpVar] -> ParseM Type
 parseType2 ps = parsePeek >>= \ t -> case t of
-  TkVar v -> parseEat *> if (Var v) `elem` ps then pure (TpVar (Var v)) else pure (TpData (Var v) []) <*> parseTypes ps
+  TkVar v -> parseEat *> if TpV v `elem` ps then pure (TpVar (TpV v)) else pure (TpData (TpN v) []) <*> parseTypes ps
   _ -> parseType3 ps
 
 
@@ -331,7 +331,7 @@ TYPE3 ::=
 
  -}
 
-parseType3 :: [Var] -> ParseM Type
+parseType3 :: [TpVar] -> ParseM Type
 parseType3 ps = parsePeek >>= \ t -> case t of
   TkParenL -> parseEat *> (
     parsePeek >>= \ t -> case t of
@@ -343,18 +343,18 @@ parseType3 ps = parsePeek >>= \ t -> case t of
         TkRangle -> pure (TpProd Additive [])
         _ -> pure (TpProd Additive) <*> (parseType1 ps >>= \ tp -> parseDelim (parseType1 ps) TkComma [tp])) <* parseDrop TkRangle
   TkBool -> parseEat *> pure tpBool
-  TkVar v -> parseEat *> pure (if (Var v) `elem` ps then TpVar (Var v) else TpData (Var v) [] [])
+  TkVar v -> parseEat *> pure (if TpV v `elem` ps then TpVar (TpV v) else TpData (TpN v) [] [])
   _ -> parseErr "couldn't parse a type here; perhaps add parentheses?"
 
 -- List of Constructors
-parseEqCtors :: [Var] -> ParseM [Ctor]
+parseEqCtors :: [TpVar] -> ParseM [Ctor]
 parseEqCtors ps = parsePeek >>= \t -> case t of
-  TkEq -> parseDrop TkEq *> parseBranches (pure Ctor <*> parseVar <*> parseTypes ps)
+  TkEq -> parseDrop TkEq *> parseBranches (pure (Ctor . TmN) <*> parseVar <*> parseTypes ps)
   TkSemicolon -> return []
   _ -> parseErr "expected = or ;"
 
 -- List of Types
-parseTypes :: [Var] -> ParseM [Type]
+parseTypes :: [TpVar] -> ParseM [Type]
 parseTypes ps = parseElse [] (parseType3 ps >>= \ tp -> fmap ((:) tp) (parseTypes ps))
 
 {-
@@ -375,14 +375,14 @@ parseProg = parsePeek >>= \ t -> case t of
         parseTpAnn >>= \ tp ->
         parseDrop TkEq >>
         parseTerm1 >>= \ tm ->
-        pure (UsProgDefine x tm tp) <* parseDrop TkSemicolon)
+        pure (UsProgDefine (TmN x) tm tp) <* parseDrop TkSemicolon)
 -- extern x [: type]; ...
-  TkExtern -> parseEat *> pure Just <*> (pure UsProgExtern <*> parseVar <*> parseTpAnn
+  TkExtern -> parseEat *> pure Just <*> (pure (UsProgExtern . TmN) <*> parseVar <*> parseTpAnn
                 <* parseDrop TkSemicolon)
 -- data Y vars = ctors; ...
   TkData -> parseEat *> pure Just <*>
-       (parseVar >>= \f ->
-        parseVars >>= \ps ->
+       (fmap TpN parseVar >>= \f ->
+        fmap (map TpV) parseVars >>= \ps ->
         pure (UsProgData f ps) <*> parseEqCtors ps <* parseDrop TkSemicolon)
   _ -> pure Nothing
 

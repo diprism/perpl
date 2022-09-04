@@ -5,8 +5,8 @@
 module Scope.Free where
 import Struct.Lib
 import Util.Helpers
-import Scope.Subst (SubT(SubTp,SubTg), subst)
-import Scope.Ctxt (Ctxt, ctxtLookupType2)
+import Scope.Subst (Subst(tags, tpVars), subst)
+import Scope.Ctxt (Ctxt(tpNames), ctxtLookupType2)
 import qualified Data.Map as Map
 
 -- For checking linearity, vars can appear:
@@ -25,10 +25,10 @@ linIf' :: Lin -> Lin -> Lin -> Lin
 linIf' i y n = linIf i y n LinErr
 
 -- Returns if x occurs at most once in tm
-isAff :: Var -> UsTm -> Bool
+isAff :: TmVar -> UsTm -> Bool
 isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
   where
-    countOccs :: UsTm -> Map Var Int
+    countOccs :: UsTm -> Map TmVar Int
     countOccs (UsVar x) = Map.singleton x 1
     countOccs (UsLam x tp tm) = Map.delete x $ countOccs tm
     countOccs (UsApp tm tm') = Map.unionWith (+) (countOccs tm) (countOccs tm')
@@ -45,11 +45,11 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccs (UsElimAdditive tm n i x tm') = Map.unionWith (+) (countOccs tm) (Map.delete x (countOccs tm'))
     countOccs (UsEqs tms) = Map.unionsWith (+) (map countOccs tms)
     
-    countOccsCase :: CaseUs -> Map Var Int
+    countOccsCase :: CaseUs -> Map TmVar Int
     countOccsCase (CaseUs c xs tm) = foldr Map.delete (countOccs tm) xs
 
 -- Returns if x appears exactly once in a term
-isLin :: Var -> Term -> Bool
+isLin :: TmVar -> Term -> Bool
 isLin x = (LinYes ==) . h where
   linCase :: Case -> Lin
   linCase (Case x' ps tm) = if any ((x ==) . fst) ps then LinNo else h tm
@@ -97,7 +97,8 @@ searchType pred g = h [] where
         Just (tgs', ps, cs) ->
           -- Substitute actual type parameters for datatype's type parameters
           -- and recurse on each constructor
-          let s = Map.fromList (pickyZipWith (\p a -> (p, SubTg a)) tgs' tgs ++ pickyZipWith (\p a -> (p, SubTp a)) ps as) in
+          let s = mempty{tags   = Map.fromList (pickyZip tgs' tgs),
+                         tpVars = Map.fromList (pickyZip ps   as )} in
           any (\ (Ctor _ tps) -> any (h (tp : visited) . subst s) tps) cs
     TpArr tp1 tp2 -> h visited tp1 || h visited tp2
     TpProd am tps -> any (h visited) tps
@@ -123,10 +124,10 @@ isRecursiveType g tp = searchType p g tp where
   p visited tp'@(TpData y tgs as) = tp' `elem` visited && tp' == tp
   p _ _ = False
 
-isRecursiveTypeName :: Ctxt -> Var -> Bool
+isRecursiveTypeName :: Ctxt -> TpName -> Bool
 isRecursiveTypeName g y =
   isRecursiveType g (TpData y [] []) -- this function currently used only after monomorphization, so empty type parameter list okay
 
 -- Returns the recursive datatypes in a file
-getRecursiveTypeNames :: Ctxt -> [Var]
-getRecursiveTypeNames g = filter (isRecursiveTypeName g) (Map.keys g)
+getRecursiveTypeNames :: Ctxt -> [TpName]
+getRecursiveTypeNames g = filter (isRecursiveTypeName g) (Map.keys (tpNames g))

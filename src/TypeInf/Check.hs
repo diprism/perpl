@@ -3,6 +3,7 @@
 
 module TypeInf.Check where
 import Data.List (intercalate)
+import Data.String (IsString(fromString))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.RWS.Lazy
@@ -10,32 +11,32 @@ import Control.Monad.Except
 import Struct.Lib
 import Util.Helpers
 import Scope.Fresh (newVar)
-import Scope.Subst (SubT(SubTp,SubTg), Substitutable, substM, subst, freeVars)
+import Scope.Subst (Subst(tags, tpVars), FreeVars(freeTpVars), Substitutable, substM, subst, freeVars)
 import Scope.Free (isAff, isInfiniteType)
-import Scope.Ctxt (Ctxt, CtxtDef(..), CtTerm(..), CtType(..), ctxtAddLocal, ctxtAddDefine, ctxtAddExtern, ctxtAddData)
+import Scope.Ctxt (Ctxt(tmVars, tmNames, tpNames), CtTerm(..), CtType(..), ctxtAddLocal, ctxtAddDefine, ctxtAddExtern, ctxtAddData)
 
 -- Convention: expected type, then actual type
 -- TODO: Enforce this convention
 data TypeError =
-    InfiniteType Var Type -- this type becomes infinite
+    InfiniteType TpVar Type -- this type becomes infinite
   | UnificationError Type Type -- couldn't unify two types
   | ConflictingTypes Type Type -- expected two types to be equal, but they aren't
-  | AffineError Var Term -- used more than affinely
-  | ScopeError Var -- var is out of scope
-  | CtorError Var -- not a constructor
+  | AffineError TmVar Term -- used more than affinely
+  | ScopeError String -- var is out of scope
+  | CtorError TmName -- not a constructor
   | RobustType Type -- expected type to be robust
   | NoCases -- case-of with no cases
-  | MissingCases [Var] -- missing cases for some constructors
+  | MissingCases [TmName] -- missing cases for some constructors
   | WrongNumCases Int Int -- wrong number of cases
   | WrongNumArgs Int Int -- wrong number of args, in a case (`... | Cons h t bad -> ...`)
-  | MultipleDefs Var -- variable is defined multiple times
+  | MultipleDefs String -- variable is defined multiple times
   | ExternRecData -- externs can't use recursive datatypes
 
 instance Show TypeError where
   show (InfiniteType x tp) = "Failed to construct infinite type: " ++ show x ++ " := " ++ show tp
   show (ConflictingTypes tp1 tp2) = "Conflicting types: " ++ show tp1 ++ " and " ++ show tp2
   show (AffineError x tm) = "'" ++ show x ++ "' is not affine in " ++ show tm
-  show (ScopeError x) = "'" ++ show x ++ "' is not in scope"
+  show (ScopeError x) = "'" ++ x ++ "' is not in scope"
   show (CtorError x) = "'" ++ show x ++ "' is not a constructor"
   show (UnificationError tp1 tp2) = "Failed to unify " ++ show tp1 ++ " and " ++ show tp2
   show (RobustType tp) = "Expected " ++ show tp ++ " to be a robust type (or if binding a var, it is used non-affinely)"
@@ -43,7 +44,7 @@ instance Show TypeError where
   show (MissingCases xs) = "Missing cases: " ++ intercalate ", " (show <$> xs)
   show (WrongNumCases exp act) = "Expected " ++ show exp ++ " cases, but got " ++ show act
   show (WrongNumArgs exp act) = "Expected " ++ show exp ++ " args, but got " ++ show act
-  show (MultipleDefs x) = "Multiple definitions of " ++ show x
+  show (MultipleDefs x) = "Multiple definitions of " ++ x
   show ExternRecData = "Extern cannot use recursive datatypes"
 
 
@@ -68,18 +69,18 @@ instance Substitutable Constraint where
   substM (Unify tp1 tp2) = pure Unify <*> substM tp1 <*> substM tp2
   substM (Robust tp) = pure Robust <*> substM tp
 
-  freeVars (Unify tp1 tp2) = Map.union (freeVars tp1) (freeVars tp2)
+  freeVars (Unify tp1 tp2) = freeVars tp1 <> freeVars tp2
   freeVars (Robust tp) = freeVars tp
 
 {- ===== CheckM Monad =====-}
 
-type SolveVars = Map Var IsTag
+type SolveVars = (Set Tag, Set TpVar)
 
 -- Proxy for location, storing the current definition we're inside and the current expression
-data Loc = Loc { curDef :: Maybe Var, curExpr :: String }
+data Loc = Loc { curDef :: Maybe String, curExpr :: String }
 
 instance Show Loc where
-  show l = intercalate ", " ((case curDef l of Nothing -> []; Just v -> ["in the definition " ++ show v]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
+  show l = intercalate ", " ((case curDef l of Nothing -> []; Just v -> ["in the definition " ++ v]) ++ (if null (curExpr l) then [] else ["in the expression " ++ curExpr l]))
 
 -- Reader part of the RWST monad for inference/checking
 data CheckR = CheckR { checkEnv :: Ctxt, checkLoc :: Loc }
@@ -106,8 +107,8 @@ guardM True e = okay
 guardM False e = err e
 
 -- Make sure x doesn't appear in t (guards against infinite type expansions)
-occursCheck :: Substitutable a => Var -> a -> Bool
-occursCheck x t = x `Map.member` (freeVars t)
+occursCheck :: Substitutable a => TpVar -> a -> Bool
+occursCheck x t = x `Map.member` freeTpVars (freeVars t)
 
 -- Return the env
 askEnv :: CheckM Ctxt
@@ -118,15 +119,15 @@ askLoc :: CheckM Loc
 askLoc = checkLoc <$> ask
 
 -- Modify the current location, storing a as the current def we are in
-localCurDef :: Var -> CheckM b -> CheckM b
-localCurDef a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curDef = Just a } })
+localCurDef :: Show a => a -> CheckM b -> CheckM b
+localCurDef a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curDef = Just (show a) } })
 
 -- Modify the current location, storing a as the current expr we are in
 localCurExpr :: Show a => a -> CheckM b -> CheckM b
 localCurExpr a = local (\ cr -> cr { checkLoc = (checkLoc cr) { curExpr = show a } })
 
 -- Add (x : tp) to env
-inEnv :: Var -> Type -> CheckM a -> CheckM a
+inEnv :: TmVar -> Type -> CheckM a -> CheckM a
 inEnv x tp = local $ modifyEnv (\ g -> ctxtAddLocal g x tp)
 
 -- Checks for any duplicate definitions
@@ -137,12 +138,12 @@ anyDupDefs (UsProgs ps etm) =
     (const okay)
     (foldlM h (return Set.empty) ps)
   where
-    addDef :: Var -> Set Var -> Either Var (Set Var)
+    addDef :: Show a => a -> Set String -> Either String (Set String)
     addDef x xs
-      | x `Set.member` xs = Left x
-      | otherwise = Right (Set.insert x xs)
+      | show x `Set.member` xs = Left (show x)
+      | otherwise = Right (Set.insert (show x) xs)
     
-    h :: Set Var -> UsProg -> Either Var (Set Var)
+    h :: Set String -> UsProg -> Either String (Set String)
     h xs (UsProgDefine x atp tm) = addDef x xs
     h xs (UsProgExtern x tp) = addDef x xs
     h xs (UsProgData y ps cs) =
@@ -155,44 +156,45 @@ guardExternRec tp =
   guardM (not (isInfiniteType env tp)) ExternRecData
 
 -- Defines a global function
-defGlobal :: Var -> [Var] -> [Var] -> Type -> CheckM a -> CheckM a
+defGlobal :: TmName -> [Tag] -> [TpVar] -> Type -> CheckM a -> CheckM a
 defGlobal x tgs ps tp = local $ modifyEnv ( \ g -> ctxtAddDefine g x tgs ps tp)
 
-defExtern :: Var -> Type -> CheckM a -> CheckM a
+defExtern :: TmName -> Type -> CheckM a -> CheckM a
 defExtern x tp = local $ modifyEnv ( \ g -> ctxtAddExtern g x tp)
 
 -- Defines a datatype and its constructors
-defData :: Var -> [Var] -> [Var] -> [Ctor] -> CheckM a -> CheckM a
+defData :: TpName -> [Tag] -> [TpVar] -> [Ctor] -> CheckM a -> CheckM a
 defData y tgs ps cs = local $ modifyEnv (\ g -> ctxtAddData g y tgs ps cs)
 
 -- Add (x1 : tp1), (x2 : tp2), ... to env
-inEnvs :: [(Var, Type)] -> CheckM a -> CheckM a
+inEnvs :: [(TmVar, Type)] -> CheckM a -> CheckM a
 inEnvs = flip $ foldr $ uncurry inEnv
 
 -- Lookup a datatype
-lookupDatatype :: Var -> CheckM ([Var], [Var], [Ctor])
+lookupDatatype :: TpName -> CheckM ([Tag], [TpVar], [Ctor])
 lookupDatatype x =
   askEnv >>= \ g ->
-  case Map.lookup x g of
-    Just (CtType (CtData tgs ps cs)) -> return (tgs, ps, cs)
-    _ -> err (ScopeError x)
+  case Map.lookup x (tpNames g) of
+    Just (CtData tgs ps cs) -> return (tgs, ps, cs)
+    _ -> err (ScopeError (show x))
 
--- Lookup a term variable
-lookupTermVar :: Var -> CheckM CtTerm
+-- Lookup a term variable (local or global)
+lookupTermVar :: TmVar -> CheckM (Either Type CtTerm)
 lookupTermVar x =
   askEnv >>= \ g ->
-  case Map.lookup x g of
-    Nothing -> err (ScopeError x)
-    Just (CtType _ ) -> err (ScopeError x)
-    Just (CtTerm d) -> return d
+  case Map.lookup x (tmVars g) of
+    Just tp -> return (Left tp)
+    Nothing -> case Map.lookup (fromString (show x)) (tmNames g) of
+      Just d -> return (Right d)
+      Nothing -> err (ScopeError (show x))
 
 -- Lookup the datatype that cases split on
-lookupCtorType :: [CaseUs] -> CheckM (Var, [Var], [Var], [Ctor])
+lookupCtorType :: [CaseUs] -> CheckM (TpName, [Tag], [TpVar], [Ctor])
 lookupCtorType [] = err NoCases
 lookupCtorType (CaseUs x _ _ : _) =
-  lookupTermVar x >>= \ d ->
+  fmap (Map.lookup x . tmNames) askEnv >>= \ d ->
   case d of
-    CtCtor _ _ ctp -> case splitArrows ctp of
+    Just (CtCtor _ _ ctp) -> case splitArrows ctp of
       (_, TpData y _ _) -> lookupDatatype y >>= \ (tgs, xs, cs) -> return (y, tgs, xs, cs)
       (_, etp) -> error "This shouldn't happen"
     _ -> err (CtorError x)
@@ -203,46 +205,30 @@ listenSolveVars m =
   get >>= \ vs ->
   m >>= \ a ->
   get >>= \ vs' ->
-  return (a, Map.difference vs' vs)
+  return (a, diffSolveVars vs' vs)
 
--- Returns all the vars currently in scope or being solved
-boundVars :: CheckM (Map Var ())
-boundVars =
-  ask >>= \ d ->
-  get >>= \ s ->
-  let env = checkEnv d in
-  return (Map.unions [const () <$> env, const () <$> s])
-
--- Returns if x is a tag variable
-isTag :: Var -> CheckM Bool
-isTag x =
-  get >>= \ s ->
-  return (s Map.! x)
+diffSolveVars :: SolveVars -> SolveVars -> SolveVars
+diffSolveVars (tags', tpVars') (tags, tpVars) =
+  (Set.difference tags' tags, Set.difference tpVars' tpVars)
 
 -- Adds a type variable to set of type variables to solve
-addSolveTpVar :: Var -> CheckM ()
-addSolveTpVar x = modify (Map.insert x False)
+addSolveTpVar :: TpVar -> CheckM ()
+addSolveTpVar x = modify (\(tags, tpVars) -> (tags, Set.insert x tpVars))
 
--- Returns a fresh var that doesn't collide with any in scope or being solved
-fresh :: Var -> CheckM Var
-fresh x = newVar x <$> boundVars
+-- Returns a fresh var (to solve) that doesn't collide with any being solved
+freshTpVar :: CheckM TpVar
+freshTpVar = state (\(tags, tpVars) -> let x = newVar (TpV "?0") (`Set.member` tpVars)
+                                       in (x, (tags, Set.insert x tpVars)))
 
--- Returns a new var (to solve) that doesn't collide with any in scope or being solved
-freshVar :: IsTag -> CheckM Var
-freshVar tg =
-  fresh (if tg then Var "#0" else Var "?0") >>= \ x ->
-  modify (Map.insert x tg) >>
-  return x
-
-freshTpVar, freshTagVar :: CheckM Var
-freshTpVar = freshVar False
-freshTagVar = freshVar True
+freshTagVar :: CheckM Tag
+freshTagVar = state (\(tags, tpVars) -> let x = newVar (Tag "#0") (`Set.member` tags)
+                                        in (x, (Set.insert x tags, tpVars)))
 
 freshTp :: CheckM Type
 freshTp = pure TpVar <*> freshTpVar
 
 freshTag :: CheckM Tag
-freshTag = pure TgVar <*> freshTagVar
+freshTag = freshTagVar
 
 -- If NoTp, return a fresh type to solve; otherwise, check the type
 annTp :: Type -> CheckM Type
@@ -280,10 +266,10 @@ infer' (UsVar x) =
   -- Lookup the type of x
   lookupTermVar x >>= \ etp ->
   case etp of
-    CtLocal tp -> return (TmVarL x tp)
-    CtDefine tgs tis tp -> h GlDefine tgs tis tp
-    CtExtern tp -> h GlExtern [] [] tp
-    CtCtor tgs tis tp -> h GlCtor tgs tis tp
+    Left tp -> return (TmVarL x tp)
+    Right (CtDefine tgs tis tp) -> h GlDefine tgs tis tp
+    Right (CtExtern tp) -> h GlExtern [] [] tp
+    Right (CtCtor tgs tis tp) -> h GlCtor tgs tis tp
   where
     h gv tgs tis tp =
       -- pick new tags
@@ -291,9 +277,9 @@ infer' (UsVar x) =
       -- pick new type vars
       mapM (const freshTp) tis >>= \ tis' ->
       -- substitute old tags/type vars for new ones
-      let tp' = subst (Map.fromList (pickyZip tgs (SubTg <$> tgs') ++
-                                     pickyZip tis (SubTp <$> tis'))) tp in
-        return (TmVarG gv x tgs' tis' [] tp')
+      let tp' = subst mempty{tags   = Map.fromList (pickyZip tgs tgs'),
+                             tpVars = Map.fromList (pickyZip tis tis')} tp in
+        return (TmVarG gv (fromString (show x)) tgs' tis' [] tp')
 
 infer' (UsLam x xtp tm) =
   -- Check the annotation xtp
@@ -319,8 +305,8 @@ infer' (UsCase tm cs) =
   mapM (const freshTag) tgs >>= \ itgs ->
   mapM (const freshTp) ps >>= \ ips ->
   let -- substitute old tags/type vars for new
-      psub = Map.fromList (pickyZip tgs (SubTg <$> itgs) ++
-                           pickyZip ps (SubTp <$> ips))
+      psub = mempty{tags   = Map.fromList (pickyZip tgs itgs),
+                    tpVars = Map.fromList (pickyZip ps  ips)}
       -- Sort cases
       cs' = sortCases ctors (subst psub cs)
       -- Substitute old tags/type vars for new in constructors

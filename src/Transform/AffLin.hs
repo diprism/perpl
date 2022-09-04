@@ -2,11 +2,11 @@ module Transform.AffLin where
 import qualified Data.Map as Map
 import Control.Monad.RWS
 import Struct.Lib
-import Scope.Ctxt (Ctxt, ctxtAddLocal, ctxtAddArgs, ctxtAddProgs, emptyCtxt)
+import Scope.Ctxt (Ctxt(tmVars), ctxtAddLocal, ctxtAddArgs, ctxtAddProgs, emptyCtxt)
 import Scope.Name (localName, discardName)
 import Scope.Free (robust)
 import Scope.Fresh (newVar, newVars)
-import Scope.Subst (FreeVars)
+import Scope.Subst (FreeTmVars)
 
 {- ====== Affine to Linear Functions ====== -}
 -- These functions convert affine terms to
@@ -30,7 +30,7 @@ import Scope.Subst (FreeVars)
 
 
 -- Reader, Writer, State monad
-type AffLinM a = RWS Ctxt FreeVars () a
+type AffLinM a = RWS Ctxt FreeTmVars () a
 -- RWS monad functions, where
 --   m = RWS monad
 --   r = reader type
@@ -55,7 +55,7 @@ type AffLinM a = RWS Ctxt FreeVars () a
 
 
 -- Bind x : tp inside an AffLinM, discarding it if unused
-alBind :: Var -> Type -> AffLinM Term -> AffLinM Term
+alBind :: TmVar -> Type -> AffLinM Term -> AffLinM Term
 alBind x tp m =
   censor (Map.delete x) -- Delete x from FVs
          (local (\ g -> ctxtAddLocal g x tp) (listen m >>= \ (tm, fvs) ->
@@ -77,13 +77,13 @@ alBinds ps m =
    Generates a term that discards x : tp and evaluates rtm (which does
    not contain x free). -}
                
-discard' :: Var -> Type -> Term -> AffLinM Term
+discard' :: TmVar -> Type -> Term -> AffLinM Term
 -- discard x : <tp1, ..., ()> in rtm
 --  becomes
 -- let <_, ..., localName> = x in rtm
 discard' x xtp@(TpProd Additive tps) rtm =
   ask >>= \ g ->
-  let y = newVar localName g
+  let y = newVar localName (`Map.member` tmVars g)
       ytp@(TpProd Multiplicative []) = last tps in
     alBind y ytp (return rtm) >>= \ rtm' ->
     return (TmElimAdditive (TmVarL x xtp) (length tps) (length tps - 1) (y, ytp)
@@ -93,7 +93,7 @@ discard' x xtp@(TpProd Additive tps) rtm =
 -- let (localName0, ...) = x in discard localName0 in discard ... in rtm
 discard' x xtp@(TpProd Multiplicative tps) rtm =
   ask >>= \ g ->
-  let ps = zip (newVars (replicate (length tps) localName) g) tps in
+  let ps = zip (newVars (replicate (length tps) localName) (`Map.member` tmVars g)) tps in
   alBinds ps (return rtm) >>= \ rtm' ->
     return (TmElimMultiplicative (TmVarL x xtp) ps rtm' (typeof rtm'))
 -- discard x : datatype in rtm
@@ -110,7 +110,7 @@ discard' x tp _ = error ("Can't discard " ++ show x ++ " : " ++ show tp)
 -- of some term. This maps x to Unit, then case-splits on it.
 -- So to discard x : (A -> B) & Unit in tm, this returns
 -- case x.2 of unit -> tm
-discard :: Var -> Type -> Term -> AffLinM Term
+discard :: TmVar -> Type -> Term -> AffLinM Term
 discard x tp tm =
   ask >>= \ g ->
   if robust g tp
@@ -118,7 +118,7 @@ discard x tp tm =
     else (discard' x tp tm)
 
 -- Discard a set of variables
-discards :: FreeVars -> Term -> AffLinM Term
+discards :: FreeTmVars -> Term -> AffLinM Term
 discards fvs tm = Map.foldlWithKey (\ tm x tp -> tm >>= discard x tp) (return tm) fvs
 
 -- See definition of L(tp) above
@@ -144,7 +144,7 @@ affLinParams ps body =
     return (lps, body')
 
 -- Generic helper for applying L to a list of something, where alf=L and dscrd=discard
-affLinBranches :: (a -> AffLinM b) -> (FreeVars -> b -> AffLinM b) -> [a] -> AffLinM [b]
+affLinBranches :: (a -> AffLinM b) -> (FreeTmVars -> b -> AffLinM b) -> [a] -> AffLinM [b]
 affLinBranches alf dscrd als =
   listen (mapM (listen . alf) als) >>= \ (alxs, xsAny) ->
   mapM (\ (b, xs) -> dscrd (Map.difference xsAny xs) b) alxs
@@ -246,7 +246,7 @@ affLinDiscards (p@(ProgData y cs) : ps) =
       -- Linearizing this will generate recursive calls to discard as needed
       defDiscard = ProgDefine (discardName y) [(localName, ytp)] body tpUnit
       body = TmCase (TmVarL localName ytp) (y, [], []) cases tpUnit
-      cases = [let atps' = zip (newVars (replicate (length atps) localName) g) atps in Case c atps' tmUnit | Ctor c atps <- cs]
+      cases = [let atps' = zip (newVars (replicate (length atps) localName) (`Map.member` tmVars g)) atps in Case c atps' tmUnit | Ctor c atps <- cs]
     in
       affLinDiscards ps >>= \ ps' ->
       return (defDiscard : p : ps')
