@@ -305,13 +305,10 @@ instance Substitutable CaseUs where
 
 instance Substitutable UsProg where
   substM (UsProgDefine x tp tm) =
-    bind x x okay >>
     pure (UsProgDefine x) <*> substM tp <*> substM tm
   substM (UsProgExtern x tp) =
-    bind x x okay >>
     pure (UsProgExtern x) <*> substM tp
   substM (UsProgData y ps cs) =
-    bind y y okay >>
     freshens ps >>= \ ps' ->
     pure (UsProgData y ps') <*> binds ps ps' (substM cs)
 
@@ -327,30 +324,24 @@ instance Substitutable Ctor where
 
 instance Substitutable Prog where
   substM (ProgDefine x ps tm tp) =
-    bind x x okay >>
     pure (ProgDefine x) <**> substParams ps (substM tm) <*> substM tp
   substM (ProgExtern x ps tp) =
-    bind x x okay >>
     pure (ProgExtern x) <*> substM ps <*> substM tp
   substM (ProgData y cs) =
-    bind y y okay >>
     pure (ProgData y) <*> substM cs
 
   freeVars p = error "freeVars on a Prog"
 
 instance Substitutable SProg where
   substM (SProgDefine x tgs tpms tp tm) =
-    bind x x okay >>
     freshens tgs >>= \ tgs' ->
     binds tgs tgs'
       (freshens tpms >>= \ tpms' ->
        binds tpms tpms'
          (pure (SProgDefine x tgs' tpms') <*> substM tp <*> substM tm))
   substM (SProgExtern x tp) =
-    bind x x okay >>
     pure (SProgExtern x) <*> substM tp
   substM (SProgData y tgs ps cs) =
-    bind y y okay >>
     freshens tgs >>= \ tgs' ->
     binds tgs tgs'
       (freshens ps >>= \ ps' ->
