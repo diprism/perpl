@@ -2,7 +2,7 @@ module Transform.AffLin where
 import qualified Data.Map as Map
 import Control.Monad.RWS
 import Struct.Lib
-import Scope.Ctxt (Ctxt, ctxtAddLocal, ctxtAddProgs, emptyCtxt)
+import Scope.Ctxt (Ctxt, ctxtAddLocal, ctxtAddArgs, ctxtAddProgs, emptyCtxt)
 import Scope.Name (localName, discardName)
 import Scope.Free (robust)
 import Scope.Fresh (newVar, newVars)
@@ -58,14 +58,19 @@ type AffLinM a = RWS Ctxt FreeVars () a
 alBind :: Var -> Type -> AffLinM Term -> AffLinM Term
 alBind x tp m =
   censor (Map.delete x) -- Delete x from FVs
-         (listen (local (\ g -> ctxtAddLocal g x tp) m) >>= \ (tm, fvs) ->
+         (local (\ g -> ctxtAddLocal g x tp) (listen m >>= \ (tm, fvs) ->
             -- Discard if necessary
-            if Map.member x fvs then return tm else discard x tp tm)
+            if Map.member x fvs then return tm else discard x tp tm))
 
 -- Bind a list of params inside an AffLinM
 -- Like alBind, but for multiple params
 alBinds :: [Param] -> AffLinM Term -> AffLinM Term
-alBinds ps m = foldl (\ m (x, tp) -> alBind x tp m) m ps
+alBinds ps m =
+  censor (Map.\\ bound)
+         (local (\ g -> ctxtAddArgs g ps) (listen m >>= \ (tm, fvs) ->
+            -- Discard if necessary
+            discards (bound Map.\\ fvs) tm))
+  where bound = Map.fromList ps
 
 {- discard' x tp rtm
 
