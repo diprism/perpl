@@ -9,7 +9,7 @@ import Util.Graph (scc, SCC(..))
 import Struct.Lib
 import Scope.Subst (SubT(SubTm,SubTp,SubTg), Subst, compose, subst, freeVars, freeDatatypes, substTags)
 import Scope.Free (robust)
-import Scope.Ctxt (Ctxt, emptyCtxt)
+import Scope.Ctxt (Ctxt, emptyCtxt, ctxtLookupType2)
 
 bindTp :: Var -> Type -> Either TypeError Subst
 bindTp x tp
@@ -85,18 +85,29 @@ unifyTags = foldr
 
 solvedWell :: Ctxt -> Subst -> [(Constraint, Loc)] -> [Var] -> Either (TypeError, Loc) [Forall]
 solvedWell e s cs xs =
-  Map.unions <$> sequence [ h (subst s c) l | (c, l) <- cs ] >>= \ rfvs ->
-  -- Mark each x as robust if it appears in rfvs (free vars in robust types)
-  Right [Forall x (if x `Map.member` rfvs then BoundRobust else BoundNone) | x <- xs]
+  Set.unions <$> sequence [ h (subst s c) l | (c, l) <- cs ] >>= \ rfvs ->
+  -- Mark each x as robust if it appears in rfvs (used vars in robust types)
+  Right [Forall x (if x `Set.member` rfvs then BoundRobust else BoundNone) | x <- xs]
   where
-    -- Returns map of free variables in robust-constrained types
-    h :: Constraint -> Loc -> Either (TypeError, Loc) (Map Var Type)
+    -- Returns set of used variables in robust-constrained types
+    h :: Constraint -> Loc -> Either (TypeError, Loc) (Set Var)
     h (Unify tp1 tp2) l -- Not sure if checking tp1 == tp2 is necessary, but better be safe?
       | tp1 /= tp2 = Left (ConflictingTypes tp1 tp2, l)
       | otherwise = Right mempty
     h (Robust tp) l -- Make sure that tp was solved to a robust type
       | not (robust e tp) = Left (RobustType tp, l)
-      | otherwise = Right (freeVars tp) -- all free vars in tp must end up robust too
+      | otherwise = Right (usedVars tp) -- all used vars in tp must end up robust too
+
+    -- Can assume tp is robust
+    usedVars :: Type -> Set Var
+    usedVars (TpData y [] as) = case ctxtLookupType2 e y of
+      Just ([], ps, cs) ->
+        let s = Map.fromList (pickyZipWith (\ p a -> (p, SubTp a)) ps as) in
+        Set.unions [usedVars (subst s ca) | Ctor _ cas <- cs, ca <- cas]
+      _ -> error "this shouldn't happen"
+    usedVars (TpVar x) = Set.singleton x
+    usedVars (TpProd Multiplicative tps) = Set.unions (usedVars <$> tps)
+    usedVars _ = error "this shouldn't happen either"
 
 -- If in the process of doing type inference on a term,
 -- it introduced some type vars that don't appear in the
