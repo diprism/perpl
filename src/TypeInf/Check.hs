@@ -155,7 +155,7 @@ guardExternRec tp =
   guardM (not (isInfiniteType env tp)) ExternRecData
 
 -- Defines a global function
-defGlobal :: Var -> [Var] -> [Var] -> Type -> CheckM a -> CheckM a
+defGlobal :: Var -> [Var] -> [Forall] -> Type -> CheckM a -> CheckM a
 defGlobal x tgs ps tp = local $ modifyEnv ( \ g -> ctxtAddDefine g x tgs ps tp)
 
 defExtern :: Var -> Type -> CheckM a -> CheckM a
@@ -283,16 +283,20 @@ infer' (UsVar x) =
     CtLocal tp -> return (TmVarL x tp)
     CtDefine tgs tis tp -> h GlDefine tgs tis tp
     CtExtern tp -> h GlExtern [] [] tp
-    CtCtor tgs tis tp -> h GlCtor tgs tis tp
+    CtCtor tgs tis tp -> h GlCtor tgs [Forall y BoundNone | y <- tis] tp
   where
+    -- Any ∀-quantified type variables should be instantiated to fresh type variables
     h gv tgs tis tp =
+     let ytis = [y | Forall y r <- tis] in
       -- pick new tags
       mapM (const freshTag) tgs >>= \ tgs' ->
       -- pick new type vars
-      mapM (const freshTp) tis >>= \ tis' ->
+      mapM (const freshTp) ytis >>= \ tis' ->
+      -- ...that inherit any robustness constraints
+      mapM (\ (Forall y bd, ytp) -> constrainIf (bd == BoundRobust) (Robust ytp)) (zip tis tis') >>
       -- substitute old tags/type vars for new ones
-      let tp' = subst (Map.fromList (pickyZip tgs (SubTg <$> tgs') ++
-                                     pickyZip tis (SubTp <$> tis'))) tp in
+       let tp' = subst (Map.fromList (pickyZip tgs (SubTg <$> tgs') ++
+                                      pickyZip ytis (SubTp <$> tis'))) tp in
         return (TmVarG gv x tgs' tis' [] tp')
 
 infer' (UsLam x xtp tm) =

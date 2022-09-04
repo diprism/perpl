@@ -102,8 +102,12 @@ instance Show UsProg where
 instance Show UsProgs where
   show (UsProgs ps end) = intercalate "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
 
+instance Show Forall where
+  show (Forall x bd) =
+    "∀" ++ (case bd of {BoundRobust -> "+"; BoundNone -> ""}) ++ " " ++ show x ++ "."
+
 instance Show SProg where
-  show (SProgDefine x tgs ps tm tp) = "define " ++ show x ++ " : " ++ intercalate " " (["∀ " ++ show a ++ "." | a <- tgs ++ ps] ++ [show tp]) ++ " = " ++ show tm ++ ";"
+  show (SProgDefine x tgs ps tm tp) = "define " ++ show x ++ " : " ++ intercalate " " (["∀ " ++ show a ++ "." | a <- tgs] ++ map show ps ++ [show tp]) ++ " = " ++ show tm ++ ";"
   show (SProgExtern x tp) = "extern " ++ show x ++ " : " ++ show tp ++ ";"
   show (SProgData y tgs ps cs) = "data " ++ intercalate " " (show <$> y : tgs ++ ps) ++ " = " ++ intercalate " | " [show c | c <- cs] ++ ";"
 

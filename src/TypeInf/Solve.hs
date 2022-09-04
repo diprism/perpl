@@ -9,7 +9,7 @@ import Util.Graph (scc, SCC(..))
 import Struct.Lib
 import Scope.Subst (SubT(SubTm,SubTp,SubTg), Subst, compose, subst, freeVars, freeDatatypes, substTags)
 import Scope.Free (robust)
-import Scope.Ctxt (Ctxt, emptyCtxt)
+import Scope.Ctxt (Ctxt, emptyCtxt, ctxtLookupType2)
 
 bindTp :: Var -> Type -> Either TypeError Subst
 bindTp x tp
@@ -71,15 +71,43 @@ unifyTags = foldr
                       return (s' `compose` s))
   (Right Map.empty)
 
--- Makes sure that robust-constrained solved type vars have robust solutions
-solvedWell :: Ctxt -> Subst -> [(Constraint, Loc)] -> Either (TypeError, Loc) ()
-solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
-  h (Unify tp1 tp2) l -- Not sure if checking tp1 == tp2 is necessary, but better be safe?
-    | tp1 /= tp2 = Left (ConflictingTypes tp1 tp2, l)
-    | otherwise = okay
-  h (Robust tp) l -- Make sure that tp was solved to a robust type
-    | not (robust e tp) = Left (RobustType tp, l)
-    | otherwise = okay
+{- solvedWell e s cs xs
+
+   Makes sure that robust-constrained solved type vars have robust solutions.
+   ∀-quantifies all free type variables.
+
+   - e: environment
+   - s: the substitution found by solving the constraints
+   - cs: the constraints
+   - xs: free type variables
+
+   Returns: list of ∀-quantified type variables -}
+
+solvedWell :: Ctxt -> Subst -> [(Constraint, Loc)] -> [Var] -> Either (TypeError, Loc) [Forall]
+solvedWell e s cs xs =
+  Set.unions <$> sequence [ h (subst s c) l | (c, l) <- cs ] >>= \ rfvs ->
+  -- Mark each x as robust if it appears in rfvs (used vars in robust types)
+  Right [Forall x (if x `Set.member` rfvs then BoundRobust else BoundNone) | x <- xs]
+  where
+    -- Returns set of used variables in robust-constrained types
+    h :: Constraint -> Loc -> Either (TypeError, Loc) (Set Var)
+    h (Unify tp1 tp2) l -- Not sure if checking tp1 == tp2 is necessary, but better be safe?
+      | tp1 /= tp2 = Left (ConflictingTypes tp1 tp2, l)
+      | otherwise = Right mempty
+    h (Robust tp) l -- Make sure that tp was solved to a robust type
+      | not (robust e tp) = Left (RobustType tp, l)
+      | otherwise = Right (usedVars tp) -- all used vars in tp must end up robust too
+
+    -- Can assume tp is robust
+    usedVars :: Type -> Set Var
+    usedVars (TpData y [] as) = case ctxtLookupType2 e y of
+      Just ([], ps, cs) ->
+        let s = Map.fromList (pickyZipWith (\ p a -> (p, SubTp a)) ps as) in
+        Set.unions [usedVars (subst s ca) | Ctor _ cas <- cs, ca <- cas]
+      _ -> error "this shouldn't happen"
+    usedVars (TpVar x) = Set.singleton x
+    usedVars (TpProd Multiplicative tps) = Set.unions (usedVars <$> tps)
+    usedVars _ = error "this shouldn't happen either"
 
 -- If in the process of doing type inference on a term,
 -- it introduced some type vars that don't appear in the
@@ -95,7 +123,7 @@ solveInternal vs s rtp =
       s' = fmap (\ False -> SubTp tpZero) internalUnsolved -- substitute for Zero
       s'' = s' `compose` s
   in
-    (s'', Map.keys (Map.intersection utpvs fvs), Map.keys utgs)
+    (s'', Map.keys utgs, Map.keys (Map.intersection utpvs fvs))
 
 {- solve g vs rtp cs
 
@@ -105,15 +133,15 @@ Tries to solve a set of constraints
   - rtp: type whose free vars are allowed to remain unsolved
   - cs:  List of constraints
 
-If no error, returns (solution subst, remaining type vars, remaining tag vars)
+If no error, returns (solution subst, remaining tag vars, remaining type vars)
 -}
 
-solve :: Ctxt -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var], [Var])
+solve :: Ctxt -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Var], [Forall])
 solve g vs rtp cs =
   unifyTypes (getUnifications cs) >>= \ s ->
-  let (s', xs, tgs) = solveInternal vs s rtp in
-  solvedWell g s' cs >>
-  return (s', xs, tgs)
+  let (s', tgs, xs) = solveInternal vs s rtp in
+  solvedWell g s' cs xs >>= \ xs' ->
+  return (s', tgs, xs')
 
 {- solveM m
 
@@ -134,7 +162,7 @@ solveM m =
   askEnv >>= \ g ->
   case solve g vs NoTp cs of
     Left e -> throwError e
-    Right (s, [], tgs) -> return (subst s a, subst s (typeof a), tgs)
+    Right (s, tgs, []) -> return (subst s a, subst s (typeof a), tgs)
     Right _ -> error "type variables remaining after solving (this shouldn't happen)"
 
 {- solvesM ms
@@ -149,26 +177,26 @@ Returns: [(x1, tm1, tgs1, ps1, tp1)], where
 - ps: type variables
 - tp: the type of tm -}
 
-solvesM :: CheckM [(Var, Term, Type)] -> CheckM [(Var, Term, [Var], [Var], Type)]
+solvesM :: CheckM [(Var, Term, Type)] -> CheckM [(Var, Term, [Var], [Forall], Type)]
 solvesM ms =
   listenSolveVars (listen ms) >>= \ ((defs, cs), vs) ->
   askEnv >>= \ g ->
   case solve g vs (TpProd Multiplicative [tp | (_, _, tp) <- defs]) cs of
     Left e -> throwError e
-    Right (s, xs, tgs) ->
+    Right (s, tgs, xs) ->
       let
         -- Perform type substitutions (s) and add type/tag parameters.
         defs' = map (\ (f, tm, tp) ->
                         let tm' = subst s tm
                             tp' = subst s tp
-                            xs' = [x | x <- xs, x `Map.member` freeVars tp']
+                            xs' = [Forall x r | Forall x r <- xs, x `Map.member` freeVars tp']
                         in
                           (f, tm', tgs, xs', tp')) defs
         -- Add tag/type parameters to right-hand side terms. This has
         -- to be done in a second pass because of mutual recursion.
         -- This substitution is possible because occurrences of f are actually
         -- local variables (TmVarL); they change into global variables (TmVarG) now.
-        s' = Map.fromList [(f, SubTm (TmVarG GlDefine f (TgVar <$> tgs) (TpVar <$> xs') [] tp')) | (f, _, tgs, xs', tp') <- defs']
+        s' = Map.fromList [(f, SubTm (TmVarG GlDefine f (TgVar <$> tgs) [TpVar x | Forall x r <- xs'] [] tp')) | (f, _, tgs, xs', tp') <- defs']
         defs'' = [(f, subst s' tm', tgs, xs', tp') | (f, tm', tgs, xs', tp') <- defs']
       in
         return defs''
@@ -334,7 +362,7 @@ inferData dsccs cont = foldr h cont dsccs
       askEnv >>= \ g ->
       either
         throwError
-        (\ (s, xs, tgs) -> return ())
+        (\ (s, tgs, xs) -> return ())
         (solve g vs (TpProd Multiplicative [TpVar v | v <- Map.keys vs]) cs)
 
     -- Like defType, but for a list of datatypes. This lets all the
