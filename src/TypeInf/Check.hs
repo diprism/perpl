@@ -283,7 +283,7 @@ infer' (UsVar x) =
     CtLocal tp -> return (TmVarL x tp)
     CtDefine tgs tis tp -> h GlDefine tgs tis tp
     CtExtern tp -> h GlExtern [] [] tp
-    CtCtor tgs tis tp -> h GlCtor tgs [Forall y False | y <- tis] tp
+    CtCtor tgs tis tp -> h GlCtor tgs [Forall y BoundNone | y <- tis] tp
   where
     -- Any ∀-quantified type variables should be instantiated to fresh type variables
     h gv tgs tis tp =
@@ -293,7 +293,7 @@ infer' (UsVar x) =
       -- pick new type vars
       mapM (const freshTp) ytis >>= \ tis' ->
       -- ...that inherit any robustness constraints
-      mapM (\ (Forall y r, ytp) -> constrainIf r (Robust ytp)) (zip tis tis') >>
+      mapM (\ (Forall y bd, ytp) -> constrainIf (bd == BoundRobust) (Robust ytp)) (zip tis tis') >>
       -- substitute old tags/type vars for new ones
        let tp' = subst (Map.fromList (pickyZip tgs (SubTg <$> tgs') ++
                                       pickyZip ytis (SubTp <$> tis'))) tp in

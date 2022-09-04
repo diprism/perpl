@@ -103,8 +103,8 @@ instance Show UsProgs where
   show (UsProgs ps end) = intercalate "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
 
 instance Show Forall where
-  show (Forall x r) =
-    "∀" ++ (if r then "1" else "") ++ " " ++ show x ++ "."
+  show (Forall x bd) =
+    "∀" ++ (case bd of {BoundRobust -> "+"; BoundNone -> ""}) ++ " " ++ show x ++ "."
 
 instance Show SProg where
   show (SProgDefine x tgs ps tm tp) = "define " ++ show x ++ " : " ++ intercalate " " (["∀ " ++ show a ++ "." | a <- tgs] ++ map show ps ++ [show tp]) ++ " = " ++ show tm ++ ";"

@@ -87,7 +87,7 @@ solvedWell :: Ctxt -> Subst -> [(Constraint, Loc)] -> [Var] -> Either (TypeError
 solvedWell e s cs xs =
   Map.unions <$> sequence [ h (subst s c) l | (c, l) <- cs ] >>= \ rfvs ->
   -- Mark each x as robust if it appears in rfvs (free vars in robust types)
-  Right [Forall x (x `Map.member` rfvs) | x <- xs]
+  Right [Forall x (if x `Map.member` rfvs then BoundRobust else BoundNone) | x <- xs]
   where
     -- Returns map of free variables in robust-constrained types
     h :: Constraint -> Loc -> Either (TypeError, Loc) (Map Var Type)

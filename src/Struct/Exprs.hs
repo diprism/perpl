@@ -19,7 +19,9 @@ data UsProg =
   | UsProgData Var [Var] [Ctor]         -- lhs, type params, constructors
   deriving (Eq, Ord)
 
-data Forall = Forall Var Bool -- name, is robust
+data Forall = Forall Var Bound
+  deriving (Eq, Ord)
+data Bound = BoundRobust | BoundNone
   deriving (Eq, Ord)
 
 -- Scheme-ified definition
