@@ -83,7 +83,7 @@ solvedWell e s cs = sequence [ h (subst s c) l | (c, l) <- cs ] >> okay where
 
 -- If in the process of doing type inference on a term,
 -- it introduced some type vars that don't appear in the
--- return type, simply solve those internal vars to Unit
+-- return type, simply solve those internal vars to Zero type
 -- Example: `let f = \ x. x in True`
 -- Returns (new subst, remaining type vars, remaining tag vars)
 solveInternal :: SolveVars -> Subst -> Type -> (Subst, [Var], [Var])
@@ -92,8 +92,8 @@ solveInternal vs s rtp =
       (utgs, utpvs) = Map.partition id unsolved -- split into tag and type vars
       fvs = freeVars (subst s rtp) -- get vars that occur in the return type
       internalUnsolved = Map.difference utpvs fvs
-      s' = fmap (\ False -> SubTp tpUnit) internalUnsolved -- substitute for Unit
-      s'' = s' `compose` s -- Add to Unit substitutions to s
+      s' = fmap (\ False -> SubTp tpZero) internalUnsolved -- substitute for Zero
+      s'' = s' `compose` s
   in
     (s'', Map.keys (Map.intersection utpvs fvs), Map.keys utgs)
 
@@ -117,7 +117,7 @@ solve g vs rtp cs =
 
 {- solveM m
 
-Solves the constraints generated in m, and arbitrarily solves all remaining type vars as Unit. (Tags may remain, though.)
+Solves the constraints generated in m, and arbitrarily solves all remaining type vars as Zero. (Tags may remain, though.)
 
 m is a CheckM returning the term to be solved
 
@@ -130,7 +130,7 @@ solveM :: CheckM Term -> CheckM (Term, Type, [Var])
 solveM m =
   listenSolveVars (listen m) >>= \ ((a, cs), vs) ->
   -- Because we use NoTp below, there are no FVs in the type, so all
-  -- remaining type vars are seen as internal unsolved and become Unit
+  -- remaining type vars are seen as internal unsolved and become Zero
   askEnv >>= \ g ->
   case solve g vs NoTp cs of
     Left e -> throwError e
