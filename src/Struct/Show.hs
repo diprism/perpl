@@ -107,7 +107,7 @@ instance Show Forall where
     "∀" ++ (case bd of {BoundRobust -> "+"; BoundNone -> ""}) ++ " " ++ show x ++ "."
 
 instance Show SProg where
-  show (SProgDefine x tgs ps tm tp) = "define " ++ show x ++ " : " ++ intercalate " " (["∀ " ++ a ++ "." | a <- map show tgs ++ map show ps] ++ [show tp]) ++ " = " ++ show tm ++ ";"
+  show (SProgDefine x tgs ps tm tp) = "define " ++ show x ++ " : " ++ intercalate " " (["∀ " ++ a ++ "." | a <- map show tgs] ++ map show ps ++ [show tp]) ++ " = " ++ show tm ++ ";"
   show (SProgExtern x tp) = "extern " ++ show x ++ " : " ++ show tp ++ ";"
   show (SProgData y tgs ps cs) = "data " ++ intercalate " " (show y : map show tgs ++ map show ps) ++ " = " ++ intercalate " | " [show c | c <- cs] ++ ";"
 
