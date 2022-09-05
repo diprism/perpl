@@ -108,7 +108,7 @@ processContents (CmdArgs ifn ofn c m e dr l o z) s =
   return s
   -- String to UsProgs
   >>= parse
-  -- Pick a unique name for each bound var, needed by infer (and anything else?)
+  -- Pick a unique name for each bound var (TODO: is this really needed?)
   >>= alphaRenameProgs ctxtAddUsProgs
   -- Add Bool, True, False
   >>= Right . progBuiltins
