@@ -1,0 +1,8 @@
+data MyBool a = MyFalse | MyTrue;
+data Maybe a = Nothing | Just a;
+-- Test that the robust constraint on double1 and double2 does not propagate to the parameter of MyBool
+define double1 = \x. (x, case x of MyFalse -> False | MyTrue -> True);
+define double2 = \x. (x, case x of Nothing -> False | Just y -> (case y of MyFalse -> False | MyTrue -> True));
+define b1 : MyBool (() -> ()) = MyTrue;
+define b2 : Maybe (MyBool (() -> ())) = Just MyTrue;
+(double1 b1, double2 b2)

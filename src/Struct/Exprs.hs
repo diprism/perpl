@@ -21,9 +21,14 @@ data UsProg =
   | UsProgData TpName [TpVar] [Ctor]    -- lhs, type params, constructors
   deriving (Eq, Ord)
 
+data Forall = Forall TpVar Bound
+  deriving (Eq, Ord)
+data Bound = BoundRobust | BoundNone
+  deriving (Eq, Ord)
+
 -- Scheme-ified definition
 data SProg =
-    SProgDefine TmName [Tag] [TpVar] Term Type  -- lhs, tags, type params, rhs, type
+    SProgDefine TmName [Tag] [Forall] Term Type  -- lhs, tags, type params, rhs, type
   | SProgExtern TmName Type                     -- lhs, type
   | SProgData TpName [Tag] [TpVar] [Ctor]       -- lhs, tags, type params, constructors
   deriving (Eq, Ord)

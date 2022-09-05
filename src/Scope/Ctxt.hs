@@ -6,7 +6,7 @@ import Struct.Lib
 import Util.Helpers
 
 data CtTerm =
-    CtDefine [Tag] [TpVar] Type -- tag params, type params, type
+    CtDefine [Tag] [Forall] Type -- tag params, type params, type
   | CtExtern Type
   | CtCtor [Tag] [TpVar] Type   -- tag params, type params, type
   deriving Show
@@ -34,7 +34,7 @@ ctxtAddArgs :: Ctxt -> [Param] -> Ctxt
 ctxtAddArgs = foldl $ uncurry . ctxtAddLocal
 
 -- Add a global term to the context
-ctxtAddDefine :: Ctxt -> TmName -> [Tag] -> [TpVar] -> Type -> Ctxt
+ctxtAddDefine :: Ctxt -> TmName -> [Tag] -> [Forall] -> Type -> Ctxt
 ctxtAddDefine g x tgs ps tp = g{tmNames = Map.insert x (CtDefine tgs ps tp) (tmNames g)}
 
 ctxtAddExtern :: Ctxt -> TmName -> Type -> Ctxt
