@@ -109,6 +109,7 @@ instance Show Forall where
 instance Show SProg where
   show (SProgDefine x tgs ps tm tp) = "define " ++ show x ++ " : " ++ intercalate " " (["∀ " ++ show a ++ "." | a <- tgs] ++ map show ps ++ [show tp]) ++ " = " ++ show tm ++ ";"
   show (SProgExtern x tp) = "extern " ++ show x ++ " : " ++ show tp ++ ";"
+  show (SProgData y tgs ps []) = "data " ++ intercalate " " (show <$> y : tgs ++ ps) ++ ";"
   show (SProgData y tgs ps cs) = "data " ++ intercalate " " (show <$> y : tgs ++ ps) ++ " = " ++ intercalate " | " [show c | c <- cs] ++ ";"
 
 instance Show SProgs where
