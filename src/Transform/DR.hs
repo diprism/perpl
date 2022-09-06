@@ -69,17 +69,34 @@ collectFoldsFile = collectFile . collectFolds
 makeUnfoldDatatype :: TpName -> [(FreeTmVars, Type)] -> Prog
 makeUnfoldDatatype y us = ProgData (refunTypeName y) [Ctor (refunCtorName y) [TpProd Additive [joinArrows (Map.elems fvs) tp | (fvs, tp) <- us]]]
 
--- Makes the _FoldY_ datatype, given results from collectFolds
---makeFoldDatatype :: Var -> [(Var, FreeVars)] -> Prog
---makeFoldDatatype y fs = ProgData (defunTypeName y) [Ctor (defunCtorName y i) (snds (Map.toList fvs)) | (i, (x, fvs)) <- enumerate fs]
+{- makeDisentangle g y us css
 
--- Makes the "unapply" function and Unfold datatype
+   When refunctionalizing datatype y, make the Folded/y datatype and fold/y function.
+
+   Let cs_i = case scr_i of ctor1 a_i1 a_i2 ... -> res_i1 | ...
+   be the i-th case expression whose scrutinee has type y. Let tp_i be
+   the type of cs_i.
+
+   Parameters:
+   - g: global names
+   - y: datatype name
+   - us: list whose i-th member is (fv_i, tp_i) where fv_i is the free variables of the branches of cs_i
+   - css: list whose i-th member is the branches of cs_i
+
+   Returns: (dat, fun) where
+   - dat: the new datatype, which looks like
+          data Folded/y = folded/y <fvtp_11 -> fvtp_12 -> ... -> tp1, ...>
+          where fvtp_ij is the type of fv_ij
+   - fun: the new function, which looks like
+          define fold/y = \ x . folded/y <\ fv_11 . \ fv_12 . ... case x of ctor1 ..., ...> -}
+                          
 makeDisentangle :: Ctxt -> TpName -> [(FreeTmVars, Type)] -> [[Case]] -> (Prog, Prog)
 makeDisentangle g y us css =
   let ytp = TpData y [] []
       utp = TpData (refunTypeName y) [] []
       dat = makeUnfoldDatatype y us
-      x = newVar localName (`Map.member` tmVars g)
+      g' = ctxtAddArgs g (concat [Map.toList fv | (fv, _) <- us])
+      x = newVar localName (`Map.member` tmVars g') -- argument of fun
       sub_ps ps = [(x, derefunSubst Refun y tp) | (x, tp) <- ps]
       alls = zipWith3 (\ (fvs, tp) cs i -> (fvs, tp, cs, i)) us css [0..]
       cscs = [let ps = sub_ps (Map.toList fvs)
@@ -93,7 +110,24 @@ makeDisentangle g y us css =
   in
     (dat, fun)
 
--- Makes the "apply" function and Fold datatype
+{- makeDefold g y tms
+
+   When defunctionalizing datatype y, make the Folded/y datatype and
+   unfold/y function (traditionally known as "apply").
+
+   Let f_i be the i-th expression that constructs a y. Let fv_i1, fv_i2, ... be the free variables of f_i.
+
+   Parameters:
+   - g: global names
+   - y: datatype name
+   - tms: list of all the f_i
+
+   Returns: (dat, fun), where
+   - dat: the new datatype, which looks like
+          data Folded/y = folded/y/site1 fv_11 fv_12 ... | ...
+   - fun: the new function, which looks like
+          define unfold/y = \ x . case x of folded/y/site1 fv_11 fv_12 ... -> f_i -}
+    
 makeDefold :: Ctxt -> TpName -> [Term] -> (Prog, Prog)
 makeDefold g y tms =
   let fname = applyName y
@@ -106,17 +140,24 @@ makeDefold g y tms =
       ctors = [Ctor x (snds ps) | Case x ps tm <- cases]
       tm = TmCase (TmVarL x ftp) (tname, [], []) cases (TpData y [] [])
   in
---    error (tname ++ " | " ++ show ctors ++ " | " ++ show cases)
     (ProgData tname ctors,
      ProgDefine fname ps tm (TpData y [] []))
 
 --------------------------------------------------
 
--- Replaces all case-ofs on a certain datatype with calls to
--- its "unapply" function
 type DisentangleM a = State.State [[Case]] a
 
--- See `disentangleFile`
+{- disentangleTerm rtp cases tm
+
+   When refunctionalizing rtp, replaces all case expressions whose
+   scrutinee has type rtp with calls to fold/rtp. Also collects the
+   branches of replaced case expressions.
+
+   Arguments:
+   - rtp: the datatype being refunctionalized
+   - cases: list whose i-th member is (fv_i, tp_i) where fv_i is the free variables of the branches of cs_i
+   - tm: the term to replace in -}
+
 disentangleTerm :: TpName -> [(FreeTmVars, Type)] -> Term -> DisentangleM Term
 disentangleTerm rtp cases = h where
   h :: Term -> DisentangleM Term
@@ -132,21 +173,25 @@ disentangleTerm rtp cases = h where
   h (TmCase tm (y, _, _) cs tp)
     -- case tm of ...
     --   becomes
-    -- case tm of _unfoldY_ x' -> let <_, ..., x'', ..., _> = x' in x''
+    -- case tm of folded/y x' -> ((let <_, ..., x'', ..., _> = x' in x'') fv_i1 fv_i2 ...)
     | y == rtp =
       h tm >>= \ tm' ->
       mapCasesM (\ _ _ -> h) cs >>= \ cs' ->
       State.get >>= \ unfolds ->
       let i = length unfolds
-          -- Because there are no other free variables, this is safe
-          x' = localName
+          (cfvs, _) = cases !! i
+          x' = newVar localName (`Map.member` cfvs)
           x'' = localName
-          get_ps = \ (cfvs, ctp2) -> Map.toList cfvs
-          get_as = \ (cfvs, ctp2) -> paramsToArgs (Map.toList cfvs)
-          get_arr = \ (cfvs, ctp2) -> joinArrows (snds (get_ps (cfvs, ctp2))) ctp2
-          xtps = map get_arr cases
+          xtps = [joinArrows (snds (Map.toList cfvs)) ctp2 | (cfvs, ctp2) <- cases]
           xtp = TpProd Additive xtps
-          cs'' = [Case (refunCtorName rtp) [(x', xtp)] (let cfvstp2 = cases !! i in joinApps (TmElimAdditive (TmVarL x' xtp) (length xtps) i (x'', xtps !! i) (TmVarL x'' (xtps !! i)) (xtps !! i)) (get_as cfvstp2))]
+          
+          -- let <_, ..., x'', ..., _> = x' in x''
+          proj = TmElimAdditive (TmVarL x' xtp) (length xtps) i (x'', xtps !! i) (TmVarL x'' (xtps !! i)) (xtps !! i)
+          
+          -- folded/y x' -> proj fv_i1 fv_i2 ...
+          cs'' = [Case (refunCtorName rtp) [(x', xtp)] (joinApps proj (paramsToArgs (Map.toList cfvs)))]
+
+          -- case tm of cs''
           rtm = TmCase tm (refunTypeName rtp, [], []) cs'' tp
       in
         State.put (unfolds ++ [cs']) >>
@@ -168,8 +213,12 @@ disentangleTerm rtp cases = h where
 
 --------------------------------------------------
 
--- Replaces all constructor calls for a certain datatype with calls
--- to its "apply" function
+{- defoldTerm rtp tm
+
+   When defunctionalizing datatype rtp, replace all constructor calls
+   for rtp with calls to its unfold/y (traditionally known as "apply")
+   function. Also collect all the constructor calls. -}
+    
 type DefoldM a = State.State [Term] a
 
 defoldTerm :: TpName -> Term -> DefoldM Term
