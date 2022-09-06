@@ -1,0 +1,11 @@
+data Nat = Zero | Succ Nat;
+define pred =
+  \ Nat. case Nat of
+    | Zero -> Zero
+    | Succ n -> n;
+
+define iszero = \ n. case n of Zero -> True | Succ _ -> False;
+define iszero' = \ n. let Nat = () in iszero n;
+
+iszero' (pred (Succ Zero))
+
