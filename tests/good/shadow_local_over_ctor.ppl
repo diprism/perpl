@@ -1,0 +1,5 @@
+data Nat = Zero | Succ Nat;
+define iszero = \ Succ. case Succ of
+  | Zero -> True
+  | Succ n -> False;
+iszero Zero
