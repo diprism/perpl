@@ -317,7 +317,12 @@ domainSize g = tpSize where
 
 {- compileFile progs
 
-   Converts an elaborated program into an FGG (or returns an error). -}
+   Converts an elaborated program into an FGG (or returns an error).
+
+   Assumes that all local variables have unique names. If two local
+   variables had the same name `x` but two different types, this would
+   generate two FGG rules with lhs `x` that have external nodes with
+   differently-shaped weights. -}
 
 compileFile :: Progs -> Either String FGG
 compileFile ps =
