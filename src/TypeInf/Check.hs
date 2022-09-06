@@ -136,18 +136,23 @@ anyDupDefs (UsProgs ps etm) =
   either
     (err . MultipleDefs)
     (const okay)
-    (foldlM h (return Set.empty) ps)
+    (foldlM hType (return Set.empty) ps >> foldlM hTerm (return Set.empty) ps)
   where
     addDef :: Show a => a -> Set String -> Either String (Set String)
     addDef x xs
       | show x `Set.member` xs = Left (show x)
       | otherwise = Right (Set.insert (show x) xs)
     
-    h :: Set String -> UsProg -> Either String (Set String)
-    h xs (UsProgDefine x atp tm) = addDef x xs
-    h xs (UsProgExtern x tp) = addDef x xs
-    h xs (UsProgData y ps cs) =
-      foldlM (\ xs' (Ctor x tps) -> addDef x xs') (addDef y xs) cs
+    hTerm :: Set String -> UsProg -> Either String (Set String)
+    hTerm xs (UsProgDefine x atp tm) = addDef x xs
+    hTerm xs (UsProgExtern x tp) = addDef x xs
+    hTerm xs (UsProgData y ps cs) =
+      foldlM (\ xs' (Ctor x tps) -> addDef x xs') (Right xs) cs
+      
+    hType :: Set String -> UsProg -> Either String (Set String)
+    hType xs (UsProgData y ps cs) = addDef y xs
+    hType xs _ = Right xs
+     
 
 -- Makes sure an extern's type has no recursive datatypes in it
 guardExternRec :: Type -> CheckM ()

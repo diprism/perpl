@@ -1,5 +1,6 @@
 data Nat = Zero | Succ Nat;
-define iszero = \ Succ. case Succ of
+define iszero = \ Succ.
+case Succ of -- local variable
   | Zero -> True
-  | Succ n -> False;
+  | Succ n -> False; -- constructor
 iszero Zero
