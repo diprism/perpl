@@ -20,7 +20,7 @@ import Struct.Lib
 
 ----------------------------------------
 
-data STerm = Rename TmVar -- `Rename v` means `TmVarL v unchanged`
+data STerm = Rename TmVar -- `Rename v` means `TmVarL v tp` where `tp` is unchanged
            | Replace Term
   deriving Show
 data Subst = Subst { tmVars :: Map TmVar STerm
@@ -98,10 +98,9 @@ instance Var Tag where
   insert x y g = let (g', f) = insertVar x x y (tags g)
                  in (g{tags = g'}, \s -> s{tags = f (tags s)})
 
--- Picks a name x', derived from x, that is fresh in the sense that it
--- is different from any y such that y := ... is in the current
--- substitution. This is done for every local (term or type) variable,
--- and then x is α-converted to x' to avoid variable capture.
+-- Picks a name y, derived from x, that is fresh in the sense that it
+-- is different from any variable in the current
+-- substitution.
 freshen :: (Var var) => var -> SubstM var
 freshen x = state (\g -> let y = newVar x (`member` g)
                          in (y, fst (insert y y g)))
@@ -111,9 +110,9 @@ freshens :: (Var var) => [var] -> SubstM [var]
 freshens xs = state (\g -> let ys = newVars xs (`member` g)
                            in (ys, foldr (\y -> fst . insert y y) g ys))
 
--- Rename x := x' in m. Also performs the trivial substitution x' :=
--- x', because any further α-conversions performed inside m need to
--- avoid both x and x'.
+-- Rename x := y in m. Also performs the trivial substitution x :=
+-- x, because any further α-conversions performed inside m need to
+-- avoid both x and y.
 bind :: (Var var) => var -> var -> SubstM a -> SubstM a
 bind x y m = do
   f <- state (\g0 -> let (g1, f1) = insert x y g0
@@ -123,7 +122,7 @@ bind x y m = do
   modify f
   return a
 
--- Renames all xs to xs' (see bind) in m
+-- Renames all xs to ys (see bind) in m
 binds :: (Var var) => [var] -> [var] -> SubstM a -> SubstM a
 binds xs ys m = foldr (uncurry bind) m (pickyZip xs ys)
 
@@ -149,16 +148,8 @@ class Substitutable a where
 
 Perform capture-avoiding substitution s on a Substitutable a.
 
-Subst s is a Map from variables x to three kinds of substitutions:
-
-- x := SubVar y replaces:
-  * global variables x (UsVar x but not TmVarG x)
-  * free occurrences of local variables x (TmVarL x or UsVar x)
-  * free occurrences of type variables x (TpVar x)
-- x := SubTm tm replaces:
-  * free occurrences of local variables x (TmVarL x but not UsVar x)
-- x := SubTp tp replaces:
-  * free occurrences of type variables x (TpVar x) -}
+It substitutes local variables (TmVars) and type variables (TpVars).
+UsVars (whether they are local or global) are subject to Renames but not Replaces. -}
   
 subst :: Substitutable a => Subst -> a -> a
 subst s a = runSubst s (substM a)
