@@ -114,15 +114,15 @@ fgg_to_json :: FGG -> JSON
 fgg_to_json (FGG ds fs nts s rs) =
   let mapToList = \ ds f -> JSobject $ map f (Map.toList ds) in
   JSobject
-    [("grammar", JSobject 
+    [("grammar", JSobject
       [("terminals", mapToList fs $
          \ (el, (d, mws)) -> (show el, JSobject [("type", JSarray [JSstring (show nl) | nl <- d])])),
-       ("nonterminals", mapToList nts $
+       ("nonterminals", mapToList (Map.filterWithKey (\ k _ -> not (show k `elem` [show f | f <- Map.keys fs])) nts) $
          \ (el, d) -> (show el, JSobject [
            ("type", JSarray [JSstring (show nl) | nl <- d])
          ])),
        ("start", JSstring (show s)),
-       ("rules", JSarray $ flip map rs $
+       ("rules", JSarray $ flip map (filter (\ (Rule lhs _) -> not (show lhs `elem` [show f | f <- Map.keys fs])) rs) $
           \ (Rule lhs (HGF ns es xs)) ->
             let m = Map.fromList (zip (fsts ns) [0..]) in
             JSobject [

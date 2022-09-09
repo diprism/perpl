@@ -157,7 +157,11 @@ rulesToFGG dom start start_type rs =
         else
           r
 
-    (fs, nts) = foldr (\ (el, nls) (fs, nts) ->
+    sanitizeNonterms = \ (fs, nts) ->
+      (fs, Map.filterWithKey (\ k _ -> not (k `Map.member` fs)) nts)
+
+    (fs, nts) = sanitizeNonterms $
+                foldr (\ (el, nls) (fs, nts) ->
                          case el of ElTerminal fac ->
                                       let w = checkWeights el nls (getWeights (length . dom) fac) in
                                           (Map.insertWith (checkTerm el) el (nls, w) fs, nts)
