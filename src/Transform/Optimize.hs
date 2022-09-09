@@ -4,9 +4,10 @@ import Struct.Lib
 import Util.Helpers
 import Scope.Name (localName)
 import Scope.Free (isLin, robust)
-import Scope.Subst (SubT(SubTm), substWithCtxt, FreeVars, freeVars)
+import Scope.Subst (Subst(tmVars), STerm(Replace), substWithCtxt, FreeVars(freeTmVars), freeVars)
 import Scope.Fresh (newVar)
 import Scope.Ctxt (Ctxt, ctxtAddArgs, ctxtAddLocal, ctxtAddProgs)
+import qualified Scope.Ctxt as C
 
 {- Provides various optimizations:
 1. (case t of C1 a* -> \x. t1 | C2 b* -> \y. t2 | C3 c* -> t3)
@@ -142,22 +143,22 @@ peelLams :: Ctxt -> [Param] -> Term -> Term
 peelLams g [] tm = tm
 peelLams g ps tm =
   let (ls, body) = splitLams tm
-      subs = zip (fsts ls) (map (SubTm . fst) (paramsToArgs ps))
+      subs = zip (fsts ls) (map (Replace . fst) (paramsToArgs ps))
       -- See examples above
-      example1 = substWithCtxt g (Map.fromList subs) body
+      example1 = substWithCtxt g mempty{tmVars = Map.fromList subs} body
       example2 = joinApps example1 (paramsToArgs (drop (length ls) ps)) in
     example2
 
 -- Returns whether or not it is safe to substitute a term into another
 -- More specifically, returns true when there are no global vars (excluding ctors),
 -- no free vars that aren't also free in the other term, and no effects
-safe2sub :: Ctxt -> Var -> Term -> Term -> Bool
+safe2sub :: Ctxt -> TmVar -> Term -> Term -> Bool
 safe2sub g x xtm tm =
   isLin x tm || (noDefsSamps xtm && fvsOkay (freeVars xtm))
   where
     fvsOkay :: FreeVars -> Bool
     -- TODO: don't need to check isInfiniteType g tp, once we can copy terms with recursive datatypes
-    fvsOkay fvs = all (\ (_, tp) -> robust g tp) (Map.toList fvs)
+    fvsOkay fvs = all (robust g) (freeTmVars fvs)
     
     -- Returns if there are no global def vars or ambs/fails/uniforms
     noDefsSamps :: Term -> Bool
@@ -183,7 +184,7 @@ optimizeTerm g (TmLet x xtm xtp tm tp) =
   let xtm' = optimizeTerm g xtm
       tm' = optimizeTerm (ctxtAddLocal g x xtp) tm in
   if safe2sub g x xtm' tm'
-    then optimizeTerm g (substWithCtxt g (Map.fromList [(x, SubTm xtm')]) tm')
+    then optimizeTerm g (substWithCtxt g mempty{tmVars = Map.fromList [(x, Replace xtm')]} tm')
     else TmLet x xtm' xtp tm' tp
 optimizeTerm g (TmFactor wt tm tp) = TmFactor wt (optimizeTerm g tm) tp
 optimizeTerm g (TmLam x tp tm tp') =
@@ -215,7 +216,7 @@ optimizeTerm g (TmCase tm y cs tp) =
         let (ps, end) = splitArrows tp
             g_ps = foldr (\ (Case x xps xtm) g -> ctxtAddArgs g xps) g cs
             (_, _, rps') = foldl (\ (e, g', ps') p ->
-                                    let e' = newVar e g' in
+                                    let e' = newVar e (`Map.member` C.tmVars g') in
                                       (e', ctxtAddLocal g' e' p, (e', p) : ps'))
                            (localName, g_ps, []) ps
             ps' = reverse rps'
@@ -226,7 +227,7 @@ optimizeTerm g (TmAmb tms tp) = TmAmb (map (optimizeTerm g) tms) tp
 optimizeTerm g (TmProd am as) = TmProd am (mapArgs (optimizeTerm g) as)
 optimizeTerm g (TmElimAdditive ptm n i (x,xtp) tm tp) =
   case optimizeTerm g ptm of
-    TmProd Additive as -> optimizeTerm g (substWithCtxt g (Map.singleton x (SubTm (fst (as!!i)))) tm)
+    TmProd Additive as -> optimizeTerm g (substWithCtxt g mempty{tmVars = Map.singleton x (Replace (fst (as!!i)))} tm)
     ptm' -> TmElimAdditive ptm' n i (x,xtp) (optimizeTerm (ctxtAddLocal g x xtp) tm) tp
 optimizeTerm g (TmElimMultiplicative tm ps tm' tp) =
   TmElimMultiplicative (optimizeTerm g tm) ps (optimizeTerm (ctxtAddArgs g ps) tm') tp

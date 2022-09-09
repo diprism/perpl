@@ -1,17 +1,18 @@
 module Scope.Fresh (newVar, newVars) where
 import Util.Helpers
-import Struct.Lib (Var(..))
-import qualified Data.Map as Map
-import Data.Char
+import qualified Data.Set as Set
+import Data.Char (isDigit)
+import Data.String (IsString(fromString))
+import Data.List (mapAccumL)
 
 data SplitVar = SplitVar String Int String
-succSplitVar (SplitVar pre i suf) = SplitVar pre (succ i) suf
-rejoin :: SplitVar -> Var
-rejoin (SplitVar pre i suf) = Var (pre ++ show i ++ suf)
+
+rejoin :: IsString var => SplitVar -> var
+rejoin (SplitVar pre i suf) = fromString (pre ++ show i ++ suf)
 
 -- Splits abc14'' into SplitVar "abc" 14 "\'\'"
-splitVar :: Var -> SplitVar
-splitVar (Var x) =
+splitVar :: String -> SplitVar
+splitVar x =
   let (pre, i, suf) = h True (reverse x)
       pre' = reverse pre
       i' = reverse i
@@ -32,12 +33,16 @@ splitVar (Var x) =
           (pre, c : i, suf)
       | otherwise = (c : cs, "", "")
 
--- Given a map and a var, try new var names until it is no longer in the map
-newVar :: Var -> Map Var a -> Var
-newVar x g = if Map.member x g then h (splitVar x) else x
-  where
-    h x = let x' = rejoin x in if Map.member x' g then h (succSplitVar x) else x'
+-- Given a predicate, set, and var,
+-- try new var names until it no longer satisfies the predicate or appears in the set
+newVar' :: (Ord var, Show var, IsString var) => (var -> Bool) -> Set var -> var -> (Set var, var)
+newVar' used g x = (Set.insert y g, y)
+  where SplitVar pre i suf = splitVar (show x)
+        y:_ = filter (\y -> not (used y || Set.member y g))
+                     (x : [ fromString (rejoin (SplitVar pre j suf)) | j <- [i..] ])
 
-newVars :: [Var] -> Map Var a -> [Var]
-newVars xs g =
-  fst (foldr (\ x (xs', g') -> let x' = newVar x g' in (x':xs', Map.insert x' () g')) ([], () <$ g) xs)
+newVar :: (Ord var, Show var, IsString var) => var -> (var -> Bool) -> var
+newVar x used = snd (newVar' used Set.empty x)
+
+newVars :: (Ord var, Show var, IsString var) => [var] -> (var -> Bool) -> [var]
+newVars xs used = snd (mapAccumL (newVar' used) Set.empty xs)

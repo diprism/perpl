@@ -27,7 +27,7 @@ type Weights = Tensor Weight
 
 data NodeName =
     NnOut           -- external node holding the value of an expression
-  | NnVar Var       -- external node holding the value of a free variable
+  | NnVar TmVar     -- external node holding the value of a free variable
   | NnInternal Int  -- internal node
   deriving (Eq, Ord)
 instance Show NodeName where
@@ -73,7 +73,7 @@ data Factor =
   | FaAddProd [Type] Int                -- matrix projecting tp1+...+tpn to tpk
   | FaMulProd [Type]                    -- tensor mapping (tp1,...,tpn) to tp1,...,tpn
   | FaCtor [Ctor] Int                   -- k'th constructor in cs
-  | FaExtern Var Type                   -- weights supplied externally
+  | FaExtern TmName Type                -- weights supplied externally
   deriving (Eq, Ord)
 instance Show Factor where
   show (FaScalar w) = show w
@@ -87,12 +87,12 @@ instance Show Factor where
 
 type Node = (NodeName, NodeLabel)
 data Edge = Edge { edge_atts :: [Node], edge_label :: EdgeLabel }
-  deriving Eq
+  deriving (Eq, Show)
 -- Hypergraph fragment (= hypergraph with external nodes)
 data HGF = HGF { hgf_nodes :: [Node], hgf_edges :: [Edge], hgf_exts :: [Node] }
-  deriving Eq
+  deriving (Eq, Show)
 data Rule = Rule EdgeLabel HGF
-  deriving Eq
+  deriving (Eq, Show)
 data FGG = FGG {
   domains :: Map NodeLabel Domain,                       -- node label to set of values
   factors :: Map EdgeLabel ([NodeLabel], Maybe Weights), -- edge label to att node labels, weights

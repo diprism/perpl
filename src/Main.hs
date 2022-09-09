@@ -4,7 +4,7 @@ import System.Console.GetOpt
 import System.Exit (die, exitSuccess)
 import System.Environment (getArgs, getProgName)
 import System.IO (hPutStr, hPutStrLn, stdin, stdout, stderr, openFile, IOMode(..), hGetContents)
-import Struct.Lib (Var(..), Progs, progBuiltins)
+import Struct.Lib (TpName(TpN), Progs, progBuiltins)
 import Parse.Lib
 import TypeInf.Lib
 import Compile.Lib
@@ -24,7 +24,7 @@ data CmdArgs = CmdArgs {
   optCompile :: Bool,
   optMono :: Bool,
   optElimRecs :: Bool,
-  optDerefun :: [(Var, DeRe)],
+  optDerefun :: [(TpName, DeRe)],
   optLin :: Bool,
   optOptimize :: Bool,
   optSumProduct :: Bool
@@ -57,9 +57,9 @@ options =
      "Output to OUTFILE",
    Option ['O'] [] (ReqArg processOptimArg "LEVEL")
      "Optimization level (0 = off, 1 = on)",
-   Option ['d'] [] (ReqArg (\ d opts -> return (opts {optDerefun = (Var d, Defun) : optDerefun opts})) "DTYPE")
+   Option ['d'] [] (ReqArg (\ d opts -> return (opts {optDerefun = (TpN d, Defun) : optDerefun opts})) "DTYPE")
      "Defunctionalize recursive datatype DTYPE",
-   Option ['r'] [] (ReqArg (\ d opts -> return (opts {optDerefun = (Var d, Refun) : optDerefun opts})) "DTYPE")
+   Option ['r'] [] (ReqArg (\ d opts -> return (opts {optDerefun = (TpN d, Refun) : optDerefun opts})) "DTYPE")
      "Refunctionalize recursive datatype DTYPE"]
 
 processOptimArg :: String -> CmdArgs -> Either String CmdArgs

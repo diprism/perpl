@@ -9,12 +9,12 @@ import Struct.Helpers
 toUsTm :: Term -> UsTm
 toUsTm (TmVarL x _) = UsVar x
 toUsTm (TmVarG gv x tgs tis as _tp) =
-  let x' = Var (intercalate " " (show x : ["[" ++ p ++ "]" | p <- (show <$> tgs) ++ (show <$> tis)])) in
+  let x' = TmV (intercalate " " (show x : ["[" ++ p ++ "]" | p <- (show <$> tgs) ++ (show <$> tis)])) in
   foldl (\ tm (a, _) -> UsApp tm (toUsTm a)) (UsVar x') as
 toUsTm (TmLam x tp tm _) = UsLam x tp (toUsTm tm)
 toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
-toUsTm (TmCase tm (Var "Bool", [], []) [Case (Var "False") [] elsetm, Case (Var "True") [] thentm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
+toUsTm (TmCase tm (TpN "Bool", [], []) [Case (TmN "False") [] elsetm, Case (TmN "True") [] thentm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
 toUsTm (TmAmb [] tp) = UsFail tp
 toUsTm (TmAmb tms tp) = UsAmb [toUsTm tm | tm <- tms]
@@ -60,7 +60,7 @@ showsPrecElim p am tm xs tm' = showParen (p > 1)
   where (l, r) = amParens am
 
 instance Show CaseUs where
-  showsPrec p (CaseUs x as tm) = delimitWith " " (map shows (x:as)) . showString " -> " . showsPrec p tm
+  showsPrec p (CaseUs x as tm) = delimitWith " " (shows x : map shows as) . showString " -> " . showsPrec p tm
 instance Show Case where
   showsPrec p = showsPrec p . toCaseUs
 
@@ -96,8 +96,8 @@ instance Show Type where
 instance Show UsProg where
   show (UsProgDefine x tm tp) = "define " ++ show x ++ showTpAnn tp ++ " = " ++ show tm ++ ";"
   show (UsProgExtern x tp) = "extern " ++ show x ++ showTpAnn tp ++ ";"
-  show (UsProgData y ps []) = "data " ++ intercalate " " (show <$> y : ps) ++ ";"
-  show (UsProgData y ps cs) = "data " ++ intercalate " " (show <$> y : ps) ++ " = " ++ intercalate " | " (map show cs) ++ ";"
+  show (UsProgData y ps []) = "data " ++ intercalate " " (show y : map show ps) ++ ";"
+  show (UsProgData y ps cs) = "data " ++ intercalate " " (show y : map show ps) ++ " = " ++ intercalate " | " (map show cs) ++ ";"
 
 instance Show UsProgs where
   show (UsProgs ps end) = intercalate "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
@@ -107,10 +107,10 @@ instance Show Forall where
     "∀" ++ (case bd of {BoundRobust -> "+"; BoundNone -> ""}) ++ " " ++ show x ++ "."
 
 instance Show SProg where
-  show (SProgDefine x tgs ps tm tp) = "define " ++ show x ++ " : " ++ intercalate " " (["∀ " ++ show a ++ "." | a <- tgs] ++ map show ps ++ [show tp]) ++ " = " ++ show tm ++ ";"
+  show (SProgDefine x tgs ps tm tp) = "define " ++ show x ++ " : " ++ intercalate " " (["∀ " ++ a ++ "." | a <- map show tgs] ++ map show ps ++ [show tp]) ++ " = " ++ show tm ++ ";"
   show (SProgExtern x tp) = "extern " ++ show x ++ " : " ++ show tp ++ ";"
-  show (SProgData y tgs ps []) = "data " ++ intercalate " " (show <$> y : tgs ++ ps) ++ ";"
-  show (SProgData y tgs ps cs) = "data " ++ intercalate " " (show <$> y : tgs ++ ps) ++ " = " ++ intercalate " | " [show c | c <- cs] ++ ";"
+  show (SProgData y tgs ps []) = "data " ++ intercalate " " (show y : map show tgs ++ map show ps) ++ ";"
+  show (SProgData y tgs ps cs) = "data " ++ intercalate " " (show y : map show tgs ++ map show ps) ++ " = " ++ intercalate " | " [show c | c <- cs] ++ ";"
 
 instance Show SProgs where
   show (SProgs ps end) = intercalate "\n\n" ([show p | p <- ps] ++ [show end]) ++ "\n"
@@ -121,8 +121,8 @@ instance Show Prog where
 instance Show Progs where
   show = show . toUsProgs
 
-instance Show Tag where
-  show (TgVar t) = show t
-
-instance Show Var where
-  show (Var x) = x
+instance Show TmVar  where show (TmV x) = x
+instance Show TmName where show (TmN x) = x
+instance Show TpVar  where show (TpV x) = x
+instance Show TpName where show (TpN x) = x
+instance Show Tag    where show (Tag x) = x

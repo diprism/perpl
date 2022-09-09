@@ -153,7 +153,7 @@ rulesToFGG dom start start_type rs =
       let count = Map.fromListWith (+) [(nn, 1) | (nn, nl) <- ns]
           dups = [nn | (nn, c) <- Map.toList count, c > 1] in
         if length dups > 0 then
-          error ("Node(s) " ++ intercalate ", " (show <$> dups) ++ " appear more than once in rule for " ++ show lhs)
+          error ("Node(s) " ++ intercalate ", " (show <$> dups) ++ " appear more than once in rule " ++ show r)
         else
           r
 

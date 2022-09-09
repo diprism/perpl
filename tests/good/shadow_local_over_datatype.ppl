@@ -4,8 +4,15 @@ define pred =
     | Zero -> Zero
     | Succ n -> n;
 
+define eq =
+  \ Nat : Nat .
+  \ Nat2 : Nat . -- can still see type Nat
+    case Nat of
+        Zero -> (case Nat2 of Zero -> True | Succ m2 -> False)
+      | Succ m -> (case Nat2 of Zero -> False | Succ m2 -> eq m m2);
+
 define iszero = \ n. case n of Zero -> True | Succ _ -> False;
 define iszero' = \ n. let Nat = () in iszero n;
 
-iszero' (pred (Succ Zero))
+(iszero' (pred (Succ Zero)), eq Zero Zero)
 
