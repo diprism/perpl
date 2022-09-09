@@ -1,0 +1,30 @@
+data Symbol = Z;
+data Terminal = A;
+data Stack = StkNil | StkCons Symbol Stack;
+data Stack' = StkNil' | StkCons' Stack Stack';
+data String = Nil | Cons Terminal String;
+
+data Action =
+  | Pop
+  | Scan Terminal
+  | Push Symbol Symbol
+  | PushAbove Symbol Symbol
+  | PushBelow Symbol Symbol;
+
+extern transition : Symbol -> Action;
+
+define run_epda = \ zs'. \ ws. case zs' of
+  | StkNil' -> (case ws of Nil -> () | Cons w ws -> fail)
+  | StkCons' z' zs' -> (case z' of
+    | StkNil -> run_epda zs' ws
+    | StkCons z zs -> (case transition z of
+      | Pop -> run_epda (StkCons' zs zs') ws
+      | Scan a -> (case ws of
+        | Nil -> fail
+        | Cons w ws -> (if w == a then run_epda (StkCons' zs zs') ws else fail))
+      | Push x y -> run_epda (StkCons' (StkCons x (StkCons y zs)) zs') ws
+      | PushAbove x y -> run_epda (StkCons' (StkCons x StkNil) (StkCons' (StkCons y zs) zs')) ws
+      | PushBelow x y -> run_epda (StkCons' (StkCons x zs) (StkCons' (StkCons y StkNil) zs')) ws));
+
+run_epda (StkCons' (StkCons Z StkNil) StkNil')
+         (Cons A (Cons A (Cons A (Cons A (Cons A (Cons A (Cons A (Cons A (Cons A (Cons A Nil))))))))))

@@ -60,6 +60,7 @@ ctxtLookupTerm g x = Map.lookup x (tmNames g) >>= \ dt -> case dt of
     CtExtern       tp -> Just tp
     CtCtor   [] [] tp -> Just tp
     -- better use only for monomorphized code
+    _ -> error "this shouldn't happen"
 
 -- Lookup a datatype in the context
 ctxtLookupType :: Ctxt -> TpName -> Maybe [Ctor]
