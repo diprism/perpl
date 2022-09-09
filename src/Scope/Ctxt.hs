@@ -63,6 +63,7 @@ ctxtLookupTerm g x = Map.lookup x g >>= \ d -> case d of
     CtLocal tp -> Just tp
     CtDefine [] [] tp -> Just tp
     CtCtor [] [] tp -> Just tp
+    CtExtern tp -> Just tp
     _ -> error "this shouldn't happen"
   CtType _ -> Nothing
 
