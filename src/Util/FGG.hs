@@ -82,7 +82,7 @@ instance Show Factor where
   show (FaArrow tp1 tp2) = "Arrow[" ++ show tp1 ++ "," ++ show tp2 ++ "]"
   show (FaAddProd tps k) = "AddProd[" ++ intercalate "," (show <$> tps) ++ ";" ++ show k ++ "]"
   show (FaMulProd tps) = "MulProd[" ++ intercalate "," (show <$> tps) ++ "]"
-  show (FaCtor cs k) = show (cs !! k)
+  show (FaCtor cs k) = "Ctor[" ++ show (cs !! k) ++ "]"
   show (FaExtern x _) = show x
 
 type Node = (NodeName, NodeLabel)
