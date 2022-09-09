@@ -67,6 +67,7 @@ ctxtLookupType :: Ctxt -> TpName -> Maybe [Ctor]
 ctxtLookupType g x = Map.lookup x (tpNames g) >>= \ dt -> case dt of
     CtData [] [] cs -> Just cs
     -- better use only for monomorphized code
+    _ -> error "this shouldn't happen"
 
 ctxtLookupType2 :: Ctxt -> TpName -> Maybe ([Tag], [TpVar], [Ctor])
 ctxtLookupType2 g x = Map.lookup x (tpNames g) >>= \ dt -> case dt of
