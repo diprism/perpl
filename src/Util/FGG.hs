@@ -1,7 +1,5 @@
 {- A minimalist implementation of factor graph grammars (FGGs), which
-   are the main target of the compiler. For more information about
-   FGGs, see: David Chiang and Darcey Riley. Factor graph grammars. In
-   Proc. NeurIPS, 6648–6658. 2020. -}
+   are the main target of the compiler. -}
 
 module Util.FGG (Node, NodeName(..), NodeLabel,
                   Domain, Value(..),

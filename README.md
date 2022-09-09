@@ -34,7 +34,3 @@ Options:
     -o OUTFILE  Output an FGG to OUTFILE
 
 Although `perplc` can compute sum-products, its implementation is not very efficient. The normal usage is to use the `-o` option to output an FGG to a JSON file. Then the FGG can be processed using [the `fggs` package](https://github.com/diprism/fggs).
-
-## Credits
-
-This code is written by Colin McDonald (University of Notre Dame) with contributions from David Chiang (University of Notre Dame) and Chung-chieh Shan (Indiana University). It is licensed under the MIT License.
