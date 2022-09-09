@@ -152,7 +152,12 @@ anyDupDefs (UsProgs ps etm) =
     hType :: Set String -> UsProg -> Either String (Set String)
     hType xs (UsProgData y ps cs) = addDef y xs
     hType xs _ = Right xs
-     
+
+-- Coerce between TmVar and TmName during type checking
+tmVarToName :: TmVar -> TmName
+tmVarToName = fromString . show
+tmNameToVar :: TmName -> TmVar
+tmNameToVar = fromString . show
 
 -- Makes sure an extern's type has no recursive datatypes in it
 guardExternRec :: Type -> CheckM ()
@@ -189,7 +194,7 @@ lookupTermVar x =
   askEnv >>= \ g ->
   case Map.lookup x (tmVars g) of
     Just tp -> return (Left tp)
-    Nothing -> case Map.lookup (fromString (show x)) (tmNames g) of
+    Nothing -> case Map.lookup (tmVarToName x) (tmNames g) of
       Just d -> return (Right d)
       Nothing -> err (ScopeError (show x))
 
@@ -288,7 +293,7 @@ infer' (UsVar x) =
       -- substitute old tags/type vars for new ones
       let tp' = subst mempty{tags   = Map.fromList (pickyZip tgs tgs'),
                              tpVars = Map.fromList (pickyZip ytis tis')} tp in
-        return (TmVarG gv (fromString (show x)) tgs' tis' [] tp')
+        return (TmVarG gv (tmVarToName x) tgs' tis' [] tp')
 
 infer' (UsLam x xtp tm) =
   -- Check the annotation xtp

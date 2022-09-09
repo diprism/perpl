@@ -1,7 +1,6 @@
-module TypeInf.Solve where
+module TypeInf.Solve (inferFile) where
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.String (IsString(fromString))
 import Control.Monad.RWS.Lazy
 import Control.Monad.Except
 import TypeInf.Check
@@ -197,7 +196,7 @@ solvesM ms =
         -- to be done in a second pass because of mutual recursion.
         -- This substitution is possible because occurrences of f are actually
         -- local variables (TmVarL); they change into global variables (TmVarG) now.
-        s' = mempty{tmVars = Map.fromList [(fromString (show f), Replace (TmVarG GlDefine f tgs [TpVar x | Forall x r <- xs'] [] tp')) | (f, _, tgs, xs', tp') <- defs']}
+        s' = mempty{tmVars = Map.fromList [(tmNameToVar f, Replace (TmVarG GlDefine f tgs [TpVar x | Forall x r <- xs'] [] tp')) | (f, _, tgs, xs', tp') <- defs']}
         defs'' = [(f, subst s' tm', tgs, xs', tp') | (f, tm', tgs, xs', tp') <- defs']
       in
         return defs''
@@ -220,7 +219,7 @@ getFunDeps (UsProgs ps end) = clean (foldr h mempty ps)
     -- we only care about the defines.
     h :: UsProg -> Map TmName (Set TmName) -> Map TmName (Set TmName)
     h (UsProgDefine x tm mtp) deps =
-      Map.insert x (Set.mapMonotonic (fromString.show) (Map.keysSet (freeTmVars (freeVars tm)))) deps
+      Map.insert x (Set.mapMonotonic tmVarToName (Map.keysSet (freeTmVars (freeVars tm)))) deps
     h _ deps = deps
 
 getDataDeps :: UsProgs -> Map TpName (Set TpName)
@@ -258,7 +257,7 @@ inferFuns' fs m =
   -- Get a fresh type var for each function in fs
   mapM (const freshTp) fs >>= \ itps ->
   -- ftps is the set of function names with their type (var)
-  let ftps = [(fromString (show x), itp) | ((x, _, _), itp) <- zip fs itps] in
+  let ftps = [(tmNameToVar x, itp) | ((x, _, _), itp) <- zip fs itps] in
     -- add ftps to env as local variables (CtLocal) for now;
     -- they will be changed to global variables inside solvesM
     inEnvs ftps
