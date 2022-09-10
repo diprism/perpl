@@ -104,6 +104,9 @@ term2fgg g (TmVarL x tp) =
 
 term2fgg g (TmVarG GlDefine x [] [] [] tp) =
   return [] -- If this is a def with no args, we already add its rule when it gets defined
+  
+term2fgg g (TmVarG GlExtern x [] [] as tp) =
+  return [] -- Rule will be supplied externally
 
 term2fgg g (TmVarG gv x [] [] as tp) =
   mapM (\ (a, atp) -> term2fgg g a) as >>= \ xss ->
@@ -116,8 +119,6 @@ term2fgg g (TmVarG gv x [] [] as tp) =
                             Just cs = ctxtLookupType g y
                             Just ci = findIndex (\ (Ctor x' _) -> x' == x) cs in
                           ElTerminal (FaCtor cs ci)
-                      GlExtern ->
-                        ElTerminal (FaExtern x (joinArrows (snds as) tp))
   in
     mkRule (TmVarG gv x [] [] as tp) (vy : ps ++ concat xss)
       (Edge (ps ++ [vy]) el :
