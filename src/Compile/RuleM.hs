@@ -2,6 +2,7 @@
 
 module Compile.RuleM (RuleM, addRuleBlock, runRuleM, getWeights, rulesToFGG) where
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Control.Monad.Writer.Lazy
 import Data.List (intercalate)
 import Struct.Lib
@@ -131,7 +132,7 @@ rulesToFGG dom start start_type rs =
     -- to check the left-hand sides for errors.)
     lhs_els = [(lhs, snds xs) | (Rule lhs (HGF _ es xs)) <- rs]
     rhs_es = concat [es | (Rule lhs (HGF _ es _)) <- rs]
-    rhs_els = [(el, snds atts) | (Edge atts el) <- rhs_es]
+    rhs_els = checkEdgeLabels [(el, snds atts) | (Edge atts el) <- rhs_es]
 
     checkNonterm = \ x d1 d2 -> if d1 == d2 then d1 else error
       ("Conflicting types for nonterminal " ++ show x ++ ": " ++
@@ -139,6 +140,16 @@ rulesToFGG dom start start_type rs =
     checkTerm = \ x (d1, w1) (d2, _) -> if d1 == d2 then (d1, w1) else error
       ("Conflicting types for terminal " ++ show x ++ ": " ++
         show d1 ++ " versus " ++ show d2)
+
+    checkEdgeLabels els =
+      let
+        count = foldr (\ (el, _) -> Map.insertWith (<>) (show el) (Set.singleton el)) Map.empty els
+        dups = Map.filter (\ s -> length s > 1) count
+      in
+        if length dups > 0 then
+          error ("Name collisions for edge labels: " ++ (intercalate " " (Map.keys dups)))
+        else
+          els
 
     checkWeights el nls (Just w) =
       -- Compute expected shape, but after a 0, drop everything
