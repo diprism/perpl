@@ -73,7 +73,6 @@ data Factor =
   | FaAddProd [Type] Int                -- matrix projecting tp1+...+tpn to tpk
   | FaMulProd [Type]                    -- tensor mapping (tp1,...,tpn) to tp1,...,tpn
   | FaCtor [Ctor] Int                   -- k'th constructor in cs
-  | FaExtern TmName Type                -- weights supplied externally
   deriving (Eq, Ord)
 instance Show Factor where
   show (FaScalar w) = show w
@@ -83,7 +82,6 @@ instance Show Factor where
   show (FaAddProd tps k) = "AddProd[" ++ intercalate "," (show <$> tps) ++ ";" ++ show k ++ "]"
   show (FaMulProd tps) = "MulProd[" ++ intercalate "," (show <$> tps) ++ "]"
   show (FaCtor cs k) = "Ctor[" ++ show (cs !! k) ++ "]"
-  show (FaExtern x _) = show x
 
 type Node = (NodeName, NodeLabel)
 data Edge = Edge { edge_atts :: [Node], edge_label :: EdgeLabel }
@@ -95,7 +93,7 @@ data Rule = Rule EdgeLabel HGF
   deriving (Eq, Show)
 data FGG = FGG {
   domains :: Map NodeLabel Domain,                       -- node label to set of values
-  factors :: Map EdgeLabel ([NodeLabel], Maybe Weights), -- edge label to att node labels, weights
+  factors :: Map EdgeLabel ([NodeLabel],Weights),        -- edge label to att node labels, weights
   nonterminals :: Map EdgeLabel [NodeLabel],             -- nt name to attachment node labels
   start :: EdgeLabel,                                    -- start nt
   rules :: [Rule]                                        -- rules
@@ -145,8 +143,7 @@ fgg_to_json (FGG ds fs nts s rs) =
            ("values", JSarray $ [JSstring v | Value v <- dom])
          ])),
        ("factors",
-          let fs_filtered = Map.mapMaybe (\ (d, mws) -> maybe Nothing (\ ws -> Just (d, ws)) mws) fs in
-          mapToList fs_filtered $
+          mapToList fs $
            \ (el, (d, ws)) -> (show el, JSobject [
              ("function", JSstring "finite"),
                ("type", JSarray [JSstring (show nl) | nl <- d]),

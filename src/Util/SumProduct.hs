@@ -113,6 +113,5 @@ step fgg nts z =
       case Map.lookup el z of
                 Just w -> w
                 Nothing -> case Map.lookup el (factors fgg) of
-                             Just (_, Just w) -> w
-                             _ -> error (show el ++ " not found (extern not supported yet)")
-            
+                             Just (_, w) -> w
+                             Nothing -> error ("couldn't find weights for " ++ show el)
