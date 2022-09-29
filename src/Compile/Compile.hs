@@ -140,7 +140,7 @@ term2fgg g (TmLam x tp tm tp') =
 term2fgg g (TmApp tm1 tm2 tp2 tp) =
   term2fgg g tm1 >>= \ xs1 ->
   term2fgg g tm2 >>= \ xs2 ->
-  let fac = ElTerminal (FaMulProd [tp2, tp])
+  let fac = ElTerminal (FaArrow tp2 tp)
       vtp = (NnOut, tp)
       [vtp2, varr] = newNodeNames [tp2, TpArr tp2 tp] in
     mkRule (TmApp tm1 tm2 tp2 tp) (vtp2 : vtp : varr : xs1 ++ xs2)
