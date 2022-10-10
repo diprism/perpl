@@ -23,20 +23,22 @@ import Struct.Lib
 data STerm = Rename TmVar -- `Rename v` means `TmVarL v tp` where `tp` is unchanged
            | Replace Term
   deriving Show
-data Subst = Subst { tmVars :: Map TmVar STerm
-                   , tpVars :: Map TpVar Type
-                   , tags   :: Map Tag   Tag }
+data Subst = Subst { tmVars  :: Map TmVar STerm
+                   , tpVars  :: Map TpVar Type
+                   , tags    :: Map Tag   Tag
+                   , tmNames :: Set TmName }
   deriving Show
 
 instance Semigroup Subst where
   -- Composes two substitutions
-  s1@(Subst m1 p1 g1) <> s2@(Subst m2 p2 g2) =
+  s1@(Subst m1 p1 g1 n1) <> s2@(Subst m2 p2 g2 n2) =
     Subst (Map.map (subst s1) m2 `Map.union` m1)
           (Map.map (subst s1) p2 `Map.union` p1)
           (Map.map (subst s1) g2 `Map.union` g1)
+          (                   n2 `Set.union` n1)
 
 instance Monoid Subst where
-  mempty = Subst Map.empty Map.empty Map.empty
+  mempty = Subst Map.empty Map.empty Map.empty Set.empty
 
 -- State monad, where s = Subst
 type SubstM = RWS () () Subst
@@ -84,7 +86,7 @@ insertVar x x' y g = let (old, g') = Map.insertLookupWithKey (const const) x y g
                      in (g', Map.insert x (fromMaybe x' old))
 
 instance Var TmVar where
-  member   y g = y `Map.member` tmVars g
+  member   y g = y `Map.member` tmVars g || tmVarToName y `Set.member` tmNames g
   insert x y g = let (g', f) = insertVar x (Rename x) (Rename y) (tmVars g)
                  in (g{tmVars = g'}, \s -> s{tmVars = f (tmVars s)})
 
@@ -379,8 +381,10 @@ instance Substitutable SProg where
   freeVars p = error "freeVars on a Prog"
 
 instance Substitutable Progs where
-  substM (Progs ps tm) =
-    pure Progs <*> substM ps <*> substM tm
+  substM progs@(Progs ps tm) =
+    modify f >> pure Progs <*> substM ps <*> substM tm
+    where f g = g{tmNames = Set.union (tmNames g)
+                                      (Map.keysSet (C.tmNames (C.ctxtAddProgs progs)))}
   freeVars (Progs ps tm) =
     freeVars ps <> freeVars tm
 

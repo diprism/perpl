@@ -3,7 +3,6 @@
 
 module TypeInf.Check where
 import Data.List (intercalate)
-import Data.String (IsString(fromString))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.RWS.Lazy
@@ -152,12 +151,6 @@ anyDupDefs (UsProgs ps etm) =
     hType :: Set String -> UsProg -> Either String (Set String)
     hType xs (UsProgData y ps cs) = addDef y xs
     hType xs _ = Right xs
-
--- Coerce between TmVar and TmName during type checking
-tmVarToName :: TmVar -> TmName
-tmVarToName = fromString . show
-tmNameToVar :: TmName -> TmVar
-tmNameToVar = fromString . show
 
 -- Makes sure an extern's type has no recursive datatypes in it
 guardExternRec :: Type -> CheckM ()

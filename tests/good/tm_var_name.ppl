@@ -1,0 +1,5 @@
+define x1 = ((), ());
+define y = \a:() . a;
+let z = (x1, y) in ()
+
+-- correct: [1.0]

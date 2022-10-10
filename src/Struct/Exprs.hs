@@ -65,6 +65,12 @@ instance IsString TpVar  where fromString = TpV
 instance IsString TpName where fromString = TpN
 instance IsString Tag    where fromString = Tag
 
+-- Coerce between TmVar and TmName during type checking and substitution
+tmVarToName :: TmVar -> TmName
+tmVarToName (TmV s) = TmN s
+tmNameToVar :: TmName -> TmVar
+tmNameToVar (TmN s) = TmV s
+
 -- Param is (x : tp)
 type Param = (TmVar, Type)
 -- Arg is (tm : tp)
