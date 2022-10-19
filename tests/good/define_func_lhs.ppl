@@ -1,0 +1,6 @@
+define f = ();
+define g x = ();
+define h x y = ();
+
+let x = (f, g (), h () ())
+in ();

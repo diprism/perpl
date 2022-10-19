@@ -185,3 +185,10 @@ builtins = [
 progBuiltins :: UsProgs -> UsProgs
 progBuiltins (UsProgs ps end) =
   UsProgs (builtins ++ ps) end
+
+-- Compose a lambda from a list of argument names and a body
+usLams :: [TmVar] -> UsTm -> UsTm
+usLams xs tail =
+  case xs of
+    x:xs -> UsLam x NoTp (usLams xs tail)
+    [] -> tail 
