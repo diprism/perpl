@@ -1,0 +1,23 @@
+{- In Penney's game, Player A and Player B choose patterns of three
+   (ordered) coin flips, then flip a fair coin until one player's
+   pattern occurs. That player is the winner.
+
+   https://en.wikipedia.org/wiki/Penney%27s_game -}
+
+-- This version needs issue #50 and then some.
+
+data Flip = H | T;
+define flip = amb (factor 0.5 in H) (factor 0.5 in T);
+
+data List a = Nil | Cons a (List a);
+
+define pattern_a = [H, T, H];
+define pattern_b = [H, T, T];
+
+define run = \acc: List Bool.
+  case acc of
+    pattern_a :: _ -> A
+    | pattern_b :: _ -> B
+    | run (Cons flip acc);
+
+run Nil
