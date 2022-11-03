@@ -1,0 +1,35 @@
+{- After n flips of a coin, what is the probability that the majority are heads?
+   I got this to work by instead of accumulating the number of heads and tails,
+   I actually use n as the starting value of the number of heads/tails and
+   decrement accordingly, then use heads < tails instead of heads > tails.
+   Ideally we would be able to use the naive method of
+-}
+
+data Nat = Z | S Nat;
+define pred = \ n. case n of Z -> Z | S n -> n;
+define gt = \ m. \ n. case m of
+  | Z -> False
+  | S m -> case n of
+    | Z -> True
+    | S n -> gt m n;
+define lt = \ m. \ n. gt n m;
+
+define p = amb (factor 0.4 in False) (factor 0.6 in True);
+define n = S (S (S Z));
+
+-- Works
+{-define n_flips_h =
+  \ n. \ t. \ f. case n of
+    | Z -> lt t f
+    | S n -> if p then n_flips_h n (pred t) f else n_flips_h n t (pred f);
+n_flips_h n n n;-}
+-- ^^ but no *real* n_flips function unless we get bounded use of linear types, e.g.
+--        define n_flips = \ n. n_flips_h n n n;
+
+-- Fails
+define n_flips_h =
+  \ n. \ t. \ f. case n of
+    | Z -> gt t f
+    | S n -> if p then n_flips_h n (S t) f else n_flips_h n t (S f);
+define n_flips = \ n. n_flips_h n Z Z;
+n_flips n;
