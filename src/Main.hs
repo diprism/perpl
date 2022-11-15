@@ -3,7 +3,7 @@ import Control.Monad (foldM)
 import System.Console.GetOpt
 import System.Exit (die, exitSuccess)
 import System.Environment (getArgs, getProgName)
-import System.IO (hPutStr, hPutStrLn, stdin, stdout, stderr, openFile, IOMode(..), hGetContents)
+import System.IO (hPutStr, hPutStrLn, stdin, stdout, stderr, openFile, IOMode(..), hGetContents, hFlush)
 import Struct.Lib (TpName(TpN), Progs, progBuiltins)
 import Parse.Lib
 import TypeInf.Lib
@@ -145,7 +145,7 @@ main = getArgs >>= \ argv -> case processArgs argv of
     maybe (return stdin) (\ fn -> openFile fn ReadMode) (optInfile opts) >>= \ifh ->
     maybe (return stdout) (\ fn -> openFile fn WriteMode) (optOutfile opts) >>= \ofh ->
     hGetContents ifh >>= \ input ->
-    either die (\ a -> hPutStr ofh a >> exitSuccess) (processContents opts input)    
+    either die (\ a -> hPutStr ofh a >> hFlush ofh >> exitSuccess) (processContents opts input)    
 
   Left err ->
     getProgName >>= \ name ->
