@@ -1,0 +1,26 @@
+(* Like regexp.ppl, but manually defunctionalized. *)
+
+data Symbol = A | B;
+data String = Nil | Cons Symbol String;
+data Regexp = Atom Symbol | Union Address Address | Concat Address Address | Star Address;
+data Address = T | T1 | T11 | T12;
+
+define unfold = \a.
+  case a of
+      T -> Star T1
+    | T1 -> Concat T11 T12
+    | T11 -> Atom A
+    | T12 -> Atom B;
+
+-- Match re against a prefix of w and return the rest
+define match' = \re. \w.
+  case unfold re of
+    Atom a -> (case w of Nil -> fail | Cons b w -> if a == b then w else fail)
+  | Union re1 re2 -> amb (match' re1 w) (match' re2 w)
+  | Concat re1 re2 -> let w' = match' re1 w in match' re2 w'
+  | Star re1 -> let w' = match' re1 w in match' re w';
+
+-- Match re against w
+define match = \re. \w. case match' re w of Nil -> () | Cons _ _ -> fail;
+
+match T (Cons A (Cons B (Cons A (Cons B Nil))))
