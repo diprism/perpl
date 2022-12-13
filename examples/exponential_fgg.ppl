@@ -1,0 +1,16 @@
+data Nat = Z | S Nat;
+
+define half n =
+  case n of
+    | Z -> Z
+    | S n -> case n of
+      | Z -> Z
+      | S n -> S (half n);
+
+-- Note: eta-expanding to \m. S m significantly reduces FGG size!?
+-- I believe this is because it essentially disables the affine-to-linear
+-- optimization that assumes global function calls always receive all args,
+-- i.e. instead of (let <y', _> = y in y' Z) below, we simply get (y Z)
+define y = S;
+
+let _ = {-half-} ({-half-} ({-half-} (half (half (half (y Z)))))) in ();
