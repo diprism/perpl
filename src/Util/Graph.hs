@@ -80,12 +80,15 @@ scc deps =
                modOnStack (Set.insert v) t
           t'' = foldr
             (\ w t ->
-               if Map.member w (indices t) then
-                 (if not (Set.member w (onStack t)) then t else
-                    modLowlinks (Map.insertWith min v (indices t Map.! w)) t)
+               if not (Map.member w deps) then
+                 t
                else
-                 modLowlinks (\ lls -> Map.insertWith min v (lls Map.! w) lls)
-                   (strongconnect w t))
+                 if Map.member w (indices t) then
+                   (if not (Set.member w (onStack t)) then t else
+                      modLowlinks (Map.insertWith min v (indices t Map.! w)) t)
+                 else
+                   modLowlinks (\ lls -> Map.insertWith min v (lls Map.! w) lls)
+                     (strongconnect w t))
             t' (deps Map.! v)
           t''' = if lowlinks t'' Map.! v == indices t'' Map.! v then mkScc v t'' else t''
       in
