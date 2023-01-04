@@ -254,6 +254,7 @@ checkType (TpData y tgs as) =
 checkType (TpProd am tps) =
   pure (TpProd am) <*> mapM checkType tps
 checkType (TpVar y) =
+  lookupDatatype (let TpV y' = y in TpN y') >>
   return (TpVar y)
 checkType NoTp =
   error "checkType should never see a NoTp!"

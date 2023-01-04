@@ -9,7 +9,7 @@ import Util.Graph (scc, SCC(..))
 import Struct.Lib
 import Scope.Subst (Subst(tmVars, tpVars, tags), STerm(Replace), FreeVars(freeTmVars, freeTpVars), subst, freeVars, freeDatatypes, substTags)
 import Scope.Free (robust)
-import Scope.Ctxt (Ctxt, emptyCtxt, ctxtLookupType2)
+import Scope.Ctxt (Ctxt, emptyCtxt, ctxtLookupType2, ctxtAddData)
 
 bindTp :: TpVar -> Type -> Either TypeError Subst
 bindTp x tp
@@ -310,9 +310,8 @@ inferData dsccs cont = foldr h cont dsccs
     checkData :: (TpName, [TpVar], [Ctor]) -> CheckM (TpName, [TpVar], [Ctor])
     checkData (y, ps, cs) =
       localCurDef y $
-      -- checkType doesn't look for bound type variables ps,
-      -- so we don't need to add them to the environment
-      mapCtorsM checkType cs >>= \ cs' ->
+      local (\g -> g {checkEnv = foldr (\ (TpV z) g -> ctxtAddData g (TpN z) [] [] []) (checkEnv g) ps})
+        (mapCtorsM checkType cs) >>= \ cs' ->
       return (y, ps, cs')
 
     -- Adds datatype defs and ctors to env, and adds them to returned
