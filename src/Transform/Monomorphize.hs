@@ -78,9 +78,7 @@ renameCalls :: Map Var (Map ([Tag], [Type]) Int) -> Term -> Term
 renameCalls xis (TmVarL x tp) = TmVarL x (renameCallsTp xis tp)
 renameCalls xis (TmVarG g x [] [] as tp) = TmVarG g x [] [] [(renameCalls xis tm, renameCallsTp xis tp) | (tm, tp) <- as] (renameCallsTp xis tp)
 renameCalls xis (TmVarG g x tgs tis as tp) =
-  let xisx = xis Map.! TmName x
-      xi = (xis Map.! TmName x) Map.! (tgs, tis)
-  in
+  let xi = (xis Map.! TmName x) Map.! (tgs, tis) in
     TmVarG g (instTmName x xi) [] []
       [(renameCalls xis tm, renameCallsTp xis tp)| (tm, tp) <- as]
       (renameCallsTp xis tp)
