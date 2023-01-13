@@ -1,0 +1,53 @@
+#!/usr/bin/perl
+
+use strict;
+use JSON qw(decode_json);
+use Text::CSV qw(csv);
+
+# Read parameters and times from pcfg-wppl.json
+open JSON, "pcfg-wppl.json" or die;
+my $json;
+{
+    local $/;
+    $json = decode_json(<JSON>);
+}
+my @run;
+my %method;
+foreach my $result (@{$json->{results}}) {
+    my $method     = $result->{parameters}{method};
+    my $parameters = $result->{parameters}{size} . $method;
+    $method =~ s/^[\d\s]+//;
+    foreach my $time (@{$result->{times}}) {
+        push @run, { method     => $method,
+                     parameters => $parameters,
+                     time       => $time };
+    }
+    $method{$method} = @run;
+}
+
+# Read parameters and distribution from pcfg-wppl.out
+open OUT, "pcfg-wppl.out" or die;
+my $i;
+{
+    local $/;
+    my $out = <OUT>;
+    while ($out =~ /^(\d+ \w+)\n(\{\n(?: .*\n)*\})\n/mg) {
+        my ($parameters, $results) = ($1, $2);
+        my $run = $run[$i++];
+        die unless $parameters eq $run->{parameters};
+        $results =~ s/['"]?(\w+)['"]?:/"$1":/g;
+        $run->{dist} = decode_json($results);
+    }
+}
+#die unless $i == @run;
+
+# Generate one plot per parsed string length
+for (my $length = 1; $length <= 20; ++$length) {
+    csv(out => "pcfg-wppl-$length.csv",
+        eol => $/,
+        in => [["time", "prob", "method"],
+               map [$_->{time},
+                    $_->{dist}{$length}{prob} // 0,
+                    $_->{method}],
+                   @run]);
+}

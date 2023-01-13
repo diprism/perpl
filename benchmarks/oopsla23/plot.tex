@@ -1,0 +1,79 @@
+\documentclass{minimal}
+\usepackage[paperheight=4in,paperwidth=6in,margin=0pt]{geometry}
+\usepackage{pgfplots}
+\usepackage[tt=false]{libertine}
+\usepackage[libertine]{newtxmath}
+\usepackage{csvsimple-l3}
+\tikzset{dice/.style={black, dash pattern=on 2pt off 1pt, every mark/.style={solid}, mark=square, mark size=1.5pt}}
+\tikzset{perpl/.style={blue!40!red, mark=o, mark size=1.5pt}}
+\begin{document}
+\offinterlineskip
+
+\vspace*{0pt plus1filll}
+\noindent
+\hfil
+\begin{tikzpicture}
+    \begin{semilogyaxis}[width=.98\paperwidth, height=\paperheight, axis lines=left, tick align=outside,
+                         legend pos=south east, legend style={draw=none},
+                         xlabel={String length}, ylabel={Parsing time (seconds)},
+                         error bars/error mark options/.append={,solid},
+                         error bars/error mark options/.append={,xshift=-1pt}, % seems to work around https://stackoverflow.com/questions/30208428/pgfplots-produces-errorbars-with-shifted-end-lines but why?
+                         error bars/y dir=both, error bars/y explicit]
+        \addplot [mark=x,teal]
+            table [row sep=crcr, col sep=comma, x=length, y=mean,
+                   y error expr=\thisrow{stddev}/sqrt(\thisrow{count})] {%pcfg-pac.csv
+command,mean,stddev,median,user,system,min,max,parameter_size,length,count\\
+node '/tmp/159 rejection.js',0.25660297614666666,0.0040220463227269385,0.25464435348,0.27003921999999997,0.024681246666666667,0.25393541148,0.26122916347999997,159,1,3\\
+node '/tmp/17484 rejection.js',0.32765301548,0.006420293183397398,0.32535227048,0.38112355333333325,0.03857658,0.32270010248000003,0.33490667348000003,17484,2,3\\
+node '/tmp/103730 rejection.js',0.50488994148,0.004911468715284353,0.50208100848,0.5832725533333334,0.05145124666666667,0.50202768248,0.51056113348,103730,3,3\\
+node '/tmp/468570 rejection.js',1.0828611881466668,0.023109830972114057,1.09214365348,1.1607322199999999,0.07947491333333333,1.05655336448,1.09988654648,468570,4,3\\
+node '/tmp/1851340 rejection.js',3.2422461208133337,0.027464420812683514,3.23359645348,3.4144992199999997,0.15107958000000002,3.22014782348,3.27299408548,1851340,5,3\\
+node '/tmp/6886680 rejection.js',11.400844316146667,0.06880468755472828,11.374059628480001,11.82410022,0.5230082466666667,11.349459963480001,11.479013356480001,6886680,6,3\\
+node '/tmp/24346848 rejection.js',43.15883890581333,1.0005530106241989,42.70538271448,46.381308219999994,1.4997145799999998,42.46530104048,44.30583296248,24346848,7,3\\
+            }
+            -- (axis cs:8,143.7345099440861652) % 83030798 rejection
+            -- (axis cs:9,475.2831637011542388) % 274706448 rejection
+            -- (axis cs:10,1567.5328378334634987) % 906160275 rejection
+            ;
+        \addlegendentry{WebPPL$^*$}
+        \addplot [dice]
+            table [col sep=comma, x=parameter_length, y=mean,
+                   y error expr=\thisrow{stddev}/sqrt(10)]
+            {pcfg-dice.csv};
+        \addlegendentry{Dice}
+        \addplot [perpl]
+            table [col sep=comma, x=parameter_length, y=mean,
+                   y error expr=\thisrow{stddev}/sqrt(10)]
+            {pcfg-perpl.csv};
+        \addlegendentry{PERPL}
+    \end{semilogyaxis}
+\end{tikzpicture}
+
+\vspace*{0pt plus1filll}
+
+\foreach \parsedLength in {5,10,15,20} {%
+    \newpage
+    \noindent
+    \hfil
+    \begin{tikzpicture}
+        \begin{axis}[width=.98\paperwidth, height=.95\paperheight, axis lines=left,
+                     title={String length = \parsedLength},
+                     legend pos=north east, legend style={draw=none},
+                     xlabel={Parsing time (seconds)}, ylabel={Probability estimate},
+                     scatter/classes={rejection={mark=+},
+                                      SMC={mark=x},
+                                      incrementalMH={mark=asterisk},
+                                      MCMC={mark=star}}]
+            \addplot [scatter, only marks, scatter src=explicit symbolic]
+                table [col sep=comma, x=time, y=prob, meta=method]
+                {pcfg-wppl-\parsedLength.csv};
+            \csvreader[separator=tab, no head, filter strcmp={\csvcoli}{\parsedLength}]
+                {pcfg-exact.tsv}{}{\edef\prob{\csvcolii}}
+            \addplot [dashed] coordinates { (0,0) }
+                (axis cs:\pgfkeysvalueof{/pgfplots/xmin}, \prob) --
+                (axis cs:\pgfkeysvalueof{/pgfplots/xmax}, \prob);%}
+            \legend{rejection,SMC,incrementalMH,MCMC,true probability}
+        \end{axis}
+    \end{tikzpicture}}%
+
+\end{document}
