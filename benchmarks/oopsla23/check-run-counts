@@ -1,0 +1,13 @@
+#lang racket
+; Check the given JSON files to make sure that hyperfine ran each command exactly 10 times.
+; This means that standard error = stddev/sqrt(10).
+
+(require racket/cmdline json)
+
+(command-line #:args json-paths
+  (for* ([json-path (in-list json-paths)]
+         [result (in-list (hash-ref (call-with-input-file* json-path read-json) 'results))]
+         [count (in-value (length (hash-ref result 'times)))]
+         #:unless (= 10 count))
+    (eprintf "Warning: ~a contains ~a times for ~s\n"
+             json-path count (hash-ref result 'command))))
