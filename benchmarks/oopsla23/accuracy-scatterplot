@@ -18,6 +18,7 @@ foreach my $result (@{$json->{results}}) {
     my $parameters = $result->{parameters}{size} . $method;
     $method =~ s/^[\d\s]+//;
     foreach my $time (@{$result->{times}}) {
+        next if shift @{$result->{exit_codes}};
         push @run, { method     => $method,
                      parameters => $parameters,
                      time       => $time };
