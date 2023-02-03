@@ -109,8 +109,16 @@ robust :: Ctxt -> Type -> Bool
 robust g tp = not (searchType p g tp) where
   p visited tp@(TpData y tgs as) = tp `elem` visited
   p visited (TpArr _ _) = True
-  p visited (TpProd am _) = am == Additive
+  p visited (TpProd Additive _) = True
   p visited _ = False
+
+-- Returns if a type has no arrow or ampersand types anywhere in it
+positive :: Ctxt -> Type -> Bool
+positive g tp = not (searchType p g tp) where
+  p visited (TpArr _ _) = True
+  p visited (TpProd Additive _) = True
+  p visited _ = False
+
 
 -- Returns if a type has an infinite domain (i.e. it contains (mutually) recursive datatypes anywhere in it)
 isInfiniteType :: Ctxt -> Type -> Bool

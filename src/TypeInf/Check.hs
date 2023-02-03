@@ -24,6 +24,7 @@ data TypeError =
   | ScopeError String -- var is out of scope
   | CtorError TmName -- not a constructor
   | RobustType Type -- expected type to be robust
+  | PositiveType Type -- expected type to contain no arrows or additive products
   | NoCases -- case-of with no cases
   | MissingCases [TmName] -- missing cases for some constructors
   | WrongNumCases Int Int -- wrong number of cases
@@ -39,6 +40,7 @@ instance Show TypeError where
   show (CtorError x) = "'" ++ show x ++ "' is not a constructor"
   show (UnificationError tp1 tp2) = "Failed to unify " ++ show tp1 ++ " and " ++ show tp2
   show (RobustType tp) = "Expected " ++ show tp ++ " to be a robust type (or if binding a var, it is used non-affinely)"
+  show (PositiveType tp) = "Expected " ++ show tp ++ " to be a positive type (containing no arrow or ampersand types)"
   show NoCases = "Can't have case-of with no cases"
   show (MissingCases xs) = "Missing cases: " ++ intercalate ", " (show <$> xs)
   show (WrongNumCases exp act) = "Expected " ++ show exp ++ " cases, but got " ++ show act
@@ -48,8 +50,7 @@ instance Show TypeError where
 
 
 {- ===== Constraints ===== -}
-data Constraint = Unify Type Type | Robust Type
-  deriving Show
+data Constraint = Unify Type Type | Robust Type | Positive Type
 
 -- Discards Robust constraints
 getUnifications :: [(Constraint, Loc)] -> [(Type, Type, Loc)]
@@ -67,9 +68,11 @@ constrainIf False c = okay
 instance Substitutable Constraint where
   substM (Unify tp1 tp2) = pure Unify <*> substM tp1 <*> substM tp2
   substM (Robust tp) = pure Robust <*> substM tp
+  substM (Positive tp) = pure Positive <*> substM tp
 
   freeVars (Unify tp1 tp2) = freeVars tp1 <> freeVars tp2
   freeVars (Robust tp) = freeVars tp
+  freeVars (Positive tp) = freeVars tp
 
 {- ===== CheckM Monad =====-}
 
@@ -411,9 +414,13 @@ infer' (UsEqs tms) =
   freshTp >>= \ itp ->
   -- Constraint: for each tm in tms', itp = (typeof tm)
   mapM (constrain . Unify itp . typeof) tms' >>
-  -- Constraint: itp is robust (can't be done naively for rec datatypes)
-  -- TODO: would this work for arrow types though?
-  constrain (Robust itp) >>
+  -- TODO: allow a weaker sense of type equality here, where datatype tags may be
+  --       different; this would require ==-elimination to happen BETWEEN monomorph-
+  --       ization of datatype parameters and datatype tags, so that you can compare
+  --           List #i A == List #j B
+  --       so long as you impose the constraint Unify A B (but no need to have #i = #j)
+  -- Constraint: itp is positive
+  constrain (Positive itp) >>
   return (TmEqs tms')
 
 inferCase :: CaseUs -> Ctor -> CheckM Case

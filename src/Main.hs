@@ -13,6 +13,7 @@ import Transform.DR
 import Transform.AffLin
 import Transform.Optimize
 import Transform.Argify
+import Transform.RecEq
 import Scope.Subst (Substitutable, alphaRename)
 import Scope.Ctxt
 import Util.FGG
@@ -116,11 +117,13 @@ processContents (CmdArgs ifn ofn c m e dr l o z) s =
   >>= infer
   >>= if not m then return . show else (\ x -> (Right . monomorphizeFile) x
   >>= Right . argifyFile
+  >>= Right . replaceEqs -- TODO: move before monomorphization, relax == constraints in Check (but this isn't so simple: what about List A == List A vs List (List A) == List (List A)?)
 --  >>= alphaRenameProgs (const emptyCtxt)
   -- Apply various optimizations
   >>= doIf o optimizeFile
   -- Convert terms from affine to linear
   >>= doIf l affLinFile
+  -- Replace == of recursive datatypes
   -- Eliminate recursive types (de/refunctionalization)
   >>= doIf e' (elimRecTypes dr)
   -- Apply various optimizations (again) (disabled for now; joinApps problem after aff2lin introduces maybe types)

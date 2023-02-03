@@ -8,7 +8,7 @@ import Util.Helpers
 import Util.Graph (scc, SCC(..))
 import Struct.Lib
 import Scope.Subst (Subst(tmVars, tpVars, tags), STerm(Replace), FreeVars(freeTmVars, freeTpVars), subst, freeVars, freeDatatypes, substTags)
-import Scope.Free (robust)
+import Scope.Free (robust, positive)
 import Scope.Ctxt (Ctxt, emptyCtxt, ctxtLookupType2, ctxtAddData)
 
 bindTp :: TpVar -> Type -> Either TypeError Subst
@@ -96,6 +96,9 @@ solvedWell e s cs xs =
       | otherwise = Right mempty
     h (Robust tp) l -- Make sure that tp was solved to a robust type
       | not (robust e tp) = Left (RobustType tp, l)
+      | otherwise = Right (usedVars tp) -- all used vars in tp must end up robust too
+    h (Positive tp) l -- Make sure that tp was solved to a robust type
+      | not (positive e tp) = Left (PositiveType tp, l)
       | otherwise = Right (usedVars tp) -- all used vars in tp must end up robust too
 
     -- Can assume tp is robust
