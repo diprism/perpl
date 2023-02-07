@@ -1,0 +1,10 @@
+data Nat = Zero | Succ Nat;
+define psucc = amb (factor 0.5 in True) (factor 0.5 in False);
+define gennat = if psucc then Succ gennat else Zero;
+
+data List a = Nil | Cons a (List a);
+define pcons = amb (factor 0.5 in True) (factor 0.5 in False);
+define genlist = if pcons then Cons gennat genlist else Nil;
+
+genlist == genlist;
+-- correct: [0.727, 0.273]
