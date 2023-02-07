@@ -66,7 +66,8 @@ collectCallsTp :: Type -> GlobalCalls
 collectCallsTp (TpData y tgs as) = [(TpName y, tgs, as)] <> mconcat (map collectCallsTp as)
 collectCallsTp (TpArr tp1 tp2)   = collectCallsTp tp1 <> collectCallsTp tp2
 collectCallsTp (TpProd am tps)   = mconcat (map collectCallsTp tps)
-collectCallsTp  _                = []
+collectCallsTp (TpVar v)         = []
+collectCallsTp NoTp              = []
 
 -- Substitutes polymorphic calls for their monomorphized version
 -- (So if we instantiate List with Bool and Unit, then `List1 = List Bool` and
@@ -107,7 +108,8 @@ renameCallsTp xis (TpData y tgs as) =
     (xis Map.!? TpName y)
 renameCallsTp xis (TpArr tp1 tp2) = TpArr (renameCallsTp xis tp1) (renameCallsTp xis tp2)
 renameCallsTp xis (TpProd am tps) = TpProd am (map (renameCallsTp xis) tps)
-renameCallsTp xis tp = tp
+renameCallsTp xis (TpVar (TpV y)) = error ("renameCallsTp sees a TpVar " ++ show y)
+renameCallsTp xis NoTp = NoTp
 
 -- Set up a map with an empty entry ([]) for each definition
 makeEmptyInsts :: [SProg] -> Insts
@@ -149,9 +151,8 @@ addInsts dm tpms xis x tgs tis
       in
         foldr (\ (x, tgs, tis) xis ->
                   foldr (\ (ctgs,ctis) xis ->
-                            addInsts dm tpms xis x
-                                     (subst mempty{tags   = Map.fromList (pickyZip curtgs ctgs)} tgs)
-                                     (subst mempty{tpVars = Map.fromList (pickyZip curpms ctis)} tis))
+                           let s = mempty{tags = Map.fromList (pickyZip curtgs ctgs), tpVars = Map.fromList (pickyZip curpms ctis)} in
+                            addInsts dm tpms xis x (subst s tgs) (subst s tis))
                         xis curtis)
               xis (dm Map.! x)
 
