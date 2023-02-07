@@ -1,0 +1,3 @@
+data List a = Nil | Cons a (List a);
+
+Cons (\x. ()) Nil == Nil;
