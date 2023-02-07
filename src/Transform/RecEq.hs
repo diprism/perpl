@@ -36,9 +36,8 @@ replaceEq tms@(htm : _) =
     makeAnd (tm : []) = tm
     makeAnd tms@(_ : _ : _) = TmEqs (tmTrue : tms)
 
-    makeEq :: Type -> EqM ()
-    makeEq tp =
-      eqName tp >>= \eqn ->
+    makeEq :: TmName -> Type -> EqM ()
+    makeEq eqn tp =
       let ps = [(xname [i], tp) | i <- [1..n]] in
         -- Add stand-in def for now, so recursive calls work
         addEq tp n eqn ps undefined >>
@@ -87,8 +86,8 @@ replaceEq tms@(htm : _) =
           return (TmEqs tms)
         else
           isDefined tp >>= \def ->
-          (if def then okay else makeEq tp) >>
           eqName tp >>= \eqn ->
+          (if def then okay else makeEq eqn tp) >>
           return (TmVarG GlDefine eqn [] [] [(tm, tp) | tm <- tms] tpBool)
 
     isFinite :: Type -> EqM Bool
