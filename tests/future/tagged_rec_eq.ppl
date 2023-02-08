@@ -1,0 +1,20 @@
+data List a = Nil | Cons a (List a);
+
+define reverse' xs acc = case xs of
+  | Nil -> acc
+  | Cons x xs -> reverse' xs (Cons x acc);
+
+define reverse xs = reverse' xs Nil;
+
+define listeq as bs = case as of
+  | Nil -> (case bs of
+    | Nil -> True
+    | Cons b bs -> False)
+  | Cons a as -> (case bs of
+    | Nil -> False
+    | Cons b bs -> if a == b then listeq as bs else False);
+
+define str = Cons True (Cons False (Cons True Nil));
+
+--str == reverse str;
+listeq str (reverse str);
