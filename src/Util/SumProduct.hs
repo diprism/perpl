@@ -14,11 +14,11 @@ multiTensorDistance mt1 mt2 =
   let diff = Map.differenceWith (\t1 t2 -> Just (tensorSub t1 t2)) mt1 mt2 in
     foldr max 0.0 (fmap (foldr max 0.0 . tensorFlatten) diff)
 
-nonterminalGraph :: FGG -> Map EdgeLabel (Set EdgeLabel)
+nonterminalGraph :: FGG tensor -> Map EdgeLabel (Set EdgeLabel)
 nonterminalGraph fgg = foldr (\ (Rule lhs rhs) g -> Map.insertWith Set.union lhs (nts rhs) g) (fmap (const mempty) (nonterminals fgg)) (rules fgg)
   where nts rhs = Set.fromList [edge_label e | e <- hgf_edges rhs, edge_label e `Map.member` nonterminals fgg]
 
-sumProduct :: FGG -> Tensor Weight
+sumProduct :: FGG Tensor -> Tensor Weight
 sumProduct fgg =
   let
     -- Process the strongly-connected components that are reachable from start
@@ -32,7 +32,7 @@ sumProduct fgg =
   in
     z Map.! (start fgg)
 
-sumProductSCC :: FGG -> SCC EdgeLabel -> MultiTensor -> MultiTensor
+sumProductSCC :: FGG Tensor -> SCC EdgeLabel -> MultiTensor -> MultiTensor
 sumProductSCC fgg (NontrivialSCC nts) z = h (Map.union (zero fgg nts) z) where
   h prev =
     let cur = step fgg nts prev
@@ -40,7 +40,7 @@ sumProductSCC fgg (NontrivialSCC nts) z = h (Map.union (zero fgg nts) z) where
     in if diff < 1e-3 then cur else h cur
 sumProductSCC fgg (TrivialSCC nt) z = step fgg [nt] (Map.union (zero fgg [nt]) z)
 
-tensorToAssoc :: FGG -> EdgeLabel -> Tensor a -> [([Value], a)]
+tensorToAssoc :: FGG Tensor -> EdgeLabel -> Tensor a -> [([Value], a)]
 tensorToAssoc fgg el = h (nonterminals fgg Map.! el) where
   h [] (Scalar w) =
       [([], w)]
@@ -55,14 +55,14 @@ tensorToAssoc fgg el = h (nonterminals fgg Map.! el) where
 prettySumProduct fgg =
   intercalate "\n" [intercalate " " [s | Value s <- vals] ++ "\t" ++ show w | (vals, w) <- (tensorToAssoc fgg (start fgg) (sumProduct fgg))]
 
-zero :: FGG -> [EdgeLabel] -> MultiTensor
+zero :: FGG Tensor -> [EdgeLabel] -> MultiTensor
 zero fgg nts =
   Map.fromList [(x, zeros (nonterminalShape fgg x)) | x <- nts]
 
-nonterminalShape :: FGG -> EdgeLabel -> [Int]
+nonterminalShape :: FGG Tensor -> EdgeLabel -> [Int]
 nonterminalShape fgg x = [length ((domains fgg) Map.! nl) | nl <- (nonterminals fgg) Map.! x]
 
-step :: FGG -> [EdgeLabel] -> MultiTensor -> MultiTensor
+step :: FGG Tensor -> [EdgeLabel] -> MultiTensor -> MultiTensor
 step fgg nts z =
   Map.union (Map.fromList [ (x, stepNonterminal x) | x <- nts ]) z
   where

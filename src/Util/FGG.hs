@@ -19,7 +19,7 @@ type Domain = [Value]
 newtype Value = Value String
   deriving Show
 type Weight = Double
-type Weights = Tensor Weight
+type Weights tensor = tensor Weight
 
 {- Every node in an FGG has a NodeName, which is unique within its
    Rule. Nodes are either internal or external, and we use different
@@ -91,24 +91,19 @@ data HGF = HGF { hgf_nodes :: [Node], hgf_edges :: [Edge], hgf_exts :: [Node] }
   deriving (Eq, Show)
 data Rule = Rule EdgeLabel HGF
   deriving (Eq, Show)
-data FGG = FGG {
+data FGG tensor = FGG {
   domains :: Map NodeLabel Domain,                       -- node label to set of values
-  factors :: Map EdgeLabel ([NodeLabel],Weights),        -- edge label to att node labels, weights
+  factors :: Map EdgeLabel ([NodeLabel], Weights tensor),-- edge label to att node labels, weights
   nonterminals :: Map EdgeLabel [NodeLabel],             -- nt name to attachment node labels
   start :: EdgeLabel,                                    -- start nt
   rules :: [Rule]                                        -- rules
 }
 
--- Creates a JSON object from a weights tensor
-weights_to_json :: Weights -> JSON
-weights_to_json (Scalar n) = JSdouble n
-weights_to_json (Vector ts) = JSarray [weights_to_json v | v <- ts]
-
 {- fgg_to_json fgg
 
    Convert an FGG into a JSON. -}
                               
-fgg_to_json :: FGG -> JSON
+fgg_to_json :: TensorLike tensor => FGG tensor -> JSON
 fgg_to_json (FGG ds fs nts s rs) =
   let mapToList = \ ds f -> JSobject $ map f (Map.toList ds) in
   JSobject
@@ -153,5 +148,5 @@ fgg_to_json (FGG ds fs nts s rs) =
     ]
 
 
-showFGG :: FGG -> String
+showFGG :: TensorLike tensor => FGG tensor -> String
 showFGG = pprint_json . fgg_to_json
