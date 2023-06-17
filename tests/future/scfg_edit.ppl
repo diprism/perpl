@@ -7,15 +7,19 @@ data String = Nil | Cons Terminal String;
 data Action = Stop | Left | Right | Both | Swap;
 data Terminal = A | B;
 
-define sample_act = amb Stop Left Right Both Swap;
-define sample_term = amb A B;
+define sample_act = amb (factor 0.4 in Stop)
+                        (factor 0.1 in Left)
+                        (factor 0.1 in Right)
+                        (factor 0.3 in Both)
+                        (factor 0.1 in Swap);
+define sample_term = factor 0.5 in amb A B;
 
 define gen: (String -> String, String -> String) =
   case sample_act of
   | Stop  -> (\ys. ys, \zs. zs)
-  | Left  -> let x = sample_term in (\ys. Cons x ys, \zs.        zs)
-  | Right -> let x = sample_term in (\ys.        ys, \zs. Cons x zs)
-  | Both  -> let x = sample_term in (\ys. Cons x ys, \zs. Cons x zs)
+  | Left  -> let x = sample_term in let (l, r) = gen in (\ys. Cons x (l ys),              r    )
+  | Right -> let x = sample_term in let (l, r) = gen in (             l    , \zs. Cons x (r zs))
+  | Both  -> let x = sample_term in let (l, r) = gen in (\ys. Cons x (l ys), \zs. Cons x (r zs))
   | Swap  -> let (l1, r1) = gen in
              let (l2, r2) = gen in
              (\ys. l1 (l2 ys), \zs. r2 (r1 zs));
@@ -28,6 +32,6 @@ define equal: String -> String -> () = \xs: String. \ys: String.
       | Cons y ys -> if x == y then equal xs ys else fail);
 
 let (l, r) = gen in
-let () = equal (l Nil) (Cons A (Cons A (Cons B (Cons B Nil)))) in
-let () = equal (r Nil) (Cons B (Cons B (Cons A (Cons A Nil)))) in
+let () = equal (l Nil) (Cons B (Cons A Nil)) in
+let () = equal (r Nil) (Cons A (Cons B Nil)) in
 ()
