@@ -40,10 +40,8 @@ instance TensorLike PatternedTensor where
   tensorShape pt = map (axisNelem (expand pt ++ tensorShape (physical pt)))
                        (vaxes pt)
 
-  tensorId dims = PatternedTensor (Scalar 1) dims (axes ++ [axis])
+  tensorId dims = PatternedTensor (Scalar 1) dims (axes ++ [ProductAxis axes])
     where axes = zipWith (const PhysicalAxis) dims [0..]
-          axis = case axes of [e] -> e
-                              _   -> ProductAxis axes
 
   tensorCtor size (Ctor x as) cs = PatternedTensor (Scalar 1) dims (axes ++ [axis])
     where dims = map size as
@@ -53,10 +51,8 @@ instance TensorLike PatternedTensor where
                               | otherwise = error ("Duplicate constructor " ++ show x)
           before = sum (map csize cbefore)
           after  = sum (map csize cafter)
-          axis | before == 0 && after == 0 = e
-               | otherwise = SumAxis before (e) after
-            where e = case axes of [e] -> e
-                                   _   -> ProductAxis axes
+          axis | before == 0 && after == 0 = ProductAxis axes
+               | otherwise = SumAxis before (ProductAxis axes) after
 
   tensorSum tpsizes k = PatternedTensor (Scalar 1) [m] [PhysicalAxis 0, axis]
     where (mbefore, m:mafter) = splitAt k tpsizes
