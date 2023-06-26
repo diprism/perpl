@@ -2,6 +2,7 @@ module Compile.Compile (compileFile, domainSize) where
 import Data.List
 import qualified Data.Map as Map
 import Compile.RuleM
+import Util.Tensor (TensorLike)
 import Util.FGG
 import Util.Helpers
 import Struct.Lib
@@ -326,7 +327,7 @@ domainSize g = tpSize where
    generate two FGG rules with lhs `x` that have external nodes with
    differently-shaped weights. -}
 
-compileFile :: Progs -> Either String FGG
+compileFile :: TensorLike tensor => Progs -> Either String (FGG tensor)
 compileFile ps =
   let g = ctxtAddProgs ps
       Progs _ end = ps

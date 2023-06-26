@@ -18,6 +18,7 @@ import Scope.Subst (Substitutable, alphaRename)
 import Scope.Ctxt
 import Util.FGG
 import Util.SumProduct
+import Util.Indices (PatternedTensor)
 
 data CmdArgs = CmdArgs {
   optInfile :: Maybe String,
@@ -132,11 +133,8 @@ processContents (CmdArgs ifn ofn c m e dr l o z) s =
   >>= alphaRenameProgs ctxtAddProgs
   -- Compile to FGG
   >>= if c' then
-        \ps -> compileFile ps
-               >>= if z then
-                     Right . show . sumProduct
-                   else
-                     Right . showFGG
+        \ps -> if z then show . sumProduct <$> compileFile ps
+                    else (showFGG :: FGG PatternedTensor -> String) <$> compileFile ps
       else
         showFile
                                        )

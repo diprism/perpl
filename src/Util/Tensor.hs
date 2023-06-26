@@ -1,8 +1,25 @@
 {- Tensor code for FGG factor generation -}
 
 module Util.Tensor where
-import Util.Helpers (pickyZip)
+import Util.Helpers (enumerate, pickyZipWith)
+import Util.JSON
+import Struct.Exprs (Ctor(Ctor), Type)
 import Data.List (intercalate)
+
+class TensorLike tensor where
+  -- Creates a JSON object from a weights tensor
+  weights_to_json :: tensor Double -> JSON
+
+  fromTensor :: Tensor a -> tensor a
+
+  tensorShape :: tensor a -> [Int]
+
+  -- For [d1, d2, ..., dn], returns a 1-diagonal tensor
+  -- with shape [d1, d2, .., dn, (d1*d2*...*dn)]
+  tensorId   :: Num a => [Int] -> tensor a
+
+  tensorSum  :: Num a => [Int] -> Int -> tensor a
+  tensorCtor :: Num a => (Type -> Int) -> Ctor -> [Ctor] -> tensor a
 
 -- Tensor can either be a Scalar or a Vector of more Tensors
 data Tensor a = Scalar a | Vector [Tensor a]
@@ -20,13 +37,36 @@ instance Applicative Tensor where
   pure = Scalar
   Scalar f <*> Scalar a = Scalar (f a)
   Scalar f <*> Vector ta = Vector [Scalar f <*> v | v <- ta]
-  Vector tf <*> Vector ta = Vector [vf <*> va | (vf, va) <- pickyZip tf ta]
+  Vector tf <*> Vector ta = Vector (pickyZipWith (<*>) tf ta)
   Vector tf <*> Scalar a = Vector [vf <*> Scalar a | vf <- tf]
 
 instance Monad Tensor where
   Scalar a >>= f = f a
   Vector ta >>= f = Vector [va >>= f | va <- ta]
 
+instance TensorLike Tensor where
+  weights_to_json (Scalar n) = JSdouble n
+  weights_to_json (Vector ts) = JSarray [weights_to_json v | v <- ts]
+
+  fromTensor = id
+
+  -- Compute shape, but after a 0, our ignorance forces us to stop
+  tensorShape (Scalar a) = []
+  tensorShape (Vector []) = [0]
+  tensorShape (Vector ts) = length ts : tensorShape (head ts)
+
+  tensorId dims =
+    foldr
+      (\ dim rt pos size -> Vector [rt (i + pos * dim) (size * dim) | i <- [0..dim-1]])
+      (\ pos size -> Vector [Scalar n | n <- tensorIdRow pos size])
+      dims 0 1
+
+  tensorSum tpsizes k = let m = tpsizes !! k in
+    tensorConcat 1 [if k == k' then tensorId [m] else zeros [m, size] | (k', size) <- enumerate tpsizes]
+
+  tensorCtor size (Ctor x as) cs =
+    let ts = [if x' == x then tensorId (map size as) else zeros (map size as ++ [product (map size as')]) | Ctor x' as' <- cs] in
+      tensorConcat (length as) ts
 
 tensorJoin :: Tensor (Tensor a) -> Tensor a
 tensorJoin (Scalar a) = a
@@ -55,11 +95,6 @@ tensorKronAll = foldr (\ va t -> tensorJoin ((\ a -> (:) a <$> t) <$> va)) (Scal
 tensorZip :: Tensor a -> Tensor b -> Tensor (a, b)
 tensorZip ta tb = pure (,) <*> ta <*> tb
 
-tensorShape :: Tensor a -> [Int]
-tensorShape (Scalar a) = []
-tensorShape (Vector []) = [0]
-tensorShape (Vector ts) = length ts : tensorShape (head ts)
-
 tensorAdd :: Num a => Tensor a -> Tensor a -> Tensor a
 tensorAdd ta tb = pure (+) <*> ta <*> tb
 
@@ -75,7 +110,7 @@ tensorFlatten (Vector ts) = concat (fmap tensorFlatten ts)
 
 tensorConcat2 :: Int -> Tensor a -> Tensor a -> Tensor a
 tensorConcat2 0 (Vector tas) (Vector tbs) = Vector (tas ++ tbs)
-tensorConcat2 n (Vector tas) (Vector tbs) = Vector (map (uncurry (tensorConcat2 (n-1))) (pickyZip tas tbs))
+tensorConcat2 n (Vector tas) (Vector tbs) = Vector (pickyZipWith (tensorConcat2 (n-1)) tas tbs)
 tensorConcat2 _ _ _ = error "invalid input shapes"
 
 tensorConcat :: Int -> [Tensor a] -> Tensor a
@@ -119,15 +154,6 @@ Vector a !!! (SliceRange s e : ss) =
 -- Returns the ith-row of an l×l identity matrix
 tensorIdRow :: Num n => Int -> Int -> [n]
 tensorIdRow i l = replicate i 0 ++ [1] ++ replicate (l - i - 1) 0
-
--- For [d1, d2, ..., dn], returns a 1-diagonal tensor
--- with shape [d1, d2, .., dn, (d1*d2*...*dn)]
-tensorId :: Num n => [Int] -> Tensor n
-tensorId dims =
-  foldr
-    (\ dim rt pos size -> Vector [rt (i + pos * dim) (size * dim) | i <- [0..dim-1]])
-    (\ pos size -> Vector [Scalar n | n <- tensorIdRow pos size])
-    dims 0 1
 
 -- Fills a tensor with a value
 constantTensor :: Num n => n -> [Int] -> Tensor n
