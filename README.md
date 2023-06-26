@@ -37,4 +37,4 @@ Although `perplc` can compute sum-products, its implementation is not very effic
 
 ## Credits
 
-This code is written by Colin McDonald (University of Notre Dame) with contributions from David Chiang (University of Notre Dame) and Chung-chieh Shan (Indiana University). It is licensed under the MIT License.
+This code is written by Colin McDonald (University of Notre Dame) with contributions from David Chiang (University of Notre Dame) and Chung-chieh Shan (Indiana University) and is licensed under the MIT License. It is based upon work supported by the National Science Foundation under Award Nos. CCF-2019266 and CCF-2019291.
