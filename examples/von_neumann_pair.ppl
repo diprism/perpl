@@ -1,0 +1,21 @@
+{- Von Neumann's trick for simulating a fair coin with an unfair one:
+   flip the unfair coin twice. If the result is HT, treat it as H; if
+   the result is TH, treat it as T. Otherwise, repeat.
+
+   You need to supply the probability of H and T as the factor `unfair`.
+
+   You can compute the gradient of H with respect to the unfair
+   probabilities and verify that they are equal, showing that the
+   output distribution remains fair in a neighborhood of the given
+   unfair distribution.
+
+   https://en.wikipedia.org/wiki/Fair_coin#Fair_results_from_a_biased_coin -}
+
+data Flip = H | T;
+extern unfair : Flip;
+
+define fair =
+  let (c1, c2) = (unfair, unfair) in
+      if c1 == c2 then fair else c1;
+
+fair
