@@ -1,4 +1,4 @@
-﻿# PERPL Tutorial
+# PERPL Tutorial
 PERPL is a probabilistic programming language developed specifically to address recursive problems with precise solutions. Unlike traditional approaches that generate random outcomes, this language thoroughly examines the possibilities of outcomes and calculates the distribution of results accurately. By using this method, recursive problems can be solved in polynomial time, offering significant efficiency and accuracy improvements over conventional methods.
 
 ## Windows system instructions: 
@@ -177,5 +177,128 @@ Expressions of recursive type must be used affinely (no more than once), so it's
 data Nat = Zero | Succ Nat;
 let one = Succ Zero in (one, one);      -- error: one is used twice
 ```
+# Probabilistic Features
+## amb 
+`amb` splits the program into different branches to separately calculate the results of each possible scenario. 
+Mention how the program is 
 
+    amb (Zero) (Succ Zero) (Succ(Succ Zero))
+The program splits into three branches, shown below. Each branch gets evaluated separately. 
+
+    ┌──────────► Zero                                                                                  
+    │                                                    
+    ├──────────► Succ Zero ─────► 1                                                                    
+    │                                                    
+    └──────────► Succ(Succ Zero) ─────► Succ 1 ─────► 2
+
+Example: 
+Suppose you flip two fair coins, with 0.5 chance in both heads and tails. 
+
+    define flip = amb (factor 0.5 in H) (factor 0.5 in T) 
+                                                0.5            
+                        0.5               ┌──────► H H     
+                     ┌───────► (H, flip) ─┤                
+                     │                    └──────► H T     
+                     │                      0.5            
+    (flip, flip)─────┤                                     
+                     │                      0.5            
+                     │                    ┌──────► T H     
+                     └───────► (T, flip) ─┤                
+                        0.5               └──────► T T     
+                                            0.5            
+                                                      
+
+## Factor
+Factor f: multiply the current branch by f. Higher weight on the branch means higher possibility of that branch's outcome. The factors in the end should all add up to 1. 
+Factor 0: fail. The branch with factor 0 has no weight in the final result, or in other words, the branch ends. 
+
+Example: stairs.ppl
+
+    {- https://leetcode.com/problems/climbing-stairs/
+       You are climbing a staircase. It takes n steps to reach the top.        
+       Each time you can either climb 1 or 2 steps. In how many distinct ways can you climb to the top? -}
+    
+    data Nat = Zero | Succ Nat; 
+    
+    define climb = \stairs.
+      case stairs of
+      | Zero -> ()
+      | Succ stairs -> 
+        amb (climb stairs)   -- take one step
+            (case stairs of  -- take two steps
+             | Zero -> fail
+             | Succ stairs -> climb stairs);
+    
+    climb (Succ (Succ (Succ (Succ (Succ (Succ (Succ Zero))))))) -- Should return the (n+1)'st Fibonacci number (21)
+    
+    -- correct: [21.0]
+
+Example: von_neumann.ppl, an example with different factors. 
+
+    {- Von Neumann's trick for simulating a fair coin with an unfair one:
+       flip the unfair coin twice. If the result is HT, treat it as H; if
+       the result is TH, treat it as T. Otherwise, repeat.
+    
+       You need to supply the probability of H and T as the factor `unfair`.
+    
+       You can compute the gradient of H with respect to the unfair
+       probabilities and verify that they are equal, showing that the
+       output distribution remains fair in a neighborhood of the given
+       unfair distribution.
+    
+       https://en.wikipedia.org/wiki/Fair_coin#Fair_results_from_a_biased_coin -}
+    
+    data Flip = H | T;
+    define unfair = amb (factor 0.6 in H) (factor 0.4 in T);    
+    
+    define fair =
+      let c1 = unfair in
+        let c2 = unfair in
+          if c1 == c2 then fair else c1;
+    
+    fair
+
+
+## Linearity
+
+Linear variables are local variables that has to be used strictly once. 
+
+    let x = Succ Zero in false --allowed under affine types, not allowed under strictly linear types
+    let x = Succ Zero in x --allowed
+    let x = Succ Zero in (x, x) --not allowed to use twice
+    define fair = (x, x) --also not allowed because recursive datatypes are linear
+    
+PERPL uses affine types, slightly different from strictly linear types. The complier changes the affine types to linear types internally. PERPL has this restriction because it is supposed to run in polynomial time. 
+
+Linearity is similar to reading a file in Python, where you can't read .txt files twice. Another way to think about it is having two pointers pointing to the same thing, which could cause errors. 
+
+### Positive and Non-Positive Types
+|  | positive (non-recursive data) | non-positive(recursive data) |
+|--|--|--|
+| local | can copy | cannot copy |
+| global| can copy | cannot copy |
+
+Every type consists of the type itself and the type constructor: 
+|Type| Constructor |
+|--|--|
+| Bool | True, False |
+| ->| \x. (lambda) expressions |
+| &| Additive tuples < , > |
+| *| Multiplicative tuples ( , ) |
+
+PERPL does have types, similar to Haskell, but the PERPL compiler automatically figures out the types, so writing the types while you write a PERPL program is optional. 
+
+## Defunctionalization/Refunctionalization
+PERPL cannot have infinite types (like Nat, where there are infinite amount of natural numbers), so one way PERPL eliminates infinite types is through Defunctionalization/refunctionalization. 
+### Defunctionalization
+Suppose we have this program that determines if a number is odd or even. 
+
+    data Nat = Zero | Succ Nat; 
+    define even (n: Nat) = 
+	    case n if 
+		    Zero -> True
+		    | Succ m -> not (even m); 
+	even (Succ(Succ Zero)) --returns even
+
+Defunctionalization delays constructors (Succ and Zero here) and uses placeholders in place until the final calculation step. 
 
