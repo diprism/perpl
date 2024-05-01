@@ -185,11 +185,11 @@ Mention how the program is
     amb (Zero) (Succ Zero) (Succ(Succ Zero))
 The program splits into three branches, shown below. Each branch gets evaluated separately. 
 
-    ┌──────────► Zero                                                                                  
+    ┌────────► Zero                                                                                  
     │                                                    
-    ├──────────► Succ Zero ─────► 1                                                                    
+    ├────────► Succ Zero ─────► 1                                                                    
     │                                                    
-    └──────────► Succ(Succ Zero) ─────► Succ 1 ─────► 2
+    └────────► Succ(Succ Zero) ─────► Succ 1 ─────► 2
 
 Example: 
 Suppose you flip two fair coins, with 0.5 chance in both heads and tails. 
@@ -291,7 +291,7 @@ PERPL does have types, similar to Haskell, but the PERPL compiler automatically 
 ## Defunctionalization/Refunctionalization
 PERPL cannot have infinite types (like Nat, where there are infinite amount of natural numbers), so one way PERPL eliminates infinite types is through Defunctionalization/refunctionalization. 
 ### Defunctionalization
-Suppose we have this program that determines if a number is odd or even. 
+Here we have a program that determines if a number is odd or even. 
 
     data Nat = Zero | Succ Nat; 
     define even (n: Nat) = 
@@ -302,3 +302,74 @@ Suppose we have this program that determines if a number is odd or even.
 
 Defunctionalization delays constructors (Succ and Zero here) and uses placeholders in place until the final calculation step. 
 
+### Refunctionalization
+Here we have a program that compares two colors: True if the two colors are the same, else False. 
+
+    data Nat = Zero | Succ Nat; 
+    data Color = Red | Green | Blue; 
+    data List = Nil | Cons Nat List; 
+    define mem x l =  -- x is member of l
+	    case l of 
+			| Nil -> False
+			| Cons first rest -> 
+				if first = x then True -- x is free variable
+				else mem x rest -- recursion step
+	
+	let l = Cons Red (Cons Blue Nil) in mem Red l; 
+ 
+
+In refunctionalization, types of free variables become target of the arrows in the graphs (shown below). Refunctionalization calculates constructors early before the function call so that the recursion would be eliminated. 
+
+The compiler choses whether to use D or R in the process. 
+The graphs below demonstrate the process of PERPL de/refunctionlizing a program: D represents defunctionalization, R represents refunctionalization. In the end the program becomes a non-recursive types. Every node should choose D or R, and no cycles are allowed in the graph. 
+
+            D                    
+        ────────►                
+      A           B              
+        ◄────────                
+      │     D     │              
+    R │           │ R            
+      │           │              
+      ▼           ▼              
+      C ────────► ∅              
+           D,R                   
+                                 
+            │                    
+            │                    
+            │ Defunctionalize B  
+            │                    
+            ▼                    
+            D                 
+      A ──────────┐              
+                  │              
+      │           │              
+    R │           │              
+      │           │              
+      ▼           ▼              
+      C ────────► ∅              
+           D,R                   
+                                 
+            │                    
+            │                    
+            │ Defunctionalize A  
+            │                    
+            ▼                    
+                                 
+      C ────────► ∅              
+           D,R                   
+                                 
+            │                    
+            │                    
+            │ Defunctionalize C  
+            │                    
+            ▼                                      
+            ∅                    
+                                 
+An example of an unacceptable graph with cycles: In this case, the program will never become an non-recursive type. 
+
+                R                 
+     ┌──┐   ────────►   ┌──┐      
+    D│  ▼ A           B ▼  │R     
+     └──┘   ◄────────   └──┘      
+                R                 
+ 
