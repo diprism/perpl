@@ -1,40 +1,6 @@
 # PERPL Tutorial
+
 PERPL is a probabilistic programming language developed specifically to address recursive problems with precise solutions. Unlike traditional approaches that generate random outcomes, this language thoroughly examines the possibilities of outcomes and calculates the distribution of results accurately. By using this method, recursive problems can be solved in polynomial time, offering significant efficiency and accuracy improvements over conventional methods.
-
-## Windows system instructions: 
-
-Download WSL (Windows Subsystem for Linux)  
-
-Check which version of python3 you have: (otherwise, install python3) 
-
-    python3 --version 
-
-Install Git: 
-
-    sudo apt-get install git install
-
-Install GHC: 
-
-    sudo apt install ghc
-
-## Clone the /fggs repository from Github:
-
-    git clone https://github.com/diprism/fggs.git
-    pip install -r requirements.txt
-> Note: It may take a while because there are many files to download
-
-## To build the compiler:
-Go to the perpl/ directory:
-
-    cd path/to/perpl
-
-To build the compiler (requires GHC):
-
-    make
-
-To run tests:
-
-    make tests
 
 ## To compile a PERPL program:
 
@@ -52,10 +18,7 @@ To compute the sum product: use `-z` flag
 
 ## To compute the sum product using the FGG output:
 
-Go to the fggs/ directory, then access the FGG file from the perpl/ directory to calculate sum product. 
-
-    cd path/to/fggs
-    PYTHONPATH=.:$PYTHONPATH python3 bin/sum_product.py ~/perpl/stairs.fgg
+    PYTHONPATH=../fggs:$PYTHONPATH python3 ../bin/sum_product.py stairs.fgg
 
 # Non-probabilistic Features:
 ## Booleans: False, True, if
