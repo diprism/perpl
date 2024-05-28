@@ -4,9 +4,14 @@ PERPL stands for Probabilistic Exact Recursive Programming Language. Unlike many
 And unlike other PPLs that do support exact inference, PERPL can express unbounded recursive calls and (with some restrictions) recursive data structures.
 For example, a PCFG parser written in PERPL appears to generate (infinitely many) trees and sum the probabilities of those (exponentially many) trees that yield a given string; yet it compiles to a cubic-sized system of equations whose solution is equivalent to the CKY algorithm.
 
-For more about the language, see [language.md](language.md).
+For more information:
+- Installation: [install.md](install.md)
+- Tutorial: [tutorial.md](language.md)
+- Language reference: [language.md](language.md)
 
 ## Building the compiler
+
+For more detailed instructions, please see [install.md](install.md).
 
 To build the compiler (requires [GHC](https://www.haskell.org/ghc/)):
 
