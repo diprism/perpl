@@ -148,7 +148,7 @@ rulesToFGG dom start start_type rs =
           els
 
     checkWeights el nls w =
-      let shape = map (length . dom) nls in
+      let shape = map (fst . dom) nls in
       if compatible (tensorShape w) shape then
         w
       else
@@ -164,7 +164,7 @@ rulesToFGG dom start start_type rs =
 
     (fs, nts) = foldr (\ (el, nls) (fs, nts) ->
                          case el of ElTerminal fac ->
-                                      let w = checkWeights el nls (getWeights (length . dom) fac) in
+                                      let w = checkWeights el nls (getWeights (fst . dom) fac) in
                                           (Map.insertWith (checkTerm el) el (nls, w) fs, nts)
                                     ElNonterminal _ ->
                                       (fs, Map.insertWith (checkNonterm el) el nls nts))

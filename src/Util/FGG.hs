@@ -15,7 +15,8 @@ import Util.Tensor
 import Util.JSON
 import Data.List (intercalate)
 
-type Domain = [Value]
+-- Domain contains the size and a list of all values.
+type Domain = (Int, [Value])
 newtype Value = Value String
   deriving Show
 type Weight = Double
@@ -103,8 +104,8 @@ data FGG tensor = FGG {
 
    Convert an FGG into a JSON. -}
                               
-fgg_to_json :: TensorLike tensor => FGG tensor -> JSON
-fgg_to_json (FGG ds fs nts s rs) =
+fgg_to_json :: TensorLike tensor => Bool -> FGG tensor -> JSON
+fgg_to_json si (FGG ds fs nts s rs) =
   let mapToList = \ ds f -> JSobject $ map f (Map.toList ds) in
   JSobject
     [("grammar", JSobject 
@@ -133,10 +134,16 @@ fgg_to_json (FGG ds fs nts s rs) =
       ]),
     ("interpretation", JSobject [
        ("domains", mapToList ds $
-         \ (nl, dom) -> (show nl, JSobject [
-           ("class", JSstring "finite"),
-           ("values", JSarray $ [JSstring v | Value v <- dom])
-         ])),
+         \ (nl, (sz, dom)) ->
+           if si
+           then (show nl, JSobject [
+                          ("class", JSstring "compact"),
+                          ("values", JSint sz)
+                          ])
+           else (show nl, JSobject [
+                             ("class", JSstring "finite"),
+                             ("values", JSarray $ [JSstring v | Value v <- dom])
+                             ])),
        ("factors",
           mapToList fs $
            \ (el, (d, ws)) -> (show el, JSobject [
@@ -148,5 +155,5 @@ fgg_to_json (FGG ds fs nts s rs) =
     ]
 
 
-showFGG :: TensorLike tensor => FGG tensor -> String
-showFGG = pprint_json . fgg_to_json
+showFGG :: TensorLike tensor => Bool -> FGG tensor -> String
+showFGG suppress_interp = pprint_json . fgg_to_json suppress_interp

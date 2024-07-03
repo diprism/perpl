@@ -280,8 +280,10 @@ progs2fgg g (Progs ps tm) =
 
    Computes a list of all the possible inhabitants of a type. -}
 
-domainValues :: Ctxt -> Type -> [Value]
-domainValues g tp = Value <$> domainValues' g tp
+domainValues :: Ctxt -> Type -> (Int, [Value])
+domainValues g tp = (sz, dom) where
+  sz = domainSize g tp
+  dom = Value <$> domainValues' g tp
 
 domainValues' :: Ctxt -> Type -> [String]
 domainValues' g = tpVals where

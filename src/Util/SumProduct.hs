@@ -45,7 +45,7 @@ tensorToAssoc fgg el = h (nonterminals fgg Map.! el) where
   h [] (Scalar w) =
       [([], w)]
   h (nl:nls) (Vector ts) =
-    let vals = (domains fgg) Map.! nl
+    let vals = snd $ (domains fgg) Map.! nl
         maps = [h nls t | t <- ts]
     in
       [(v:vs, w) | (v, m) <- zip vals maps, (vs, w) <- m]
