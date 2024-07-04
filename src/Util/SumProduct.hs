@@ -45,7 +45,7 @@ tensorToAssoc fgg el = h (nonterminals fgg Map.! el) where
   h [] (Scalar w) =
       [([], w)]
   h (nl:nls) (Vector ts) =
-    let vals = snd $ (domains fgg) Map.! nl
+    let Domain _ vals = (domains fgg) Map.! nl
         maps = [h nls t | t <- ts]
     in
       [(v:vs, w) | (v, m) <- zip vals maps, (vs, w) <- m]
@@ -60,7 +60,8 @@ zero fgg nts =
   Map.fromList [(x, zeros (nonterminalShape fgg x)) | x <- nts]
 
 nonterminalShape :: FGG Tensor -> EdgeLabel -> [Int]
-nonterminalShape fgg x = [length ((domains fgg) Map.! nl) | nl <- (nonterminals fgg) Map.! x]
+nonterminalShape fgg x = [ sz | nl <- (nonterminals fgg) Map.! x
+                              , let Domain sz _ = domains fgg Map.! nl ]
 
 step :: FGG Tensor -> [EdgeLabel] -> MultiTensor -> MultiTensor
 step fgg nts z =
@@ -92,7 +93,7 @@ step fgg nts z =
         -- nodes is remaining nodes
         h asst ((_, d):nodes) =
           let
-            size = length (domains fgg Map.! d)
+            Domain size _ = domains fgg Map.! d
             sub = [h (i:asst) nodes | i <- [0..size-1]]
           in
             if length asst < length exts' then

@@ -4,7 +4,7 @@
    Proc. NeurIPS, 6648–6658. 2020. -}
 
 module Util.FGG (Node, NodeName(..), NodeLabel,
-                  Domain, Value(..),
+                  Domain(..), Value(..),
                   Edge(..), EdgeLabel(..),
                   Factor(..), Weights, Weight,
                   HGF(..), Rule(..), FGG(..), showFGG) where
@@ -16,7 +16,7 @@ import Util.JSON
 import Data.List (intercalate)
 
 -- Domain contains the size and a list of all values.
-type Domain = (Int, [Value])
+data Domain = Domain Int [Value]
 newtype Value = Value String
   deriving Show
 type Weight = Double
@@ -134,7 +134,7 @@ fgg_to_json si (FGG ds fs nts s rs) =
       ]),
     ("interpretation", JSobject [
        ("domains", mapToList ds $
-         \ (nl, (sz, dom)) ->
+         \ (nl, Domain sz dom) ->
            if si
            then (show nl, JSobject [
                           ("class", JSstring "compact"),
