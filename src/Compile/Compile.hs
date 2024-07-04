@@ -1,4 +1,4 @@
-module Compile.Compile (compileFile, domainSize) where
+module Compile.Compile (compileFile) where
 import Data.List
 import qualified Data.Map as Map
 import Compile.RuleM
@@ -278,47 +278,48 @@ progs2fgg g (Progs ps tm) =
   
 {- domainValues g tp
 
-   Computes a list of all the possible inhabitants of a type. -}
+   Computes the number and list of possible inhabitants of a type. -}
 
-domainValues :: Ctxt -> Type -> Domain
-domainValues g tp = Domain sz dom where
-  sz = domainSize g tp
-  dom = Value <$> domainValues' g tp
+domain :: Ctxt -> Type -> Domain
+domain g = tpDomain where
 
-domainValues' :: Ctxt -> Type -> [String]
-domainValues' g = tpVals where
-  arrVals :: [Type] -> Type -> [String]
-  arrVals tps tp =
-    map (parensIf (not $ null tps)) $
-      foldl (\ ds tp -> kronwith (\ da d -> d ++ " -> " ++ da) ds (domainValues' g tp))
-        (tpVals tp) tps
-  
-  tpVals :: Type -> [String]
-  tpVals (TpData y [] []) =
-    maybe2 (ctxtLookupType g y) [] $ \ cs ->
-      concat [foldl (kronwith $ \ d da -> d ++ " " ++ parens da) [show x] (map tpVals as)
-             | (Ctor x as) <- cs]
-  tpVals (TpArr tp1 tp2) = uncurry arrVals (splitArrows (TpArr tp1 tp2))
-  tpVals (TpProd Additive tps) =
-    let tpvs = map tpVals tps in
-      concatMap (\ (i, vs) -> ["<" ++ intercalate ", " [if i == j then tmv else "_" | (j, tp) <- enumerate tps] ++ ">" | tmv <- vs]) (enumerate tpvs)
-  tpVals (TpProd Multiplicative tps) =
-    ["(" ++ intercalate ", " tmvs ++ ")"| tmvs <- kronall [tpVals tp | tp <- tps]]
-  tpVals tp = error ("Enumerating values of a " ++ show tp)
+  tpDomain (TpData y [] []) =
+    maybe2 (ctxtLookupType g y) (Domain 0 []) $ \ cs ->
+    let dss :: [(TmName, [Domain])]
+        dss = [ (x, map tpDomain as) | Ctor x as <- cs ]
+        app :: Value -> Domain -> [Value]
+        app (Value d) (Domain _ vals) = [ Value (d ++ " " ++ parens da)
+                                        | Value da <- vals ]
+    in Domain (sum    [ product [ sz | Domain sz _ <- ds ] | (x, ds) <- dss ])
+              (concat [ foldlM app [Value (show x)] ds     | (x, ds) <- dss ])
 
-{- domainSize g tp
+  tpDomain tpArr@(TpArr _ _) =
+    let (tps, tp) = splitArrows tpArr
+        ds = map tpDomain tps
+        Domain szRes valsRes = tpDomain tp
+        lam :: Domain -> [String] -> [String]
+        lam (Domain _ args) vals = [ d ++ " -> " ++ da | Value d <- args, da <- vals ]
+    in Domain (product [ sz | Domain sz _ <- ds ] * szRes)
+              (map (Value . parensIf (not $ null tps)) $
+               foldr lam [ da | Value da <- valsRes ] ds)
 
-   Computes the number of possible inhabitants of a type. -}
-    
-domainSize :: Ctxt -> Type -> Int
-domainSize g = tpSize where
-  tpSize (TpData y [] []) = case ctxtLookupType g y of
-                              Nothing -> 0
-                              Just cs -> sum [product (tpSize <$> as) | (Ctor x as) <- cs]
-  tpSize (TpArr tp1 tp2) = (tpSize tp1) * (tpSize tp2)
-  tpSize (TpProd Additive tps) = sum (tpSize <$> tps)
-  tpSize (TpProd Multiplicative tps) = product (tpSize <$> tps)
-  tpSize tp = error ("Enumerating values of a " ++ show tp)
+  tpDomain (TpProd Additive tps) =
+    let ds = map tpDomain tps
+        add :: (Int, Domain) -> [Value]
+        add (i, Domain _ vs) = [ Value ("<" ++ intercalate ", " [ if i == j then tmv else "_"
+                                                                | (j, tp) <- enumerate tps ]
+                                            ++ ">")
+                               | Value tmv <- vs ]
+    in Domain (sum [ sz | Domain sz _ <- ds ])
+              (concatMap add (enumerate ds))
+
+  tpDomain (TpProd Multiplicative tps) =
+    let ds = map tpDomain tps
+    in Domain (product [ sz | Domain sz _ <- ds ])
+              [ Value ("(" ++ intercalate ", " [ v | Value v <- tmvs ] ++ ")")
+              | tmvs <- kronall [ vals | Domain _ vals <- ds ] ]
+
+  tpDomain tp = error ("Enumerating values of a " ++ show tp)
 
 {- compileFile progs
 
@@ -335,4 +336,4 @@ compileFile ps =
       Progs _ end = ps
       rs = runRuleM (progs2fgg g ps)
   in
-      return (rulesToFGG (domainValues g) (ElNonterminal end) [typeof end] rs)
+      return (rulesToFGG (domain g) (ElNonterminal end) [typeof end] rs)
