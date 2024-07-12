@@ -138,7 +138,7 @@ fgg_to_json si (FGG ds fs nts s rs) =
            if si
            then (show nl, JSobject [
                           ("class", JSstring "compact"),
-                          ("values", JSint sz)
+                          ("size", JSint sz)
                           ])
            else (show nl, JSobject [
                              ("class", JSstring "finite"),
