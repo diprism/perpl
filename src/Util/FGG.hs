@@ -137,7 +137,7 @@ fgg_to_json si (FGG ds fs nts s rs) =
          \ (nl, Domain sz dom) ->
            if si
            then (show nl, JSobject [
-                          ("class", JSstring "compact"),
+                          ("class", JSstring "range"),
                           ("size", JSint sz)
                           ])
            else (show nl, JSobject [
