@@ -29,7 +29,8 @@ data CmdArgs = CmdArgs {
   optDerefun :: [(TpName, DeRe)],
   optLin :: Bool,
   optOptimize :: Bool,
-  optSumProduct :: Bool
+  optSumProduct :: Bool,
+  optSuppressInterp :: Bool
 }
 
 optionsDefault = CmdArgs {
@@ -41,7 +42,8 @@ optionsDefault = CmdArgs {
   optDerefun = [],
   optLin = True,
   optOptimize = True,
-  optSumProduct = False
+  optSumProduct = False,
+  optSuppressInterp = False
 }
 
 options =
@@ -55,6 +57,8 @@ options =
      "Compile only to PPL code (not to FGG)",
    Option ['z'] [] (NoArg (\ opts -> return (opts {optSumProduct = True})))
      "Compute sum-product",
+   Option ['s'] [] (NoArg (\ opts -> return (opts {optSuppressInterp = True})))
+     "Suppress values in the output JSON (no effect if no JSON output)",
    Option ['o'] [] (ReqArg processOutfileArg "OUTFILE")
      "Output to OUTFILE",
    Option ['O'] [] (ReqArg processOptimArg "LEVEL")
@@ -103,7 +107,7 @@ alphaRenameProgs :: Substitutable p => (p -> Ctxt) -> p -> Either String p
 alphaRenameProgs gf a = return (alphaRename (gf a) a)
 
 processContents :: CmdArgs -> String -> Either String String
-processContents (CmdArgs ifn ofn c m e dr l o z) s =
+processContents (CmdArgs ifn ofn c m e dr l o z si) s =
   let e' = e && l
       c' = c && e'
   in
@@ -134,7 +138,7 @@ processContents (CmdArgs ifn ofn c m e dr l o z) s =
   -- Compile to FGG
   >>= if c' then
         \ps -> if z then show . sumProduct <$> compileFile ps
-                    else (showFGG :: FGG PatternedTensor -> String) <$> compileFile ps
+                    else (showFGG si :: FGG PatternedTensor -> String) <$> compileFile ps
       else
         showFile
                                        )
