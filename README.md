@@ -6,7 +6,7 @@ For example, a PCFG parser written in PERPL appears to generate (infinitely many
 
 For more information:
 - Installation: [install.md](install.md)
-- Tutorial: [tutorial.md](language.md)
+- Tutorial: [tutorial.md](tutorial.md)
 - Language reference: [language.md](language.md)
 
 ## Building the compiler
