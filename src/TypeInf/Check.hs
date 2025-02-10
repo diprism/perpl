@@ -5,6 +5,7 @@ module TypeInf.Check where
 import Data.List (intercalate)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Control.Monad (replicateM)
 import Control.Monad.RWS.Lazy
 import Control.Monad.Except
 import Struct.Lib

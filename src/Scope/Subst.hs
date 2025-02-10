@@ -10,6 +10,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.String (IsString)
 import Data.Maybe (fromMaybe)
+import Data.Monoid (Endo(Endo, appEndo))
 import Control.Monad.RWS.Lazy
 import Struct.Exprs
 import Util.Helpers
