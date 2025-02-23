@@ -5,19 +5,19 @@ import System.Exit (die, exitSuccess)
 import System.Environment (getArgs, getProgName)
 import System.IO (hPutStr, hPutStrLn, stdin, stdout, stderr, openFile, IOMode(..), hGetContents, hFlush)
 import Struct.Lib (TpName(TpN), Progs, progBuiltins)
-import Parse.Lib
-import TypeInf.Lib
-import Compile.Lib
-import Transform.Monomorphize
-import Transform.DR
-import Transform.AffLin
-import Transform.Optimize
-import Transform.Argify
-import Transform.RecEq
+import Parse.Lib (parse)
+import TypeInf.Lib (infer)
+import Compile.Lib (compileFile)
+import Transform.Monomorphize (monomorphizeFile)
+import Transform.DR (elimRecTypes, DeRe(..))
+import Transform.AffLin (affLinFile)
+import Transform.Optimize (optimizeFile)
+import Transform.Argify (argifyFile)
+import Transform.RecEq (replaceEqs)
 import Scope.Subst (Substitutable, alphaRename)
-import Scope.Ctxt
-import Util.FGG
-import Util.SumProduct
+import Scope.Ctxt (ctxtAddProgs, ctxtAddUsProgs, Ctxt)
+import Util.FGG (showFGG, FGG)
+import Util.SumProduct (sumProduct)
 import Util.Indices (PatternedTensor)
 
 data CmdArgs = CmdArgs {
@@ -118,7 +118,7 @@ processContents (CmdArgs ifn ofn c m e dr l o z si) s =
   >>= alphaRenameProgs ctxtAddUsProgs
   -- Add Bool, True, False
   >>= Right . progBuiltins
-  -- Type che`ck the file (:: UsProgs -> Progs)
+  -- Type check the file (:: UsProgs -> Progs)
   >>= infer
   >>= if not m then return . show else (\ x -> (Right . monomorphizeFile) x
   >>= Right . argifyFile
