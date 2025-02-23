@@ -91,7 +91,10 @@ processArgs argv =
       foldM (flip processInfileArg) optionsDefault n >>= \ opts' ->
       foldM (flip id) opts' o
     (_, _, errs) ->
-      Left (head errs)
+      Left (let safeHead errors = if null errors then Nothing else Just (head errors) in
+            case safeHead errs of -- safer head function for handling errs
+              Just e -> e
+              Nothing -> "")
 
 putStrLnErr :: String -> IO ()
 putStrLnErr = hPutStrLn stderr
