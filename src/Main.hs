@@ -46,7 +46,7 @@ optionsDefault = CmdArgs {
   optSuppressInterp = False
 }
 
-options =
+options = -- Option: list of short option chars, list of long option strings, arg descriptor, and explanation of option for user
   [Option ['m'] [] (NoArg (\ opts -> return (opts {optMono = False})))
      "Don't monomorphize (implies -lec)",
    Option ['l'] [] (NoArg (\ opts -> return (opts {optLin = False})))
@@ -68,17 +68,20 @@ options =
    Option ['r'] [] (ReqArg (\ d opts -> return (opts {optDerefun = (TpN d, Refun) : optDerefun opts})) "DTYPE")
      "Refunctionalize recursive datatype DTYPE"]
 
+-- Flag -O, set optimization level
 processOptimArg :: String -> CmdArgs -> Either String CmdArgs
 processOptimArg level opts = case level of
   "0" -> Right (opts { optOptimize = False })
   "1" -> Right (opts { optOptimize = True })
   _ -> Left "invalid optimization level (valid levels are 0 and 1)\n"
 
+-- Flag -o, set output file
 processOutfileArg :: String -> CmdArgs -> Either String CmdArgs
 processOutfileArg fn opts = case optOutfile opts of
   Nothing -> Right (opts {optOutfile = Just fn})
   Just _ -> Left "at most one output filename allowed\n"
 
+-- Ensure only one input filename is given in argv
 processInfileArg :: String -> CmdArgs -> Either String CmdArgs
 processInfileArg fn opts = case optInfile opts of
   Nothing -> Right (opts {optInfile = Just fn})
@@ -86,7 +89,7 @@ processInfileArg fn opts = case optInfile opts of
 
 processArgs :: [String] -> Either String CmdArgs
 processArgs argv =
-  case getOpt Permute options argv of
+  case getOpt Permute options argv of -- case (option args, list of non-options, list of error messages) of
     (o, n, []) ->
       foldM (flip processInfileArg) optionsDefault n >>= \ opts' ->
       foldM (flip id) opts' o
@@ -109,6 +112,7 @@ showFile = return . show
 alphaRenameProgs :: Substitutable p => (p -> Ctxt) -> p -> Either String p
 alphaRenameProgs gf a = return (alphaRename (gf a) a)
 
+-- Process command-line arguments (options) and input
 processContents :: CmdArgs -> String -> Either String String
 processContents (CmdArgs ifn ofn c m e dr l o z si) s =
   let e' = e && l
