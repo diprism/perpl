@@ -1,3 +1,7 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Replace case with fromMaybe" #-}
+{-# HLINT ignore "Monad law, left identity" #-}
+{-# HLINT ignore "Avoid lambda using `infix`" #-}
 module Main where
 import Control.Monad (foldM)
 import System.Console.GetOpt
@@ -46,6 +50,7 @@ optionsDefault = CmdArgs {
   optSuppressInterp = False
 }
 
+options :: [OptDescr (CmdArgs -> Either String CmdArgs)]
 options = -- Option: list of short option chars, list of long option strings, arg descriptor, and explanation of option for user
   [Option ['m'] [] (NoArg (\ opts -> return (opts {optMono = False})))
      "Don't monomorphize (implies -lec)",
@@ -90,6 +95,11 @@ processInfileArg fn opts = case optInfile opts of
 processArgs :: [String] -> Either String CmdArgs
 processArgs argv =
   case getOpt Permute options argv of -- case (option args, list of non-options, list of error messages) of
+    (o, [], errs) -> -- catch if there is an empty list of non-options
+      Left (let safeHead errors = if null errors then Nothing else Just (head errors) in
+            case safeHead errs of -- safer head function for handling errs
+              Just e -> e
+              Nothing -> "")
     (o, n, []) ->
       foldM (flip processInfileArg) optionsDefault n >>= \ opts' ->
       foldM (flip id) opts' o
