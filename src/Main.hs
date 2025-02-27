@@ -94,20 +94,20 @@ processInfileArg fn opts = case optInfile opts of
 
 processArgs :: [String] -> Either String CmdArgs
 processArgs argv =
-  case getOpt Permute options argv of -- case (option args, list of non-options, list of error messages) of
-    (o, [], errs) -> -- catch if there is an empty list of non-options
+  case getOpt Permute options argv of -- Evaluating option args, list of non-options, and list of error messages
+    (o, [], errs) -> -- Case 1: No Non-Options Given (no option flags, no .ppl file)
       Left (let safeHead errors = if null errors then Nothing else Just (head errors) in
             case safeHead errs of -- safer head function for handling errs
               Just e -> e
-              Nothing -> "")
-    (o, n, []) ->
-      foldM (flip processInfileArg) optionsDefault n >>= \ opts' ->
+              Nothing -> "Empty list of non-options (enter option flags and an input file)\n")
+    (o, [n], []) -> -- Case 2: Correct Usage
+      foldM (flip processInfileArg) optionsDefault [n] >>= \ opts' ->
       foldM (flip id) opts' o
-    (_, _, errs) ->
+    (_, _, errs) -> -- Case 3: Too Many .ppl Files Given
       Left (let safeHead errors = if null errors then Nothing else Just (head errors) in
             case safeHead errs of -- safer head function for handling errs
               Just e -> e
-              Nothing -> "")
+              Nothing -> "Too many non-options given (enter option flags and an input file)\n")
 
 putStrLnErr :: String -> IO ()
 putStrLnErr = hPutStrLn stderr
