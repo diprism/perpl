@@ -52,8 +52,10 @@ tensorToAssoc fgg el = h (nonterminals fgg Map.! el) where
   h _ _ =
     error "nonterminal label and weight tensor have different shapes"
 
+-- return clearer output for sumProduct
+prettySumProduct :: FGG Tensor -> String
 prettySumProduct fgg =
-  intercalate "\n" [intercalate " " [s | Value s <- vals] ++ "\t" ++ show w | (vals, w) <- (tensorToAssoc fgg (start fgg) (sumProduct fgg))]
+  (intercalate "\n" [intercalate " " [s | Value s <- vals] ++ "\t" ++ show w | (vals, w) <- (tensorToAssoc fgg (start fgg) (sumProduct fgg))]) ++ "\n"
 
 zero :: FGG Tensor -> [EdgeLabel] -> MultiTensor
 zero fgg nts =

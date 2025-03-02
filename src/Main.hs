@@ -21,7 +21,7 @@ import Transform.RecEq (replaceEqs)
 import Scope.Subst (Substitutable, alphaRename)
 import Scope.Ctxt (ctxtAddProgs, ctxtAddUsProgs, Ctxt)
 import Util.FGG (showFGG, FGG)
-import Util.SumProduct (sumProduct)
+import Util.SumProduct (sumProduct, prettySumProduct)
 import Util.Indices (PatternedTensor)
 
 data CmdArgs = CmdArgs {
@@ -34,6 +34,7 @@ data CmdArgs = CmdArgs {
   optLin :: Bool,
   optOptimize :: Bool,
   optSumProduct :: Bool,
+  optPrettySumProduct :: Bool,
   optSuppressInterp :: Bool
 }
 
@@ -47,6 +48,7 @@ optionsDefault = CmdArgs {
   optLin = True,
   optOptimize = True,
   optSumProduct = False,
+  optPrettySumProduct = False,
   optSuppressInterp = False
 }
 
@@ -62,6 +64,8 @@ options = -- Option: list of short option chars, list of long option strings, ar
      "Compile only to PPL code (not to FGG)",
    Option ['z'] [] (NoArg (\ opts -> return (opts {optSumProduct = True})))
      "Compute sum-product",
+   Option ['p'] [] (NoArg (\ opts -> return (opts {optSumProduct = True, optPrettySumProduct = True}))) -- if only -p is given, set both optSumProduct and optPrettySumProduct to True
+     "Compute sum-product with cleaner output",
    Option ['s'] [] (NoArg (\ opts -> return (opts {optSuppressInterp = True})))
      "Suppress values in the output JSON (no effect if no JSON output)",
    Option ['o'] [] (ReqArg processOutfileArg "OUTFILE")
@@ -124,7 +128,7 @@ alphaRenameProgs gf a = return (alphaRename (gf a) a)
 
 -- Process command-line arguments (options) and input
 processContents :: CmdArgs -> String -> Either String String
-processContents (CmdArgs ifn ofn c m e dr l o z si) s =
+processContents (CmdArgs ifn ofn c m e dr l o z p si) s =
   let e' = e && l
       c' = c && e'
   in
@@ -154,7 +158,8 @@ processContents (CmdArgs ifn ofn c m e dr l o z si) s =
   >>= alphaRenameProgs ctxtAddProgs
   -- Compile to FGG
   >>= if c' then
-        \ps -> if z then show . sumProduct <$> compileFile ps
+        \ps -> if z then if p then prettySumProduct <$> compileFile ps
+                              else show . sumProduct <$> compileFile ps
                     else (showFGG si :: FGG PatternedTensor -> String) <$> compileFile ps
       else
         showFile
