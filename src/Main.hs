@@ -1,13 +1,9 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Replace case with fromMaybe" #-}
-{-# HLINT ignore "Monad law, left identity" #-}
-{-# HLINT ignore "Avoid lambda using `infix`" #-}
 module Main where
 import Control.Monad (foldM)
-import System.Console.GetOpt
+import System.Console.GetOpt ( OptDescr(..), ArgDescr(ReqArg, NoArg), ArgOrder(Permute), getOpt, usageInfo )
 import System.Exit (die, exitSuccess)
 import System.Environment (getArgs, getProgName)
-import System.IO (hPutStr, hPutStrLn, stdin, stdout, stderr, openFile, IOMode(..), hGetContents, hFlush)
+import System.IO (hPutStr, hPutStrLn, stdout, stderr, openFile, IOMode(..), hGetContents, hFlush)
 import Struct.Lib (TpName(TpN), Progs, progBuiltins)
 import Parse.Lib (parse)
 import TypeInf.Lib (infer)
@@ -25,7 +21,8 @@ import Util.SumProduct (sumProduct, prettySumProduct)
 import Util.Indices (PatternedTensor)
 
 data CmdArgs = CmdArgs {
-  optInfile :: Maybe String,
+  --optInfile :: Maybe String,
+  optInfile :: String,
   optOutfile :: Maybe String,
   optCompile :: Bool,
   optMono :: Bool,
@@ -39,7 +36,8 @@ data CmdArgs = CmdArgs {
 }
 
 optionsDefault = CmdArgs {
-  optInfile = Nothing,
+  --optInfile = Nothing,
+  optInfile = "DEFAULT",
   optOutfile = Nothing,
   optCompile = True,
   optMono = True,
@@ -91,27 +89,30 @@ processOutfileArg fn opts = case optOutfile opts of
   Just _ -> Left "at most one output filename allowed\n"
 
 -- Ensure only one input filename is given in argv
+{-
 processInfileArg :: String -> CmdArgs -> Either String CmdArgs
 processInfileArg fn opts = case optInfile opts of
   Nothing -> Right (opts {optInfile = Just fn})
   Just _ -> Left "at most one input filename allowed\n"
+-}
 
 processArgs :: [String] -> Either String CmdArgs
 processArgs argv =
-  case getOpt Permute options argv of -- case (option args, list of non-options, list of error messages) of
-    (o, [], errs) -> -- catch if there is an empty list of non-options
+  case getOpt Permute options argv of -- Evaluating option args, list of non-options, and list of error messages
+    (o, [], errs) -> -- Case 1: No Non-Options Given (no option flags, no .ppl file)
       Left (let safeHead errors = if null errors then Nothing else Just (head errors) in
             case safeHead errs of -- safer head function for handling errs
               Just e -> e
-              Nothing -> "")
-    (o, n, []) ->
-      foldM (flip processInfileArg) optionsDefault n >>= \ opts' ->
+              Nothing -> "Empty list of non-options (enter option flags and an input file)\n")
+    (o, [n], []) -> -- Case 2: Correct Usage
+      --foldM (flip processInfileArg) optionsDefault [n] >>= \ opts' ->
+      foldM (flip (\fn opts -> Right opts {optInfile = fn})) optionsDefault [n] >>= \ opts' ->
       foldM (flip id) opts' o
-    (_, _, errs) ->
+    (_, _, errs) -> -- Case 3: Too Many .ppl Files Given
       Left (let safeHead errors = if null errors then Nothing else Just (head errors) in
             case safeHead errs of -- safer head function for handling errs
               Just e -> e
-              Nothing -> "")
+              Nothing -> "Too many non-options given (enter option flags and an input file)\n")
 
 putStrLnErr :: String -> IO ()
 putStrLnErr = hPutStrLn stderr
@@ -169,7 +170,8 @@ processContents (CmdArgs ifn ofn c m e dr l o z p si) s =
 main :: IO ()
 main = getArgs >>= \ argv -> case processArgs argv of
   Right opts ->
-    maybe (return stdin) (\ fn -> openFile fn ReadMode) (optInfile opts) >>= \ifh ->
+    --maybe (return stdin) (\ fn -> openFile fn ReadMode) (optInfile opts) >>= \ifh ->
+    (\fn -> openFile fn ReadMode) (optInfile opts) >>= \ifh ->
     maybe (return stdout) (\ fn -> openFile fn WriteMode) (optOutfile opts) >>= \ofh ->
     hGetContents ifh >>= \ input ->
     either die (\ a -> hPutStr ofh a >> hFlush ofh >> exitSuccess) (processContents opts input)    
