@@ -1,3 +1,7 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Replace case with fromMaybe" #-}
+{-# HLINT ignore "Monad law, left identity" #-}
+{-# HLINT ignore "Avoid lambda using `infix`" #-}
 module Main where
 import Control.Monad (foldM)
 import System.Console.GetOpt
@@ -5,19 +9,19 @@ import System.Exit (die, exitSuccess)
 import System.Environment (getArgs, getProgName)
 import System.IO (hPutStr, hPutStrLn, stdin, stdout, stderr, openFile, IOMode(..), hGetContents, hFlush)
 import Struct.Lib (TpName(TpN), Progs, progBuiltins)
-import Parse.Lib
-import TypeInf.Lib
-import Compile.Lib
-import Transform.Monomorphize
-import Transform.DR
-import Transform.AffLin
-import Transform.Optimize
-import Transform.Argify
-import Transform.RecEq
+import Parse.Lib (parse)
+import TypeInf.Lib (infer)
+import Compile.Lib (compileFile)
+import Transform.Monomorphize (monomorphizeFile)
+import Transform.DR (elimRecTypes, DeRe(..))
+import Transform.AffLin (affLinFile)
+import Transform.Optimize (optimizeFile)
+import Transform.Argify (argifyFile)
+import Transform.RecEq (replaceEqs)
 import Scope.Subst (Substitutable, alphaRename)
-import Scope.Ctxt
-import Util.FGG
-import Util.SumProduct
+import Scope.Ctxt (ctxtAddProgs, ctxtAddUsProgs, Ctxt)
+import Util.FGG (showFGG, FGG)
+import Util.SumProduct (sumProduct, prettySumProduct)
 import Util.Indices (PatternedTensor)
 
 data CmdArgs = CmdArgs {
@@ -30,6 +34,7 @@ data CmdArgs = CmdArgs {
   optLin :: Bool,
   optOptimize :: Bool,
   optSumProduct :: Bool,
+  optPrettySumProduct :: Bool,
   optSuppressInterp :: Bool
 }
 
@@ -43,10 +48,12 @@ optionsDefault = CmdArgs {
   optLin = True,
   optOptimize = True,
   optSumProduct = False,
+  optPrettySumProduct = False,
   optSuppressInterp = False
 }
 
-options =
+options :: [OptDescr (CmdArgs -> Either String CmdArgs)]
+options = -- Option: list of short option chars, list of long option strings, arg descriptor, and explanation of option for user
   [Option ['m'] [] (NoArg (\ opts -> return (opts {optMono = False})))
      "Don't monomorphize (implies -lec)",
    Option ['l'] [] (NoArg (\ opts -> return (opts {optLin = False})))
@@ -57,6 +64,8 @@ options =
      "Compile only to PPL code (not to FGG)",
    Option ['z'] [] (NoArg (\ opts -> return (opts {optSumProduct = True})))
      "Compute sum-product",
+   Option ['p'] [] (NoArg (\ opts -> return (opts {optSumProduct = True, optPrettySumProduct = True}))) -- if only -p is given, set both optSumProduct and optPrettySumProduct to True
+     "Compute sum-product with cleaner output",
    Option ['s'] [] (NoArg (\ opts -> return (opts {optSuppressInterp = True})))
      "Suppress values in the output JSON (no effect if no JSON output)",
    Option ['o'] [] (ReqArg processOutfileArg "OUTFILE")
@@ -68,17 +77,20 @@ options =
    Option ['r'] [] (ReqArg (\ d opts -> return (opts {optDerefun = (TpN d, Refun) : optDerefun opts})) "DTYPE")
      "Refunctionalize recursive datatype DTYPE"]
 
+-- Flag -O, set optimization level
 processOptimArg :: String -> CmdArgs -> Either String CmdArgs
 processOptimArg level opts = case level of
   "0" -> Right (opts { optOptimize = False })
   "1" -> Right (opts { optOptimize = True })
   _ -> Left "invalid optimization level (valid levels are 0 and 1)\n"
 
+-- Flag -o, set output file
 processOutfileArg :: String -> CmdArgs -> Either String CmdArgs
 processOutfileArg fn opts = case optOutfile opts of
   Nothing -> Right (opts {optOutfile = Just fn})
   Just _ -> Left "at most one output filename allowed\n"
 
+-- Ensure only one input filename is given in argv
 processInfileArg :: String -> CmdArgs -> Either String CmdArgs
 processInfileArg fn opts = case optInfile opts of
   Nothing -> Right (opts {optInfile = Just fn})
@@ -86,12 +98,20 @@ processInfileArg fn opts = case optInfile opts of
 
 processArgs :: [String] -> Either String CmdArgs
 processArgs argv =
-  case getOpt Permute options argv of
+  case getOpt Permute options argv of -- case (option args, list of non-options, list of error messages) of
+    (o, [], errs) -> -- catch if there is an empty list of non-options
+      Left (let safeHead errors = if null errors then Nothing else Just (head errors) in
+            case safeHead errs of -- safer head function for handling errs
+              Just e -> e
+              Nothing -> "")
     (o, n, []) ->
       foldM (flip processInfileArg) optionsDefault n >>= \ opts' ->
       foldM (flip id) opts' o
     (_, _, errs) ->
-      Left (head errs)
+      Left (let safeHead errors = if null errors then Nothing else Just (head errors) in
+            case safeHead errs of -- safer head function for handling errs
+              Just e -> e
+              Nothing -> "")
 
 putStrLnErr :: String -> IO ()
 putStrLnErr = hPutStrLn stderr
@@ -106,8 +126,9 @@ showFile = return . show
 alphaRenameProgs :: Substitutable p => (p -> Ctxt) -> p -> Either String p
 alphaRenameProgs gf a = return (alphaRename (gf a) a)
 
+-- Process command-line arguments (options) and input
 processContents :: CmdArgs -> String -> Either String String
-processContents (CmdArgs ifn ofn c m e dr l o z si) s =
+processContents (CmdArgs ifn ofn c m e dr l o z p si) s =
   let e' = e && l
       c' = c && e'
   in
@@ -118,7 +139,7 @@ processContents (CmdArgs ifn ofn c m e dr l o z si) s =
   >>= alphaRenameProgs ctxtAddUsProgs
   -- Add Bool, True, False
   >>= Right . progBuiltins
-  -- Type che`ck the file (:: UsProgs -> Progs)
+  -- Type check the file (:: UsProgs -> Progs)
   >>= infer
   >>= if not m then return . show else (\ x -> (Right . monomorphizeFile) x
   >>= Right . argifyFile
@@ -137,7 +158,8 @@ processContents (CmdArgs ifn ofn c m e dr l o z si) s =
   >>= alphaRenameProgs ctxtAddProgs
   -- Compile to FGG
   >>= if c' then
-        \ps -> if z then show . sumProduct <$> compileFile ps
+        \ps -> if z then if p then prettySumProduct <$> compileFile ps
+                              else show . sumProduct <$> compileFile ps
                     else (showFGG si :: FGG PatternedTensor -> String) <$> compileFile ps
       else
         showFile
