@@ -150,8 +150,10 @@ processContents (CmdArgs ifn ofn c m e dr l o z p si) s =
   >>= alphaRenameProgs ctxtAddProgs
   -- Compile to FGG
   >>= if c' then
+        -- Compute sum-product (optional)
         \ps -> if z then if p then prettySumProduct <$> compileFile ps
-                              else show . sumProduct <$> compileFile ps
+                              else let printSumProduct x = show (sumProduct x) ++ "\n"
+                                   in printSumProduct <$> compileFile ps
                     else (showFGG si :: FGG PatternedTensor -> String) <$> compileFile ps
       else
         showFile
@@ -164,7 +166,7 @@ main = getArgs >>= \ argv -> case processArgs argv of
     (\fn -> openFile fn ReadMode) (optInfile opts) >>= \ifh ->
     maybe (return stdout) (\ fn -> openFile fn WriteMode) (optOutfile opts) >>= \ofh ->
     hGetContents ifh >>= \ input ->
-    either die (\ a -> hPutStr ofh a >> hFlush ofh >> exitSuccess) (processContents opts input)    
+    either die (\ a -> hPutStr ofh a >> hFlush ofh >> exitSuccess) (processContents opts input)
 
   Left err ->
     getProgName >>= \ name ->
