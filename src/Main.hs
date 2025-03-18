@@ -24,7 +24,6 @@ data CmdArgs = CmdArgs {
   optInfile :: String,
   optOutfile :: Maybe String,
   optCompile :: Bool,
-  optMono :: Bool,
   optElimRecs :: Bool,
   optDerefun :: [(TpName, DeRe)],
   optLin :: Bool,
@@ -39,7 +38,6 @@ optionsDefault input_str = CmdArgs {
   optInfile = input_str,
   optOutfile = Nothing,
   optCompile = True,
-  optMono = True,
   optElimRecs = True,
   optDerefun = [],
   optLin = True,
@@ -51,14 +49,14 @@ optionsDefault input_str = CmdArgs {
 
 options :: [OptDescr (CmdArgs -> Either String CmdArgs)]
 options = -- Option: list of short option chars, list of long option strings, arg descriptor, and explanation of option for user
-  [Option ['m'] [] (NoArg (\ opts -> return (opts {optMono = False})))
-     "Don't monomorphize (implies -lec)",
-   Option ['l'] [] (NoArg (\ opts -> return (opts {optLin = False})))
-     "Don't linearize (implies -ec)",
-   Option ['e'] [] (NoArg (\ opts -> return (opts {optElimRecs = False})))
-     "Don't eliminate recursive datatypes (implies -c)",
+  [Option ['m'] [] (NoArg (\ opts -> return (opts {optLin = False})))
+     "Stop after monomorphizing (won't linearize, won't eliminate recursive datatypes, will compile only to PPL code)",
+   Option ['l'] [] (NoArg (\ opts -> return (opts {optElimRecs = False})))
+     "Stop afer linearizing (won't eliminate recursive datatypes, will compile only to PPL code)",
+   Option ['e'] [] (NoArg (\ opts -> return (opts {optCompile = False})))
+     "Stop after eliminating recursive datatypes",
    Option ['c'] [] (NoArg (\ opts -> return (opts {optCompile = False})))
-     "Compile only to PPL code (not to FGG)",
+     "Stop after compiling to final-stage PPL code (not to FGG)",
    Option ['z'] [] (NoArg (\ opts -> return (opts {optSumProduct = True})))
      "Compute sum-product",
    Option ['p'] [] (NoArg (\ opts -> return (opts {optSumProduct = True, optPrettySumProduct = True}))) -- if only -p is given, set both optSumProduct and optPrettySumProduct to True
@@ -120,7 +118,7 @@ alphaRenameProgs gf a = return (alphaRename (gf a) a)
 
 -- Process command-line arguments (options) and input
 processContents :: CmdArgs -> String -> Either String String
-processContents (CmdArgs ifn ofn c m e dr l o z p si) s =
+processContents (CmdArgs ifn ofn c e dr l o z p si) s =
   let e' = e && l
       c' = c && e'
   in
@@ -133,7 +131,7 @@ processContents (CmdArgs ifn ofn c m e dr l o z p si) s =
   >>= Right . progBuiltins
   -- Type check the file (:: UsProgs -> Progs)
   >>= infer
-  >>= if not m then return . show else (\ x -> (Right . monomorphizeFile) x
+  >>= (\ x -> (Right . monomorphizeFile) x
   >>= Right . argifyFile
   >>= Right . replaceEqs -- TODO: move before monomorphization, relax == constraints in Check (but this isn't so simple: what about List A == List A vs List (List A) == List (List A)?)
 --  >>= alphaRenameProgs (const emptyCtxt)
