@@ -27,7 +27,8 @@ import Util.Indices (PatternedTensor)
 data CmdArgs = CmdArgs {
   optInfile :: Maybe String,
   optOutfile :: Maybe String,
-  optCompile :: Bool,
+  optTypeCheck :: Bool,
+  optMono :: Bool,
   optElimRecs :: Bool,
   optDerefun :: [(TpName, DeRe)],
   optLin :: Bool,
@@ -40,7 +41,8 @@ data CmdArgs = CmdArgs {
 optionsDefault = CmdArgs {
   optInfile = Nothing,
   optOutfile = Nothing,
-  optCompile = True,
+  optTypeCheck = True,
+  optMono = True,
   optElimRecs = True,
   optDerefun = [],
   optLin = True,
@@ -52,14 +54,14 @@ optionsDefault = CmdArgs {
 
 options :: [OptDescr (CmdArgs -> Either String CmdArgs)]
 options = -- Option: list of short option chars, list of long option strings, arg descriptor, and explanation of option for user
-  [Option ['m'] [] (NoArg (\ opts -> return (opts {optLin = False})))
+  [Option ['t'] [] (NoArg (\ opts -> return (opts {optTypeCheck = False})))
+     "Stop after type checking (won't monomorphize, linearize, or eliminate recursive datatypes. will compile only to PPL code)",
+   Option ['m'] [] (NoArg (\ opts -> return (opts {optMono = False})))
      "Stop after monomorphizing (won't linearize, won't eliminate recursive datatypes, will compile only to PPL code)",
-   Option ['l'] [] (NoArg (\ opts -> return (opts {optElimRecs = False})))
+   Option ['l'] [] (NoArg (\ opts -> return (opts {optLin = False})))
      "Stop afer linearizing (won't eliminate recursive datatypes, will compile only to PPL code)",
-   Option ['e'] [] (NoArg (\ opts -> return (opts {optCompile = False})))
-     "Stop after eliminating recursive datatypes",
-   Option ['c'] [] (NoArg (\ opts -> return (opts {optCompile = False})))
-     "Stop after compiling to final-stage PPL code (not to FGG)",
+   Option ['e'] [] (NoArg (\ opts -> return (opts {optElimRecs = False})))
+     "Stop after eliminating recursive datatypes (will compile to PPL code not to FGG)",
    Option ['z'] [] (NoArg (\ opts -> return (opts {optSumProduct = True})))
      "Compute sum-product",
    Option ['p'] [] (NoArg (\ opts -> return (opts {optSumProduct = True, optPrettySumProduct = True}))) -- if only -p is given, set both optSumProduct and optPrettySumProduct to True
@@ -126,9 +128,9 @@ alphaRenameProgs gf a = return (alphaRename (gf a) a)
 
 -- Process command-line arguments (options) and input
 processContents :: CmdArgs -> String -> Either String String
-processContents (CmdArgs ifn ofn c e dr l o z p si) s =
-  let e' = e && l
-      c' = c && e'
+processContents (CmdArgs ifn ofn t m e dr l o z p si) s =
+  let l' = l && m
+      e' = e && l'
   in
   return s
   -- String to UsProgs
@@ -139,23 +141,23 @@ processContents (CmdArgs ifn ofn c e dr l o z p si) s =
   >>= Right . progBuiltins
   -- Type check the file (:: UsProgs -> Progs)
   >>= infer
-  >>= (\ x -> (Right . monomorphizeFile) x
+  >>= if not t then return . show else (\ x -> (Right . monomorphizeFile) x
   >>= Right . argifyFile
   >>= Right . replaceEqs -- TODO: move before monomorphization, relax == constraints in Check (but this isn't so simple: what about List A == List A vs List (List A) == List (List A)?)
 --  >>= alphaRenameProgs (const emptyCtxt)
   -- Apply various optimizations
   >>= doIf o optimizeFile
   -- Convert terms from affine to linear
-  >>= doIf l affLinFile
+  >>= doIf m affLinFile
   -- Replace == of recursive datatypes
   -- Eliminate recursive types (de/refunctionalization)
-  >>= doIf e' (elimRecTypes dr)
+  >>= doIf l' (elimRecTypes dr)
   -- Apply various optimizations (again) (disabled for now; joinApps problem after aff2lin introduces maybe types)
   >>= doIf o optimizeFile
   -- Pick a unique name for each bound var (again), needed by compileFile
   >>= alphaRenameProgs ctxtAddProgs
   -- Compile to FGG
-  >>= if c' then
+  >>= if e' then
         \ps -> if z then if p then prettySumProduct <$> compileFile ps
                               else show . sumProduct <$> compileFile ps
                     else (showFGG si :: FGG PatternedTensor -> String) <$> compileFile ps
