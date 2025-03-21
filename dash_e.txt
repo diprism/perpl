@@ -1,0 +1,49 @@
+define discard/Nat/inst0 : Folded/Nat/inst0 -> () = \ x : Folded/Nat/inst0. case x of folded/Nat/inst0 x0 -> let <x1, _> = x0 in x1;
+
+data Nat/inst0 = Zero/inst0 | Succ/inst0 Folded/Nat/inst0;
+
+data Folded/Nat/inst0 = folded/Nat/inst0 <(), Bool>;
+
+define fold/Nat/inst0 : Nat/inst0 -> Folded/Nat/inst0 = \ x2 : Nat/inst0. folded/Nat/inst0 <case x2 of Zero/inst0 -> () | Succ/inst0 x3 -> let () = discard/Nat/inst0 x3 in (), case x2 of Zero/inst0 -> True | Succ/inst0 n' -> not (even/inst0 n')>;
+
+define discard/List/inst0 : Folded/List/inst0 -> () = \ x4 : Folded/List/inst0. case x4 of folded/List/inst0 x5 -> let <x6, _> = x5 in x6;
+
+data List/inst0 = Nil/inst0 | Cons/inst0 Bool Folded/List/inst0;
+
+data Folded/List/inst0 = folded/List/inst0 <(), Folded/Nat/inst0>;
+
+define fold/List/inst0 : List/inst0 -> Folded/List/inst0 = \ x7 : List/inst0. folded/List/inst0 <case x7 of Nil/inst0 -> () | Cons/inst0 x8 x9 -> let () = discard/List/inst0 x9 in (), case x7 of Nil/inst0 -> fold/Nat/inst0 Zero/inst0 | Cons/inst0 x10 xs2' -> fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))>;
+
+define discard/List/inst1 : Folded/List/inst1 -> () = \ x11 : Folded/List/inst1. case unfold/List/inst1 x11 of Nil/inst1 -> () | Cons/inst1 x12 x13 -> let () = discard/List/inst1 x13 in ();
+
+data List/inst1 = Nil/inst1 | Cons/inst1 Bool Folded/List/inst1;
+
+data Folded/List/inst1 = folded/List/inst1/site0 | folded/List/inst1/site1 | folded/List/inst1/site2 | folded/List/inst1/site3;
+
+define unfold/List/inst1 : Folded/List/inst1 -> List/inst1 = \ x14 : Folded/List/inst1. case x14 of folded/List/inst1/site0 -> Nil/inst1 | folded/List/inst1/site1 -> Cons/inst1 True folded/List/inst1/site0 | folded/List/inst1/site2 -> Cons/inst1 False folded/List/inst1/site1 | folded/List/inst1/site3 -> Cons/inst1 True folded/List/inst1/site2;
+
+define discard/List/inst2 : Folded/List/inst2 -> () = \ x15 : Folded/List/inst2. case unfold/List/inst2 x15 of Nil/inst2 -> () | Cons/inst2 x16 x17 -> let () = discard/List/inst2 x17 in ();
+
+data List/inst2 = Nil/inst2 | Cons/inst2 (Bool, Bool) Folded/List/inst2;
+
+data Folded/List/inst2 = folded/List/inst2/site0 | folded/List/inst2/site1 | folded/List/inst2/site2;
+
+define unfold/List/inst2 : Folded/List/inst2 -> List/inst2 = \ x18 : Folded/List/inst2. case x18 of folded/List/inst2/site0 -> Nil/inst2 | folded/List/inst2/site1 -> Cons/inst2 (True, False) folded/List/inst2/site0 | folded/List/inst2/site2 -> Cons/inst2 (False, False) folded/List/inst2/site1;
+
+data Bool = False | True;
+
+define not : Bool -> Bool = \ a : Bool. if a then False else True;
+
+define list2/inst0 : Folded/List/inst2 = folded/List/inst2/site2;
+
+define list1/inst0 : Folded/List/inst1 = folded/List/inst1/site3;
+
+define length/inst0 : Folded/List/inst0 -> Folded/Nat/inst0 = \ xs2 : Folded/List/inst0. case xs2 of folded/List/inst0 x19 -> let <_, x20> = x19 in x20;
+
+define fsts/inst0 : Folded/List/inst2 -> Folded/List/inst0 = \ xs3 : Folded/List/inst2. case unfold/List/inst2 xs3 of Nil/inst2 -> fold/List/inst0 Nil/inst0 | Cons/inst2 xy xs3' -> let (x21, y) = xy in fold/List/inst0 (Cons/inst0 x21 (fsts/inst0 xs3'));
+
+define even/inst0 : Folded/Nat/inst0 -> Bool = \ n : Folded/Nat/inst0. case n of folded/Nat/inst0 x22 -> let <_, x23> = x22 in x23;
+
+define concat/inst0 : Folded/List/inst1 -> Folded/List/inst0 -> Folded/List/inst0 = \ xs : Folded/List/inst1. \ ys : Folded/List/inst0. case unfold/List/inst1 xs of Nil/inst1 -> ys | Cons/inst1 x24 xs' -> fold/List/inst0 (Cons/inst0 x24 (concat/inst0 xs' ys));
+
+even/inst0 (length/inst0 (concat/inst0 list1/inst0 (fsts/inst0 list2/inst0)))

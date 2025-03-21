@@ -1,0 +1,6826 @@
+{
+  "grammar": {
+    "terminals": {
+      "Identity[Bool]": {
+        "type": [
+          "Bool",
+          "Bool"
+        ]
+      },
+      "Identity[Folded/List/inst0]": {
+        "type": [
+          "Folded/List/inst0",
+          "Folded/List/inst0"
+        ]
+      },
+      "Identity[Folded/List/inst1]": {
+        "type": [
+          "Folded/List/inst1",
+          "Folded/List/inst1"
+        ]
+      },
+      "Identity[Folded/List/inst2]": {
+        "type": [
+          "Folded/List/inst2",
+          "Folded/List/inst2"
+        ]
+      },
+      "Identity[Folded/Nat/inst0]": {
+        "type": [
+          "Folded/Nat/inst0",
+          "Folded/Nat/inst0"
+        ]
+      },
+      "Identity[List/inst0]": {
+        "type": [
+          "List/inst0",
+          "List/inst0"
+        ]
+      },
+      "Identity[Nat/inst0]": {
+        "type": [
+          "Nat/inst0",
+          "Nat/inst0"
+        ]
+      },
+      "Identity[<(), Bool>]": {
+        "type": [
+          "<(), Bool>",
+          "<(), Bool>"
+        ]
+      },
+      "Identity[<(), Folded/Nat/inst0>]": {
+        "type": [
+          "<(), Folded/Nat/inst0>",
+          "<(), Folded/Nat/inst0>"
+        ]
+      },
+      "Identity[()]": {
+        "type": [
+          "()",
+          "()"
+        ]
+      },
+      "Identity[(Bool, Bool)]": {
+        "type": [
+          "(Bool, Bool)",
+          "(Bool, Bool)"
+        ]
+      },
+      "AddProd[(),Bool;0]": {
+        "type": [
+          "()",
+          "<(), Bool>"
+        ]
+      },
+      "AddProd[(),Bool;1]": {
+        "type": [
+          "Bool",
+          "<(), Bool>"
+        ]
+      },
+      "AddProd[(),Folded/Nat/inst0;0]": {
+        "type": [
+          "()",
+          "<(), Folded/Nat/inst0>"
+        ]
+      },
+      "AddProd[(),Folded/Nat/inst0;1]": {
+        "type": [
+          "Folded/Nat/inst0",
+          "<(), Folded/Nat/inst0>"
+        ]
+      },
+      "MulProd[]": {
+        "type": [
+          "()"
+        ]
+      },
+      "MulProd[Bool,Bool]": {
+        "type": [
+          "Bool",
+          "Bool",
+          "(Bool, Bool)"
+        ]
+      },
+      "Ctor[False]": {
+        "type": [
+          "Bool"
+        ]
+      },
+      "Ctor[True]": {
+        "type": [
+          "Bool"
+        ]
+      },
+      "Ctor[Nil/inst0]": {
+        "type": [
+          "List/inst0"
+        ]
+      },
+      "Ctor[Cons/inst0 Bool Folded/List/inst0]": {
+        "type": [
+          "Bool",
+          "Folded/List/inst0",
+          "List/inst0"
+        ]
+      },
+      "Ctor[Nil/inst1]": {
+        "type": [
+          "List/inst1"
+        ]
+      },
+      "Ctor[Cons/inst1 Bool Folded/List/inst1]": {
+        "type": [
+          "Bool",
+          "Folded/List/inst1",
+          "List/inst1"
+        ]
+      },
+      "Ctor[Nil/inst2]": {
+        "type": [
+          "List/inst2"
+        ]
+      },
+      "Ctor[Cons/inst2 (Bool, Bool) Folded/List/inst2]": {
+        "type": [
+          "(Bool, Bool)",
+          "Folded/List/inst2",
+          "List/inst2"
+        ]
+      },
+      "Ctor[Zero/inst0]": {
+        "type": [
+          "Nat/inst0"
+        ]
+      },
+      "Ctor[Succ/inst0 Folded/Nat/inst0]": {
+        "type": [
+          "Folded/Nat/inst0",
+          "Nat/inst0"
+        ]
+      },
+      "Ctor[folded/List/inst0 <(), Folded/Nat/inst0>]": {
+        "type": [
+          "<(), Folded/Nat/inst0>",
+          "Folded/List/inst0"
+        ]
+      },
+      "Ctor[folded/List/inst1/site0]": {
+        "type": [
+          "Folded/List/inst1"
+        ]
+      },
+      "Ctor[folded/List/inst1/site1]": {
+        "type": [
+          "Folded/List/inst1"
+        ]
+      },
+      "Ctor[folded/List/inst1/site2]": {
+        "type": [
+          "Folded/List/inst1"
+        ]
+      },
+      "Ctor[folded/List/inst1/site3]": {
+        "type": [
+          "Folded/List/inst1"
+        ]
+      },
+      "Ctor[folded/List/inst2/site0]": {
+        "type": [
+          "Folded/List/inst2"
+        ]
+      },
+      "Ctor[folded/List/inst2/site1]": {
+        "type": [
+          "Folded/List/inst2"
+        ]
+      },
+      "Ctor[folded/List/inst2/site2]": {
+        "type": [
+          "Folded/List/inst2"
+        ]
+      },
+      "Ctor[folded/Nat/inst0 <(), Bool>]": {
+        "type": [
+          "<(), Bool>",
+          "Folded/Nat/inst0"
+        ]
+      }
+    },
+    "nonterminals": {
+      "a": {
+        "type": [
+          "Bool",
+          "Bool"
+        ]
+      },
+      "n": {
+        "type": [
+          "Folded/Nat/inst0",
+          "Folded/Nat/inst0"
+        ]
+      },
+      "n'": {
+        "type": [
+          "Folded/Nat/inst0",
+          "Folded/Nat/inst0"
+        ]
+      },
+      "x": {
+        "type": [
+          "Folded/Nat/inst0",
+          "Folded/Nat/inst0"
+        ]
+      },
+      "x0": {
+        "type": [
+          "<(), Bool>",
+          "<(), Bool>"
+        ]
+      },
+      "x1": {
+        "type": [
+          "()",
+          "()"
+        ]
+      },
+      "x11": {
+        "type": [
+          "Folded/List/inst1",
+          "Folded/List/inst1"
+        ]
+      },
+      "x13": {
+        "type": [
+          "Folded/List/inst1",
+          "Folded/List/inst1"
+        ]
+      },
+      "x14": {
+        "type": [
+          "Folded/List/inst1",
+          "Folded/List/inst1"
+        ]
+      },
+      "x15": {
+        "type": [
+          "Folded/List/inst2",
+          "Folded/List/inst2"
+        ]
+      },
+      "x17": {
+        "type": [
+          "Folded/List/inst2",
+          "Folded/List/inst2"
+        ]
+      },
+      "x18": {
+        "type": [
+          "Folded/List/inst2",
+          "Folded/List/inst2"
+        ]
+      },
+      "x19": {
+        "type": [
+          "<(), Folded/Nat/inst0>",
+          "<(), Folded/Nat/inst0>"
+        ]
+      },
+      "x2": {
+        "type": [
+          "Nat/inst0",
+          "Nat/inst0"
+        ]
+      },
+      "x20": {
+        "type": [
+          "Folded/Nat/inst0",
+          "Folded/Nat/inst0"
+        ]
+      },
+      "x21": {
+        "type": [
+          "Bool",
+          "Bool"
+        ]
+      },
+      "x22": {
+        "type": [
+          "<(), Bool>",
+          "<(), Bool>"
+        ]
+      },
+      "x23": {
+        "type": [
+          "Bool",
+          "Bool"
+        ]
+      },
+      "x24": {
+        "type": [
+          "Bool",
+          "Bool"
+        ]
+      },
+      "x3": {
+        "type": [
+          "Folded/Nat/inst0",
+          "Folded/Nat/inst0"
+        ]
+      },
+      "x4": {
+        "type": [
+          "Folded/List/inst0",
+          "Folded/List/inst0"
+        ]
+      },
+      "x5": {
+        "type": [
+          "<(), Folded/Nat/inst0>",
+          "<(), Folded/Nat/inst0>"
+        ]
+      },
+      "x6": {
+        "type": [
+          "()",
+          "()"
+        ]
+      },
+      "x7": {
+        "type": [
+          "List/inst0",
+          "List/inst0"
+        ]
+      },
+      "x9": {
+        "type": [
+          "Folded/List/inst0",
+          "Folded/List/inst0"
+        ]
+      },
+      "xs": {
+        "type": [
+          "Folded/List/inst1",
+          "Folded/List/inst1"
+        ]
+      },
+      "xs'": {
+        "type": [
+          "Folded/List/inst1",
+          "Folded/List/inst1"
+        ]
+      },
+      "xs2": {
+        "type": [
+          "Folded/List/inst0",
+          "Folded/List/inst0"
+        ]
+      },
+      "xs2'": {
+        "type": [
+          "Folded/List/inst0",
+          "Folded/List/inst0"
+        ]
+      },
+      "xs3": {
+        "type": [
+          "Folded/List/inst2",
+          "Folded/List/inst2"
+        ]
+      },
+      "xs3'": {
+        "type": [
+          "Folded/List/inst2",
+          "Folded/List/inst2"
+        ]
+      },
+      "xy": {
+        "type": [
+          "(Bool, Bool)",
+          "(Bool, Bool)"
+        ]
+      },
+      "ys": {
+        "type": [
+          "Folded/List/inst0",
+          "Folded/List/inst0"
+        ]
+      },
+      "concat/inst0": {
+        "type": [
+          "Folded/List/inst1",
+          "Folded/List/inst0",
+          "Folded/List/inst0"
+        ]
+      },
+      "concat/inst0 xs' ys": {
+        "type": [
+          "Folded/List/inst1",
+          "Folded/List/inst0",
+          "Folded/List/inst0"
+        ]
+      },
+      "concat/inst0 list1/inst0 (fsts/inst0 list2/inst0)": {
+        "type": [
+          "Folded/List/inst0"
+        ]
+      },
+      "discard/List/inst0": {
+        "type": [
+          "Folded/List/inst0",
+          "()"
+        ]
+      },
+      "discard/List/inst0 x9": {
+        "type": [
+          "Folded/List/inst0",
+          "()"
+        ]
+      },
+      "discard/List/inst1": {
+        "type": [
+          "Folded/List/inst1",
+          "()"
+        ]
+      },
+      "discard/List/inst1 x13": {
+        "type": [
+          "Folded/List/inst1",
+          "()"
+        ]
+      },
+      "discard/List/inst2": {
+        "type": [
+          "Folded/List/inst2",
+          "()"
+        ]
+      },
+      "discard/List/inst2 x17": {
+        "type": [
+          "Folded/List/inst2",
+          "()"
+        ]
+      },
+      "discard/Nat/inst0": {
+        "type": [
+          "Folded/Nat/inst0",
+          "()"
+        ]
+      },
+      "discard/Nat/inst0 x3": {
+        "type": [
+          "Folded/Nat/inst0",
+          "()"
+        ]
+      },
+      "even/inst0": {
+        "type": [
+          "Folded/Nat/inst0",
+          "Bool"
+        ]
+      },
+      "even/inst0 n'": {
+        "type": [
+          "Folded/Nat/inst0",
+          "Bool"
+        ]
+      },
+      "even/inst0 (length/inst0 (concat/inst0 list1/inst0 (fsts/inst0 list2/inst0)))": {
+        "type": [
+          "Bool"
+        ]
+      },
+      "fold/List/inst0": {
+        "type": [
+          "List/inst0",
+          "Folded/List/inst0"
+        ]
+      },
+      "fold/List/inst0 (Cons/inst0 x21 (fsts/inst0 xs3'))": {
+        "type": [
+          "Bool",
+          "Folded/List/inst2",
+          "Folded/List/inst0"
+        ]
+      },
+      "fold/List/inst0 (Cons/inst0 x24 (concat/inst0 xs' ys))": {
+        "type": [
+          "Bool",
+          "Folded/List/inst1",
+          "Folded/List/inst0",
+          "Folded/List/inst0"
+        ]
+      },
+      "fold/List/inst0 Nil/inst0": {
+        "type": [
+          "Folded/List/inst0"
+        ]
+      },
+      "fold/Nat/inst0": {
+        "type": [
+          "Nat/inst0",
+          "Folded/Nat/inst0"
+        ]
+      },
+      "fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))": {
+        "type": [
+          "Folded/List/inst0",
+          "Folded/Nat/inst0"
+        ]
+      },
+      "fold/Nat/inst0 Zero/inst0": {
+        "type": [
+          "Folded/Nat/inst0"
+        ]
+      },
+      "fsts/inst0": {
+        "type": [
+          "Folded/List/inst2",
+          "Folded/List/inst0"
+        ]
+      },
+      "fsts/inst0 xs3'": {
+        "type": [
+          "Folded/List/inst2",
+          "Folded/List/inst0"
+        ]
+      },
+      "fsts/inst0 list2/inst0": {
+        "type": [
+          "Folded/List/inst0"
+        ]
+      },
+      "length/inst0": {
+        "type": [
+          "Folded/List/inst0",
+          "Folded/Nat/inst0"
+        ]
+      },
+      "length/inst0 xs2'": {
+        "type": [
+          "Folded/List/inst0",
+          "Folded/Nat/inst0"
+        ]
+      },
+      "length/inst0 (concat/inst0 list1/inst0 (fsts/inst0 list2/inst0))": {
+        "type": [
+          "Folded/Nat/inst0"
+        ]
+      },
+      "list1/inst0": {
+        "type": [
+          "Folded/List/inst1"
+        ]
+      },
+      "list2/inst0": {
+        "type": [
+          "Folded/List/inst2"
+        ]
+      },
+      "not": {
+        "type": [
+          "Bool",
+          "Bool"
+        ]
+      },
+      "not (even/inst0 n')": {
+        "type": [
+          "Folded/Nat/inst0",
+          "Bool"
+        ]
+      },
+      "unfold/List/inst1": {
+        "type": [
+          "Folded/List/inst1",
+          "List/inst1"
+        ]
+      },
+      "unfold/List/inst1 x11": {
+        "type": [
+          "Folded/List/inst1",
+          "List/inst1"
+        ]
+      },
+      "unfold/List/inst1 xs": {
+        "type": [
+          "Folded/List/inst1",
+          "List/inst1"
+        ]
+      },
+      "unfold/List/inst2": {
+        "type": [
+          "Folded/List/inst2",
+          "List/inst2"
+        ]
+      },
+      "unfold/List/inst2 x15": {
+        "type": [
+          "Folded/List/inst2",
+          "List/inst2"
+        ]
+      },
+      "unfold/List/inst2 xs3": {
+        "type": [
+          "Folded/List/inst2",
+          "List/inst2"
+        ]
+      },
+      "Cons/inst0 x21 (fsts/inst0 xs3')": {
+        "type": [
+          "Bool",
+          "Folded/List/inst2",
+          "List/inst0"
+        ]
+      },
+      "Cons/inst0 x24 (concat/inst0 xs' ys)": {
+        "type": [
+          "Bool",
+          "Folded/List/inst1",
+          "Folded/List/inst0",
+          "List/inst0"
+        ]
+      },
+      "Cons/inst1 False folded/List/inst1/site1": {
+        "type": [
+          "List/inst1"
+        ]
+      },
+      "Cons/inst1 True folded/List/inst1/site0": {
+        "type": [
+          "List/inst1"
+        ]
+      },
+      "Cons/inst1 True folded/List/inst1/site2": {
+        "type": [
+          "List/inst1"
+        ]
+      },
+      "Cons/inst2 (False, False) folded/List/inst2/site1": {
+        "type": [
+          "List/inst2"
+        ]
+      },
+      "Cons/inst2 (True, False) folded/List/inst2/site0": {
+        "type": [
+          "List/inst2"
+        ]
+      },
+      "False": {
+        "type": [
+          "Bool"
+        ]
+      },
+      "Nil/inst0": {
+        "type": [
+          "List/inst0"
+        ]
+      },
+      "Nil/inst1": {
+        "type": [
+          "List/inst1"
+        ]
+      },
+      "Nil/inst2": {
+        "type": [
+          "List/inst2"
+        ]
+      },
+      "Succ/inst0 (length/inst0 xs2')": {
+        "type": [
+          "Folded/List/inst0",
+          "Nat/inst0"
+        ]
+      },
+      "True": {
+        "type": [
+          "Bool"
+        ]
+      },
+      "Zero/inst0": {
+        "type": [
+          "Nat/inst0"
+        ]
+      },
+      "folded/List/inst0 <case x7 of Nil/inst0 -> () | Cons/inst0 x8 x9 -> let () = discard/List/inst0 x9 in (), case x7 of Nil/inst0 -> fold/Nat/inst0 Zero/inst0 | Cons/inst0 x10 xs2' -> fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))>": {
+        "type": [
+          "List/inst0",
+          "Folded/List/inst0"
+        ]
+      },
+      "folded/List/inst1/site0": {
+        "type": [
+          "Folded/List/inst1"
+        ]
+      },
+      "folded/List/inst1/site1": {
+        "type": [
+          "Folded/List/inst1"
+        ]
+      },
+      "folded/List/inst1/site2": {
+        "type": [
+          "Folded/List/inst1"
+        ]
+      },
+      "folded/List/inst1/site3": {
+        "type": [
+          "Folded/List/inst1"
+        ]
+      },
+      "folded/List/inst2/site0": {
+        "type": [
+          "Folded/List/inst2"
+        ]
+      },
+      "folded/List/inst2/site1": {
+        "type": [
+          "Folded/List/inst2"
+        ]
+      },
+      "folded/List/inst2/site2": {
+        "type": [
+          "Folded/List/inst2"
+        ]
+      },
+      "folded/Nat/inst0 <case x2 of Zero/inst0 -> () | Succ/inst0 x3 -> let () = discard/Nat/inst0 x3 in (), case x2 of Zero/inst0 -> True | Succ/inst0 n' -> not (even/inst0 n')>": {
+        "type": [
+          "Nat/inst0",
+          "Folded/Nat/inst0"
+        ]
+      },
+      "if a then False else True": {
+        "type": [
+          "Bool",
+          "Bool"
+        ]
+      },
+      "case n of folded/Nat/inst0 x22 -> let <_, x23> = x22 in x23": {
+        "type": [
+          "Folded/Nat/inst0",
+          "Bool"
+        ]
+      },
+      "case x of folded/Nat/inst0 x0 -> let <x1, _> = x0 in x1": {
+        "type": [
+          "Folded/Nat/inst0",
+          "()"
+        ]
+      },
+      "case x14 of folded/List/inst1/site0 -> Nil/inst1 | folded/List/inst1/site1 -> Cons/inst1 True folded/List/inst1/site0 | folded/List/inst1/site2 -> Cons/inst1 False folded/List/inst1/site1 | folded/List/inst1/site3 -> Cons/inst1 True folded/List/inst1/site2": {
+        "type": [
+          "Folded/List/inst1",
+          "List/inst1"
+        ]
+      },
+      "case x18 of folded/List/inst2/site0 -> Nil/inst2 | folded/List/inst2/site1 -> Cons/inst2 (True, False) folded/List/inst2/site0 | folded/List/inst2/site2 -> Cons/inst2 (False, False) folded/List/inst2/site1": {
+        "type": [
+          "Folded/List/inst2",
+          "List/inst2"
+        ]
+      },
+      "case x2 of Zero/inst0 -> True | Succ/inst0 n' -> not (even/inst0 n')": {
+        "type": [
+          "Nat/inst0",
+          "Bool"
+        ]
+      },
+      "case x2 of Zero/inst0 -> () | Succ/inst0 x3 -> let () = discard/Nat/inst0 x3 in ()": {
+        "type": [
+          "Nat/inst0",
+          "()"
+        ]
+      },
+      "case x4 of folded/List/inst0 x5 -> let <x6, _> = x5 in x6": {
+        "type": [
+          "Folded/List/inst0",
+          "()"
+        ]
+      },
+      "case x7 of Nil/inst0 -> fold/Nat/inst0 Zero/inst0 | Cons/inst0 x10 xs2' -> fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))": {
+        "type": [
+          "List/inst0",
+          "Folded/Nat/inst0"
+        ]
+      },
+      "case x7 of Nil/inst0 -> () | Cons/inst0 x8 x9 -> let () = discard/List/inst0 x9 in ()": {
+        "type": [
+          "List/inst0",
+          "()"
+        ]
+      },
+      "case xs2 of folded/List/inst0 x19 -> let <_, x20> = x19 in x20": {
+        "type": [
+          "Folded/List/inst0",
+          "Folded/Nat/inst0"
+        ]
+      },
+      "case unfold/List/inst1 x11 of Nil/inst1 -> () | Cons/inst1 x12 x13 -> let () = discard/List/inst1 x13 in ()": {
+        "type": [
+          "Folded/List/inst1",
+          "()"
+        ]
+      },
+      "case unfold/List/inst1 xs of Nil/inst1 -> ys | Cons/inst1 x24 xs' -> fold/List/inst0 (Cons/inst0 x24 (concat/inst0 xs' ys))": {
+        "type": [
+          "Folded/List/inst1",
+          "Folded/List/inst0",
+          "Folded/List/inst0"
+        ]
+      },
+      "case unfold/List/inst2 x15 of Nil/inst2 -> () | Cons/inst2 x16 x17 -> let () = discard/List/inst2 x17 in ()": {
+        "type": [
+          "Folded/List/inst2",
+          "()"
+        ]
+      },
+      "case unfold/List/inst2 xs3 of Nil/inst2 -> fold/List/inst0 Nil/inst0 | Cons/inst2 xy xs3' -> let (x21, y) = xy in fold/List/inst0 (Cons/inst0 x21 (fsts/inst0 xs3'))": {
+        "type": [
+          "Folded/List/inst2",
+          "Folded/List/inst0"
+        ]
+      },
+      "<case x2 of Zero/inst0 -> () | Succ/inst0 x3 -> let () = discard/Nat/inst0 x3 in (), case x2 of Zero/inst0 -> True | Succ/inst0 n' -> not (even/inst0 n')>": {
+        "type": [
+          "Nat/inst0",
+          "<(), Bool>"
+        ]
+      },
+      "<case x7 of Nil/inst0 -> () | Cons/inst0 x8 x9 -> let () = discard/List/inst0 x9 in (), case x7 of Nil/inst0 -> fold/Nat/inst0 Zero/inst0 | Cons/inst0 x10 xs2' -> fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))>": {
+        "type": [
+          "List/inst0",
+          "<(), Folded/Nat/inst0>"
+        ]
+      },
+      "()": {
+        "type": [
+          "()"
+        ]
+      },
+      "(False, False)": {
+        "type": [
+          "(Bool, Bool)"
+        ]
+      },
+      "(True, False)": {
+        "type": [
+          "(Bool, Bool)"
+        ]
+      },
+      "let (x21, y) = xy in fold/List/inst0 (Cons/inst0 x21 (fsts/inst0 xs3'))": {
+        "type": [
+          "(Bool, Bool)",
+          "Folded/List/inst2",
+          "Folded/List/inst0"
+        ]
+      },
+      "let () = discard/List/inst0 x9 in ()": {
+        "type": [
+          "Folded/List/inst0",
+          "()"
+        ]
+      },
+      "let () = discard/List/inst1 x13 in ()": {
+        "type": [
+          "Folded/List/inst1",
+          "()"
+        ]
+      },
+      "let () = discard/List/inst2 x17 in ()": {
+        "type": [
+          "Folded/List/inst2",
+          "()"
+        ]
+      },
+      "let () = discard/Nat/inst0 x3 in ()": {
+        "type": [
+          "Folded/Nat/inst0",
+          "()"
+        ]
+      },
+      "let <x1, _> = x0 in x1": {
+        "type": [
+          "<(), Bool>",
+          "()"
+        ]
+      },
+      "let <_, x20> = x19 in x20": {
+        "type": [
+          "<(), Folded/Nat/inst0>",
+          "Folded/Nat/inst0"
+        ]
+      },
+      "let <_, x23> = x22 in x23": {
+        "type": [
+          "<(), Bool>",
+          "Bool"
+        ]
+      },
+      "let <x6, _> = x5 in x6": {
+        "type": [
+          "<(), Folded/Nat/inst0>",
+          "()"
+        ]
+      }
+    },
+    "start": "even/inst0 (length/inst0 (concat/inst0 list1/inst0 (fsts/inst0 list2/inst0)))",
+    "rules": [
+      {
+        "lhs": "a",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Bool",
+              "id": "a"
+            },
+            {
+              "label": "Bool",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Bool]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "n",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "n"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/Nat/inst0]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "n'",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "n'"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/Nat/inst0]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "x"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/Nat/inst0]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "<(), Bool>",
+              "id": "x0"
+            },
+            {
+              "label": "<(), Bool>",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[<(), Bool>]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x1",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "x1"
+            },
+            {
+              "label": "()",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[()]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x11",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst1",
+              "id": "x11"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst1]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x13",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst1",
+              "id": "x13"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst1]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x14",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst1",
+              "id": "x14"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst1]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x15",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst2",
+              "id": "x15"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst2]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x17",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst2",
+              "id": "x17"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst2]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x18",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst2",
+              "id": "x18"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst2]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x19",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "<(), Folded/Nat/inst0>",
+              "id": "x19"
+            },
+            {
+              "label": "<(), Folded/Nat/inst0>",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[<(), Folded/Nat/inst0>]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x2",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Nat/inst0",
+              "id": "x2"
+            },
+            {
+              "label": "Nat/inst0",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Nat/inst0]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x20",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "x20"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/Nat/inst0]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x21",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Bool",
+              "id": "x21"
+            },
+            {
+              "label": "Bool",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Bool]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x22",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "<(), Bool>",
+              "id": "x22"
+            },
+            {
+              "label": "<(), Bool>",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[<(), Bool>]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x23",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Bool",
+              "id": "x23"
+            },
+            {
+              "label": "Bool",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Bool]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x24",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Bool",
+              "id": "x24"
+            },
+            {
+              "label": "Bool",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Bool]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x3",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "x3"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/Nat/inst0]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x4",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "x4"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst0]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x5",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "<(), Folded/Nat/inst0>",
+              "id": "x5"
+            },
+            {
+              "label": "<(), Folded/Nat/inst0>",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[<(), Folded/Nat/inst0>]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x6",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "x6"
+            },
+            {
+              "label": "()",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[()]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x7",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst0",
+              "id": "x7"
+            },
+            {
+              "label": "List/inst0",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[List/inst0]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "x9",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "x9"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst0]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "xs",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst1",
+              "id": "xs"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst1]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "xs'",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst1",
+              "id": "xs'"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst1]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "xs2",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "xs2"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst0]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "xs2'",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "xs2'"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst0]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "xs3",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst2",
+              "id": "xs3"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst2]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "xs3'",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst2",
+              "id": "xs3'"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst2]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "xy",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "(Bool, Bool)",
+              "id": "xy"
+            },
+            {
+              "label": "(Bool, Bool)",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[(Bool, Bool)]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "ys",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "ys"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0,
+                1
+              ],
+              "label": "Identity[Folded/List/inst0]"
+            }
+          ],
+          "externals": [
+            0,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "concat/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "xs"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "ys"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                2,
+                0
+              ],
+              "label": "case unfold/List/inst1 xs of Nil/inst1 -> ys | Cons/inst1 x24 xs' -> fold/List/inst0 (Cons/inst0 x24 (concat/inst0 xs' ys))"
+            }
+          ],
+          "externals": [
+            1,
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "concat/inst0 xs' ys",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*1*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "xs'"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "ys"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                2,
+                0
+              ],
+              "label": "concat/inst0"
+            },
+            {
+              "attachments": [
+                3,
+                1
+              ],
+              "label": "xs'"
+            },
+            {
+              "attachments": [
+                4,
+                2
+              ],
+              "label": "ys"
+            }
+          ],
+          "externals": [
+            3,
+            4,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "concat/inst0 list1/inst0 (fsts/inst0 list2/inst0)",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*1*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                2,
+                0
+              ],
+              "label": "concat/inst0"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "list1/inst0"
+            },
+            {
+              "attachments": [
+                2
+              ],
+              "label": "fsts/inst0 list2/inst0"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "discard/List/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "x4"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "case x4 of folded/List/inst0 x5 -> let <x6, _> = x5 in x6"
+            }
+          ],
+          "externals": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "discard/List/inst0 x9",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "x9"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "discard/List/inst0"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "x9"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "discard/List/inst1",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "x11"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "case unfold/List/inst1 x11 of Nil/inst1 -> () | Cons/inst1 x12 x13 -> let () = discard/List/inst1 x13 in ()"
+            }
+          ],
+          "externals": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "discard/List/inst1 x13",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "x13"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "discard/List/inst1"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "x13"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "discard/List/inst2",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "x15"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "case unfold/List/inst2 x15 of Nil/inst2 -> () | Cons/inst2 x16 x17 -> let () = discard/List/inst2 x17 in ()"
+            }
+          ],
+          "externals": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "discard/List/inst2 x17",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "x17"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "discard/List/inst2"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "x17"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "discard/Nat/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "x"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "case x of folded/Nat/inst0 x0 -> let <x1, _> = x0 in x1"
+            }
+          ],
+          "externals": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "discard/Nat/inst0 x3",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "x3"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "discard/Nat/inst0"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "x3"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "even/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Bool",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "n"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "case n of folded/Nat/inst0 x22 -> let <_, x23> = x22 in x23"
+            }
+          ],
+          "externals": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "even/inst0 n'",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Bool",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "n'"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "even/inst0"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "n'"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "even/inst0 (length/inst0 (concat/inst0 list1/inst0 (fsts/inst0 list2/inst0)))",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Bool",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*0*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "even/inst0"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "length/inst0 (concat/inst0 list1/inst0 (fsts/inst0 list2/inst0))"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "fold/List/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "List/inst0",
+              "id": "x7"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "folded/List/inst0 <case x7 of Nil/inst0 -> () | Cons/inst0 x8 x9 -> let () = discard/List/inst0 x9 in (), case x7 of Nil/inst0 -> fold/Nat/inst0 Zero/inst0 | Cons/inst0 x10 xs2' -> fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))>"
+            }
+          ],
+          "externals": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "fold/List/inst0 (Cons/inst0 x21 (fsts/inst0 xs3'))",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "List/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "Bool",
+              "id": "x21"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "xs3'"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "fold/List/inst0"
+            },
+            {
+              "attachments": [
+                2,
+                3,
+                1
+              ],
+              "label": "Cons/inst0 x21 (fsts/inst0 xs3')"
+            }
+          ],
+          "externals": [
+            2,
+            3,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "fold/List/inst0 (Cons/inst0 x24 (concat/inst0 xs' ys))",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "List/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "Bool",
+              "id": "x24"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "xs'"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "ys"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "fold/List/inst0"
+            },
+            {
+              "attachments": [
+                2,
+                3,
+                4,
+                1
+              ],
+              "label": "Cons/inst0 x24 (concat/inst0 xs' ys)"
+            }
+          ],
+          "externals": [
+            2,
+            3,
+            4,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "fold/List/inst0 Nil/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "List/inst0",
+              "id": "*0*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "fold/List/inst0"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "Nil/inst0"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "fold/Nat/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Nat/inst0",
+              "id": "x2"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "folded/Nat/inst0 <case x2 of Zero/inst0 -> () | Succ/inst0 x3 -> let () = discard/Nat/inst0 x3 in (), case x2 of Zero/inst0 -> True | Succ/inst0 n' -> not (even/inst0 n')>"
+            }
+          ],
+          "externals": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Nat/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "xs2'"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "fold/Nat/inst0"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "Succ/inst0 (length/inst0 xs2')"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "fold/Nat/inst0 Zero/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Nat/inst0",
+              "id": "*0*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "fold/Nat/inst0"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "Zero/inst0"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "fsts/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "xs3"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "case unfold/List/inst2 xs3 of Nil/inst2 -> fold/List/inst0 Nil/inst0 | Cons/inst2 xy xs3' -> let (x21, y) = xy in fold/List/inst0 (Cons/inst0 x21 (fsts/inst0 xs3'))"
+            }
+          ],
+          "externals": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "fsts/inst0 xs3'",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "xs3'"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "fsts/inst0"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "xs3'"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "fsts/inst0 list2/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "*0*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "fsts/inst0"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "list2/inst0"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "length/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "xs2"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "case xs2 of folded/List/inst0 x19 -> let <_, x20> = x19 in x20"
+            }
+          ],
+          "externals": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "length/inst0 xs2'",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "xs2'"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "length/inst0"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "xs2'"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "length/inst0 (concat/inst0 list1/inst0 (fsts/inst0 list2/inst0))",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*0*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "length/inst0"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "concat/inst0 list1/inst0 (fsts/inst0 list2/inst0)"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "list1/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst1",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "folded/List/inst1/site3"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "list2/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst2",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "folded/List/inst2/site2"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "not",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Bool",
+              "id": "*out*"
+            },
+            {
+              "label": "Bool",
+              "id": "a"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "if a then False else True"
+            }
+          ],
+          "externals": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "not (even/inst0 n')",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Bool",
+              "id": "*out*"
+            },
+            {
+              "label": "Bool",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "n'"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "not"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "even/inst0 n'"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "unfold/List/inst1",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst1",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "x14"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "case x14 of folded/List/inst1/site0 -> Nil/inst1 | folded/List/inst1/site1 -> Cons/inst1 True folded/List/inst1/site0 | folded/List/inst1/site2 -> Cons/inst1 False folded/List/inst1/site1 | folded/List/inst1/site3 -> Cons/inst1 True folded/List/inst1/site2"
+            }
+          ],
+          "externals": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "unfold/List/inst1 x11",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst1",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "x11"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "unfold/List/inst1"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "x11"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "unfold/List/inst1 xs",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst1",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "xs"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "unfold/List/inst1"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "xs"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "unfold/List/inst2",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst2",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "x18"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "case x18 of folded/List/inst2/site0 -> Nil/inst2 | folded/List/inst2/site1 -> Cons/inst2 (True, False) folded/List/inst2/site0 | folded/List/inst2/site2 -> Cons/inst2 (False, False) folded/List/inst2/site1"
+            }
+          ],
+          "externals": [
+            1,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "unfold/List/inst2 x15",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst2",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "x15"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "unfold/List/inst2"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "x15"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "unfold/List/inst2 xs3",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst2",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "xs3"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "unfold/List/inst2"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "xs3"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "Cons/inst0 x21 (fsts/inst0 xs3')",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Bool",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*1*"
+            },
+            {
+              "label": "Bool",
+              "id": "x21"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "xs3'"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                2,
+                0
+              ],
+              "label": "Ctor[Cons/inst0 Bool Folded/List/inst0]"
+            },
+            {
+              "attachments": [
+                3,
+                1
+              ],
+              "label": "x21"
+            },
+            {
+              "attachments": [
+                4,
+                2
+              ],
+              "label": "fsts/inst0 xs3'"
+            }
+          ],
+          "externals": [
+            3,
+            4,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "Cons/inst0 x24 (concat/inst0 xs' ys)",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Bool",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*1*"
+            },
+            {
+              "label": "Bool",
+              "id": "x24"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "xs'"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "ys"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                2,
+                0
+              ],
+              "label": "Ctor[Cons/inst0 Bool Folded/List/inst0]"
+            },
+            {
+              "attachments": [
+                3,
+                1
+              ],
+              "label": "x24"
+            },
+            {
+              "attachments": [
+                4,
+                5,
+                2
+              ],
+              "label": "concat/inst0 xs' ys"
+            }
+          ],
+          "externals": [
+            3,
+            4,
+            5,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "Cons/inst1 False folded/List/inst1/site1",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst1",
+              "id": "*out*"
+            },
+            {
+              "label": "Bool",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "*1*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                2,
+                0
+              ],
+              "label": "Ctor[Cons/inst1 Bool Folded/List/inst1]"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "False"
+            },
+            {
+              "attachments": [
+                2
+              ],
+              "label": "folded/List/inst1/site1"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "Cons/inst1 True folded/List/inst1/site0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst1",
+              "id": "*out*"
+            },
+            {
+              "label": "Bool",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "*1*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                2,
+                0
+              ],
+              "label": "Ctor[Cons/inst1 Bool Folded/List/inst1]"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "True"
+            },
+            {
+              "attachments": [
+                2
+              ],
+              "label": "folded/List/inst1/site0"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "Cons/inst1 True folded/List/inst1/site2",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst1",
+              "id": "*out*"
+            },
+            {
+              "label": "Bool",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "*1*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                2,
+                0
+              ],
+              "label": "Ctor[Cons/inst1 Bool Folded/List/inst1]"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "True"
+            },
+            {
+              "attachments": [
+                2
+              ],
+              "label": "folded/List/inst1/site2"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "Cons/inst2 (False, False) folded/List/inst2/site1",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst2",
+              "id": "*out*"
+            },
+            {
+              "label": "(Bool, Bool)",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "*1*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                2,
+                0
+              ],
+              "label": "Ctor[Cons/inst2 (Bool, Bool) Folded/List/inst2]"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "(False, False)"
+            },
+            {
+              "attachments": [
+                2
+              ],
+              "label": "folded/List/inst2/site1"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "Cons/inst2 (True, False) folded/List/inst2/site0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst2",
+              "id": "*out*"
+            },
+            {
+              "label": "(Bool, Bool)",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "*1*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                2,
+                0
+              ],
+              "label": "Ctor[Cons/inst2 (Bool, Bool) Folded/List/inst2]"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "(True, False)"
+            },
+            {
+              "attachments": [
+                2
+              ],
+              "label": "folded/List/inst2/site0"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "False",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Bool",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[False]"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "Nil/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst0",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[Nil/inst0]"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "Nil/inst1",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst1",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[Nil/inst1]"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "Nil/inst2",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst2",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[Nil/inst2]"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "Succ/inst0 (length/inst0 xs2')",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Nat/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "xs2'"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "Ctor[Succ/inst0 Folded/Nat/inst0]"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "length/inst0 xs2'"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "True",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Bool",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[True]"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "Zero/inst0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Nat/inst0",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[Zero/inst0]"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "folded/List/inst0 <case x7 of Nil/inst0 -> () | Cons/inst0 x8 x9 -> let () = discard/List/inst0 x9 in (), case x7 of Nil/inst0 -> fold/Nat/inst0 Zero/inst0 | Cons/inst0 x10 xs2' -> fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))>",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "<(), Folded/Nat/inst0>",
+              "id": "*0*"
+            },
+            {
+              "label": "List/inst0",
+              "id": "x7"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "Ctor[folded/List/inst0 <(), Folded/Nat/inst0>]"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "<case x7 of Nil/inst0 -> () | Cons/inst0 x8 x9 -> let () = discard/List/inst0 x9 in (), case x7 of Nil/inst0 -> fold/Nat/inst0 Zero/inst0 | Cons/inst0 x10 xs2' -> fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))>"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "folded/List/inst1/site0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst1",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[folded/List/inst1/site0]"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "folded/List/inst1/site1",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst1",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[folded/List/inst1/site1]"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "folded/List/inst1/site2",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst1",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[folded/List/inst1/site2]"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "folded/List/inst1/site3",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst1",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[folded/List/inst1/site3]"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "folded/List/inst2/site0",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst2",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[folded/List/inst2/site0]"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "folded/List/inst2/site1",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst2",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[folded/List/inst2/site1]"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "folded/List/inst2/site2",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst2",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[folded/List/inst2/site2]"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "folded/Nat/inst0 <case x2 of Zero/inst0 -> () | Succ/inst0 x3 -> let () = discard/Nat/inst0 x3 in (), case x2 of Zero/inst0 -> True | Succ/inst0 n' -> not (even/inst0 n')>",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "<(), Bool>",
+              "id": "*0*"
+            },
+            {
+              "label": "Nat/inst0",
+              "id": "x2"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "Ctor[folded/Nat/inst0 <(), Bool>]"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "<case x2 of Zero/inst0 -> () | Succ/inst0 x3 -> let () = discard/Nat/inst0 x3 in (), case x2 of Zero/inst0 -> True | Succ/inst0 n' -> not (even/inst0 n')>"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "if a then False else True",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Bool",
+              "id": "*0*"
+            },
+            {
+              "label": "Bool",
+              "id": "*out*"
+            },
+            {
+              "label": "Bool",
+              "id": "a"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "a"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "True"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[False]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "if a then False else True",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Bool",
+              "id": "*0*"
+            },
+            {
+              "label": "Bool",
+              "id": "*out*"
+            },
+            {
+              "label": "Bool",
+              "id": "a"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "a"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "False"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[True]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case n of folded/Nat/inst0 x22 -> let <_, x23> = x22 in x23",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "Bool",
+              "id": "*out*"
+            },
+            {
+              "label": "<(), Bool>",
+              "id": "x22"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "n"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                3,
+                0
+              ],
+              "label": "n"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "let <_, x23> = x22 in x23"
+            },
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "Ctor[folded/Nat/inst0 <(), Bool>]"
+            }
+          ],
+          "externals": [
+            3,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x of folded/Nat/inst0 x0 -> let <x1, _> = x0 in x1",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "<(), Bool>",
+              "id": "x0"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "x"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                3,
+                0
+              ],
+              "label": "x"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "let <x1, _> = x0 in x1"
+            },
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "Ctor[folded/Nat/inst0 <(), Bool>]"
+            }
+          ],
+          "externals": [
+            3,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x14 of folded/List/inst1/site0 -> Nil/inst1 | folded/List/inst1/site1 -> Cons/inst1 True folded/List/inst1/site0 | folded/List/inst1/site2 -> Cons/inst1 False folded/List/inst1/site1 | folded/List/inst1/site3 -> Cons/inst1 True folded/List/inst1/site2",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst1",
+              "id": "*0*"
+            },
+            {
+              "label": "List/inst1",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "x14"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x14"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "Nil/inst1"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[folded/List/inst1/site0]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x14 of folded/List/inst1/site0 -> Nil/inst1 | folded/List/inst1/site1 -> Cons/inst1 True folded/List/inst1/site0 | folded/List/inst1/site2 -> Cons/inst1 False folded/List/inst1/site1 | folded/List/inst1/site3 -> Cons/inst1 True folded/List/inst1/site2",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst1",
+              "id": "*0*"
+            },
+            {
+              "label": "List/inst1",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "x14"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x14"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "Cons/inst1 True folded/List/inst1/site0"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[folded/List/inst1/site1]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x14 of folded/List/inst1/site0 -> Nil/inst1 | folded/List/inst1/site1 -> Cons/inst1 True folded/List/inst1/site0 | folded/List/inst1/site2 -> Cons/inst1 False folded/List/inst1/site1 | folded/List/inst1/site3 -> Cons/inst1 True folded/List/inst1/site2",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst1",
+              "id": "*0*"
+            },
+            {
+              "label": "List/inst1",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "x14"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x14"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "Cons/inst1 False folded/List/inst1/site1"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[folded/List/inst1/site2]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x14 of folded/List/inst1/site0 -> Nil/inst1 | folded/List/inst1/site1 -> Cons/inst1 True folded/List/inst1/site0 | folded/List/inst1/site2 -> Cons/inst1 False folded/List/inst1/site1 | folded/List/inst1/site3 -> Cons/inst1 True folded/List/inst1/site2",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst1",
+              "id": "*0*"
+            },
+            {
+              "label": "List/inst1",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "x14"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x14"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "Cons/inst1 True folded/List/inst1/site2"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[folded/List/inst1/site3]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x18 of folded/List/inst2/site0 -> Nil/inst2 | folded/List/inst2/site1 -> Cons/inst2 (True, False) folded/List/inst2/site0 | folded/List/inst2/site2 -> Cons/inst2 (False, False) folded/List/inst2/site1",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst2",
+              "id": "*0*"
+            },
+            {
+              "label": "List/inst2",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "x18"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x18"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "Nil/inst2"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[folded/List/inst2/site0]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x18 of folded/List/inst2/site0 -> Nil/inst2 | folded/List/inst2/site1 -> Cons/inst2 (True, False) folded/List/inst2/site0 | folded/List/inst2/site2 -> Cons/inst2 (False, False) folded/List/inst2/site1",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst2",
+              "id": "*0*"
+            },
+            {
+              "label": "List/inst2",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "x18"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x18"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "Cons/inst2 (True, False) folded/List/inst2/site0"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[folded/List/inst2/site1]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x18 of folded/List/inst2/site0 -> Nil/inst2 | folded/List/inst2/site1 -> Cons/inst2 (True, False) folded/List/inst2/site0 | folded/List/inst2/site2 -> Cons/inst2 (False, False) folded/List/inst2/site1",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst2",
+              "id": "*0*"
+            },
+            {
+              "label": "List/inst2",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "x18"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x18"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "Cons/inst2 (False, False) folded/List/inst2/site1"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[folded/List/inst2/site2]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x2 of Zero/inst0 -> True | Succ/inst0 n' -> not (even/inst0 n')",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Nat/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "Bool",
+              "id": "*out*"
+            },
+            {
+              "label": "Nat/inst0",
+              "id": "x2"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x2"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "True"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[Zero/inst0]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x2 of Zero/inst0 -> True | Succ/inst0 n' -> not (even/inst0 n')",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Nat/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "Bool",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "n'"
+            },
+            {
+              "label": "Nat/inst0",
+              "id": "x2"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                3,
+                0
+              ],
+              "label": "x2"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "not (even/inst0 n')"
+            },
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "Ctor[Succ/inst0 Folded/Nat/inst0]"
+            }
+          ],
+          "externals": [
+            3,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x2 of Zero/inst0 -> () | Succ/inst0 x3 -> let () = discard/Nat/inst0 x3 in ()",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Nat/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Nat/inst0",
+              "id": "x2"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x2"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "()"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[Zero/inst0]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x2 of Zero/inst0 -> () | Succ/inst0 x3 -> let () = discard/Nat/inst0 x3 in ()",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Nat/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "x3"
+            },
+            {
+              "label": "Nat/inst0",
+              "id": "x2"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                3,
+                0
+              ],
+              "label": "x2"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "let () = discard/Nat/inst0 x3 in ()"
+            },
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "Ctor[Succ/inst0 Folded/Nat/inst0]"
+            }
+          ],
+          "externals": [
+            3,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x4 of folded/List/inst0 x5 -> let <x6, _> = x5 in x6",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "<(), Folded/Nat/inst0>",
+              "id": "x5"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "x4"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                3,
+                0
+              ],
+              "label": "x4"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "let <x6, _> = x5 in x6"
+            },
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "Ctor[folded/List/inst0 <(), Folded/Nat/inst0>]"
+            }
+          ],
+          "externals": [
+            3,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x7 of Nil/inst0 -> fold/Nat/inst0 Zero/inst0 | Cons/inst0 x10 xs2' -> fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "List/inst0",
+              "id": "x7"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x7"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "fold/Nat/inst0 Zero/inst0"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[Nil/inst0]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x7 of Nil/inst0 -> fold/Nat/inst0 Zero/inst0 | Cons/inst0 x10 xs2' -> fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "xs2'"
+            },
+            {
+              "label": "Bool",
+              "id": "x10"
+            },
+            {
+              "label": "List/inst0",
+              "id": "x7"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                4,
+                0
+              ],
+              "label": "x7"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))"
+            },
+            {
+              "attachments": [
+                3,
+                2,
+                0
+              ],
+              "label": "Ctor[Cons/inst0 Bool Folded/List/inst0]"
+            }
+          ],
+          "externals": [
+            4,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x7 of Nil/inst0 -> () | Cons/inst0 x8 x9 -> let () = discard/List/inst0 x9 in ()",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "List/inst0",
+              "id": "x7"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x7"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "()"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[Nil/inst0]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case x7 of Nil/inst0 -> () | Cons/inst0 x8 x9 -> let () = discard/List/inst0 x9 in ()",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "x9"
+            },
+            {
+              "label": "Bool",
+              "id": "x8"
+            },
+            {
+              "label": "List/inst0",
+              "id": "x7"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                4,
+                0
+              ],
+              "label": "x7"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "let () = discard/List/inst0 x9 in ()"
+            },
+            {
+              "attachments": [
+                3,
+                2,
+                0
+              ],
+              "label": "Ctor[Cons/inst0 Bool Folded/List/inst0]"
+            }
+          ],
+          "externals": [
+            4,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case xs2 of folded/List/inst0 x19 -> let <_, x20> = x19 in x20",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "<(), Folded/Nat/inst0>",
+              "id": "x19"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "xs2"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                3,
+                0
+              ],
+              "label": "xs2"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "let <_, x20> = x19 in x20"
+            },
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "Ctor[folded/List/inst0 <(), Folded/Nat/inst0>]"
+            }
+          ],
+          "externals": [
+            3,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case unfold/List/inst1 x11 of Nil/inst1 -> () | Cons/inst1 x12 x13 -> let () = discard/List/inst1 x13 in ()",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst1",
+              "id": "*0*"
+            },
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "x11"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "unfold/List/inst1 x11"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "()"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[Nil/inst1]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case unfold/List/inst1 x11 of Nil/inst1 -> () | Cons/inst1 x12 x13 -> let () = discard/List/inst1 x13 in ()",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst1",
+              "id": "*0*"
+            },
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "x13"
+            },
+            {
+              "label": "Bool",
+              "id": "x12"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "x11"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                4,
+                0
+              ],
+              "label": "unfold/List/inst1 x11"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "let () = discard/List/inst1 x13 in ()"
+            },
+            {
+              "attachments": [
+                3,
+                2,
+                0
+              ],
+              "label": "Ctor[Cons/inst1 Bool Folded/List/inst1]"
+            }
+          ],
+          "externals": [
+            4,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case unfold/List/inst1 xs of Nil/inst1 -> ys | Cons/inst1 x24 xs' -> fold/List/inst0 (Cons/inst0 x24 (concat/inst0 xs' ys))",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst1",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "ys"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "xs"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                3,
+                0
+              ],
+              "label": "unfold/List/inst1 xs"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "ys"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[Nil/inst1]"
+            }
+          ],
+          "externals": [
+            3,
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case unfold/List/inst1 xs of Nil/inst1 -> ys | Cons/inst1 x24 xs' -> fold/List/inst0 (Cons/inst0 x24 (concat/inst0 xs' ys))",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst1",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Bool",
+              "id": "x24"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "xs'"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "ys"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "xs"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                5,
+                0
+              ],
+              "label": "unfold/List/inst1 xs"
+            },
+            {
+              "attachments": [
+                2,
+                3,
+                4,
+                1
+              ],
+              "label": "fold/List/inst0 (Cons/inst0 x24 (concat/inst0 xs' ys))"
+            },
+            {
+              "attachments": [
+                2,
+                3,
+                0
+              ],
+              "label": "Ctor[Cons/inst1 Bool Folded/List/inst1]"
+            }
+          ],
+          "externals": [
+            5,
+            4,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case unfold/List/inst2 x15 of Nil/inst2 -> () | Cons/inst2 x16 x17 -> let () = discard/List/inst2 x17 in ()",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst2",
+              "id": "*0*"
+            },
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "x15"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "unfold/List/inst2 x15"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "()"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[Nil/inst2]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case unfold/List/inst2 x15 of Nil/inst2 -> () | Cons/inst2 x16 x17 -> let () = discard/List/inst2 x17 in ()",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst2",
+              "id": "*0*"
+            },
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "x17"
+            },
+            {
+              "label": "(Bool, Bool)",
+              "id": "x16"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "x15"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                4,
+                0
+              ],
+              "label": "unfold/List/inst2 x15"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "let () = discard/List/inst2 x17 in ()"
+            },
+            {
+              "attachments": [
+                3,
+                2,
+                0
+              ],
+              "label": "Ctor[Cons/inst2 (Bool, Bool) Folded/List/inst2]"
+            }
+          ],
+          "externals": [
+            4,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case unfold/List/inst2 xs3 of Nil/inst2 -> fold/List/inst0 Nil/inst0 | Cons/inst2 xy xs3' -> let (x21, y) = xy in fold/List/inst0 (Cons/inst0 x21 (fsts/inst0 xs3'))",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst2",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "xs3"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "unfold/List/inst2 xs3"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "fold/List/inst0 Nil/inst0"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "Ctor[Nil/inst2]"
+            }
+          ],
+          "externals": [
+            2,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "case unfold/List/inst2 xs3 of Nil/inst2 -> fold/List/inst0 Nil/inst0 | Cons/inst2 xy xs3' -> let (x21, y) = xy in fold/List/inst0 (Cons/inst0 x21 (fsts/inst0 xs3'))",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "List/inst2",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "(Bool, Bool)",
+              "id": "xy"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "xs3'"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "xs3"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                4,
+                0
+              ],
+              "label": "unfold/List/inst2 xs3"
+            },
+            {
+              "attachments": [
+                2,
+                3,
+                1
+              ],
+              "label": "let (x21, y) = xy in fold/List/inst0 (Cons/inst0 x21 (fsts/inst0 xs3'))"
+            },
+            {
+              "attachments": [
+                2,
+                3,
+                0
+              ],
+              "label": "Ctor[Cons/inst2 (Bool, Bool) Folded/List/inst2]"
+            }
+          ],
+          "externals": [
+            4,
+            1
+          ]
+        }
+      },
+      {
+        "lhs": "<case x2 of Zero/inst0 -> () | Succ/inst0 x3 -> let () = discard/Nat/inst0 x3 in (), case x2 of Zero/inst0 -> True | Succ/inst0 n' -> not (even/inst0 n')>",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "<(), Bool>",
+              "id": "*0*"
+            },
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "Nat/inst0",
+              "id": "x2"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "case x2 of Zero/inst0 -> () | Succ/inst0 x3 -> let () = discard/Nat/inst0 x3 in ()"
+            },
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "AddProd[(),Bool;0]"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "<case x2 of Zero/inst0 -> () | Succ/inst0 x3 -> let () = discard/Nat/inst0 x3 in (), case x2 of Zero/inst0 -> True | Succ/inst0 n' -> not (even/inst0 n')>",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "<(), Bool>",
+              "id": "*0*"
+            },
+            {
+              "label": "Bool",
+              "id": "*out*"
+            },
+            {
+              "label": "Nat/inst0",
+              "id": "x2"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "case x2 of Zero/inst0 -> True | Succ/inst0 n' -> not (even/inst0 n')"
+            },
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "AddProd[(),Bool;1]"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "<case x7 of Nil/inst0 -> () | Cons/inst0 x8 x9 -> let () = discard/List/inst0 x9 in (), case x7 of Nil/inst0 -> fold/Nat/inst0 Zero/inst0 | Cons/inst0 x10 xs2' -> fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))>",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "<(), Folded/Nat/inst0>",
+              "id": "*0*"
+            },
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "List/inst0",
+              "id": "x7"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "case x7 of Nil/inst0 -> () | Cons/inst0 x8 x9 -> let () = discard/List/inst0 x9 in ()"
+            },
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "AddProd[(),Folded/Nat/inst0;0]"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "<case x7 of Nil/inst0 -> () | Cons/inst0 x8 x9 -> let () = discard/List/inst0 x9 in (), case x7 of Nil/inst0 -> fold/Nat/inst0 Zero/inst0 | Cons/inst0 x10 xs2' -> fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))>",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "<(), Folded/Nat/inst0>",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "List/inst0",
+              "id": "x7"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "case x7 of Nil/inst0 -> fold/Nat/inst0 Zero/inst0 | Cons/inst0 x10 xs2' -> fold/Nat/inst0 (Succ/inst0 (length/inst0 xs2'))"
+            },
+            {
+              "attachments": [
+                1,
+                0
+              ],
+              "label": "AddProd[(),Folded/Nat/inst0;1]"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "()",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                0
+              ],
+              "label": "MulProd[]"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "(False, False)",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "(Bool, Bool)",
+              "id": "*out*"
+            },
+            {
+              "label": "Bool",
+              "id": "*0*"
+            },
+            {
+              "label": "Bool",
+              "id": "*1*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                2,
+                0
+              ],
+              "label": "MulProd[Bool,Bool]"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "False"
+            },
+            {
+              "attachments": [
+                2
+              ],
+              "label": "False"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "(True, False)",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "(Bool, Bool)",
+              "id": "*out*"
+            },
+            {
+              "label": "Bool",
+              "id": "*0*"
+            },
+            {
+              "label": "Bool",
+              "id": "*1*"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                1,
+                2,
+                0
+              ],
+              "label": "MulProd[Bool,Bool]"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "True"
+            },
+            {
+              "attachments": [
+                2
+              ],
+              "label": "False"
+            }
+          ],
+          "externals": [
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "let (x21, y) = xy in fold/List/inst0 (Cons/inst0 x21 (fsts/inst0 xs3'))",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/List/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "(Bool, Bool)",
+              "id": "*0*"
+            },
+            {
+              "label": "Bool",
+              "id": "x21"
+            },
+            {
+              "label": "Bool",
+              "id": "y"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "xs3'"
+            },
+            {
+              "label": "(Bool, Bool)",
+              "id": "xy"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                5,
+                1
+              ],
+              "label": "xy"
+            },
+            {
+              "attachments": [
+                2,
+                3,
+                1
+              ],
+              "label": "MulProd[Bool,Bool]"
+            },
+            {
+              "attachments": [
+                2,
+                4,
+                0
+              ],
+              "label": "fold/List/inst0 (Cons/inst0 x21 (fsts/inst0 xs3'))"
+            }
+          ],
+          "externals": [
+            5,
+            4,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "let () = discard/List/inst0 x9 in ()",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "()",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst0",
+              "id": "x9"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "discard/List/inst0 x9"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "MulProd[]"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "()"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "let () = discard/List/inst1 x13 in ()",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "()",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst1",
+              "id": "x13"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "discard/List/inst1 x13"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "MulProd[]"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "()"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "let () = discard/List/inst2 x17 in ()",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "()",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/List/inst2",
+              "id": "x17"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "discard/List/inst2 x17"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "MulProd[]"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "()"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "let () = discard/Nat/inst0 x3 in ()",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "()",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "x3"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "discard/Nat/inst0 x3"
+            },
+            {
+              "attachments": [
+                1
+              ],
+              "label": "MulProd[]"
+            },
+            {
+              "attachments": [
+                0
+              ],
+              "label": "()"
+            }
+          ],
+          "externals": [
+            2,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "let <x1, _> = x0 in x1",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "<(), Bool>",
+              "id": "*0*"
+            },
+            {
+              "label": "()",
+              "id": "x1"
+            },
+            {
+              "label": "<(), Bool>",
+              "id": "x0"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                3,
+                1
+              ],
+              "label": "x0"
+            },
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x1"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "AddProd[(),Bool;0]"
+            }
+          ],
+          "externals": [
+            3,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "let <_, x20> = x19 in x20",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "*out*"
+            },
+            {
+              "label": "<(), Folded/Nat/inst0>",
+              "id": "*0*"
+            },
+            {
+              "label": "Folded/Nat/inst0",
+              "id": "x20"
+            },
+            {
+              "label": "<(), Folded/Nat/inst0>",
+              "id": "x19"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                3,
+                1
+              ],
+              "label": "x19"
+            },
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x20"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "AddProd[(),Folded/Nat/inst0;1]"
+            }
+          ],
+          "externals": [
+            3,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "let <_, x23> = x22 in x23",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "Bool",
+              "id": "*out*"
+            },
+            {
+              "label": "<(), Bool>",
+              "id": "*0*"
+            },
+            {
+              "label": "Bool",
+              "id": "x23"
+            },
+            {
+              "label": "<(), Bool>",
+              "id": "x22"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                3,
+                1
+              ],
+              "label": "x22"
+            },
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x23"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "AddProd[(),Bool;1]"
+            }
+          ],
+          "externals": [
+            3,
+            0
+          ]
+        }
+      },
+      {
+        "lhs": "let <x6, _> = x5 in x6",
+        "rhs": {
+          "nodes": [
+            {
+              "label": "()",
+              "id": "*out*"
+            },
+            {
+              "label": "<(), Folded/Nat/inst0>",
+              "id": "*0*"
+            },
+            {
+              "label": "()",
+              "id": "x6"
+            },
+            {
+              "label": "<(), Folded/Nat/inst0>",
+              "id": "x5"
+            }
+          ],
+          "edges": [
+            {
+              "attachments": [
+                3,
+                1
+              ],
+              "label": "x5"
+            },
+            {
+              "attachments": [
+                2,
+                0
+              ],
+              "label": "x6"
+            },
+            {
+              "attachments": [
+                2,
+                1
+              ],
+              "label": "AddProd[(),Folded/Nat/inst0;0]"
+            }
+          ],
+          "externals": [
+            3,
+            0
+          ]
+        }
+      }
+    ]
+  },
+  "interpretation": {
+    "domains": {
+      "Bool": {
+        "class": "finite",
+        "values": [
+          "False",
+          "True"
+        ]
+      },
+      "Folded/List/inst0": {
+        "class": "finite",
+        "values": [
+          "folded/List/inst0 (<(), _>)",
+          "folded/List/inst0 (<_, folded/Nat/inst0 (<(), _>)>)",
+          "folded/List/inst0 (<_, folded/Nat/inst0 (<_, False>)>)",
+          "folded/List/inst0 (<_, folded/Nat/inst0 (<_, True>)>)"
+        ]
+      },
+      "Folded/List/inst1": {
+        "class": "finite",
+        "values": [
+          "folded/List/inst1/site0",
+          "folded/List/inst1/site1",
+          "folded/List/inst1/site2",
+          "folded/List/inst1/site3"
+        ]
+      },
+      "Folded/List/inst2": {
+        "class": "finite",
+        "values": [
+          "folded/List/inst2/site0",
+          "folded/List/inst2/site1",
+          "folded/List/inst2/site2"
+        ]
+      },
+      "Folded/Nat/inst0": {
+        "class": "finite",
+        "values": [
+          "folded/Nat/inst0 (<(), _>)",
+          "folded/Nat/inst0 (<_, False>)",
+          "folded/Nat/inst0 (<_, True>)"
+        ]
+      },
+      "List/inst0": {
+        "class": "finite",
+        "values": [
+          "Nil/inst0",
+          "Cons/inst0 (False) (folded/List/inst0 (<(), _>))",
+          "Cons/inst0 (False) (folded/List/inst0 (<_, folded/Nat/inst0 (<(), _>)>))",
+          "Cons/inst0 (False) (folded/List/inst0 (<_, folded/Nat/inst0 (<_, False>)>))",
+          "Cons/inst0 (False) (folded/List/inst0 (<_, folded/Nat/inst0 (<_, True>)>))",
+          "Cons/inst0 (True) (folded/List/inst0 (<(), _>))",
+          "Cons/inst0 (True) (folded/List/inst0 (<_, folded/Nat/inst0 (<(), _>)>))",
+          "Cons/inst0 (True) (folded/List/inst0 (<_, folded/Nat/inst0 (<_, False>)>))",
+          "Cons/inst0 (True) (folded/List/inst0 (<_, folded/Nat/inst0 (<_, True>)>))"
+        ]
+      },
+      "List/inst1": {
+        "class": "finite",
+        "values": [
+          "Nil/inst1",
+          "Cons/inst1 (False) (folded/List/inst1/site0)",
+          "Cons/inst1 (False) (folded/List/inst1/site1)",
+          "Cons/inst1 (False) (folded/List/inst1/site2)",
+          "Cons/inst1 (False) (folded/List/inst1/site3)",
+          "Cons/inst1 (True) (folded/List/inst1/site0)",
+          "Cons/inst1 (True) (folded/List/inst1/site1)",
+          "Cons/inst1 (True) (folded/List/inst1/site2)",
+          "Cons/inst1 (True) (folded/List/inst1/site3)"
+        ]
+      },
+      "List/inst2": {
+        "class": "finite",
+        "values": [
+          "Nil/inst2",
+          "Cons/inst2 ((False, False)) (folded/List/inst2/site0)",
+          "Cons/inst2 ((False, False)) (folded/List/inst2/site1)",
+          "Cons/inst2 ((False, False)) (folded/List/inst2/site2)",
+          "Cons/inst2 ((False, True)) (folded/List/inst2/site0)",
+          "Cons/inst2 ((False, True)) (folded/List/inst2/site1)",
+          "Cons/inst2 ((False, True)) (folded/List/inst2/site2)",
+          "Cons/inst2 ((True, False)) (folded/List/inst2/site0)",
+          "Cons/inst2 ((True, False)) (folded/List/inst2/site1)",
+          "Cons/inst2 ((True, False)) (folded/List/inst2/site2)",
+          "Cons/inst2 ((True, True)) (folded/List/inst2/site0)",
+          "Cons/inst2 ((True, True)) (folded/List/inst2/site1)",
+          "Cons/inst2 ((True, True)) (folded/List/inst2/site2)"
+        ]
+      },
+      "Nat/inst0": {
+        "class": "finite",
+        "values": [
+          "Zero/inst0",
+          "Succ/inst0 (folded/Nat/inst0 (<(), _>))",
+          "Succ/inst0 (folded/Nat/inst0 (<_, False>))",
+          "Succ/inst0 (folded/Nat/inst0 (<_, True>))"
+        ]
+      },
+      "<(), Bool>": {
+        "class": "finite",
+        "values": [
+          "<(), _>",
+          "<_, False>",
+          "<_, True>"
+        ]
+      },
+      "<(), Folded/Nat/inst0>": {
+        "class": "finite",
+        "values": [
+          "<(), _>",
+          "<_, folded/Nat/inst0 (<(), _>)>",
+          "<_, folded/Nat/inst0 (<_, False>)>",
+          "<_, folded/Nat/inst0 (<_, True>)>"
+        ]
+      },
+      "()": {
+        "class": "finite",
+        "values": [
+          "()"
+        ]
+      },
+      "(Bool, Bool)": {
+        "class": "finite",
+        "values": [
+          "(False, False)",
+          "(False, True)",
+          "(True, False)",
+          "(True, True)"
+        ]
+      }
+    },
+    "factors": {
+      "Identity[Bool]": {
+        "function": "finite",
+        "type": [
+          "Bool",
+          "Bool"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            2
+          ],
+          "vaxes": [
+            0,
+            [
+              0
+            ]
+          ]
+        }
+      },
+      "Identity[Folded/List/inst0]": {
+        "function": "finite",
+        "type": [
+          "Folded/List/inst0",
+          "Folded/List/inst0"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            4
+          ],
+          "vaxes": [
+            0,
+            [
+              0
+            ]
+          ]
+        }
+      },
+      "Identity[Folded/List/inst1]": {
+        "function": "finite",
+        "type": [
+          "Folded/List/inst1",
+          "Folded/List/inst1"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            4
+          ],
+          "vaxes": [
+            0,
+            [
+              0
+            ]
+          ]
+        }
+      },
+      "Identity[Folded/List/inst2]": {
+        "function": "finite",
+        "type": [
+          "Folded/List/inst2",
+          "Folded/List/inst2"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            3
+          ],
+          "vaxes": [
+            0,
+            [
+              0
+            ]
+          ]
+        }
+      },
+      "Identity[Folded/Nat/inst0]": {
+        "function": "finite",
+        "type": [
+          "Folded/Nat/inst0",
+          "Folded/Nat/inst0"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            3
+          ],
+          "vaxes": [
+            0,
+            [
+              0
+            ]
+          ]
+        }
+      },
+      "Identity[List/inst0]": {
+        "function": "finite",
+        "type": [
+          "List/inst0",
+          "List/inst0"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            9
+          ],
+          "vaxes": [
+            0,
+            [
+              0
+            ]
+          ]
+        }
+      },
+      "Identity[Nat/inst0]": {
+        "function": "finite",
+        "type": [
+          "Nat/inst0",
+          "Nat/inst0"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            4
+          ],
+          "vaxes": [
+            0,
+            [
+              0
+            ]
+          ]
+        }
+      },
+      "Identity[<(), Bool>]": {
+        "function": "finite",
+        "type": [
+          "<(), Bool>",
+          "<(), Bool>"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            3
+          ],
+          "vaxes": [
+            0,
+            [
+              0
+            ]
+          ]
+        }
+      },
+      "Identity[<(), Folded/Nat/inst0>]": {
+        "function": "finite",
+        "type": [
+          "<(), Folded/Nat/inst0>",
+          "<(), Folded/Nat/inst0>"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            4
+          ],
+          "vaxes": [
+            0,
+            [
+              0
+            ]
+          ]
+        }
+      },
+      "Identity[()]": {
+        "function": "finite",
+        "type": [
+          "()",
+          "()"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            1
+          ],
+          "vaxes": [
+            0,
+            [
+              0
+            ]
+          ]
+        }
+      },
+      "Identity[(Bool, Bool)]": {
+        "function": "finite",
+        "type": [
+          "(Bool, Bool)",
+          "(Bool, Bool)"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            4
+          ],
+          "vaxes": [
+            0,
+            [
+              0
+            ]
+          ]
+        }
+      },
+      "AddProd[(),Bool;0]": {
+        "function": "finite",
+        "type": [
+          "()",
+          "<(), Bool>"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            1
+          ],
+          "vaxes": [
+            0,
+            {
+              "before": 0,
+              "term": 0,
+              "after": 2
+            }
+          ]
+        }
+      },
+      "AddProd[(),Bool;1]": {
+        "function": "finite",
+        "type": [
+          "Bool",
+          "<(), Bool>"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            2
+          ],
+          "vaxes": [
+            0,
+            {
+              "before": 1,
+              "term": 0,
+              "after": 0
+            }
+          ]
+        }
+      },
+      "AddProd[(),Folded/Nat/inst0;0]": {
+        "function": "finite",
+        "type": [
+          "()",
+          "<(), Folded/Nat/inst0>"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            1
+          ],
+          "vaxes": [
+            0,
+            {
+              "before": 0,
+              "term": 0,
+              "after": 3
+            }
+          ]
+        }
+      },
+      "AddProd[(),Folded/Nat/inst0;1]": {
+        "function": "finite",
+        "type": [
+          "Folded/Nat/inst0",
+          "<(), Folded/Nat/inst0>"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            3
+          ],
+          "vaxes": [
+            0,
+            {
+              "before": 1,
+              "term": 0,
+              "after": 0
+            }
+          ]
+        }
+      },
+      "MulProd[]": {
+        "function": "finite",
+        "type": [
+          "()"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+          ],
+          "vaxes": [
+            [
+            ]
+          ]
+        }
+      },
+      "MulProd[Bool,Bool]": {
+        "function": "finite",
+        "type": [
+          "Bool",
+          "Bool",
+          "(Bool, Bool)"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            2,
+            2
+          ],
+          "vaxes": [
+            0,
+            1,
+            [
+              0,
+              1
+            ]
+          ]
+        }
+      },
+      "Ctor[False]": {
+        "function": "finite",
+        "type": [
+          "Bool"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+          ],
+          "vaxes": [
+            {
+              "before": 0,
+              "term": [
+              ],
+              "after": 1
+            }
+          ]
+        }
+      },
+      "Ctor[True]": {
+        "function": "finite",
+        "type": [
+          "Bool"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+          ],
+          "vaxes": [
+            {
+              "before": 1,
+              "term": [
+              ],
+              "after": 0
+            }
+          ]
+        }
+      },
+      "Ctor[Nil/inst0]": {
+        "function": "finite",
+        "type": [
+          "List/inst0"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+          ],
+          "vaxes": [
+            {
+              "before": 0,
+              "term": [
+              ],
+              "after": 8
+            }
+          ]
+        }
+      },
+      "Ctor[Cons/inst0 Bool Folded/List/inst0]": {
+        "function": "finite",
+        "type": [
+          "Bool",
+          "Folded/List/inst0",
+          "List/inst0"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            2,
+            4
+          ],
+          "vaxes": [
+            0,
+            1,
+            {
+              "before": 1,
+              "term": [
+                0,
+                1
+              ],
+              "after": 0
+            }
+          ]
+        }
+      },
+      "Ctor[Nil/inst1]": {
+        "function": "finite",
+        "type": [
+          "List/inst1"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+          ],
+          "vaxes": [
+            {
+              "before": 0,
+              "term": [
+              ],
+              "after": 8
+            }
+          ]
+        }
+      },
+      "Ctor[Cons/inst1 Bool Folded/List/inst1]": {
+        "function": "finite",
+        "type": [
+          "Bool",
+          "Folded/List/inst1",
+          "List/inst1"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            2,
+            4
+          ],
+          "vaxes": [
+            0,
+            1,
+            {
+              "before": 1,
+              "term": [
+                0,
+                1
+              ],
+              "after": 0
+            }
+          ]
+        }
+      },
+      "Ctor[Nil/inst2]": {
+        "function": "finite",
+        "type": [
+          "List/inst2"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+          ],
+          "vaxes": [
+            {
+              "before": 0,
+              "term": [
+              ],
+              "after": 12
+            }
+          ]
+        }
+      },
+      "Ctor[Cons/inst2 (Bool, Bool) Folded/List/inst2]": {
+        "function": "finite",
+        "type": [
+          "(Bool, Bool)",
+          "Folded/List/inst2",
+          "List/inst2"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            4,
+            3
+          ],
+          "vaxes": [
+            0,
+            1,
+            {
+              "before": 1,
+              "term": [
+                0,
+                1
+              ],
+              "after": 0
+            }
+          ]
+        }
+      },
+      "Ctor[Zero/inst0]": {
+        "function": "finite",
+        "type": [
+          "Nat/inst0"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+          ],
+          "vaxes": [
+            {
+              "before": 0,
+              "term": [
+              ],
+              "after": 3
+            }
+          ]
+        }
+      },
+      "Ctor[Succ/inst0 Folded/Nat/inst0]": {
+        "function": "finite",
+        "type": [
+          "Folded/Nat/inst0",
+          "Nat/inst0"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            3
+          ],
+          "vaxes": [
+            0,
+            {
+              "before": 1,
+              "term": [
+                0
+              ],
+              "after": 0
+            }
+          ]
+        }
+      },
+      "Ctor[folded/List/inst0 <(), Folded/Nat/inst0>]": {
+        "function": "finite",
+        "type": [
+          "<(), Folded/Nat/inst0>",
+          "Folded/List/inst0"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            4
+          ],
+          "vaxes": [
+            0,
+            [
+              0
+            ]
+          ]
+        }
+      },
+      "Ctor[folded/List/inst1/site0]": {
+        "function": "finite",
+        "type": [
+          "Folded/List/inst1"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+          ],
+          "vaxes": [
+            {
+              "before": 0,
+              "term": [
+              ],
+              "after": 3
+            }
+          ]
+        }
+      },
+      "Ctor[folded/List/inst1/site1]": {
+        "function": "finite",
+        "type": [
+          "Folded/List/inst1"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+          ],
+          "vaxes": [
+            {
+              "before": 1,
+              "term": [
+              ],
+              "after": 2
+            }
+          ]
+        }
+      },
+      "Ctor[folded/List/inst1/site2]": {
+        "function": "finite",
+        "type": [
+          "Folded/List/inst1"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+          ],
+          "vaxes": [
+            {
+              "before": 2,
+              "term": [
+              ],
+              "after": 1
+            }
+          ]
+        }
+      },
+      "Ctor[folded/List/inst1/site3]": {
+        "function": "finite",
+        "type": [
+          "Folded/List/inst1"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+          ],
+          "vaxes": [
+            {
+              "before": 3,
+              "term": [
+              ],
+              "after": 0
+            }
+          ]
+        }
+      },
+      "Ctor[folded/List/inst2/site0]": {
+        "function": "finite",
+        "type": [
+          "Folded/List/inst2"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+          ],
+          "vaxes": [
+            {
+              "before": 0,
+              "term": [
+              ],
+              "after": 2
+            }
+          ]
+        }
+      },
+      "Ctor[folded/List/inst2/site1]": {
+        "function": "finite",
+        "type": [
+          "Folded/List/inst2"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+          ],
+          "vaxes": [
+            {
+              "before": 1,
+              "term": [
+              ],
+              "after": 1
+            }
+          ]
+        }
+      },
+      "Ctor[folded/List/inst2/site2]": {
+        "function": "finite",
+        "type": [
+          "Folded/List/inst2"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+          ],
+          "vaxes": [
+            {
+              "before": 2,
+              "term": [
+              ],
+              "after": 0
+            }
+          ]
+        }
+      },
+      "Ctor[folded/Nat/inst0 <(), Bool>]": {
+        "function": "finite",
+        "type": [
+          "<(), Bool>",
+          "Folded/Nat/inst0"
+        ],
+        "weights": {
+          "physical": 1.0,
+          "expand": [
+            3
+          ],
+          "vaxes": [
+            0,
+            [
+              0
+            ]
+          ]
+        }
+      }
+    }
+  }
+}
