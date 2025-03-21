@@ -190,16 +190,12 @@ tmSuccName :: TmName
 tmSuccName = TmN "Succ"
 tpNat :: Type
 tpNat = TpData tpNatName [] []
-tmZero :: Term
-tmZero = TmVarG GlCtor tmZeroName [] [] [] tpNat
-tmSucc :: Term
-tmSucc = TmVarG GlCtor tmSuccName [] [] [] tpNat
-
 
 builtins :: [UsProg]
 builtins = [
   UsProgData tpZeroName [] [],
-  UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []]
+  UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []],
+  UsProgData tpNatName [] [Ctor tmZeroName [], Ctor tmSuccName [tpNat]]
   ]
 
 progBuiltins :: UsProgs -> UsProgs
