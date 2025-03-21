@@ -18,7 +18,6 @@ data Flip = H | T;
 {- The pattern to search for. -}
 define pattern = (H, T, H);
 
-data Nat = Zero | Succ Nat;
 define flip = amb (factor 0.5 in H) (factor 0.5 in T);
 
 define run = \f1: Flip. \f2: Flip.

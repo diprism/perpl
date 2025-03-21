@@ -14,8 +14,6 @@ define tail = \ xs. case xs of
   | Nil -> Nil
   | Cons x xs' -> xs';
 
-data Nat = Zero | Succ Nat;
-
 define length = \ xs. case xs of
   | Nil -> Zero
   | Cons x xs' -> Succ (length xs');
@@ -34,3 +32,4 @@ define fsts = \ xs. case xs of
   | Cons xy xs' -> let (x, y) = xy in Cons x (fsts xs');
 
 even (length (concat list1 (fsts list2)));
+-- output: [1.0, 0.0]
