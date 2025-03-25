@@ -1,6 +1,7 @@
 module TypeInf.Solve (inferFile) where
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Control.Monad (zipWithM_)
 import Control.Monad.RWS.Lazy
 import Control.Monad.Except
 import TypeInf.Check
@@ -413,8 +414,7 @@ inferExtern (x, tp) m =
 -- Checks the end term (start term? Should be consistent with name...)
 inferEnd :: UsTm -> CheckM SProgs
 inferEnd end =
-  -- Answer type must be robust
-  let m = infer end >>= \tm -> constrain (Robust (typeof tm)) >> return tm in
+  let m = infer end in
   solveM m >>= \ (end', tp, tgs) ->
   return (SProgs [] end')
 
