@@ -3,7 +3,6 @@
 
 data Symbol = L | R;
 data List a = Nil | Cons a (List a);
-data Nat = Zero | Succ Nat;
 
 -- Generates a random List of length n
 define randomList = \ n. case n of

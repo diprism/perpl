@@ -1,7 +1,5 @@
 {- Natural numbers are the simplest example of a recursive datatype. -}
 
-data Nat = Zero | Succ Nat;
-
 define not = \ a. if a then False else True;
 
 define even = \n. case n of

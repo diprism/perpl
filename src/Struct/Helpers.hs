@@ -1,7 +1,7 @@
 module Struct.Helpers where
 import Struct.Exprs
-import Util.Helpers
-import Data.List
+import Util.Helpers ( fsts, snds )
+import Data.List ( sortBy )
 
 -- Gets the type of an elaborated term in O(1) time
 typeof :: Term -> Type
@@ -169,17 +169,33 @@ tpZero = TpData tpZeroName [] []
 tmUnit = TmProd Multiplicative []
 tpUnit = TpProd Multiplicative []
 
+tpBoolName :: TpName
 tpBoolName = TpN "Bool"
+tmTrueName :: TmName
 tmTrueName = TmN "True"
+tmFalseName :: TmName
 tmFalseName = TmN "False"
+tpBool :: Type
 tpBool = TpData tpBoolName [] []
+tmTrue :: Term
 tmTrue = TmVarG GlCtor tmTrueName [] [] [] tpBool
+tmFalse :: Term
 tmFalse = TmVarG GlCtor tmFalseName [] [] [] tpBool
+
+tpNatName :: TpName
+tpNatName = TpN "Nat"
+tmZeroName :: TmName
+tmZeroName = TmN "Zero"
+tmSuccName :: TmName
+tmSuccName = TmN "Succ"
+tpNat :: Type
+tpNat = TpData tpNatName [] []
 
 builtins :: [UsProg]
 builtins = [
   UsProgData tpZeroName [] [],
-  UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []]
+  UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []],
+  UsProgData tpNatName [] [Ctor tmZeroName [], Ctor tmSuccName [tpNat]]
   ]
 
 progBuiltins :: UsProgs -> UsProgs
