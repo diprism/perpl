@@ -1,17 +1,4 @@
 {- Parser code -}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Use lambda-case" #-}
-{-# HLINT ignore "Use $>" #-}
-{-# HLINT ignore "Use <$>" #-}
-{-# HLINT ignore "Use >=>" #-}
-{-# HLINT ignore "Use first" #-}
-{-# HLINT ignore "Use list comprehension" #-}
-{-# HLINT ignore "Redundant fmap" #-}
-{-# HLINT ignore "Use <$" #-}
-{-# HLINT ignore "Use section" #-}
-{-# HLINT ignore "Use null" #-}
-{-# HLINT ignore "Use !!" #-}
-{-# HLINT ignore "Redundant bracket" #-}
 
 module Parse.Parse where
 import Parse.Lex
@@ -144,18 +131,15 @@ parseCase = parsePeek >>= \ t -> case t of
 parseCases :: ParseM [CaseUs]
 parseCases = parseBranches parseCase
 
--- Parses a (floating-point) number
--- ParseM DEF: a Parsing monad: given the lexed tokens, returns either an error or (a, remaining tokens)
--- newtype ParseM a = ParseM ([(Pos, Token)] -> Either (Pos, String) (a, [(Pos, Token)]))
+-- Parses a floating-point number
 parseDouble :: ParseM Double
 parseDouble = parsePeek >>= \ t -> case t of
-  -- use parseEat to eat the 'TkDouble' and leave us with just the 'o'
   TkDouble o -> parseEat >> return o
   _ -> parseErr "Expected a number here"
 
+-- Parses a natural number
 parseNat :: ParseM Int
 parseNat = parsePeek >>= \ t -> case t of
-  -- use parseEat to eat the 'TkNat' and leave us with just the 'o'
   TkNat n -> parseEat >> return n
   _ -> parseErr "Expected a number here"
   
@@ -174,7 +158,6 @@ TERM1 ::=
 
 -- CaseOf, Lam, Let
 parseTerm1 :: ParseM UsTm
--- parsePeeks 2 aka look ahead 2 tokens, we're case switching the output of this peek
 parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- case term of c term ... \| ...
   [TkCase, _] -> parseEat *> pure UsCase <*> parseTerm1 <* parseDrop TkOf <*> parseCases
@@ -209,8 +192,8 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
   [TkLet, _] -> parseEat *> pure (UsLet . TmV) <*> parseVar <* parseDrop TkEq
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- factor wt (if wt is a natural number or not)
-  [TkFactor, TkDouble x, _] -> parseEat *> pure UsFactorDouble <*> parseDouble <* parseDrop TkIn <*> parseTerm1
-  [TkFactor, TkNat x, _] -> parseEat *> pure UsFactorNat <*> parseNat <* parseDrop TkIn <*> parseTerm1
+  [TkFactor, TkDouble x] -> parseEat *> pure UsFactorDouble <*> parseDouble <* parseDrop TkIn <*> parseTerm1
+  [TkFactor, TkNat x] -> parseEat *> pure UsFactorNat <*> parseNat <* parseDrop TkIn <*> parseTerm1
   _ -> parseTerm2
 
 

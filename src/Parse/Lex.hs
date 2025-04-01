@@ -1,6 +1,4 @@
 {- Lexer code -}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Redundant bracket" #-}
 
 module Parse.Lex (Token (..), keywords, Pos, lexFile) where
 import Data.Char (isAlpha, isDigit)
