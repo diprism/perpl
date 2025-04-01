@@ -1,4 +1,6 @@
 {- Lexer code -}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Redundant bracket" #-}
 
 module Parse.Lex (Token (..), keywords, Pos, lexFile) where
 import Data.Char (isAlpha, isDigit)
@@ -91,17 +93,12 @@ punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkColon, TkDo
 -- List of keyword tokens (use alphanumeric chars)
 keywords = [TkAmb, TkFactor, TkFail, TkCase, TkOf, TkLet, TkIn, TkFun, TkExtern, TkData, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
 
--- !!! TODO:
--- evaluate the outputs for lexDouble s and lexNat s (like read s both ways)
--- if the lengths of the results are different, take the lexDouble s result (if the same, take lexNat s result)
--- !!!
 
 -- Tries to lex s as punctuation, otherwise lexing s as a keyword or a var
 lexPunctuation :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
 lexPunctuation s =
   foldr (\ t owise -> maybe owise (flip (lexAdd (show t)) t) (prefix (show t) s))
-        -- right now ONLY using lexDouble (lexNat never gets called)
-        (lexDouble s)
+        (lexNum s)
         punctuation
   where
     prefix (tc : tcs) (c : cs) =
@@ -135,18 +132,12 @@ lexComment (Just n) ('{' : '-' : s) = lexComment (Just (succ n)) s . forward' 2
 lexComment multiline (_ : s) = lexComment multiline s . forward
 lexComment _ "" = \ _ ts -> Right ts
 
-lexDouble :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
-lexDouble s = case reads s :: [(Double, String)] of
+lexNum :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
+lexNum s = case reads s :: [(Double, String)] of
   [] -> lexKeywordOrVar s
-  -- lexAdd produces a token
-  [(n, rest)] -> lexAdd (take (length s - length rest) s) rest (TkDouble n)
-  _ -> error "this shouldn't happen"
-
-lexNat :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
-lexNat s = case reads s :: [(Int, String)] of
-  [] -> lexKeywordOrVar s
-  [(n, rest)] -> lexAdd (take (length s - length rest) s) rest (TkNat n)
-  _ -> error "this shouldn't happen"
+  [(d, rest)] -> case reads s :: [(Int, String)] of
+    [] -> lexAdd (take (length s - length rest) s) rest (TkDouble d)
+    [(n, rest')] -> lexAdd (take (length s - length rest) s) rest (TkNat n)
 
 -- Consumes characters until a non-variable character is reached
 lexVar :: String -> (String, String)
@@ -189,6 +180,8 @@ lexKeywordOrVar s p ts =
 
 lexAdd :: String -> String -> Token -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
 lexAdd t_s s t p ts = lexStrh s (forward' (length t_s) p) ((p, t) : ts)
+-- t_s is from the take(), s is from the rest, t is from the tkDouble n
+-- x becomes p, y becomes ts
 
 -- Format for a lex error
 lexErr :: (Pos, String) -> String

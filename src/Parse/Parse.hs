@@ -1,4 +1,17 @@
 {- Parser code -}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use <$>" #-}
+{-# HLINT ignore "Use lambda-case" #-}
+{-# HLINT ignore "Use $>" #-}
+{-# HLINT ignore "Use list comprehension" #-}
+{-# HLINT ignore "Use >=>" #-}
+{-# HLINT ignore "Use first" #-}
+{-# HLINT ignore "Redundant bracket" #-}
+{-# HLINT ignore "Use section" #-}
+{-# HLINT ignore "Redundant fmap" #-}
+{-# HLINT ignore "Use <$" #-}
+{-# HLINT ignore "Use null" #-}
+{-# HLINT ignore "Use !!" #-}
 
 module Parse.Parse where
 import Parse.Lex
