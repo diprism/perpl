@@ -125,8 +125,10 @@ replaceEqsh (TmCase tm tpd cs rtp) =
   pure TmCase <*> replaceEqsh tm <*> pure tpd <*> mapCasesM (\_ _ -> replaceEqsh) cs <*> pure rtp
 replaceEqsh (TmAmb tms tp) =
    pure TmAmb <*> mapM replaceEqsh tms <*> pure tp
-replaceEqsh (TmFactor p tm tp) =
-   pure (TmFactor p) <*> replaceEqsh tm <*> pure tp
+replaceEqsh (TmFactorDouble p tm tp) =
+   pure (TmFactorDouble p) <*> replaceEqsh tm <*> pure tp
+replaceEqsh (TmFactorNat p tm tp) =
+   pure (TmFactorNat p) <*> replaceEqsh tm <*> pure tp
 replaceEqsh (TmProd am as) =
   pure (TmProd am) <*> mapArgsM replaceEqsh as
 replaceEqsh (TmElimMultiplicative xtm xps tm tp) =

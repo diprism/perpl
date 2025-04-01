@@ -72,9 +72,14 @@ liftAmb (TmCase tm y cs tp) =
     joinAmbs (kronwith (\ tm cs -> TmCase tm y cs tp) tms cs3) tp
 liftAmb (TmAmb tms tp) =
   TmAmb (concatMap (splitAmbs . liftAmb) tms) tp
-liftAmb (TmFactor wt tm tp) =
+liftAmb (TmFactorDouble wt tm tp) =
   let tms = splitAmbs (liftAmb tm)
-      tms' = [TmFactor wt atm tp | atm <- tms]
+      tms' = [TmFactorDouble wt atm tp | atm <- tms]
+  in
+    joinAmbs tms' tp
+liftAmb (TmFactorNat wt tm tp) =
+  let tms = splitAmbs (liftAmb tm)
+      tms' = [TmFactorNat wt atm tp | atm <- tms]
   in
     joinAmbs tms' tp
 liftAmb (TmProd am as)
@@ -114,7 +119,8 @@ liftFail' (TmCase tm y cs tp) =
 liftFail' (TmAmb tms tp) =
   let tms' = concatMap (maybe [] (\ tm -> [tm]) . liftFail') tms in
     if null tms' then Nothing else pure (joinAmbs tms' tp)
-liftFail' (TmFactor wt tm tp) = pure (TmFactor wt) <*> liftFail' tm <*> pure tp
+liftFail' (TmFactorDouble wt tm tp) = pure (TmFactorDouble wt) <*> liftFail' tm <*> pure tp
+liftFail' (TmFactorNat wt tm tp) = pure (TmFactorNat wt) <*> liftFail' tm <*> pure tp
 liftFail' (TmProd am as)
   | am == Multiplicative =
     pure (TmProd am) <*> mapArgsM liftFail' as
@@ -169,7 +175,8 @@ safe2sub g x xtm tm =
     noDefsSamps (TmLet x xtm xtp tm tp) = noDefsSamps xtm && noDefsSamps tm
     noDefsSamps (TmCase tm y cs tp) = noDefsSamps tm && all (\ (Case x xps xtm) -> noDefsSamps xtm) cs
     noDefsSamps (TmAmb tms tp) = False
-    noDefsSamps (TmFactor wt tm tp) = False
+    noDefsSamps (TmFactorDouble wt tm tp) = False
+    noDefsSamps (TmFactorNat wt tm tp) = False
     noDefsSamps (TmProd am as) = all (noDefsSamps . fst) as
     noDefsSamps (TmElimAdditive tm n i p tm' tp) = noDefsSamps tm && noDefsSamps tm'
     noDefsSamps (TmElimMultiplicative tm ps tm' tp) = noDefsSamps tm && noDefsSamps tm'
@@ -186,7 +193,8 @@ optimizeTerm g (TmLet x xtm xtp tm tp) =
   if safe2sub g x xtm' tm'
     then optimizeTerm g (substWithCtxt g mempty{tmVars = Map.fromList [(x, Replace xtm')]} tm')
     else TmLet x xtm' xtp tm' tp
-optimizeTerm g (TmFactor wt tm tp) = TmFactor wt (optimizeTerm g tm) tp
+optimizeTerm g (TmFactorDouble wt tm tp) = TmFactorDouble wt (optimizeTerm g tm) tp
+optimizeTerm g (TmFactorNat wt tm tp) = TmFactorNat wt (optimizeTerm g tm) tp
 optimizeTerm g (TmLam x tp tm tp') =
   TmLam x tp (optimizeTerm (ctxtAddLocal g x tp) tm) tp'
 optimizeTerm g (TmApp tm1 tm2 tp2 tp) =

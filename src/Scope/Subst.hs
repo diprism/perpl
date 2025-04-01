@@ -225,8 +225,10 @@ instance Substitutable Term where
     pure TmCase <*> substM tm <*> (pure ((,,) y) <*> substM tgs <*> substM as) <*> substM cs <*> substM tp
   substM (TmAmb tms tp) =
     pure TmAmb <*> substM tms <*> substM tp
-  substM (TmFactor wt tm tp) =
-    pure TmFactor <*> pure wt <*> substM tm <*> substM tp
+  substM (TmFactorDouble wt tm tp) =
+    pure TmFactorDouble <*> pure wt <*> substM tm <*> substM tp
+  substM (TmFactorNat wt tm tp) =
+    pure TmFactorNat <*> pure wt <*> substM tm <*> substM tp
   substM (TmProd am as) =
     pure (TmProd am) <*> mapArgsM substM as
   substM (TmElimAdditive ptm n i p tm tp) =
@@ -243,7 +245,8 @@ instance Substitutable Term where
   freeVars (TmLet x xtm xtp tm tp) = freeVars xtm <> let fv = freeVars tm in fv{freeTmVars = Map.delete x (freeTmVars fv)}
   freeVars (TmCase tm y cs tp) = freeVars tm <> freeVars cs
   freeVars (TmAmb tms tp) = freeVars tms
-  freeVars (TmFactor wt tm tp) = freeVars tm
+  freeVars (TmFactorDouble wt tm tp) = freeVars tm
+  freeVars (TmFactorNat wt tm tp) = freeVars tm
   freeVars (TmProd am as) = freeVars (fsts as)
   freeVars (TmElimAdditive ptm n i p tm tp) = freeVars ptm <> let fv = freeVars tm in fv{freeTmVars = Map.delete (fst p) (freeTmVars fv)}
   freeVars (TmElimMultiplicative ptm ps tm tp) = freeVars ptm <> let fv = freeVars tm in fv{freeTmVars = foldr (Map.delete . fst) (freeTmVars fv) ps}
@@ -290,8 +293,10 @@ instance Substitutable UsTm where
     pure (UsLet x') <*> substM xtm <*> bind x x' (substM tm)
   substM (UsAmb tms) =
     pure UsAmb <*> substM tms
-  substM (UsFactor wt tm) =
-    pure UsFactor <*> pure wt <*> substM tm
+  substM (UsFactorDouble wt tm) =
+    pure UsFactorDouble <*> pure wt <*> substM tm
+  substM (UsFactorNat wt tm) =
+    pure UsFactorNat <*> pure wt <*> substM tm
   substM (UsFail tp) =
     pure UsFail <*> substM tp
   substM (UsProd am tms) =
@@ -323,7 +328,9 @@ instance Substitutable UsTm where
     freeVars xtm <> let fv = freeVars tm in fv{freeTmVars = Map.delete x (freeTmVars fv)}
   freeVars (UsAmb tms) =
     freeVars tms
-  freeVars (UsFactor wt tm) =
+  freeVars (UsFactorDouble wt tm) =
+    freeVars tm
+  freeVars (UsFactorNat wt tm) =
     freeVars tm
   freeVars (UsFail tp) =
     mempty

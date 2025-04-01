@@ -120,7 +120,7 @@ term2fgg g (TmVarG gv x [] [] as tp) =
                             Just cs = ctxtLookupType g y
                             Just ci = findIndex (\ (Ctor x' _) -> x' == x) cs in
                           ElTerminal (FaCtor cs ci)
-                      GlExtern -> error "Impossible case"
+                      --GlExtern -> error "Impossible case"
   in
     mkRule (TmVarG gv x [] [] as tp) (vy : ps ++ concat xss)
       (Edge (ps ++ [vy]) el :
@@ -167,15 +167,26 @@ term2fgg g (TmAmb tms tp) =
               (ElNonterminal (TmAmb tms tp))
               (map (ambRule g fvs tp) tms)
     
-term2fgg g (TmFactor wt tm tp) =
+term2fgg g (TmFactorDouble wt tm tp) =
   term2fgg g tm >>= \ xs ->
   let vtp = (NnOut, tp)
       el = ElTerminal (FaScalar wt) in
-  mkRule (TmFactor wt tm tp) (vtp : xs)
+  mkRule (TmFactorDouble wt tm tp) (vtp : xs)
     [Edge [] el,
      Edge (xs ++ [vtp]) (ElNonterminal tm)]
     (xs ++ [vtp])
-  
+
+{-
+term2fgg g (TmFactorNat wt tm tp) =
+  term2fgg g tm >>= \ xs ->
+  let vtp = (NnOut, tp)
+      el = ElTerminal (FaScalar wt) in
+  mkRule (TmFactorNat wt tm tp) (vtp : xs)
+    [Edge [] el,
+     Edge (xs ++ [vtp]) (ElNonterminal tm)]
+    (xs ++ [vtp])
+-}
+
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm >>= \ xtmxs ->
   term2fgg (ctxtAddLocal g x xtp) tm >>= \ tmxs ->
