@@ -206,6 +206,9 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- factor wt (if wt is a natural number or not)
   [TkFactor, TkDouble x] -> parseEat *> pure UsFactorDouble <*> parseDouble <* parseDrop TkIn <*> parseTerm1
+  -- recognize natural numbers as either zero or a successor (case for each? or treat the same?)
+  --[TkFactor, TkNat tmZeroName] -> parseEat *> pure UsFactorNat <*> parseNat <* parseDrop TkIn <*> parseTerm1
+  --[TkFactor, TkNat tmSuccName] -> parseEat *> pure UsFactorNat <*> parseNat <* parseDrop TkIn <*> parseTerm1
   [TkFactor, TkNat x] -> parseEat *> pure UsFactorNat <*> parseNat <* parseDrop TkIn <*> parseTerm1
   _ -> parseTerm2
 
@@ -274,6 +277,7 @@ TERM5 ::=
   | ()                       multiplicative tuple of zero terms
   | (TERM1+)                 multiplicative tuple of two or more terms
   | <TERM1*>                 additive tuple of zero or more terms
+  | CONST                    constant (natural number)
   | fail                     (without type annotation)
   | error
 
@@ -289,13 +293,14 @@ parseTerm5 = parsePeek >>= \ t -> case t of
         TkParenR -> pure (UsProd Multiplicative [])
         _ -> parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd Multiplicative tms)
     ) <* parseDrop TkParenR
-  -- <TERM1*>, TkLangle as in Token of a Left angle aka <
-  -- eat the <, then parsePeek if the next token is a > or anything else
   TkLangle -> parseEat *> (
     parsePeek >>= \ t -> case t of
         TkRangle -> pure (UsProd Additive [])
         -- if it's anything else, pure (UsProd Additive) the result of parseTerm1 etc. and parseDropping the >
         _ -> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm])) <* parseDrop TkRangle
+  -- recognize TkNat n, a constant/positive integer
+  -- differentiate between TkNat Zero and TkNat Succ x ?
+  TkNat n -> parseEat *> pure UsFactorNat <*> parseNat <* parseDrop TkIn <*> parseTerm5
   TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
