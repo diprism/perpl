@@ -176,16 +176,14 @@ term2fgg g (TmFactorDouble wt tm tp) =
      Edge (xs ++ [vtp]) (ElNonterminal tm)]
     (xs ++ [vtp])
 
-{-
 term2fgg g (TmFactorNat wt tm tp) =
   term2fgg g tm >>= \ xs ->
   let vtp = (NnOut, tp)
-      el = ElTerminal (FaScalar wt) in
+      el = ElTerminal (FaScalar (fromIntegral wt)) in
   mkRule (TmFactorNat wt tm tp) (vtp : xs)
     [Edge [] el,
      Edge (xs ++ [vtp]) (ElNonterminal tm)]
     (xs ++ [vtp])
--}
 
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm >>= \ xtmxs ->
