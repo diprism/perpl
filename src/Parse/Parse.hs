@@ -296,11 +296,11 @@ parseTerm5 = parsePeek >>= \ t -> case t of
   TkLangle -> parseEat *> (
     parsePeek >>= \ t -> case t of
         TkRangle -> pure (UsProd Additive [])
-        -- if it's anything else, pure (UsProd Additive) the result of parseTerm1 etc. and parseDropping the >
         _ -> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm])) <* parseDrop TkRangle
-  -- recognize TkNat n, a constant/positive integer
-  -- differentiate between TkNat Zero and TkNat Succ x ?
-  TkNat n -> parseEat *> pure UsFactorNat <*> parseNat <* parseDrop TkIn <*> parseTerm5
+  -- parseEat the TkNat, then carry the n over to the next part
+  -- it's here we'll have to unpack a natural number into a series of successors in a recursive function
+  -- be sure to catch negatives (infinite loop if recursive function involves n-1)
+  TkNat n -> parseEat *> pure (UsTmNat n)
   TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
