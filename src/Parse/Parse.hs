@@ -17,6 +17,7 @@ module Parse.Parse where
 import Parse.Lex
 import Struct.Lib
 import Util.Helpers (enumerate)
+import Debug.Trace
 
 -- Throws a parser error message (s) at a certain position (p)
 parseErr' p s = Left (p, s)
@@ -206,11 +207,8 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- factor wt (if wt is a natural number or not)
   [TkFactor, TkDouble x] -> parseEat *> pure UsFactorDouble <*> parseDouble <* parseDrop TkIn <*> parseTerm1
-  -- recognize natural numbers as either zero or a successor (case for each? or treat the same?)
-  --[TkFactor, TkNat tmZeroName] -> parseEat *> pure UsFactorNat <*> parseNat <* parseDrop TkIn <*> parseTerm1
-  --[TkFactor, TkNat tmSuccName] -> parseEat *> pure UsFactorNat <*> parseNat <* parseDrop TkIn <*> parseTerm1
   [TkFactor, TkNat x] -> parseEat *> pure UsFactorNat <*> parseNat <* parseDrop TkIn <*> parseTerm1
-  _ -> parseTerm2
+  y -> trace ("hello from parseTerm1 with " ++ show y) parseTerm2
 
 
 {-
@@ -267,7 +265,7 @@ parseAmbs acc =
 -- Parse an application spine
 parseTermApp :: UsTm -> ParseM UsTm
 parseTermApp acc =
-  parseElse acc $ parseTerm5 >>= parseTermApp . UsApp acc
+  parseElse acc $ trace ("hello from parseTermApp with " ++ show acc) parseTerm5 >>= parseTermApp . UsApp acc
 
 {-
 
@@ -287,7 +285,7 @@ TERM5 ::=
 parseTerm5 :: ParseM UsTm
 parseTerm5 = parsePeek >>= \ t -> case t of
   TkVar "_" -> parseErr "Expected non-underscore variable here"
-  TkVar v -> parseEat *> pure (UsVar (TmV v))
+  TkVar v -> trace ("hello I'm a TkVar in parseTerm5 with " ++ show v) parseEat *> pure (UsVar (TmV v))
   TkParenL -> parseEat *> (
     parsePeek >>= \ t -> case t of
         TkParenR -> pure (UsProd Multiplicative [])
@@ -297,10 +295,10 @@ parseTerm5 = parsePeek >>= \ t -> case t of
     parsePeek >>= \ t -> case t of
         TkRangle -> pure (UsProd Additive [])
         _ -> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm])) <* parseDrop TkRangle
-  -- parseEat the TkNat, then carry the n over to the next part
-  -- it's here we'll have to unpack a natural number into a series of successors in a recursive function
-  -- be sure to catch negatives (infinite loop if recursive function involves n-1)
-  TkNat n -> parseEat *> pure (UsTmNat n)
+  --TkNat n -> parseEat *> pure (UsTmNat n)
+  TkNat n -> parseEat *> parseNat n where
+    parseNat n = if n <= 0 then pure (UsVar (TmV "Zero")) -- base case: if n is zero or negative
+                 else pure (UsVar (TmV "Succ")) -- recursive case: keep adding successor's until we hit zero
   TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
@@ -446,3 +444,8 @@ parseOut m ts =
 -- Parse a whole program.
 parseFile :: [(Pos, Token)] -> Either String UsProgs
 parseFile = parseOut (parseAddEOF >> parseProgs)
+-- parseFile's input is an array of positions and tokens (aka tokens and their positions in the .ppl file)
+-- for climb 3, our last two values in x are: ((11,1),climb),((11,7),3)
+-- for climb successors, our last values are: ((11,1),climb),((11,7),(),((11,8),Succ),((11,13),(),((11,14),Succ),((11,19),(),((11,20),Succ),((11,25),Zero),((11,29),)),((11,30),)),((11,31),))
+-- TODO: unpack ((11,7),3) into ((11,7),(),((11,8),Succ),((11,13),(),((11,14),Succ),((11,19),(),((11,20),Succ),((11,25),Zero),((11,29),)),((11,30),)),((11,31),))
+-- aka replace it with that stream of tokens and pump them all thru the parsing
