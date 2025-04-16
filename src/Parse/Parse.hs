@@ -208,7 +208,7 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- factor wt (if wt is a natural number or not)
   [TkFactor, TkDouble x] -> parseEat *> pure UsFactorDouble <*> parseDouble <* parseDrop TkIn <*> parseTerm1
   [TkFactor, TkNat x] -> parseEat *> pure UsFactorNat <*> parseNat <* parseDrop TkIn <*> parseTerm1
-  y -> trace ("hello from parseTerm1 with " ++ show y) parseTerm2
+  y -> trace ("entering pt2 with " ++ show y) parseTerm2 -- treat as Term2 or more (default case)
 
 
 {-
@@ -265,7 +265,7 @@ parseAmbs acc =
 -- Parse an application spine
 parseTermApp :: UsTm -> ParseM UsTm
 parseTermApp acc =
-  parseElse acc $ trace ("hello from parseTermApp with " ++ show acc) parseTerm5 >>= parseTermApp . UsApp acc
+  parseElse acc $ trace ("in parseTermApp with " ++ show acc) parseTerm5 >>= parseTermApp . UsApp acc
 
 {-
 
@@ -281,24 +281,28 @@ TERM5 ::=
 
  -}
 
+-- Unpack a natural number into a series of successors
+unpackNat :: Int -> [Token]
+unpackNat k = trace "unpacking" (if k > 0 then [TkParenL, TkVar "Succ"] ++ unpackNat (k-1) ++ [TkParenR] else [TkVar "Zero"])
+
 -- Var, Parens
 parseTerm5 :: ParseM UsTm
 parseTerm5 = parsePeek >>= \ t -> case t of
   TkVar "_" -> parseErr "Expected non-underscore variable here"
-  TkVar v -> trace ("hello I'm a TkVar in parseTerm5 with " ++ show v) parseEat *> pure (UsVar (TmV v))
-  TkParenL -> parseEat *> (
+  TkVar v -> trace ("TkVar in pt5: " ++ show v) parseEat *> pure (UsVar (TmV v))
+  TkParenL -> trace ("TkParenL in pt5") parseEat *> (
     parsePeek >>= \ t -> case t of
         TkParenR -> pure (UsProd Multiplicative [])
-        _ -> parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd Multiplicative tms)
+        y -> trace ("entering pt1, y is " ++ show y) parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd Multiplicative tms)
     ) <* parseDrop TkParenR
   TkLangle -> parseEat *> (
     parsePeek >>= \ t -> case t of
         TkRangle -> pure (UsProd Additive [])
         _ -> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm])) <* parseDrop TkRangle
-  --TkNat n -> parseEat *> pure (UsTmNat n)
-  TkNat n -> parseEat *> parseNat n where
-    parseNat n = if n <= 0 then pure (UsVar (TmV "Zero")) -- base case: if n is zero or negative
-                 else pure (UsVar (TmV "Succ")) -- recursive case: keep adding successor's until we hit zero
+  TkNat n -> trace ("nat found: " ++ show n) (
+    parseEat *> -- eat the TkNat
+    pure unpackNat *> -- this is crafting table (a ParseM [Token])
+    parseTerm5)
   TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
@@ -414,7 +418,7 @@ parseProg = parsePeek >>= \ t -> case t of
   _ -> pure Nothing
 
 parseProgsUntil :: ParseM [UsProg]
-parseProgsUntil = parseProg >>= maybe (pure []) (\ p -> pure ((:) p) <*> parseProgsUntil)
+parseProgsUntil = trace "from parseProgsUntil: " parseProg >>= maybe (pure []) (\ p -> pure ((:) p) <*> parseProgsUntil)
 
 {-
 
@@ -423,7 +427,7 @@ PROGS ::= PROG ... TERM1
 -}
 
 parseProgs :: ParseM UsProgs
-parseProgs = pure UsProgs <*> parseProgsUntil <*> parseTerm1 <* parseDrop TkSemicolon
+parseProgs = pure UsProgs <*> parseProgsUntil <*> trace "\nfrom parseProgs: " parseTerm1 <* parseDrop TkSemicolon
 
 parseFormatErr :: [(Pos, Token)] -> Either (Pos, String) a -> Either String a
 parseFormatErr ts (Left (p, emsg))
@@ -444,8 +448,3 @@ parseOut m ts =
 -- Parse a whole program.
 parseFile :: [(Pos, Token)] -> Either String UsProgs
 parseFile = parseOut (parseAddEOF >> parseProgs)
--- parseFile's input is an array of positions and tokens (aka tokens and their positions in the .ppl file)
--- for climb 3, our last two values in x are: ((11,1),climb),((11,7),3)
--- for climb successors, our last values are: ((11,1),climb),((11,7),(),((11,8),Succ),((11,13),(),((11,14),Succ),((11,19),(),((11,20),Succ),((11,25),Zero),((11,29),)),((11,30),)),((11,31),))
--- TODO: unpack ((11,7),3) into ((11,7),(),((11,8),Succ),((11,13),(),((11,14),Succ),((11,19),(),((11,20),Succ),((11,25),Zero),((11,29),)),((11,30),)),((11,31),))
--- aka replace it with that stream of tokens and pump them all thru the parsing
