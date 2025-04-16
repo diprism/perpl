@@ -91,7 +91,6 @@ data UsTm =
   | UsElimMultiplicative UsTm [TmVar] UsTm -- let (x,y,z) = tm1 in tm2
   | UsElimAdditive UsTm Int Int TmVar UsTm -- let <_,y,_> = tm1 in tm2
   | UsTmBool Bool                          -- True / False
-  | UsTmNat Int                            -- c
   | UsIf UsTm UsTm UsTm                    -- if tm1 then tm2 else tm3
   | UsEqs [UsTm]                           -- tm1 == tm2 == ...
   deriving (Eq, Ord)

@@ -83,7 +83,6 @@ instance Show UsTm where
   showsPrec p (UsFail tp) = showParen (tp /= NoTp && p > 1) (showString "fail" . showString (showTpAnn tp))
   showsPrec _ (UsProd am tms) = let (l, r) = amParens am in showString l . delimitWith ", " (map shows tms) . showString r
   showsPrec _ (UsTmBool b) = showString (if b then "True" else "False")
-  showsPrec _ (UsTmNat n) = showString (show n)
   showsPrec p (UsEqs tms) = showParen (p > 4) (delimitWith " == " (map (showsPrec 5) tms))
 instance Show Term where
   showsPrec p = showsPrec p . toUsTm

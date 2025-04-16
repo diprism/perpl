@@ -288,8 +288,6 @@ instance Substitutable UsTm where
     pure UsIf <*> substM tm1 <*> substM tm2 <*> substM tm3
   substM (UsTmBool b) =
     pure (UsTmBool b)
-  substM (UsTmNat n) =
-    pure (UsTmNat n)
   substM (UsLet x xtm tm) =
     freshen x >>= \ x' ->
     pure (UsLet x') <*> substM xtm <*> bind x x' (substM tm)
@@ -325,8 +323,6 @@ instance Substitutable UsTm where
   freeVars (UsIf tm1 tm2 tm3) =
     mconcat [freeVars tm1, freeVars tm2, freeVars tm3]
   freeVars (UsTmBool b) =
-    mempty
-  freeVars (UsTmNat n) =
     mempty
   freeVars (UsLet x xtm tm) =
     freeVars xtm <> let fv = freeVars tm in fv{freeTmVars = Map.delete x (freeTmVars fv)}

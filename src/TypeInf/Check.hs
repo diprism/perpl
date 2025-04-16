@@ -355,11 +355,6 @@ infer' (UsTmBool b) =
   -- Translate True/False into a constructor var
   return (TmVarG GlCtor (if b then tmTrueName else tmFalseName) [] [] [] tpBool)
 
-infer' (UsTmNat n) =
-  -- Translate natural number into a constructor var
-  -- here give term name of tmZeroName if 0 or negative
-  return (TmVarG GlCtor (if n<=0 then tmZeroName else tmSuccName) [] [] [] tpNat)
-
 infer' (UsLet x xtm tm) =
   -- Check the annotation xtp'
   --annTp xtp >>= \ xtp' ->

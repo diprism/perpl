@@ -35,7 +35,6 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccs (UsCase tm cs) = foldr (Map.unionWith max . countOccsCase) (countOccs tm) cs
     countOccs (UsIf tm1 tm2 tm3) = Map.unionWith (+) (countOccs tm1) (Map.unionWith max (countOccs tm2) (countOccs tm3))
     countOccs (UsTmBool b) = Map.empty
-    countOccs (UsTmNat n) = Map.empty
     countOccs (UsLet x tm tm') = Map.unionWith (+) (countOccs tm) (Map.delete x $ countOccs tm')
     countOccs (UsAmb tms) = Map.unionsWith max (map countOccs tms)
     countOccs (UsFactorDouble wt tm) = countOccs tm
