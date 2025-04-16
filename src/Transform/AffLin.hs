@@ -202,11 +202,16 @@ affLin (TmAmb tms tp) =
   let tp' = affLinTp tp in
   --  let tp' = if null tms' then affLinTp tp else typeof (head tms') in
   return (TmAmb tms' tp')
-affLin (TmFactor wt tm tp) =
+affLin (TmFactorDouble wt tm tp) =
   -- L(factor wt in tm: tp) => factor wt in L(tm): L(tp)
   affLin tm >>= \ tm' ->
   let tp' = affLinTp tp in
-  return (TmFactor wt tm' tp')
+  return (TmFactorDouble wt tm' tp')
+affLin (TmFactorNat wt tm tp) =
+  -- L(factor wt in tm: tp) => factor wt in L(tm): L(tp)
+  affLin tm >>= \ tm' ->
+  let tp' = affLinTp tp in
+  return (TmFactorNat wt tm' tp')
 affLin (TmProd am as)
   | am == Additive =
     -- L(<tm1, tm2, ..., tmn>) => <L*(tm1), L*(tm2), ..., L*(tmn), L*(unit)>,

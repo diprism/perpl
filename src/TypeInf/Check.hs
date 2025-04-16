@@ -375,8 +375,11 @@ infer' (UsAmb tms) =
   mapM (constrain . Unify itp . typeof) tms' >>
   return (TmAmb tms' itp)
 
-infer' (UsFactor wt tm) =
-  infer tm >>= \ tm' -> return (TmFactor wt tm' (typeof tm'))
+infer' (UsFactorDouble wt tm) =
+  infer tm >>= \ tm' -> return (TmFactorDouble wt tm' (typeof tm'))
+
+infer' (UsFactorNat wt tm) =
+  infer tm >>= \ tm' -> return (TmFactorNat wt tm' (typeof tm'))
 
 infer' (UsFail tp) =
   annTp tp >>= \ tp' ->

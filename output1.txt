@@ -1,0 +1,63 @@
+cs is []
+
+cs is [(Unify (Nat #1) ?1,in the definition climb, in the expression case stairs of Zero -> () | Succ stairs0 -> amb (climb stairs0) (case stairs0 of Zero -> fail | Succ stairs1 -> climb stairs1)),
+(Unify ?0 (Nat #1 -> ?3),in the definition climb, in the expression climb stairs0),
+(Unify (Nat #2) (Nat #1),in the definition climb, in the expression case stairs0 of Zero -> fail | Succ stairs1 -> climb stairs1),
+(Unify ?0 (Nat #2 -> ?6),in the definition climb, in the expression climb stairs1),
+(Unify ?4 ?5,in the definition climb, in the expression case stairs0 of Zero -> fail | Succ stairs1 -> climb stairs1),
+(Unify ?4 ?6,in the definition climb, in the expression case stairs0 of Zero -> fail | Succ stairs1 -> climb stairs1),
+(Unify ?7 ?3,in the definition climb, in the expression amb (climb stairs0) (case stairs0 of Zero -> fail | Succ stairs1 -> climb stairs1)),
+(Unify ?7 ?4,in the definition climb, in the expression amb (climb stairs0) (case stairs0 of Zero -> fail | Succ stairs1 -> climb stairs1)),
+(Unify ?2 (),in the definition climb, in the expression case stairs of Zero -> () | Succ stairs0 -> amb (climb stairs0) (case stairs0 of Zero -> fail | Succ stairs1 -> climb stairs1)),
+(Unify ?2 ?7,in the definition climb, in the expression case stairs of Zero -> () | Succ stairs0 -> amb (climb stairs0) (case stairs0 of Zero -> fail | Succ stairs1 -> climb stairs1)),
+(Unify ?0 (?1 -> ?2),in the definition climb)]
+
+cs is [(Unify (Nat #7 -> Nat #7) (Nat #8 -> ?8),in the expression Succ Zero),
+(Unify (Nat #6 -> Nat #6) (?8 -> ?9),in the expression Succ (Succ Zero)),
+(Unify (Nat #5 -> Nat #5) (?9 -> ?10),in the expression Succ (Succ (Succ Zero))),
+(Unify (Nat #4 -> Nat #4) (?10 -> ?11),in the expression Succ (Succ (Succ (Succ Zero)))),
+(Unify (Nat #3 -> ()) (?11 -> ?12),in the expression climb (Succ (Succ (Succ (Succ Zero)))))]
+
+[5.0]
+
+
+
+hello from parseTerm1 with [stairs,of]
+hello I'm a TkVar in parseTerm5 with "stairs"
+hello from parseTermApp with stairs
+hello from parseTerm1 with [(,)]
+hello from parseTermApp with ()
+hello from parseTerm1 with [amb,(]
+hello from parseTerm1 with [climb,stairs]
+hello I'm a TkVar in parseTerm5 with "climb"
+hello from parseTermApp with climb
+hello I'm a TkVar in parseTerm5 with "stairs"
+hello from parseTermApp with climb stairs
+hello from parseTerm1 with [stairs,of]
+hello I'm a TkVar in parseTerm5 with "stairs"
+hello from parseTermApp with stairs
+hello from parseTerm1 with [fail,|]
+hello from parseTermApp with fail
+hello from parseTerm1 with [climb,stairs]
+hello I'm a TkVar in parseTerm5 with "climb"
+hello from parseTermApp with climb
+hello I'm a TkVar in parseTerm5 with "stairs"
+hello from parseTermApp with climb stairs
+hello from parseTerm1 with [climb,(]
+hello I'm a TkVar in parseTerm5 with "climb"
+hello from parseTermApp with climb
+hello from parseTerm1 with [Succ,(]
+hello I'm a TkVar in parseTerm5 with "Succ"
+hello from parseTermApp with Succ
+hello from parseTerm1 with [Succ,(]
+hello I'm a TkVar in parseTerm5 with "Succ"
+hello from parseTermApp with Succ
+hello from parseTerm1 with [Succ,Zero]
+hello I'm a TkVar in parseTerm5 with "Succ"
+hello from parseTermApp with Succ
+hello I'm a TkVar in parseTerm5 with "Zero"
+hello from parseTermApp with Succ Zero
+hello from parseTermApp with Succ (Succ Zero)
+hello from parseTermApp with Succ (Succ (Succ Zero))
+hello from parseTermApp with climb (Succ (Succ (Succ Zero)))
+[3.0]

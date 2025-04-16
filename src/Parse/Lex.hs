@@ -1,4 +1,6 @@
 {- Lexer code -}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Redundant bracket" #-}
 
 module Parse.Lex (Token (..), keywords, Pos, lexFile) where
 import Data.Char (isAlpha, isDigit)
@@ -6,7 +8,8 @@ import Data.Char (isAlpha, isDigit)
 -- Possible tokens
 data Token =
     TkVar String -- "x"
-  | TkNum Double -- floating-point literal
+  | TkDouble Double -- floating-point literal
+  | TkNat Int -- natural number
   | TkLam -- "\"
   | TkParenL -- "("
   | TkParenR -- ")"
@@ -38,7 +41,8 @@ data Token =
 
 instance Show Token where
   show (TkVar x) = x
-  show (TkNum n) = show n
+  show (TkDouble d) = show d
+  show (TkNat n) = show n
   -- Punctuation tokens
   show TkLam = "\\"
   show TkParenL = "("
@@ -89,6 +93,7 @@ punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkColon, TkDo
 -- List of keyword tokens (use alphanumeric chars)
 keywords = [TkAmb, TkFactor, TkFail, TkCase, TkOf, TkLet, TkIn, TkFun, TkExtern, TkData, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
 
+
 -- Tries to lex s as punctuation, otherwise lexing s as a keyword or a var
 lexPunctuation :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
 lexPunctuation s =
@@ -129,9 +134,10 @@ lexComment _ "" = \ _ ts -> Right ts
 
 lexNum :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
 lexNum s = case reads s :: [(Double, String)] of
-  [] -> lexKeywordOrVar s
-  [(n, rest)] -> lexAdd (take ((length s)-(length rest)) s) rest (TkNum n)
-  _ -> error "this shouldn't happen"
+  [] -> lexKeywordOrVar s -- Case 1: unable to be read as a double
+  [(d, rest)] -> case reads s :: [(Int, String)] of
+    [] -> lexAdd (take (length s - length rest) s) rest (TkDouble d) -- Case 2a: able to be read as a double, not as an int
+    [(n, rest')] -> lexAdd (take (length s - length rest) s) rest (TkNat n) -- Case 2b: able to be read as a double and an int (so treat as int)
 
 -- Consumes characters until a non-variable character is reached
 lexVar :: String -> (String, String)

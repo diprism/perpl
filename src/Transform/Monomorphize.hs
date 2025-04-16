@@ -50,7 +50,9 @@ collectCalls' (TmCase tm y cs tp) =
   collectCalls tm <> mconcat (fmap (\ (Case x ps tm') -> collectCalls tm') cs)
 collectCalls' (TmAmb tms tp) =
   mconcat (fmap collectCalls tms)
-collectCalls' (TmFactor wt tm tp) =
+collectCalls' (TmFactorDouble wt tm tp) =
+  collectCalls tm
+collectCalls' (TmFactorNat wt tm tp) =
   collectCalls tm
 collectCalls' (TmProd am as) =
   mconcat (fmap (collectCalls . fst) as)
@@ -93,7 +95,8 @@ renameCalls xis (TmCase tm (y, tgs, as) cs tp) =
     TmCase (renameCalls xis tm) (y', tgs', as')
       (fmap (\ (Case x ps tm') -> Case (maybe x (instTmName x) yi) [(x', renameCallsTp xis tp) | (x', tp) <- ps] (renameCalls xis tm')) cs) (renameCallsTp xis tp)
 renameCalls xis (TmAmb tms tp) = TmAmb (renameCalls xis <$> tms) (renameCallsTp xis tp)
-renameCalls xis (TmFactor wt tm tp) = TmFactor wt (renameCalls xis tm) (renameCallsTp xis tp)
+renameCalls xis (TmFactorDouble wt tm tp) = TmFactorDouble wt (renameCalls xis tm) (renameCallsTp xis tp)
+renameCalls xis (TmFactorNat wt tm tp) = TmFactorNat wt (renameCalls xis tm) (renameCallsTp xis tp)
 renameCalls xis (TmProd am as) = TmProd am [(renameCalls xis tm, renameCallsTp xis tp) | (tm, tp) <- as]
 renameCalls xis (TmElimMultiplicative ptm ps tm tp) = TmElimMultiplicative (renameCalls xis ptm) [(x, renameCallsTp xis xtp) | (x, xtp) <- ps] (renameCalls xis tm) (renameCallsTp xis tp)
 renameCalls xis (TmElimAdditive ptm n i (x,xtp) tm tp) = TmElimAdditive (renameCalls xis ptm) n i (x, renameCallsTp xis xtp) (renameCalls xis tm) (renameCallsTp xis tp)
