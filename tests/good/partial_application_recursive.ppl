@@ -1,4 +1,3 @@
-data Nat = Zero | Succ Nat;
 define id : Nat -> Nat = \x. x;
 define first : Nat -> Nat -> Nat = \x. \y. x;
 define second : Nat -> Nat -> Nat = \x. id;

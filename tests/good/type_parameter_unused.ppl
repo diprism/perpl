@@ -1,5 +1,4 @@
 data MyBool a = MyFalse | MyTrue;
-data Nat = Zero | Succ Nat;
 define copy_mono = \x: MyBool Nat. (x, x);
 define copy_poly = \x. (x, x);
 extern e: MyBool Nat;

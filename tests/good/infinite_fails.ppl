@@ -1,5 +1,3 @@
-data Nat = Zero | Succ Nat;
-
 define equal = \m. \n. case m of
   | Zero -> (case n of
     | Zero -> ()
