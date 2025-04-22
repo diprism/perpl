@@ -282,10 +282,10 @@ TERM5 ::=
  -}
 
 -- Unpack a natural number into a series of successors
-unpackNat :: Int -> [ParseM UsTm]
+unpackNat :: Int -> [Token]
 unpackNat k =
-  if k > 0 then pure (UsVar (TmV "Succ")) : unpackNat (k-1)
-  else [pure (UsVar (TmV "Zero"))]
+  if k > 0 then TkParenL : TkVar "Succ" : unpackNat (k-1) ++ [TkParenR]
+  else [TkVar "Zero"]
 
 -- Var, Parens
 parseTerm5 :: ParseM UsTm
@@ -301,10 +301,10 @@ parseTerm5 = parsePeek >>= \ t -> case t of
     parsePeek >>= \ t -> case t of
         TkRangle -> pure (UsProd Additive [])
         _ -> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm])) <* parseDrop TkRangle
-  TkNat n ->
+  TkNat n -> trace ("TkNat in pt5: " ++ show n)
     parseEat *> -- eat the TkNat
-    unpackNat -- unpack n, convert to list of ParseM UsTm
-    -- TODO: return the ParseM UsTm's inside the list one at a time?
+    unpackNat <*> -- unpack n, convert to list of tokens
+    parseTerm5 -- run pt5 on all the tokens >:(
   TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
