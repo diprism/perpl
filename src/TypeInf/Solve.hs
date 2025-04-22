@@ -1,6 +1,3 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Redundant <$>" #-}
-{-# HLINT ignore "Use tuple-section" #-}
 module TypeInf.Solve (inferFile) where
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -28,12 +25,12 @@ bindTp x tp
 unify :: Type -> Type -> Either TypeError Subst
 unify (TpVar y) tp = bindTp y tp
 unify tp (TpVar y) = bindTp y tp
-unify tp1@(TpData y1 tgs1 as1) tp2@(TpData y2 tgs2 as2) -- this is the case of unify we're failing
+unify tp1@(TpData y1 tgs1 as1) tp2@(TpData y2 tgs2 as2)
   | y1 == y2 && length tgs1 == length tgs2 && length as1 == length as2 =
       unifyTags (zip tgs1 tgs2) >>= \ s ->
       unifyTypes' (zip as1 as2) >>= \ s' ->
       return (s' <> s)
-  | otherwise = Left (UnificationError tp1 tp2) -- this is the part where we're getting our UnificationError
+  | otherwise = Left (UnificationError tp1 tp2)
 unify (TpArr l1 r1) (TpArr l2 r2) =
   unify l1 l2 >>= \ sl ->
   unify (subst sl r1) (subst sl r2) >>= \ sr ->
@@ -59,7 +56,7 @@ unifyTypes =
   foldr
     (\ (tp1, tp2, l) s ->
         s >>= \ s ->
-        mapLeft (\ e -> (e, l)) (unify (subst s tp1) (subst s tp2)) >>= \ s' -> -- this is where unify gets used on two types
+        mapLeft (\ e -> (e, l)) (unify (subst s tp1) (subst s tp2)) >>= \ s' ->
         return (s' <> s))
     (Right mempty)
 
@@ -146,9 +143,6 @@ If no error, returns (solution subst, remaining tag vars, remaining type vars)
 solve :: Ctxt -> SolveVars -> Type -> [(Constraint, Loc)] -> Either (TypeError, Loc) (Subst, [Tag], [Forall])
 solve g vs rtp cs =
   unifyTypes (getUnifications cs) >>= \ s ->
-  -- running trace on ^ line:
-  -- THIRD call on solve
-  -- cs is [(Unify (Nat #3 -> ()) (Nat -> ?8),in the expression climb 7)]
   let (s', tgs, xs) = solveInternal vs s rtp in
   solvedWell g s' cs xs >>= \ xs' ->
   return (s', tgs, xs')
@@ -170,7 +164,7 @@ solveM m =
   -- Because we use NoTp below, there are no FVs in the type, so all
   -- remaining type vars are seen as internal unsolved and become Zero
   askEnv >>= \ g ->
-  case solve g vs NoTp cs of -- THIRD call to solve (the one that throws an error!)
+  case solve g vs NoTp cs of
     Left e -> throwError e
     Right (s, tgs, []) -> return (subst s a, subst s (typeof a), tgs)
     Right _ -> error "type variables remaining after solving (this shouldn't happen)"
@@ -421,7 +415,7 @@ inferExtern (x, tp) m =
 inferEnd :: UsTm -> CheckM SProgs
 inferEnd end =
   let m = infer end in
-  solveM m >>= \ (end', tp, tgs) -> -- THIRD eventual call to solve (in solveM) (the one that fails)
+  solveM m >>= \ (end', tp, tgs) ->
   return (SProgs [] end')
 
 -- Infers an entire program, returning a schemified, elaborated one
@@ -449,7 +443,7 @@ inferProgs ps =
     -- Then check functions
          (foldr inferFuns
     -- Then check end term
-            (inferEnd end) funSCCs') es) -- THIRD eventual call to solve (in inferEnd)
+            (inferEnd end) funSCCs') es)
 
 -- Try to infer an entire file, running the CheckM monad
 inferFile :: UsProgs -> Either String SProgs

@@ -1,6 +1,4 @@
 {- Lexer code -}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Redundant bracket" #-}
 
 module Parse.Lex (Token (..), keywords, Pos, lexFile) where
 import Data.Char (isAlpha, isDigit)
@@ -92,7 +90,6 @@ next (line, column) = (succ line, 1)
 punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkLangle, TkRangle]
 -- List of keyword tokens (use alphanumeric chars)
 keywords = [TkAmb, TkFactor, TkFail, TkCase, TkOf, TkLet, TkIn, TkFun, TkExtern, TkData, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
-
 
 -- Tries to lex s as punctuation, otherwise lexing s as a keyword or a var
 lexPunctuation :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]

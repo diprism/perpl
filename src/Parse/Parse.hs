@@ -1,23 +1,9 @@
 {- Parser code -}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Use <$>" #-}
-{-# HLINT ignore "Use lambda-case" #-}
-{-# HLINT ignore "Use $>" #-}
-{-# HLINT ignore "Use list comprehension" #-}
-{-# HLINT ignore "Use >=>" #-}
-{-# HLINT ignore "Use first" #-}
-{-# HLINT ignore "Redundant bracket" #-}
-{-# HLINT ignore "Use section" #-}
-{-# HLINT ignore "Redundant fmap" #-}
-{-# HLINT ignore "Use <$" #-}
-{-# HLINT ignore "Use null" #-}
-{-# HLINT ignore "Use !!" #-}
 
 module Parse.Parse where
 import Parse.Lex
 import Struct.Lib
 import Util.Helpers (enumerate)
-import Debug.Trace
 
 -- Throws a parser error message (s) at a certain position (p)
 parseErr' p s = Left (p, s)
@@ -155,7 +141,7 @@ parseDouble = parsePeek >>= \ t -> case t of
 parseNat :: ParseM Int
 parseNat = parsePeek >>= \ t -> case t of
   TkNat n -> parseEat >> return n
-  _ -> parseErr "Expected a number here"
+  _ -> parseErr "Expected a natural number here"
   
 {-
 
@@ -205,10 +191,10 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- let x = term [: type] in term
   [TkLet, _] -> parseEat *> pure (UsLet . TmV) <*> parseVar <* parseDrop TkEq
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
--- factor wt (if wt is a natural number or not)
+-- factor wt
   [TkFactor, TkDouble x] -> parseEat *> pure UsFactorDouble <*> parseDouble <* parseDrop TkIn <*> parseTerm1
   [TkFactor, TkNat x] -> parseEat *> pure UsFactorNat <*> parseNat <* parseDrop TkIn <*> parseTerm1
-  y -> trace ("entering pt2 with " ++ show y) parseTerm2 -- treat as Term2 or more (default case)
+  _ -> parseTerm2
 
 
 {-
@@ -265,7 +251,7 @@ parseAmbs acc =
 -- Parse an application spine
 parseTermApp :: UsTm -> ParseM UsTm
 parseTermApp acc =
-  parseElse acc $ trace ("in parseTermApp with " ++ show acc) parseTerm5 >>= parseTermApp . UsApp acc
+  parseElse acc $ parseTerm5 >>= parseTermApp . UsApp acc
 
 {-
 
@@ -281,33 +267,29 @@ TERM5 ::=
 
  -}
 
--- Unpack a natural number into a series of successors
-unpackNat :: Int -> [Token]
-unpackNat k =
-  if k > 0 then TkParenL : TkVar "Succ" : unpackNat (k-1) ++ [TkParenR]
-  else [TkVar "Zero"]
-
 -- Var, Parens
 parseTerm5 :: ParseM UsTm
 parseTerm5 = parsePeek >>= \ t -> case t of
   TkVar "_" -> parseErr "Expected non-underscore variable here"
-  TkVar v -> trace ("TkVar in pt5: " ++ show v) parseEat *> pure (UsVar (TmV v))
-  TkParenL -> trace ("TkParenL in pt5") parseEat *> (
+  TkVar v -> parseEat *> pure (UsVar (TmV v))
+  TkParenL -> parseEat *> (
     parsePeek >>= \ t -> case t of
         TkParenR -> pure (UsProd Multiplicative [])
-        y -> trace ("entering pt1, y is " ++ show y) parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd Multiplicative tms)
+        _ -> parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm] >>= \ tms -> pure (if length tms == 1 then tm else UsProd Multiplicative tms)
     ) <* parseDrop TkParenR
   TkLangle -> parseEat *> (
     parsePeek >>= \ t -> case t of
         TkRangle -> pure (UsProd Additive [])
         _ -> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm])) <* parseDrop TkRangle
-  TkNat n -> trace ("TkNat in pt5: " ++ show n)
-    parseEat *> -- eat the TkNat
-    unpackNat <*> -- unpack n, convert to list of tokens
-    parseTerm5 -- run pt5 on all the tokens >:(
+  TkNat n -> parseEat *> pure (unpackNat n)
   TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
+-- Unpack a natural number into a series of successors
+unpackNat :: Int -> UsTm
+unpackNat k =
+  if k > 0 then (UsApp (UsVar (TmV "Succ")) (unpackNat (k-1)))
+  else (UsVar (TmV "Zero"))
 
 {- Type Annotation
 
@@ -420,7 +402,7 @@ parseProg = parsePeek >>= \ t -> case t of
   _ -> pure Nothing
 
 parseProgsUntil :: ParseM [UsProg]
-parseProgsUntil = trace "from parseProgsUntil: " parseProg >>= maybe (pure []) (\ p -> pure ((:) p) <*> parseProgsUntil)
+parseProgsUntil = parseProg >>= maybe (pure []) (\ p -> pure ((:) p) <*> parseProgsUntil)
 
 {-
 
@@ -429,7 +411,7 @@ PROGS ::= PROG ... TERM1
 -}
 
 parseProgs :: ParseM UsProgs
-parseProgs = pure UsProgs <*> parseProgsUntil <*> trace "\nfrom parseProgs: " parseTerm1 <* parseDrop TkSemicolon
+parseProgs = pure UsProgs <*> parseProgsUntil <*> parseTerm1 <* parseDrop TkSemicolon
 
 parseFormatErr :: [(Pos, Token)] -> Either (Pos, String) a -> Either String a
 parseFormatErr ts (Left (p, emsg))
