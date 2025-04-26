@@ -19,7 +19,7 @@ define run : List Symbol -> Nat -> Bool =
       | L -> run ps (Succ c)
       | R -> (case c of Zero -> False | Succ c -> run ps c));
 
-define length = Succ (Succ Zero);
+define length = 2;
 
 recognize (randomList length);
 

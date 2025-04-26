@@ -132,9 +132,10 @@ lexComment _ "" = \ _ ts -> Right ts
 lexNum :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
 lexNum s = case reads s :: [(Double, String)] of
   [] -> lexKeywordOrVar s -- Case 1: unable to be read as a double
-  [(d, rest)] -> case reads s :: [(Int, String)] of
-    [] -> lexAdd (take (length s - length rest) s) rest (TkDouble d) -- Case 2a: able to be read as a double, not as an int
-    [(n, rest')] -> lexAdd (take (length s - length rest) s) rest (TkNat n) -- Case 2b: able to be read as a double and an int (so treat as int)
+  [(d, rest)] -> if d < 0 then \ p _ -> Left (p, "Negative number detected")
+                 else case reads s :: [(Int, String)] of
+                  [] -> lexAdd (take (length s - length rest) s) rest (TkDouble d) -- Case 2a: able to be read as a double, not as an int
+                  [(n, rest')] -> lexAdd (take (length s - length rest) s) rest (TkNat n) -- Case 2b: able to be read as a double and an int (so treat as int)
 
 -- Consumes characters until a non-variable character is reached
 lexVar :: String -> (String, String)
