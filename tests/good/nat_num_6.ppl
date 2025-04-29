@@ -1,0 +1,7 @@
+-- Tests whether unequal Nats are caught as unequal (like they should)
+
+define unequal = \m: Nat. \n: Nat. if m == n then (False) else (True);
+
+let num1 = 3 in
+let num2 = 4 in
+unequal num1 num2

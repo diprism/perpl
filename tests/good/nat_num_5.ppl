@@ -1,0 +1,7 @@
+-- Tests whether Nats are equivalent to the successor of their predecessor
+
+define equal = \m: Nat. \n: Nat. if m == n then (True) else (False);
+
+let num1 = 3 in
+let num2 = Succ(2) in
+equal num1 num2
