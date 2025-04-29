@@ -5,3 +5,5 @@ define equal = \m: Nat. \n: Nat. if m == n then (True) else (False);
 let num1 = 3 in
 let num2 = Succ(Succ(Succ(Zero))) in
 equal num1 num2
+
+-- correct: [0.0, 1.0]

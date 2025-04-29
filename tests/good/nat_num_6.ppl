@@ -2,6 +2,6 @@
 
 define unequal = \m: Nat. \n: Nat. if m == n then (False) else (True);
 
-let num1 = 3 in
-let num2 = 4 in
-unequal num1 num2
+unequal 3 4
+
+-- correct: [0.0, 1.0]

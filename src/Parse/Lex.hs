@@ -35,9 +35,11 @@ data Token =
   | TkThen -- "then"
   | TkElse -- "else"
   | TkDoubleEq -- "=="
+  | TkAdd -- "+"
   deriving Eq
 
 instance Show Token where
+  show :: Token -> String
   show (TkVar x) = x
   show (TkDouble d) = show d
   show (TkNat n) = show n
@@ -55,6 +57,7 @@ instance Show Token where
   show TkBar = "|"
   show TkSemicolon = ";"
   show TkDoubleEq = "=="
+  show TkAdd = "+"
   -- Keyword tokens
   show TkFail = "fail"
   show TkAmb = "amb"
@@ -87,7 +90,7 @@ next :: Pos -> Pos
 next (line, column) = (succ line, 1)
 
 -- List of punctuation tokens
-punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkLangle, TkRangle]
+punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkLangle, TkRangle, TkAdd]
 -- List of keyword tokens (use alphanumeric chars)
 keywords = [TkAmb, TkFactor, TkFail, TkCase, TkOf, TkLet, TkIn, TkFun, TkExtern, TkData, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
 
@@ -129,6 +132,7 @@ lexComment (Just n) ('{' : '-' : s) = lexComment (Just (succ n)) s . forward' 2
 lexComment multiline (_ : s) = lexComment multiline s . forward
 lexComment _ "" = \ _ ts -> Right ts
 
+-- Lex a number (will be either a Natural Number or a Double)
 lexNum :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
 lexNum s = case reads s :: [(Double, String)] of
   [] -> lexKeywordOrVar s -- Case 1: unable to be read as a double

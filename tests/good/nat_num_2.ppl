@@ -9,3 +9,5 @@ define equal = \m. \n. case m of
     | Succ n' -> equal m' n');
 
 equal 3 3
+
+-- correct: [0.0, 1.0]

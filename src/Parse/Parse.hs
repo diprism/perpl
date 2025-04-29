@@ -281,7 +281,10 @@ parseTerm5 = parsePeek >>= \ t -> case t of
     parsePeek >>= \ t -> case t of
         TkRangle -> pure (UsProd Additive [])
         _ -> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm])) <* parseDrop TkRangle
-  TkNat n -> parseEat *> pure (unpackNat n)
+  TkNat n -> (
+    parsePeeks 2 >>= \t1t2 -> case t1t2 of
+      [TkNat n, TkAdd] -> parsePeeks 3 >>= \[TkNat n, TkAdd, TkNat m] -> parseEat *> pure (natAdd n m) <* parseDrop TkAdd <* parseEat
+      [_, _] -> parseEat *> pure (unpackNat n))
   TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
@@ -290,6 +293,13 @@ unpackNat :: Int -> UsTm
 unpackNat k =
   if k > 0 then (UsApp (UsVar (TmV "Succ")) (unpackNat (k-1)))
   else (UsVar (TmV "Zero"))
+
+-- Add two (constant) natural numbers together
+natAdd :: Int -> Int -> UsTm
+natAdd x y
+  | x > 0 = (UsApp (UsVar (TmV "Succ")) (natAdd (x-1) y))
+  | y > 0 = (UsApp (UsVar (TmV "Succ")) (natAdd x (y-1)))
+  | otherwise = UsVar (TmV "Zero")
 
 {- Type Annotation
 
