@@ -11,6 +11,6 @@ define climb = \stairs.
          | Zero -> fail
          | Succ stairs -> climb stairs);
 
-climb (Succ (Succ (Succ (Succ (Succ (Succ (Succ Zero))))))) -- Should return the (n+1)'st Fibonacci number (21)
+climb 7 -- Should return the (n+1)'st Fibonacci number (21)
 
 -- correct: [21.0]

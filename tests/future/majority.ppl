@@ -5,23 +5,22 @@
    Ideally we would be able to use the naive method of
 -}
 
-data Nat = Z | S Nat;
-define pred = \ n. case n of Z -> Z | S n -> n;
+define pred = \ n. case n of Zero -> Zero | Succ n -> n;
 define gt = \ m. \ n. case m of
-  | Z -> False
-  | S m -> case n of
-    | Z -> True
-    | S n -> gt m n;
+  | Zero -> False
+  | Succ m -> case n of
+    | Zero -> True
+    | Succ n -> gt m n;
 define lt = \ m. \ n. gt n m;
 
 define p = amb (factor 0.4 in False) (factor 0.6 in True);
-define n = S (S (S Z));
+define n = 3;
 
 -- Works
 {-define n_flips_h =
   \ n. \ t. \ f. case n of
-    | Z -> lt t f
-    | S n -> if p then n_flips_h n (pred t) f else n_flips_h n t (pred f);
+    | Zero -> lt t f
+    | Succ n -> if p then n_flips_h n (pred t) f else n_flips_h n t (pred f);
 n_flips_h n n n;-}
 -- ^^ but no *real* n_flips function unless we get bounded use of linear types, e.g.
 --        define n_flips = \ n. n_flips_h n n n;
@@ -29,7 +28,7 @@ n_flips_h n n n;-}
 -- Fails
 define n_flips_h =
   \ n. \ t. \ f. case n of
-    | Z -> gt t f
-    | S n -> if p then n_flips_h n (S t) f else n_flips_h n t (S f);
-define n_flips = \ n. n_flips_h n Z Z;
+    | Zero -> gt t f
+    | Succ n -> if p then n_flips_h n (Succ t) f else n_flips_h n t (Succ f);
+define n_flips = \ n. n_flips_h n Zero Zero;
 n_flips n;

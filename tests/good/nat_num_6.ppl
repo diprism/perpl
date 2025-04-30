@@ -1,0 +1,7 @@
+-- Tests whether unequal Nats are caught as unequal (like they should)
+
+define unequal = \m: Nat. \n: Nat. if m == n then (False) else (True);
+
+unequal 3 4
+
+-- correct: [0.0, 1.0]

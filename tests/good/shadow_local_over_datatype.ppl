@@ -1,4 +1,3 @@
-data Nat = Zero | Succ Nat;
 define pred =
   \ Nat. case Nat of
     | Zero -> Zero

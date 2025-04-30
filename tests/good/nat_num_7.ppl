@@ -1,0 +1,5 @@
+-- Tests whether constant Nats can be added
+
+2 + 1;
+
+-- correct: [0.0, 0.0, 0.0, 1.0] aka 3

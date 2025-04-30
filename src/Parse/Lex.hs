@@ -6,7 +6,8 @@ import Data.Char (isAlpha, isDigit)
 -- Possible tokens
 data Token =
     TkVar String -- "x"
-  | TkNum Double -- floating-point literal
+  | TkDouble Double -- floating-point literal
+  | TkNat Int -- natural number
   | TkLam -- "\"
   | TkParenL -- "("
   | TkParenR -- ")"
@@ -34,11 +35,14 @@ data Token =
   | TkThen -- "then"
   | TkElse -- "else"
   | TkDoubleEq -- "=="
+  | TkAdd -- "+"
   deriving Eq
 
 instance Show Token where
+  show :: Token -> String
   show (TkVar x) = x
-  show (TkNum n) = show n
+  show (TkDouble d) = show d
+  show (TkNat n) = show n
   -- Punctuation tokens
   show TkLam = "\\"
   show TkParenL = "("
@@ -53,6 +57,7 @@ instance Show Token where
   show TkBar = "|"
   show TkSemicolon = ";"
   show TkDoubleEq = "=="
+  show TkAdd = "+"
   -- Keyword tokens
   show TkFail = "fail"
   show TkAmb = "amb"
@@ -85,7 +90,7 @@ next :: Pos -> Pos
 next (line, column) = (succ line, 1)
 
 -- List of punctuation tokens
-punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkLangle, TkRangle]
+punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkLangle, TkRangle, TkAdd]
 -- List of keyword tokens (use alphanumeric chars)
 keywords = [TkAmb, TkFactor, TkFail, TkCase, TkOf, TkLet, TkIn, TkFun, TkExtern, TkData, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
 
@@ -127,11 +132,14 @@ lexComment (Just n) ('{' : '-' : s) = lexComment (Just (succ n)) s . forward' 2
 lexComment multiline (_ : s) = lexComment multiline s . forward
 lexComment _ "" = \ _ ts -> Right ts
 
+-- Lex a number (will be either a Natural Number or a Double)
 lexNum :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
 lexNum s = case reads s :: [(Double, String)] of
-  [] -> lexKeywordOrVar s
-  [(n, rest)] -> lexAdd (take ((length s)-(length rest)) s) rest (TkNum n)
-  _ -> error "this shouldn't happen"
+  [] -> lexKeywordOrVar s -- Case 1: unable to be read as a double
+  [(d, rest)] -> if d < 0 then \ p _ -> Left (p, "Negative number detected")
+                 else case reads s :: [(Int, String)] of
+                  [] -> lexAdd (take (length s - length rest) s) rest (TkDouble d) -- Case 2a: able to be read as a double, not as an int
+                  [(n, rest')] -> lexAdd (take (length s - length rest) s) rest (TkNat n) -- Case 2b: able to be read as a double and an int (so treat as int)
 
 -- Consumes characters until a non-variable character is reached
 lexVar :: String -> (String, String)

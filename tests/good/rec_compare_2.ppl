@@ -1,6 +1,6 @@
 -- Tests == for mutually recursive datatypes and product types containing them
-data Nat = zero | succ Pair;
-data Pair = pair (Nat, Bool);
+data MyNat = zero | succ Pair;
+data Pair = pair (MyNat, Bool);
 
 succ (pair (succ (pair (zero, False)), True)) == succ (pair (succ (pair (zero, False)), True));
 -- correct: [0.0, 1.0]

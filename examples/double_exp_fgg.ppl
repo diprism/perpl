@@ -2,20 +2,18 @@
 -- but the FGG is double exponential in size because (I believe) the number
 -- of values in each successive Nat instance is O(2^{2^n}).
 
-data Nat = Z | S Nat;
-
 -- Reconstruct a Nat (yields the same number, but with any tag)
-define reconstruct = \n. case n of Z -> Z | S n -> S (reconstruct n);
+define reconstruct = \n. case n of Zero -> Zero | Succ n -> Succ (reconstruct n);
 
 -- Tail-recursive addition
-define add = \m. \n. case m of Z -> reconstruct n | S m -> add m (S n);
+define add = \m. \n. case m of Zero -> reconstruct n | Succ m -> add m (Succ n);
 
 -- Creates another Nat instance i+1, which
 -- refunctionalizes to contain the type (i -> i)
-define pluszero = \m. add m Z;
+define pluszero = \m. add m Zero;
 
 -- For each of these, the FGG's domains have the following total number of values:
-define big0 = Z;             -- Σ |values| = 4
+define big0 = Zero;          -- Σ |values| = 4
 define big1 = pluszero big0; -- Σ |values| = 15
 define big2 = pluszero big1; -- Σ |values| = 40
 define big3 = pluszero big2; -- Σ |values| = 135

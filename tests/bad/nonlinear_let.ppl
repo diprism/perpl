@@ -1,3 +1,1 @@
-data Nat = Succ Nat | Zero;
-
 let n = Zero in (let a = n in let b = n in ())

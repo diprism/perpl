@@ -1,0 +1,5 @@
+-- Tests whether Nats are accepted as inputs for functions
+
+define num_id = \num. num;
+
+num_id 2

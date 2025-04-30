@@ -1,0 +1,5 @@
+-- Tests whether decimals are read as Natural Numbers (should not be)
+
+define num_id = \num: Nat. num;
+
+num_id 3.5

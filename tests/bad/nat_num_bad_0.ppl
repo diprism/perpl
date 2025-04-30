@@ -1,0 +1,5 @@
+-- Tests whether negative numbers are allowed as function arguments (should not be)
+
+define num_id = \num. num;
+
+num_id -2

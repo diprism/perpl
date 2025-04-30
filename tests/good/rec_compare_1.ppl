@@ -1,4 +1,3 @@
-data Nat = Zero | Succ Nat;
 define psucc = amb (factor 0.5 in True) (factor 0.5 in False);
 define gennat = if psucc then Succ gennat else Zero;
 

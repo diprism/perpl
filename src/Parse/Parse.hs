@@ -1,4 +1,17 @@
 {- Parser code -}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use lambda-case" #-}
+{-# HLINT ignore "Use $>" #-}
+{-# HLINT ignore "Use <$>" #-}
+{-# HLINT ignore "Redundant bracket" #-}
+{-# HLINT ignore "Use section" #-}
+{-# HLINT ignore "Redundant fmap" #-}
+{-# HLINT ignore "Use <$" #-}
+{-# HLINT ignore "Use null" #-}
+{-# HLINT ignore "Use >=>" #-}
+{-# HLINT ignore "Use first" #-}
+{-# HLINT ignore "Use list comprehension" #-}
+{-# HLINT ignore "Use !!" #-}
 
 module Parse.Parse where
 import Parse.Lex
@@ -131,11 +144,17 @@ parseCase = parsePeek >>= \ t -> case t of
 parseCases :: ParseM [CaseUs]
 parseCases = parseBranches parseCase
 
--- Parses a (floating-point) number
-parseNum :: ParseM Double
-parseNum = parsePeek >>= \ t -> case t of
-  TkNum o -> parseEat >> return o
+-- Parses a floating-point number
+parseDouble :: ParseM Double
+parseDouble = parsePeek >>= \ t -> case t of
+  TkDouble o -> parseEat >> return o
   _ -> parseErr "Expected a number here"
+
+-- Parses a natural number
+parseNat :: ParseM Int
+parseNat = parsePeek >>= \ t -> case t of
+  TkNat n -> parseEat >> return n
+  _ -> parseErr "Expected a natural number here"
   
 {-
 
@@ -186,7 +205,8 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
   [TkLet, _] -> parseEat *> pure (UsLet . TmV) <*> parseVar <* parseDrop TkEq
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- factor wt
-  [TkFactor, _] -> parseEat *> pure UsFactor <*> parseNum <* parseDrop TkIn <*> parseTerm1
+  [TkFactor, TkDouble x] -> parseEat *> pure UsFactorDouble <*> parseDouble <* parseDrop TkIn <*> parseTerm1
+  [TkFactor, TkNat x] -> parseEat *> pure UsFactorNat <*> parseNat <* parseDrop TkIn <*> parseTerm1
   _ -> parseTerm2
 
 
@@ -254,6 +274,7 @@ TERM5 ::=
   | ()                       multiplicative tuple of zero terms
   | (TERM1+)                 multiplicative tuple of two or more terms
   | <TERM1*>                 additive tuple of zero or more terms
+  | CONST                    constant (natural number)
   | fail                     (without type annotation)
   | error
 
@@ -273,9 +294,22 @@ parseTerm5 = parsePeek >>= \ t -> case t of
     parsePeek >>= \ t -> case t of
         TkRangle -> pure (UsProd Additive [])
         _ -> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm])) <* parseDrop TkRangle
+  TkNat n -> parseEat *> pure (unpackNat n)
   TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
+-- Unpack a natural number into a series of successors
+unpackNat :: Int -> UsTm
+unpackNat k =
+  if k > 0 then (UsApp (UsVar (TmV "Succ")) (unpackNat (k-1)))
+  else (UsVar (TmV "Zero"))
+
+-- Add two (constant) natural numbers together
+natAdd :: Int -> Int -> UsTm
+natAdd x y
+  | x > 0 = (UsApp (UsVar (TmV "Succ")) (natAdd (x-1) y))
+  | y > 0 = (UsApp (UsVar (TmV "Succ")) (natAdd x (y-1)))
+  | otherwise = UsVar (TmV "Zero")
 
 {- Type Annotation
 

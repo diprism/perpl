@@ -1,0 +1,7 @@
+-- Tests whether Nats are accepted as factor weights
+
+define prob: Bool = amb (factor 1 in True) (factor 2 in False);
+
+prob
+
+-- correct: [2.0, 1.0]

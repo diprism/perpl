@@ -1,11 +1,9 @@
-data Nat = Z | S Nat;
-
 define half1 n =
   case n of
-    | Z -> Z
-    | S n -> case n of
-      | Z -> Z
-      | S n -> S (half1 n);
+    | Zero -> Zero
+    | Succ n -> case n of
+      | Zero -> Zero
+      | Succ n -> Succ (half1 n);
 
 define half2 n = half1 (half1 n);
 define half4 n = half2 (half2 n);
@@ -18,10 +16,10 @@ define half256 n = half128 (half128 n);
 define half512 n = half256 (half256 n);
 define half1024 n = half512 (half512 n);
 
--- Note: eta-expanding to \m. S m significantly reduces FGG size!?
+-- Note: eta-expanding to \m. Succ m significantly reduces FGG size!?
 -- I believe this is because it essentially disables the affine-to-linear
 -- optimization that assumes global function calls always receive all args,
--- i.e. instead of (let <y', _> = y in y' Z) below, we simply get (y Z)
-define y m = S m;
+-- i.e. instead of (let <y', _> = y in y' Zero) below, we simply get (y Zero)
+define y m = Succ m;
 
-let _ = half? (y Z) in ();
+let _ = half? (y Zero) in ();

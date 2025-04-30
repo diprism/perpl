@@ -1,0 +1,5 @@
+-- Tests whether negative numbers are allowed as factor weights (should not be)
+
+define prob: Bool = amb (factor -0.3 in False) (factor 0.7 in True);
+
+prob
