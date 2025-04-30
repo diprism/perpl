@@ -1,4 +1,17 @@
 {- Parser code -}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use lambda-case" #-}
+{-# HLINT ignore "Use $>" #-}
+{-# HLINT ignore "Use <$>" #-}
+{-# HLINT ignore "Redundant bracket" #-}
+{-# HLINT ignore "Use section" #-}
+{-# HLINT ignore "Redundant fmap" #-}
+{-# HLINT ignore "Use <$" #-}
+{-# HLINT ignore "Use null" #-}
+{-# HLINT ignore "Use >=>" #-}
+{-# HLINT ignore "Use first" #-}
+{-# HLINT ignore "Use list comprehension" #-}
+{-# HLINT ignore "Use !!" #-}
 
 module Parse.Parse where
 import Parse.Lex
@@ -281,10 +294,7 @@ parseTerm5 = parsePeek >>= \ t -> case t of
     parsePeek >>= \ t -> case t of
         TkRangle -> pure (UsProd Additive [])
         _ -> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm])) <* parseDrop TkRangle
-  TkNat n -> (
-    parsePeeks 2 >>= \t1t2 -> case t1t2 of
-      [TkNat n, TkAdd] -> parsePeeks 3 >>= \[TkNat n, TkAdd, TkNat m] -> parseEat *> pure (natAdd n m) <* parseDrop TkAdd <* parseEat
-      [_, _] -> parseEat *> pure (unpackNat n))
+  TkNat n -> parseEat *> pure (unpackNat n)
   TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 

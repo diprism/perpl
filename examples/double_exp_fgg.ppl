@@ -13,7 +13,7 @@ define add = \m. \n. case m of Zero -> reconstruct n | Succ m -> add m (Succ n);
 define pluszero = \m. add m Zero;
 
 -- For each of these, the FGG's domains have the following total number of values:
-define big0 = Zero;             -- Σ |values| = 4
+define big0 = Zero;          -- Σ |values| = 4
 define big1 = pluszero big0; -- Σ |values| = 15
 define big2 = pluszero big1; -- Σ |values| = 40
 define big3 = pluszero big2; -- Σ |values| = 135
