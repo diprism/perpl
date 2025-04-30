@@ -29,14 +29,17 @@ To compile a PERPL program:
 
 Options:
         
-    -O0 -O1     Optimization level (0 = off, 1 = on)
-    -l          Don't linearize the file (implies -c -e)
-    -e          Don't eliminate recursive datatypes (implies -c)
+    -t          Stop after type checking
+    -m          Stop after monomorphizing
+    -l          Stop after linearizing
+    -e          Stop after eliminating recursive datatypes (will compile to PPL code)
+    -z          Compute sum-product
+    -p          Compute sum-product with cleaner output
+    -s          Suppress values in the output JSON (no effect if no JSON output)
+    -o OUTFILE  Output an FGG to OUTFILE
+    -O0, -O1    Optimization level (O0 = off, O1 = on)
     -d DTYPES   Defunctionalize recursive datatypes DTYPES
     -r DTYPES   Refunctionalize recursive datatypes DTYPES
-    -c          Compile only to PPL code (not to FGG)
-    -z          Compute sum-product
-    -o OUTFILE  Output an FGG to OUTFILE
 
 Although `perplc` can compute sum-products, its implementation is not very efficient. The normal usage is to use the `-o` option to output an FGG to a JSON file. Then the FGG can be processed using [the `fggs` package](https://github.com/diprism/fggs).
 
