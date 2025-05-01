@@ -12,11 +12,13 @@
 {-# HLINT ignore "Use first" #-}
 {-# HLINT ignore "Use list comprehension" #-}
 {-# HLINT ignore "Use !!" #-}
+{-# HLINT ignore "Redundant <$>" #-}
 
 module Parse.Parse where
 import Parse.Lex
 import Struct.Lib
 import Util.Helpers (enumerate)
+import Debug.Trace
 
 -- Throws a parser error message (s) at a certain position (p)
 parseErr' p s = Left (p, s)
@@ -254,17 +256,37 @@ parseTerm4 :: ParseM UsTm
 parseTerm4 = parsePeek >>= \ t -> case t of
 -- amb tm*
   TkAmb -> parseEat *> parseAmbs []
-  _ -> parseTerm5 >>= \ tm -> parseTermApp tm
+  _ -> trace ("entering pt4p with " ++ show t) parseTerm4p
 
 -- Parses the "tm*" part of "amb tm*"
 parseAmbs :: [UsTm] -> ParseM UsTm
 parseAmbs acc =
   parseElse (UsAmb (reverse acc)) (parseTerm5 >>= \ tm -> parseAmbs (tm : acc))
 
+{-
+
+TERM4P ::=
+  | TERM4P + TERM5
+  | TERM5
+
+-}
+parseTerm4p :: ParseM UsTm
+parseTerm4p = parsePeeks 2 >>= \ t -> case t of
+  -- currently infinite looping on seeing [6, +]
+  [_, TkAdd] -> trace ("reentering pt4p with " ++ show t) parseTerm4p >>= \tm -> UsAdd <$> trace ("entering pt5 with " ++ show tm) parseDelim parseTerm5 TkAdd [tm] >>= \ tt -> parseTermApp tt
+  [_, _] -> trace ("no add, entering pt5 with " ++ show t) parseTerm5 >>= \ tm -> parseTermApp tm
+
+{-
+parseTerm4p = parseTerm4p >>= \ tm ->
+  parsePeek >>= \ t -> case t of
+    TkAdd -> UsAdd <$> trace "entering pt5" parseDelim parseTerm5 TkAdd [tm] >>= \ tt -> parseTermApp tt
+    _ -> trace "no add, entering pt5" parseTerm5 >>= \ tm -> parseTermApp tm
+-}
+
 -- Parse an application spine
 parseTermApp :: UsTm -> ParseM UsTm
 parseTermApp acc =
-  parseElse acc $ parseTerm5 >>= parseTermApp . UsApp acc
+  parseElse acc $ trace ("also entering pt5 with " ++ show acc) parseTerm5 >>= parseTermApp . UsApp acc
 
 {-
 

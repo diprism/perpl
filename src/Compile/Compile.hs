@@ -261,6 +261,18 @@ term2fgg g (TmEqs tms) =
       (Edge (vtps ++ [vbtp]) fac : [Edge (xs ++ [vtp]) (ElNonterminal tm) | (tm, vtp, xs) <- zip3 tms vtps xss])
       (concat xss ++ [vbtp])
 
+term2fgg g (TmAdd tms) =
+  mapM (term2fgg g) tms >>= \ xss -> -- call (term2fgg g) on all the terms in tms, get the output and put into xss
+  let tmstp = typeof (head tms) -- tmstp aka terms type is the type of the head of tms
+      ntms = length tms -- ntms aka n terms is the length of tms
+      fac = ElTerminal (FaEqual tmstp ntms)
+      vbtp = (NnOut, tmstp) -- NnOut is an external node holding the value of an expression (vs NnVar or NnInternal). Put this tuple into vbtp (vb-type)
+      vtps = newNodeNames [typeof tm | tm <- tms] in -- vtps aka v-types, making this ^ kind of tuple for every term tm in tms
+    mkRule (TmAdd tms) -- creates a rule
+      (vbtp : vtps ++ concat xss)
+      (Edge (vtps ++ [vbtp]) fac : [Edge (xs ++ [vtp]) (ElNonterminal tm) | (tm, vtp, xs) <- zip3 tms vtps xss])
+      (concat xss ++ [vbtp])
+
 {- prog2fgg g prog
 
    Adds the rules for a Prog. -}

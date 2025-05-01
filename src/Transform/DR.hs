@@ -352,6 +352,8 @@ derefunTerm dr g rtp = fst . h where
       TmElimAdditive tm2 n i (x, tps!!i) tm2' tp
   h' (TmEqs tms) =
     TmEqs [h' tm | tm <- tms]
+  h' (TmAdd tms) =
+    TmAdd [h' tm | tm <- tms]
 
 derefunProgTypes :: DeRe -> TpName -> Prog -> Prog
 derefunProgTypes dr rtp (ProgDefine x ps tm tp) = ProgDefine x (map (fmap (derefunSubst dr rtp)) ps) tm (derefunSubst dr rtp tp)

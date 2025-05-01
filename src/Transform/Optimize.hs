@@ -133,6 +133,8 @@ liftFail' (TmElimMultiplicative tm ps tm' tp) =
   pure TmElimMultiplicative <*> liftFail' tm <*> pure ps <*> liftFail' tm' <*> pure tp
 liftFail' (TmEqs tms) =
   pure TmEqs <*> mapM liftFail' tms
+liftFail' (TmAdd tms) =
+  pure TmAdd <*> mapM liftFail' tms
 
 -- If a term inevitably fails, just replace it with fail.
 -- For example, (sample fail : tp1 -> tp2) tm1 is the same
