@@ -427,6 +427,16 @@ infer' (UsEqs tms) =
   constrain (Positive itp) >>
   return (TmEqs tms')
 
+infer' (UsAdd tms) =
+  mapM infer tms >>= \ tms' ->
+  -- itp = type of all the terms in tms'
+  freshTp >>= \ itp ->
+  -- Constraint: for each term (aka tm) in tms', itp = (typeof tm)
+  mapM (constrain . Unify itp . typeof) tms' >>
+  -- Constraint: itp is positive (only different line btwn UsEqs and UsAmb)
+  constrain (Positive itp) >>
+  return (TmAdd tms')
+
 inferCase :: CaseUs -> Ctor -> CheckM Case
 inferCase (CaseUs x xs tm) (Ctor x' ps) =
   -- Set the current expression to be the case `| x xs -> tm`

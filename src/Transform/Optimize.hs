@@ -181,6 +181,7 @@ safe2sub g x xtm tm =
     noDefsSamps (TmElimAdditive tm n i p tm' tp) = noDefsSamps tm && noDefsSamps tm'
     noDefsSamps (TmElimMultiplicative tm ps tm' tp) = noDefsSamps tm && noDefsSamps tm'
     noDefsSamps (TmEqs tms) = all noDefsSamps tms
+    noDefsSamps (TmAdd tms) = all noDefsSamps tms
 
 -- Applies various optimizations to a term
 optimizeTerm :: Ctxt -> Term -> Term
@@ -241,6 +242,8 @@ optimizeTerm g (TmElimMultiplicative tm ps tm' tp) =
   TmElimMultiplicative (optimizeTerm g tm) ps (optimizeTerm (ctxtAddArgs g ps) tm') tp
 optimizeTerm g (TmEqs tms) =
   TmEqs [optimizeTerm g tm | tm <- tms]
+optimizeTerm g (TmAdd tms) =
+  TmAdd [optimizeTerm g tm | tm <- tms]
 
 -- Applies various optimizations to a list of args
 optimizeArgs :: Ctxt -> [Arg] -> [Arg]
