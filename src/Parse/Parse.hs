@@ -18,7 +18,6 @@ module Parse.Parse where
 import Parse.Lex
 import Struct.Lib
 import Util.Helpers (enumerate)
-import Debug.Trace
 
 -- Throws a parser error message (s) at a certain position (p)
 parseErr' p s = Left (p, s)
@@ -256,7 +255,7 @@ parseTerm4 :: ParseM UsTm
 parseTerm4 = parsePeek >>= \ t -> case t of
 -- amb tm*
   TkAmb -> parseEat *> parseAmbs []
-  _ -> trace ("entering pt4p with " ++ show t) parseTerm4p
+  _ -> parseTerm4p
 
 -- Parses the "tm*" part of "amb tm*"
 parseAmbs :: [UsTm] -> ParseM UsTm
@@ -266,27 +265,30 @@ parseAmbs acc =
 {-
 
 TERM4P ::=
-  | TERM4P + TERM5
+  | TERM5 + TERM4P
   | TERM5
 
 -}
-parseTerm4p :: ParseM UsTm
-parseTerm4p = parsePeeks 2 >>= \ t -> case t of
-  -- currently infinite looping on seeing [6, +]
-  [_, TkAdd] -> trace ("reentering pt4p with " ++ show t) parseTerm4p >>= \tm -> UsAdd <$> trace ("entering pt5 with " ++ show tm) parseDelim parseTerm5 TkAdd [tm] >>= \ tt -> parseTermApp tt
-  [_, _] -> trace ("no add, entering pt5 with " ++ show t) parseTerm5 >>= \ tm -> parseTermApp tm
 
-{-
-parseTerm4p = parseTerm4p >>= \ tm ->
+parseTerm4p :: ParseM UsTm
+parseTerm4p = parseTerm5 >>= \ tm ->
   parsePeek >>= \ t -> case t of
-    TkAdd -> UsAdd <$> trace "entering pt5" parseDelim parseTerm5 TkAdd [tm] >>= \ tt -> parseTermApp tt
-    _ -> trace "no add, entering pt5" parseTerm5 >>= \ tm -> parseTermApp tm
--}
+    TkAdd -> UsAdd <$> parseDelim parseTerm5 TkAdd [tm] >>= \ ta -> case ta of
+      UsAdd vals -> pure (sumVals vals)
+      _ -> pure ta -- don't think this can happen
+    _ -> parseTermApp tm
+
+-- x is Succ(Succ(Zero))  y is Succ(Zero)
+sumVals :: [UsTm] -> UsTm
+sumVals [x,y] = case x of
+  UsVar (TmV "Zero") -> y
+  UsApp (UsVar (TmV "Succ")) x' -> (UsApp (UsVar (TmV "Succ")) (sumVals [x',y]))
+  _ -> x -- TODO: Evaluate other UsVar's (like if num1 = 6, should convert the variable num1 into the number 6)
 
 -- Parse an application spine
 parseTermApp :: UsTm -> ParseM UsTm
 parseTermApp acc =
-  parseElse acc $ trace ("also entering pt5 with " ++ show acc) parseTerm5 >>= parseTermApp . UsApp acc
+  parseElse acc $ parseTerm5 >>= parseTermApp . UsApp acc
 
 {-
 
@@ -325,13 +327,6 @@ unpackNat :: Int -> UsTm
 unpackNat k =
   if k > 0 then (UsApp (UsVar (TmV "Succ")) (unpackNat (k-1)))
   else (UsVar (TmV "Zero"))
-
--- Add two (constant) natural numbers together
-natAdd :: Int -> Int -> UsTm
-natAdd x y
-  | x > 0 = (UsApp (UsVar (TmV "Succ")) (natAdd (x-1) y))
-  | y > 0 = (UsApp (UsVar (TmV "Succ")) (natAdd x (y-1)))
-  | otherwise = UsVar (TmV "Zero")
 
 {- Type Annotation
 
