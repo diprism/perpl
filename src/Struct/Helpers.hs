@@ -18,6 +18,7 @@ typeof (TmProd am as) = TpProd am (snds as)
 typeof (TmElimMultiplicative tm ps    tm' tp) = tp
 typeof (TmElimAdditive       tm n i p tm' tp) = tp
 typeof (TmEqs tms) = tpBool
+typeof (TmAdd tms) = typeof (head tms) -- an addition will return a double
 
 -- Sorts cases according to the order they are appear in the datatype definition
 -- This allows you to do case tm of C2->... | C1->..., which then gets translated to

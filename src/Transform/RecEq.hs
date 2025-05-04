@@ -136,6 +136,7 @@ replaceEqsh (TmElimMultiplicative xtm xps tm tp) =
 replaceEqsh (TmElimAdditive xtm xi xj xp tm tp) =
   pure TmElimAdditive <*> replaceEqsh xtm <*> pure xi <*> pure xj <*> pure xp <*> replaceEqsh tm <*> pure tp
 replaceEqsh (TmEqs tms) = replaceEq tms
+replaceEqsh (TmAdd tms) = pure TmAdd <*> mapM replaceEqsh tms
     
 replaceEqsProg :: Prog -> EqM Prog
 replaceEqsProg (ProgDefine x ps tm tp) =

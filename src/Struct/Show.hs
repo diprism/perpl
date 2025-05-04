@@ -24,6 +24,7 @@ toUsTm (TmProd am as) = UsProd am [toUsTm tm | (tm, _) <- as]
 toUsTm (TmElimMultiplicative tm ps    tm' tp) = UsElimMultiplicative (toUsTm tm) (fsts ps)   (toUsTm tm')
 toUsTm (TmElimAdditive       tm n i p tm' tp) = UsElimAdditive       (toUsTm tm) n i (fst p) (toUsTm tm')
 toUsTm (TmEqs tms) = UsEqs [toUsTm tm | tm <- tms]
+toUsTm (TmAdd tms) = UsAdd [toUsTm tm | tm <- tms]
 
 toCaseUs :: Case -> CaseUs
 toCaseUs (Case x as tm) = CaseUs x (fsts as) (toUsTm tm)
@@ -84,6 +85,7 @@ instance Show UsTm where
   showsPrec _ (UsProd am tms) = let (l, r) = amParens am in showString l . delimitWith ", " (map shows tms) . showString r
   showsPrec _ (UsTmBool b) = showString (if b then "True" else "False")
   showsPrec p (UsEqs tms) = showParen (p > 4) (delimitWith " == " (map (showsPrec 5) tms))
+  showsPrec p (UsAdd tms) = showParen (p > 4) (delimitWith " + " (map (showsPrec 5) tms))
 instance Show Term where
   showsPrec p = showsPrec p . toUsTm
 

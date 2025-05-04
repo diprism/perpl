@@ -12,11 +12,13 @@
 {-# HLINT ignore "Use first" #-}
 {-# HLINT ignore "Use list comprehension" #-}
 {-# HLINT ignore "Use !!" #-}
+{-# HLINT ignore "Redundant <$>" #-}
 
 module Parse.Parse where
 import Parse.Lex
 import Struct.Lib
 import Util.Helpers (enumerate)
+import Debug.Trace ( trace )
 
 -- Throws a parser error message (s) at a certain position (p)
 parseErr' p s = Left (p, s)
@@ -254,12 +256,39 @@ parseTerm4 :: ParseM UsTm
 parseTerm4 = parsePeek >>= \ t -> case t of
 -- amb tm*
   TkAmb -> parseEat *> parseAmbs []
-  _ -> parseTerm5 >>= \ tm -> parseTermApp tm
+  _ -> parseTerm4p
 
 -- Parses the "tm*" part of "amb tm*"
 parseAmbs :: [UsTm] -> ParseM UsTm
 parseAmbs acc =
   parseElse (UsAmb (reverse acc)) (parseTerm5 >>= \ tm -> parseAmbs (tm : acc))
+
+{-
+
+TERM4P ::=
+  | TERM5 + TERM4P
+  | TERM5
+
+-}
+
+parseTerm4p :: ParseM UsTm
+parseTerm4p = parseTerm5 >>= \ tm1 -> trace ("tm is " ++ show tm1)
+  parsePeek >>= \ t -> case t of
+    -- if see +, eat its token, parse the second term, then sum it with the first term and return that sum as a ParseM UsTm
+    TkAdd -> parseEat *> parseTerm4p >>= \ tm2 -> trace ("tm1 is " ++ show tm1 ++ " tm2 is " ++ show tm2) pure (sumVals [tm1, tm2])
+    -- else mosey over to parseTermApp
+    _ -> trace ("t is " ++ show t) parseTermApp tm1
+
+-- for num1 + num2, currently passing in num1, num2 not their values (6 and 1)
+-- how to replace num1 with 6, num2 with 1?
+-- connect num1 to the UsLet/TmLet it's connected to?
+sumVals :: [UsTm] -> UsTm
+sumVals arr = trace ("in sumVals with " ++ show arr) (case arr of
+  [UsVar (TmV "Zero"), y ]-> y
+  [UsApp (UsVar (TmV "Succ")) x', y]-> (UsApp (UsVar (TmV "Succ")) (sumVals [x',y]))
+  [UsVar (TmV str), y]-> trace ("str is " ++ show str) UsVar (TmV str) -- going down this route currently
+  [] -> UsFail NoTp
+  [x, y] -> x)
 
 -- Parse an application spine
 parseTermApp :: UsTm -> ParseM UsTm
@@ -282,7 +311,7 @@ TERM5 ::=
 
 -- Var, Parens
 parseTerm5 :: ParseM UsTm
-parseTerm5 = parsePeek >>= \ t -> case t of
+parseTerm5 = parsePeek >>= \ t -> trace ("t is " ++ show t) (case t of
   TkVar "_" -> parseErr "Expected non-underscore variable here"
   TkVar v -> parseEat *> pure (UsVar (TmV v))
   TkParenL -> parseEat *> (
@@ -296,20 +325,13 @@ parseTerm5 = parsePeek >>= \ t -> case t of
         _ -> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm])) <* parseDrop TkRangle
   TkNat n -> parseEat *> pure (unpackNat n)
   TkFail -> parseEat *> pure (UsFail NoTp)
-  _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
+  _ -> parseErr "couldn't parse a term here; perhaps add parentheses?")
 
 -- Unpack a natural number into a series of successors
 unpackNat :: Int -> UsTm
 unpackNat k =
   if k > 0 then (UsApp (UsVar (TmV "Succ")) (unpackNat (k-1)))
   else (UsVar (TmV "Zero"))
-
--- Add two (constant) natural numbers together
-natAdd :: Int -> Int -> UsTm
-natAdd x y
-  | x > 0 = (UsApp (UsVar (TmV "Succ")) (natAdd (x-1) y))
-  | y > 0 = (UsApp (UsVar (TmV "Succ")) (natAdd x (y-1)))
-  | otherwise = UsVar (TmV "Zero")
 
 {- Type Annotation
 
