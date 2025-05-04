@@ -281,12 +281,14 @@ parseTerm4p = parseTerm5 >>= \ tm1 -> trace ("tm is " ++ show tm1)
 
 -- for num1 + num2, currently passing in num1, num2 not their values (6 and 1)
 -- how to replace num1 with 6, num2 with 1?
+-- connect num1 to the UsLet/TmLet it's connected to?
 sumVals :: [UsTm] -> UsTm
-sumVals [x,y] = case x of
-  UsVar (TmV "Zero") -> y
-  UsApp (UsVar (TmV "Succ")) x' -> (UsApp (UsVar (TmV "Succ")) (sumVals [x',y]))
-  UsVar (TmV str) -> trace ("str is " ++ show str ++ ", x is " ++ show x) UsVar (TmV str) -- going down this route currently
-  _ -> x
+sumVals arr = trace ("in sumVals with " ++ show arr) (case arr of
+  [UsVar (TmV "Zero"), y ]-> y
+  [UsApp (UsVar (TmV "Succ")) x', y]-> (UsApp (UsVar (TmV "Succ")) (sumVals [x',y]))
+  [UsVar (TmV str), y]-> trace ("str is " ++ show str) UsVar (TmV str) -- going down this route currently
+  [] -> UsFail NoTp
+  [x, y] -> x)
 
 -- Parse an application spine
 parseTermApp :: UsTm -> ParseM UsTm
