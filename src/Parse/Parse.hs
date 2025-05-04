@@ -18,6 +18,7 @@ module Parse.Parse where
 import Parse.Lex
 import Struct.Lib
 import Util.Helpers (enumerate)
+import Debug.Trace ( trace )
 
 -- Throws a parser error message (s) at a certain position (p)
 parseErr' p s = Left (p, s)
@@ -271,19 +272,21 @@ TERM4P ::=
 -}
 
 parseTerm4p :: ParseM UsTm
-parseTerm4p = parseTerm5 >>= \ tm ->
+parseTerm4p = parseTerm5 >>= \ tm1 -> trace ("tm is " ++ show tm1)
   parsePeek >>= \ t -> case t of
-    TkAdd -> UsAdd <$> parseDelim parseTerm5 TkAdd [tm] >>= \ ta -> case ta of
-      UsAdd vals -> pure (sumVals vals)
-      _ -> pure ta -- don't think this can happen
-    _ -> parseTermApp tm
+    -- if see +, eat its token, parse the second term, then sum it with the first term and return that sum as a ParseM UsTm
+    TkAdd -> parseEat *> parseTerm4p >>= \ tm2 -> trace ("tm1 is " ++ show tm1 ++ " tm2 is " ++ show tm2) pure (sumVals [tm1, tm2])
+    -- else mosey over to parseTermApp
+    _ -> trace ("t is " ++ show t) parseTermApp tm1
 
--- x is Succ(Succ(Zero))  y is Succ(Zero)
+-- for num1 + num2, currently passing in num1, num2 not their values (6 and 1)
+-- how to replace num1 with 6, num2 with 1?
 sumVals :: [UsTm] -> UsTm
 sumVals [x,y] = case x of
   UsVar (TmV "Zero") -> y
   UsApp (UsVar (TmV "Succ")) x' -> (UsApp (UsVar (TmV "Succ")) (sumVals [x',y]))
-  _ -> x -- TODO: Evaluate other UsVar's (like if num1 = 6, should convert the variable num1 into the number 6)
+  UsVar (TmV str) -> trace ("str is " ++ show str ++ ", x is " ++ show x) UsVar (TmV str) -- going down this route currently
+  _ -> x
 
 -- Parse an application spine
 parseTermApp :: UsTm -> ParseM UsTm
@@ -306,7 +309,7 @@ TERM5 ::=
 
 -- Var, Parens
 parseTerm5 :: ParseM UsTm
-parseTerm5 = parsePeek >>= \ t -> case t of
+parseTerm5 = parsePeek >>= \ t -> trace ("t is " ++ show t) (case t of
   TkVar "_" -> parseErr "Expected non-underscore variable here"
   TkVar v -> parseEat *> pure (UsVar (TmV v))
   TkParenL -> parseEat *> (
@@ -320,7 +323,7 @@ parseTerm5 = parsePeek >>= \ t -> case t of
         _ -> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm])) <* parseDrop TkRangle
   TkNat n -> parseEat *> pure (unpackNat n)
   TkFail -> parseEat *> pure (UsFail NoTp)
-  _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
+  _ -> parseErr "couldn't parse a term here; perhaps add parentheses?")
 
 -- Unpack a natural number into a series of successors
 unpackNat :: Int -> UsTm
