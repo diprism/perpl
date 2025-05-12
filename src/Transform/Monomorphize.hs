@@ -62,8 +62,6 @@ collectCalls' (TmElimAdditive ptm n i p tm tp) =
   collectCalls ptm <> collectCalls tm
 collectCalls' (TmEqs tms) =
   mconcat (fmap collectCalls tms)
-collectCalls' (TmAdd tms) =
-  mconcat (fmap collectCalls tms)
 
 -- Collects datatype calls in a type
 collectCallsTp :: Type -> GlobalCalls
@@ -103,7 +101,6 @@ renameCalls xis (TmProd am as) = TmProd am [(renameCalls xis tm, renameCallsTp x
 renameCalls xis (TmElimMultiplicative ptm ps tm tp) = TmElimMultiplicative (renameCalls xis ptm) [(x, renameCallsTp xis xtp) | (x, xtp) <- ps] (renameCalls xis tm) (renameCallsTp xis tp)
 renameCalls xis (TmElimAdditive ptm n i (x,xtp) tm tp) = TmElimAdditive (renameCalls xis ptm) n i (x, renameCallsTp xis xtp) (renameCalls xis tm) (renameCallsTp xis tp)
 renameCalls xis (TmEqs tms) = TmEqs (renameCalls xis <$> tms)
-renameCalls xis (TmAdd tms) = TmAdd (renameCalls xis <$> tms)
 
 -- Same as renameCalls, but for types
 renameCallsTp :: Map Var (Map ([Tag], [Type]) Int) -> Type -> Type

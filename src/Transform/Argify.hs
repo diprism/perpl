@@ -58,7 +58,6 @@ argifyFile (Progs ps tm) = Progs (map argifyProg ps) (argifyTerm tm) where
   argifyTerm (TmElimMultiplicative ptm ps    tm tp) = TmElimMultiplicative (argifyTerm ptm) ps    (argifyTerm tm) tp
   argifyTerm (TmElimAdditive       ptm n i p tm tp) = TmElimAdditive       (argifyTerm ptm) n i p (argifyTerm tm) tp
   argifyTerm (TmEqs tms) = TmEqs (argifyTerm <$> tms)
-  argifyTerm (TmAdd tms) = TmAdd (argifyTerm <$> tms)
 
   -- Argify an application of a global definition (TmVarG g x [] [] [] _)
   -- to zero or more arguments (as).

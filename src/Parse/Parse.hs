@@ -204,7 +204,9 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
         return (UsElimAdditive tm (length xs) i (TmV x) tm')
       _ -> parseErr "Expected exactly one non-underscore variable"
 -- let x = term [: type] in term
+  -- eat the TkLet, call pure (UsLet . TmV) on the x, then parse that, then drop the '='
   [TkLet, _] -> parseEat *> pure (UsLet . TmV) <*> parseVar <* parseDrop TkEq
+             -- after that, call pt1 on the first term, drop the 'in', call pt1 on the second term
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- factor wt
   [TkFactor, TkDouble x] -> parseEat *> pure UsFactorDouble <*> parseDouble <* parseDrop TkIn <*> parseTerm1
@@ -275,20 +277,10 @@ parseTerm4p :: ParseM UsTm
 parseTerm4p = parseTerm5 >>= \ tm1 -> trace ("tm is " ++ show tm1)
   parsePeek >>= \ t -> case t of
     -- if see +, eat its token, parse the second term, then sum it with the first term and return that sum as a ParseM UsTm
-    TkAdd -> parseEat *> parseTerm4p >>= \ tm2 -> trace ("tm1 is " ++ show tm1 ++ " tm2 is " ++ show tm2) pure (sumVals [tm1, tm2])
+    --TkAdd -> parseEat *> parseTerm4p >>= \ tm2 -> trace ("tm1 is " ++ show tm1 ++ " tm2 is " ++ show tm2) pure (sumVals [tm1, tm2])
+    TkAdd -> parseEat *> parseTerm4p >>= \ tm2 -> pure (UsApp tm1 tm2)
     -- else mosey over to parseTermApp
     _ -> trace ("t is " ++ show t) parseTermApp tm1
-
--- for num1 + num2, currently passing in num1, num2 not their values (6 and 1)
--- how to replace num1 with 6, num2 with 1?
--- connect num1 to the UsLet/TmLet it's connected to?
-sumVals :: [UsTm] -> UsTm
-sumVals arr = trace ("in sumVals with " ++ show arr) (case arr of
-  [UsVar (TmV "Zero"), y ]-> y
-  [UsApp (UsVar (TmV "Succ")) x', y]-> (UsApp (UsVar (TmV "Succ")) (sumVals [x',y]))
-  [UsVar (TmV str), y]-> trace ("str is " ++ show str) UsVar (TmV str) -- going down this route currently
-  [] -> UsFail NoTp
-  [x, y] -> x)
 
 -- Parse an application spine
 parseTermApp :: UsTm -> ParseM UsTm

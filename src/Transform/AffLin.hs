@@ -237,10 +237,6 @@ affLin (TmEqs tms) =
   -- L(tm1 == tm2 == ... == tmn) =>
   --   L(tm1) == L(tm2) == ... == L(tmn)
   pure TmEqs <*> mapM affLin tms
-affLin (TmAdd tms) =
-  -- L(tm1 + tm2 + ... + tmn) =>
-  --   L(tm1) + L(tm2) + ... + L(tmn)
-  pure TmAdd <*> mapM affLin tms
 
 -- Generate a discard function for each recursive type
 affLinDiscards :: [Prog] -> AffLinM [Prog]

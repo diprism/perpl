@@ -18,7 +18,6 @@ typeof (TmProd am as) = TpProd am (snds as)
 typeof (TmElimMultiplicative tm ps    tm' tp) = tp
 typeof (TmElimAdditive       tm n i p tm' tp) = tp
 typeof (TmEqs tms) = tpBool
-typeof (TmAdd tms) = typeof (head tms) -- an addition will return a double
 
 -- Sorts cases according to the order they are appear in the datatype definition
 -- This allows you to do case tm of C2->... | C1->..., which then gets translated to
@@ -165,7 +164,9 @@ mapProgsM f (Progs ps end) =
 
 -- Built-in datatypes
 
+tpZeroName :: TpName
 tpZeroName = TpN "_Zero"
+tpZero :: Type
 tpZero = TpData tpZeroName [] []
 
 tmUnit = TmProd Multiplicative []
@@ -184,6 +185,17 @@ tmTrue = TmVarG GlCtor tmTrueName [] [] [] tpBool
 tmFalse :: Term
 tmFalse = TmVarG GlCtor tmFalseName [] [] [] tpBool
 
+-- this is how we hide stuff with the _,
+-- add should be hidden, like if a user makes a function called add the computer shouldnt freak out and be like theres already an add function
+-- like hide ours (+) or we could call it _Add
+-- maybe do that then we coudl use it like (+) 3 4  and then syntactic sugar can do 3 + 4
+tpAddName :: TpName
+tpAddName = TpN "_Add"
+tmAddName :: TmName
+tmAddName = TmN "_Add"
+tpAdd :: Type
+tpAdd = TpData tpAddName [] []
+
 tpNatName :: TpName
 tpNatName = TpN "Nat"
 tmZeroName :: TmName
@@ -193,11 +205,20 @@ tmSuccName = TmN "Succ"
 tpNat :: Type
 tpNat = TpData tpNatName [] []
 
+sumVals :: [UsTm] -> UsTm
+sumVals arr = case arr of
+  [UsVar (TmV "Zero"), y ] -> y
+  [UsApp (UsVar (TmV "Succ")) x', y] -> UsApp (UsVar (TmV "Succ")) (sumVals [x',y])
+  [UsVar (TmV str), y] -> UsVar (TmV str)
+  [] -> UsFail NoTp
+  [x, y] -> x
+
 builtins :: [UsProg]
 builtins = [
   UsProgData tpZeroName [] [],
   UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []],
-  UsProgData tpNatName [] [Ctor tmZeroName [], Ctor tmSuccName [tpNat]]
+  UsProgData tpNatName [] [Ctor tmZeroName [], Ctor tmSuccName [tpNat]],
+  UsProgDefine tmAddName (sumVals []) tpAdd
   ]
 
 progBuiltins :: UsProgs -> UsProgs

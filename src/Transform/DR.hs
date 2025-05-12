@@ -31,7 +31,6 @@ collectUnfolds rtp (TmProd am as) = concatMap (\ (atm, atp) -> collectUnfolds rt
 collectUnfolds rtp (TmElimMultiplicative tm ps tm' tp) = collectUnfolds rtp tm ++ collectUnfolds rtp tm'
 collectUnfolds rtp (TmElimAdditive tm n i p tm' tp) = collectUnfolds rtp tm ++ collectUnfolds rtp tm'
 collectUnfolds rtp (TmEqs tms) = concatMap (collectUnfolds rtp) tms
-collectUnfolds rtp (TmAdd tms) = concatMap (collectUnfolds rtp) tms
 
 -- Collects all the usages of constructors for type rtp,
 -- returning the ctor name along with the free vars used
@@ -52,7 +51,6 @@ collectFolds rtp (TmProd am as) = concatMap (\ (atm, atp) -> collectFolds rtp at
 collectFolds rtp (TmElimMultiplicative tm ps tm' tp) = collectFolds rtp tm ++ collectFolds rtp tm'
 collectFolds rtp (TmElimAdditive tm n i p tm' tp) = collectFolds rtp tm ++ collectFolds rtp tm'
 collectFolds rtp (TmEqs tms) = concatMap (collectFolds rtp) tms
-collectFolds rtp (TmAdd tms) = concatMap (collectFolds rtp) tms
 
 -- Runs collect[Un]folds on a Prog
 collectProg :: (Term -> [a]) -> Prog -> [a]
@@ -216,8 +214,6 @@ disentangleTerm rtp cases = h where
     pure TmElimMultiplicative <*> h tm <*> pure ps <*> h tm' <*> pure tp
   h (TmEqs tms) =
     pure TmEqs <*> mapM h tms
-  h (TmAdd tms) =
-    pure TmAdd <*> mapM h tms
 
 --------------------------------------------------
 
@@ -261,8 +257,6 @@ defoldTerm rtp = h where
     pure TmElimMultiplicative <*> h tm <*> pure ps <*> h tm' <*> pure tp
   h (TmEqs tms) =
     pure TmEqs <*> mapM h tms
-  h (TmAdd tms) =
-    pure TmAdd <*> mapM h tms
 
 --------------------------------------------------
 
@@ -352,8 +346,6 @@ derefunTerm dr g rtp = fst . h where
       TmElimAdditive tm2 n i (x, tps!!i) tm2' tp
   h' (TmEqs tms) =
     TmEqs [h' tm | tm <- tms]
-  h' (TmAdd tms) =
-    TmAdd [h' tm | tm <- tms]
 
 derefunProgTypes :: DeRe -> TpName -> Prog -> Prog
 derefunProgTypes dr rtp (ProgDefine x ps tm tp) = ProgDefine x (map (fmap (derefunSubst dr rtp)) ps) tm (derefunSubst dr rtp tp)

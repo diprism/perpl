@@ -237,8 +237,6 @@ instance Substitutable Term where
     pure TmElimMultiplicative <*> substM ptm <**> substParams ps (substM tm) <*> substM tp
   substM (TmEqs tms) =
     pure TmEqs <*> substM tms
-  substM (TmAdd tms) =
-    pure TmAdd <*> substM tms
   
   freeVars (TmVarL x tp) = mempty{freeTmVars = Map.singleton x tp}
   freeVars (TmVarG g x tgs tis as tp) = freeVars tgs <> freeVars tis <> freeVars (fsts as)
@@ -253,7 +251,6 @@ instance Substitutable Term where
   freeVars (TmElimAdditive ptm n i p tm tp) = freeVars ptm <> let fv = freeVars tm in fv{freeTmVars = Map.delete (fst p) (freeTmVars fv)}
   freeVars (TmElimMultiplicative ptm ps tm tp) = freeVars ptm <> let fv = freeVars tm in fv{freeTmVars = foldr (Map.delete . fst) (freeTmVars fv) ps}
   freeVars (TmEqs tms) = freeVars tms
-  freeVars (TmAdd tms) = freeVars tms
 
 instance Substitutable Case where
   substM (Case x ps tm) =
@@ -314,8 +311,6 @@ instance Substitutable UsTm where
                 (substParam (x, NoTp) (substM tm'))
   substM (UsEqs tms) =
     pure UsEqs <*> substM tms
-  substM (UsAdd tms) =
-    pure UsAdd <*> substM tms
 
   freeVars (UsVar x) =
     mempty{freeTmVars = Map.singleton x NoTp}
@@ -348,8 +343,6 @@ instance Substitutable UsTm where
   freeVars (UsElimAdditive tm n i x tm') =
     freeVars tm <> let fv = freeVars tm' in fv{freeTmVars = Map.delete x (freeTmVars fv)}
   freeVars (UsEqs tms) =
-    freeVars tms
-  freeVars (UsAdd tms) =
     freeVars tms
   
 instance Substitutable CaseUs where
