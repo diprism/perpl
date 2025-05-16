@@ -219,6 +219,9 @@ builtins = [
   UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []],
   UsProgData tpNatName [] [Ctor tmZeroName [], Ctor tmSuccName [tpNat]],
   UsProgDefine tmAddName (sumVals []) tpAdd
+  -- aka UsProgDefine lhs, rhs, type
+  -- aka UsProgDefine x term type oftentimes when it's called in other files
+  -- UsProgDefine TmName UsTm Type in its definition
   ]
 
 progBuiltins :: UsProgs -> UsProgs

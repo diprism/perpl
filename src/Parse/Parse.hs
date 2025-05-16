@@ -274,13 +274,12 @@ TERM4P ::=
 -}
 
 parseTerm4p :: ParseM UsTm
-parseTerm4p = parseTerm5 >>= \ tm1 -> trace ("tm is " ++ show tm1)
+parseTerm4p = parseTerm5 >>= \ tm1 ->
   parsePeek >>= \ t -> case t of
     -- if see +, eat its token, parse the second term, then sum it with the first term and return that sum as a ParseM UsTm
-    --TkAdd -> parseEat *> parseTerm4p >>= \ tm2 -> trace ("tm1 is " ++ show tm1 ++ " tm2 is " ++ show tm2) pure (sumVals [tm1, tm2])
     TkAdd -> parseEat *> parseTerm4p >>= \ tm2 -> pure (UsApp tm1 tm2)
     -- else mosey over to parseTermApp
-    _ -> trace ("t is " ++ show t) parseTermApp tm1
+    _ -> parseTermApp tm1
 
 -- Parse an application spine
 parseTermApp :: UsTm -> ParseM UsTm
@@ -303,7 +302,7 @@ TERM5 ::=
 
 -- Var, Parens
 parseTerm5 :: ParseM UsTm
-parseTerm5 = parsePeek >>= \ t -> trace ("t is " ++ show t) (case t of
+parseTerm5 = parsePeek >>= \ t -> case t of
   TkVar "_" -> parseErr "Expected non-underscore variable here"
   TkVar v -> parseEat *> pure (UsVar (TmV v))
   TkParenL -> parseEat *> (
@@ -317,7 +316,7 @@ parseTerm5 = parsePeek >>= \ t -> trace ("t is " ++ show t) (case t of
         _ -> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm])) <* parseDrop TkRangle
   TkNat n -> parseEat *> pure (unpackNat n)
   TkFail -> parseEat *> pure (UsFail NoTp)
-  _ -> parseErr "couldn't parse a term here; perhaps add parentheses?")
+  _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 
 -- Unpack a natural number into a series of successors
 unpackNat :: Int -> UsTm
