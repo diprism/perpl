@@ -84,6 +84,8 @@ instance Show UsTm where
   showsPrec _ (UsProd am tms) = let (l, r) = amParens am in showString l . delimitWith ", " (map shows tms) . showString r
   showsPrec _ (UsTmBool b) = showString (if b then "True" else "False")
   showsPrec p (UsEqs tms) = showParen (p > 4) (delimitWith " == " (map (showsPrec 5) tms))
+  showsPrec _ (UsDouble d) = showString (show d)
+  showsPrec _ (UsRatio r) = showString (show r)
 instance Show Term where
   showsPrec p = showsPrec p . toUsTm
 

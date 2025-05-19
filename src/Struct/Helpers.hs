@@ -192,6 +192,16 @@ tmSuccName = TmN "Succ"
 tpNat :: Type
 tpNat = TpData tpNatName [] []
 
+tpDoubleName :: TpName
+tpDoubleName = TpN "_Double"
+tpDouble :: Type
+tpDouble = TpData tpDoubleName [] []
+
+tpRatioName :: TpName
+tpRatioName = TpN "_Ratio"
+tpRatio :: Type
+tpRatio = TpData tpRatioName [] []
+
 builtins :: [UsProg]
 builtins = [
   UsProgData tpZeroName [] [],
