@@ -3,7 +3,7 @@
 module Parse.Lex (Token (..), keywords, Pos, lexFile) where
 import Data.Char (isAlpha, isDigit, isSpace)
 import Text.Read ( readMaybe )
-import Data.Ratio
+import Data.Ratio ( (%) )
 
 -- Possible tokens
 data Token =
@@ -150,9 +150,9 @@ lexNum s = case span isDigit s of -- read until we encounter a non-digit
         ([], _) -> \ p _ -> Left (p, "Incomplete rational number detected") -- ex: 7/ versus 7/2
         (denomStr, rest3) ->
           case readMaybe numStr :: Maybe Integer of
-            Nothing -> \ p _ -> Left (p, "Numerator must be Integer") -- this shouldn't happen
+            Nothing -> \ p _ -> Left (p, "Numerator must be Integer") -- this shouldn't be able to happen
             Just numerator -> case readMaybe denomStr :: Maybe Integer of
-              Nothing -> \ p _ -> Left (p, "Denominator must be Integer") -- this shouldn't happen
+              Nothing -> \ p _ -> Left (p, "Denominator must be Integer") -- this shouldn't be able to happen
               Just denominator ->
                 let ratio = numerator % denominator
                 in lexAdd (take (length s - length rest3) s) rest3 (TkRatio ratio)
@@ -166,17 +166,6 @@ lexNum s = case span isDigit s of -- read until we encounter a non-digit
             else lexAdd (take (length s - length rest4) s) rest4 (TkDouble d) -- Case: double, not int
           [(n, rest5)] -> 
             lexAdd (take (length s - length rest4) s) rest4 (TkNat n) -- Case: double and int (so treat as int)
-
-{-
-lexNum :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
-lexNum s = case reads s :: [(Double, String)] of
-    [] -> lexKeywordOrVar s -- Case 1: unable to be read as a double
-    [(d, rest)] -> if d < 0
-      then \ p _ -> Left (p, "Negative number detected")
-      else case reads s :: [(Int, String)] of
-        [] -> lexAdd (take (length s - length rest) s) rest (TkDouble d) -- Case 2a: able to be read as a double, not as an int
-        [(n, rest')] -> lexAdd (take (length s - length rest) s) rest (TkNat n) -- Case 2b: able to be read as a double and an int (so treat as int)
--}
 
 -- Consumes characters until a non-variable character is reached
 lexVar :: String -> (String, String)
