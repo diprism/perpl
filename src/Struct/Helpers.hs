@@ -190,9 +190,9 @@ tmFalse = TmVarG GlCtor tmFalseName [] [] [] tpBool
 -- like hide ours (+) or we could call it _Add
 -- maybe do that then we coudl use it like (+) 3 4  and then syntactic sugar can do 3 + 4
 tpAddName :: TpName
-tpAddName = TpN "_Add"
+tpAddName = TpN "_Add" -- currently getting error message saying this '_Add' is not in scope...
 tmAddName :: TmName
-tmAddName = TmN "_Add"
+tmAddName = TmN "_Add" -- ...in the definition _Add
 tpAdd :: Type
 tpAdd = TpData tpAddName [] []
 
