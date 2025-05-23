@@ -164,7 +164,9 @@ mapProgsM f (Progs ps end) =
 
 -- Built-in datatypes
 
+tpZeroName :: TpName
 tpZeroName = TpN "_Zero"
+tpZero :: Type
 tpZero = TpData tpZeroName [] []
 
 tmUnit = TmProd Multiplicative []
@@ -183,6 +185,17 @@ tmTrue = TmVarG GlCtor tmTrueName [] [] [] tpBool
 tmFalse :: Term
 tmFalse = TmVarG GlCtor tmFalseName [] [] [] tpBool
 
+-- this is how we hide stuff with the _,
+-- add should be hidden, like if a user makes a function called add the computer shouldnt freak out and be like theres already an add function
+-- like hide ours (+) or we could call it _Add
+-- maybe do that then we coudl use it like (+) 3 4  and then syntactic sugar can do 3 + 4
+tpAddName :: TpName
+tpAddName = TpN "_Add" -- currently getting error message saying this '_Add' is not in scope...
+tmAddName :: TmName
+tmAddName = TmN "_Add" -- ...in the definition _Add
+tpAdd :: Type
+tpAdd = TpData tpAddName [] []
+
 tpNatName :: TpName
 tpNatName = TpN "Nat"
 tmZeroName :: TmName
@@ -192,11 +205,23 @@ tmSuccName = TmN "Succ"
 tpNat :: Type
 tpNat = TpData tpNatName [] []
 
+sumVals :: [UsTm] -> UsTm
+sumVals arr = case arr of
+  [UsVar (TmV "Zero"), y ] -> y
+  [UsApp (UsVar (TmV "Succ")) x', y] -> UsApp (UsVar (TmV "Succ")) (sumVals [x',y])
+  [UsVar (TmV str), y] -> UsVar (TmV str)
+  [] -> UsFail NoTp
+  [x, y] -> x
+
 builtins :: [UsProg]
 builtins = [
   UsProgData tpZeroName [] [],
   UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []],
-  UsProgData tpNatName [] [Ctor tmZeroName [], Ctor tmSuccName [tpNat]]
+  UsProgData tpNatName [] [Ctor tmZeroName [], Ctor tmSuccName [tpNat]],
+  UsProgDefine tmAddName (sumVals []) tpAdd
+  -- aka UsProgDefine lhs, rhs, type
+  -- aka UsProgDefine x term type oftentimes when it's called in other files
+  -- UsProgDefine TmName UsTm Type in its definition
   ]
 
 progBuiltins :: UsProgs -> UsProgs

@@ -45,7 +45,6 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccs (UsElimMultiplicative tm xs tm') = Map.unionWith (+) (countOccs tm) (foldr Map.delete (countOccs tm') xs)
     countOccs (UsElimAdditive tm n i x tm') = Map.unionWith (+) (countOccs tm) (Map.delete x (countOccs tm'))
     countOccs (UsEqs tms) = Map.unionsWith (+) (map countOccs tms)
-    
     countOccsCase :: CaseUs -> Map TmVar Int
     countOccsCase (CaseUs c xs tm) = foldr Map.delete (countOccs tm) xs
 

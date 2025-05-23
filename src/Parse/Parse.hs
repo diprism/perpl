@@ -12,11 +12,13 @@
 {-# HLINT ignore "Use first" #-}
 {-# HLINT ignore "Use list comprehension" #-}
 {-# HLINT ignore "Use !!" #-}
+{-# HLINT ignore "Redundant <$>" #-}
 
 module Parse.Parse where
 import Parse.Lex
 import Struct.Lib
 import Util.Helpers (enumerate)
+import Debug.Trace ( trace )
 
 -- Throws a parser error message (s) at a certain position (p)
 parseErr' p s = Left (p, s)
@@ -202,7 +204,9 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
         return (UsElimAdditive tm (length xs) i (TmV x) tm')
       _ -> parseErr "Expected exactly one non-underscore variable"
 -- let x = term [: type] in term
+  -- eat the TkLet, call pure (UsLet . TmV) on the x, then parse that, then drop the '='
   [TkLet, _] -> parseEat *> pure (UsLet . TmV) <*> parseVar <* parseDrop TkEq
+             -- after that, call pt1 on the first term, drop the 'in', call pt1 on the second term
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- factor wt
   [TkFactor, TkDouble x] -> parseEat *> pure UsFactorDouble <*> parseDouble <* parseDrop TkIn <*> parseTerm1
@@ -254,12 +258,28 @@ parseTerm4 :: ParseM UsTm
 parseTerm4 = parsePeek >>= \ t -> case t of
 -- amb tm*
   TkAmb -> parseEat *> parseAmbs []
-  _ -> parseTerm5 >>= \ tm -> parseTermApp tm
+  _ -> parseTerm4p
 
 -- Parses the "tm*" part of "amb tm*"
 parseAmbs :: [UsTm] -> ParseM UsTm
 parseAmbs acc =
   parseElse (UsAmb (reverse acc)) (parseTerm5 >>= \ tm -> parseAmbs (tm : acc))
+
+{-
+
+TERM4P ::=
+  | TERM5 + TERM4P
+  | TERM5
+
+-}
+
+parseTerm4p :: ParseM UsTm
+parseTerm4p = parseTerm5 >>= \ tm1 ->
+  parsePeek >>= \ t -> case t of
+    -- if see +, eat its token, parse the second term, then sum it with the first term and return that sum as a ParseM UsTm
+    TkAdd -> parseEat *> parseTerm4p >>= \ tm2 -> pure (UsApp tm1 tm2)
+    -- else mosey over to parseTermApp
+    _ -> parseTermApp tm1
 
 -- Parse an application spine
 parseTermApp :: UsTm -> ParseM UsTm
@@ -303,13 +323,6 @@ unpackNat :: Int -> UsTm
 unpackNat k =
   if k > 0 then (UsApp (UsVar (TmV "Succ")) (unpackNat (k-1)))
   else (UsVar (TmV "Zero"))
-
--- Add two (constant) natural numbers together
-natAdd :: Int -> Int -> UsTm
-natAdd x y
-  | x > 0 = (UsApp (UsVar (TmV "Succ")) (natAdd (x-1) y))
-  | y > 0 = (UsApp (UsVar (TmV "Succ")) (natAdd x (y-1)))
-  | otherwise = UsVar (TmV "Zero")
 
 {- Type Annotation
 
