@@ -427,6 +427,12 @@ infer' (UsEqs tms) =
   constrain (Positive itp) >>
   return (TmEqs tms')
 
+infer' (UsDouble d) =
+  return (TmVarG GlCtor (TmN (show d)) [] [] [] tpDouble)
+
+infer' (UsRatio r) =
+  return (TmVarG GlCtor (TmN (show r)) [] [] [] tpRatio)
+
 inferCase :: CaseUs -> Ctor -> CheckM Case
 inferCase (CaseUs x xs tm) (Ctor x' ps) =
   -- Set the current expression to be the case `| x xs -> tm`
