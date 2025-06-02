@@ -198,7 +198,7 @@ tpDouble :: Type
 tpDouble = TpData tpDoubleName [] []
 
 tpRatioName :: TpName
-tpRatioName = TpN "_Ratio"
+tpRatioName = TpN "_Rational"
 tpRatio :: Type
 tpRatio = TpData tpRatioName [] []
 
@@ -206,7 +206,9 @@ builtins :: [UsProg]
 builtins = [
   UsProgData tpZeroName [] [],
   UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []],
-  UsProgData tpNatName [] [Ctor tmZeroName [], Ctor tmSuccName [tpNat]]
+  UsProgData tpNatName [] [Ctor tmZeroName [], Ctor tmSuccName [tpNat]],
+  UsProgData tpRatioName [] [],
+  UsProgData tpDoubleName [] []
   ]
 
 progBuiltins :: UsProgs -> UsProgs
