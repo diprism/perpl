@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use lambda-case" #-}
 module Struct.Helpers where
 import Struct.Exprs
 import Util.Helpers ( fsts, snds )
@@ -190,9 +192,9 @@ tmFalse = TmVarG GlCtor tmFalseName [] [] [] tpBool
 -- like hide ours (+) or we could call it _Add
 -- maybe do that then we coudl use it like (+) 3 4  and then syntactic sugar can do 3 + 4
 tpAddName :: TpName
-tpAddName = TpN "_Add" -- currently getting error message saying this '_Add' is not in scope...
+tpAddName = TpN "_Add"
 tmAddName :: TmName
-tmAddName = TmN "_Add" -- ...in the definition _Add
+tmAddName = TmN "_Add"
 tpAdd :: Type
 tpAdd = TpData tpAddName [] []
 
@@ -205,20 +207,18 @@ tmSuccName = TmN "Succ"
 tpNat :: Type
 tpNat = TpData tpNatName [] []
 
-sumVals :: [UsTm] -> UsTm
-sumVals arr = case arr of
-  [UsVar (TmV "Zero"), y ] -> y
-  [UsApp (UsVar (TmV "Succ")) x', y] -> UsApp (UsVar (TmV "Succ")) (sumVals [x',y])
-  [UsVar (TmV str), y] -> UsVar (TmV str)
-  [] -> UsFail NoTp
-  [x, y] -> x
+-- sumVals function for _Add: takes in an UsApp of two natural numbers, returns a natural number
+sumVals :: UsTm -> UsTm
+sumVals (UsApp x1 x2) = case x1 of
+  (UsVar (TmV "Zero")) -> x2
+  (UsApp (UsVar (TmV "Succ")) x') -> UsApp (UsVar (TmV "Succ")) (sumVals (UsApp x' x2))
 
 builtins :: [UsProg]
 builtins = [
   UsProgData tpZeroName [] [],
   UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []],
   UsProgData tpNatName [] [Ctor tmZeroName [], Ctor tmSuccName [tpNat]],
-  UsProgDefine tmAddName (sumVals []) tpAdd
+  UsProgDefine tmAddName (sumVals val) tpAdd -- error: val is not defined (how to capture & refer to the input for this new built-in function?)
   -- aka UsProgDefine lhs, rhs, type
   -- aka UsProgDefine x term type oftentimes when it's called in other files
   -- UsProgDefine TmName UsTm Type in its definition
