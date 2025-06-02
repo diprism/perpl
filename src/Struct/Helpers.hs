@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use lambda-case" #-}
 module Struct.Helpers where
 import Struct.Exprs
 import Util.Helpers ( fsts, snds )
@@ -164,7 +166,9 @@ mapProgsM f (Progs ps end) =
 
 -- Built-in datatypes
 
+tpZeroName :: TpName
 tpZeroName = TpN "_Zero"
+tpZero :: Type
 tpZero = TpData tpZeroName [] []
 
 tmUnit = TmProd Multiplicative []
@@ -183,6 +187,17 @@ tmTrue = TmVarG GlCtor tmTrueName [] [] [] tpBool
 tmFalse :: Term
 tmFalse = TmVarG GlCtor tmFalseName [] [] [] tpBool
 
+-- this is how we hide stuff with the _,
+-- add should be hidden, like if a user makes a function called add the computer shouldnt freak out and be like theres already an add function
+-- like hide ours (+) or we could call it _Add
+-- maybe do that then we coudl use it like (+) 3 4  and then syntactic sugar can do 3 + 4
+tpAddName :: TpName
+tpAddName = TpN "_Add"
+tmAddName :: TmName
+tmAddName = TmN "_Add"
+tpAdd :: Type
+tpAdd = TpData tpAddName [] []
+
 tpNatName :: TpName
 tpNatName = TpN "Nat"
 tmZeroName :: TmName
@@ -192,11 +207,21 @@ tmSuccName = TmN "Succ"
 tpNat :: Type
 tpNat = TpData tpNatName [] []
 
+-- sumVals function for _Add: takes in an UsApp of two natural numbers, returns a natural number
+sumVals :: UsTm -> UsTm
+sumVals (UsApp x1 x2) = case x1 of
+  (UsVar (TmV "Zero")) -> x2
+  (UsApp (UsVar (TmV "Succ")) x') -> UsApp (UsVar (TmV "Succ")) (sumVals (UsApp x' x2))
+
 builtins :: [UsProg]
 builtins = [
   UsProgData tpZeroName [] [],
   UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []],
-  UsProgData tpNatName [] [Ctor tmZeroName [], Ctor tmSuccName [tpNat]]
+  UsProgData tpNatName [] [Ctor tmZeroName [], Ctor tmSuccName [tpNat]],
+  UsProgDefine tmAddName (sumVals val) tpAdd -- error: val is not defined (how to capture & refer to the input for this new built-in function?)
+  -- aka UsProgDefine lhs, rhs, type
+  -- aka UsProgDefine x term type oftentimes when it's called in other files
+  -- UsProgDefine TmName UsTm Type in its definition
   ]
 
 progBuiltins :: UsProgs -> UsProgs

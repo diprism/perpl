@@ -5,7 +5,7 @@ import Util.Helpers
 import Scope.Ctxt
 import Scope.Free
 import Data.List (intercalate)
-import Data.Map (insert, (!), intersection, toList, fromList, member, size)
+import Data.Map (insert, (!), toList, member, size)
 import Control.Monad.RWS
 
 -- Do a comparison, generating comparison functions
