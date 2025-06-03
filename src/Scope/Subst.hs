@@ -311,6 +311,10 @@ instance Substitutable UsTm where
                 (substParam (x, NoTp) (substM tm'))
   substM (UsEqs tms) =
     pure UsEqs <*> substM tms
+  substM (UsDouble d) =
+    pure UsDouble <*> pure d
+  substM (UsRatio r) =
+    pure UsRatio <*> pure r
 
   freeVars (UsVar x) =
     mempty{freeTmVars = Map.singleton x NoTp}
@@ -344,6 +348,10 @@ instance Substitutable UsTm where
     freeVars tm <> let fv = freeVars tm' in fv{freeTmVars = Map.delete x (freeTmVars fv)}
   freeVars (UsEqs tms) =
     freeVars tms
+  freeVars (UsDouble d) =
+    mempty
+  freeVars (UsRatio r) =
+    mempty
   
 instance Substitutable CaseUs where
   substM (CaseUs x ps tm) =

@@ -93,6 +93,8 @@ data UsTm =
   | UsTmBool Bool                          -- True / False
   | UsIf UsTm UsTm UsTm                    -- if tm1 then tm2 else tm3
   | UsEqs [UsTm]                           -- tm1 == tm2 == ...
+  | UsDouble Double
+  | UsRatio Rational
   deriving (Eq, Ord)
 
 data Global = GlDefine | GlExtern | GlCtor

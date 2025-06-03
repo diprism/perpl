@@ -1,24 +1,21 @@
 {- Lexer code -}
 
 module Parse.Lex (Token (..), keywords, Pos, lexFile) where
-import Data.Char (isAlpha, isDigit)
+import Data.Char (isAlpha, isDigit, isSpace)
+import Text.Read ( readMaybe )
+import Data.Ratio ( (%) )
 
 -- Possible tokens
 data Token =
     TkVar String -- "x"
   | TkDouble Double -- floating-point literal
   | TkNat Int -- natural number
+  | TkRatio Rational -- rational number
+  -- Punctuation tokens
   | TkLam -- "\"
   | TkParenL -- "("
   | TkParenR -- ")"
   | TkEq -- "="
-  | TkFail -- "fail"
-  | TkAmb -- "amb"
-  | TkFactor -- "factor"
-  | TkCase -- "case"
-  | TkOf -- "of"
-  | TkLet -- "let"
-  | TkIn -- "in"
   | TkArr -- "->"
   | TkColon -- ":"
   | TkDot -- "."
@@ -27,6 +24,16 @@ data Token =
   | TkRangle -- ">"
   | TkBar -- "|"
   | TkSemicolon -- ";"
+  | TkDoubleEq -- "=="
+  | TkAdd -- "+"
+  -- Keyword tokens
+  | TkFail -- "fail"
+  | TkAmb -- "amb"
+  | TkFactor -- "factor"
+  | TkCase -- "case"
+  | TkOf -- "of"
+  | TkLet -- "let"
+  | TkIn -- "in"
   | TkFun -- "define"
   | TkExtern -- "extern"
   | TkData -- "data"
@@ -34,8 +41,6 @@ data Token =
   | TkIf -- "if"
   | TkThen -- "then"
   | TkElse -- "else"
-  | TkDoubleEq -- "=="
-  | TkAdd -- "+"
   deriving Eq
 
 instance Show Token where
@@ -43,6 +48,7 @@ instance Show Token where
   show (TkVar x) = x
   show (TkDouble d) = show d
   show (TkNat n) = show n
+  show (TkRatio r) = show r
   -- Punctuation tokens
   show TkLam = "\\"
   show TkParenL = "("
@@ -90,8 +96,10 @@ next :: Pos -> Pos
 next (line, column) = (succ line, 1)
 
 -- List of punctuation tokens
+punctuation :: [Token]
 punctuation = [TkLam, TkParenL, TkParenR, TkDoubleEq, TkEq, TkArr, TkColon, TkDot, TkComma, TkBar, TkSemicolon, TkLangle, TkRangle, TkAdd]
 -- List of keyword tokens (use alphanumeric chars)
+keywords :: [Token]
 keywords = [TkAmb, TkFactor, TkFail, TkCase, TkOf, TkLet, TkIn, TkFun, TkExtern, TkData, TkBool, TkVar "True", TkVar "False", TkIf, TkThen, TkElse]
 
 -- Tries to lex s as punctuation, otherwise lexing s as a keyword or a var
@@ -134,12 +142,30 @@ lexComment _ "" = \ _ ts -> Right ts
 
 -- Lex a number (will be either a Natural Number or a Double)
 lexNum :: String -> Pos -> [(Pos, Token)] -> Either (Pos, String) [(Pos, Token)]
-lexNum s = case reads s :: [(Double, String)] of
-  [] -> lexKeywordOrVar s -- Case 1: unable to be read as a double
-  [(d, rest)] -> if d < 0 then \ p _ -> Left (p, "Negative number detected")
-                 else case reads s :: [(Int, String)] of
-                  [] -> lexAdd (take (length s - length rest) s) rest (TkDouble d) -- Case 2a: able to be read as a double, not as an int
-                  [(n, rest')] -> lexAdd (take (length s - length rest) s) rest (TkNat n) -- Case 2b: able to be read as a double and an int (so treat as int)
+lexNum s = case span isDigit s of -- read until we encounter a non-digit
+  ([], _) -> lexKeywordOrVar s
+  (numStr, rest1) -> case dropWhile isSpace rest1 of -- drop any spaces between numbers
+    '/':rest2 -> -- Case: rational number detected
+      case span isDigit rest2 of
+        ([], _) -> \ p _ -> Left (p, "Incomplete rational number detected") -- ex: 7/ versus 7/2
+        (denomStr, rest3) ->
+          case readMaybe numStr :: Maybe Integer of
+            Nothing -> \ p _ -> Left (p, "Numerator must be Integer") -- this shouldn't be able to happen
+            Just numerator -> case readMaybe denomStr :: Maybe Integer of
+              Nothing -> \ p _ -> Left (p, "Denominator must be Integer") -- this shouldn't be able to happen
+              Just denominator ->
+                let ratio = numerator % denominator
+                in lexAdd (take (length s - length rest3) s) rest3 (TkRatio ratio)
+    _ -> case reads s :: [(Double, String)] of -- if no '/' detected (aka a number but not rational)
+      [] -> lexKeywordOrVar s -- Case: unable to be read as a double
+      [(d, rest4)] -> if d < 0
+        then \ p _ -> Left (p, "Negative number detected")
+        else case reads s :: [(Int, String)] of
+          [] -> if d == fromInteger (round d)
+            then lexAdd (take (length s - length rest4) s) rest4 (TkNat (round d)) -- Special Case: double and int but not caught by reads (ex: 2.000)
+            else lexAdd (take (length s - length rest4) s) rest4 (TkDouble d) -- Case: double, not int
+          [(n, rest5)] -> 
+            lexAdd (take (length s - length rest4) s) rest4 (TkNat n) -- Case: double and int (so treat as int)
 
 -- Consumes characters until a non-variable character is reached
 lexVar :: String -> (String, String)
