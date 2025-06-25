@@ -39,14 +39,13 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccs (UsAmb tms) = Map.unionsWith max (map countOccs tms)
     countOccs (UsFactorDouble wt tm) = countOccs tm
     countOccs (UsFactorNat wt tm) = countOccs tm
+    countOccs (UsFactorRatio wt tm) = countOccs tm
     countOccs (UsFail tp) = Map.empty
 --    countOccs (UsElimAmp tm o) = countOccs tm
     countOccs (UsProd am tms) = Map.unionsWith (if am == Additive then max else (+)) (map countOccs tms)
     countOccs (UsElimMultiplicative tm xs tm') = Map.unionWith (+) (countOccs tm) (foldr Map.delete (countOccs tm') xs)
     countOccs (UsElimAdditive tm n i x tm') = Map.unionWith (+) (countOccs tm) (Map.delete x (countOccs tm'))
     countOccs (UsEqs tms) = Map.unionsWith (+) (map countOccs tms)
-    countOccs (UsDouble d) = Map.empty
-    countOccs (UsRatio r) = Map.empty
     
     countOccsCase :: CaseUs -> Map TmVar Int
     countOccsCase (CaseUs c xs tm) = foldr Map.delete (countOccs tm) xs
@@ -74,6 +73,7 @@ isLin x = (LinYes ==) . h where
   h (TmAmb tms tp) = h_as LinYes tms
   h (TmFactorDouble wt tm tp) = h tm
   h (TmFactorNat wt tm tp) = h tm
+  h (TmFactorRatio wt tm tp) = h tm
   h (TmProd am as) = h_as (if am == Additive then LinYes else LinErr) (fsts as)
   h (TmElimAdditive tm n i p tm' tp) =
     if x == fst p then h tm else h_as LinErr [tm, tm']

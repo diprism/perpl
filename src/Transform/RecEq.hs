@@ -129,6 +129,8 @@ replaceEqsh (TmFactorDouble p tm tp) =
    pure (TmFactorDouble p) <*> replaceEqsh tm <*> pure tp
 replaceEqsh (TmFactorNat p tm tp) =
    pure (TmFactorNat p) <*> replaceEqsh tm <*> pure tp
+replaceEqsh (TmFactorRatio p tm tp) =
+   pure (TmFactorRatio p) <*> replaceEqsh tm <*> pure tp
 replaceEqsh (TmProd am as) =
   pure (TmProd am) <*> mapArgsM replaceEqsh as
 replaceEqsh (TmElimMultiplicative xtm xps tm tp) =

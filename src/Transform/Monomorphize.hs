@@ -54,6 +54,8 @@ collectCalls' (TmFactorDouble wt tm tp) =
   collectCalls tm
 collectCalls' (TmFactorNat wt tm tp) =
   collectCalls tm
+collectCalls' (TmFactorRatio wt tm tp) =
+  collectCalls tm
 collectCalls' (TmProd am as) =
   mconcat (fmap (collectCalls . fst) as)
 collectCalls' (TmElimMultiplicative ptm ps tm tp) =
@@ -97,6 +99,7 @@ renameCalls xis (TmCase tm (y, tgs, as) cs tp) =
 renameCalls xis (TmAmb tms tp) = TmAmb (renameCalls xis <$> tms) (renameCallsTp xis tp)
 renameCalls xis (TmFactorDouble wt tm tp) = TmFactorDouble wt (renameCalls xis tm) (renameCallsTp xis tp)
 renameCalls xis (TmFactorNat wt tm tp) = TmFactorNat wt (renameCalls xis tm) (renameCallsTp xis tp)
+renameCalls xis (TmFactorRatio wt tm tp) = TmFactorRatio wt (renameCalls xis tm) (renameCallsTp xis tp)
 renameCalls xis (TmProd am as) = TmProd am [(renameCalls xis tm, renameCallsTp xis tp) | (tm, tp) <- as]
 renameCalls xis (TmElimMultiplicative ptm ps tm tp) = TmElimMultiplicative (renameCalls xis ptm) [(x, renameCallsTp xis xtp) | (x, xtp) <- ps] (renameCalls xis tm) (renameCallsTp xis tp)
 renameCalls xis (TmElimAdditive ptm n i (x,xtp) tm tp) = TmElimAdditive (renameCalls xis ptm) n i (x, renameCallsTp xis xtp) (renameCalls xis tm) (renameCallsTp xis tp)

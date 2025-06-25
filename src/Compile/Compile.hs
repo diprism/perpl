@@ -185,6 +185,15 @@ term2fgg g (TmFactorNat wt tm tp) =
      Edge (xs ++ [vtp]) (ElNonterminal tm)]
     (xs ++ [vtp])
 
+term2fgg g (TmFactorRatio wt tm tp) =
+  term2fgg g tm >>= \ xs ->
+  let vtp = (NnOut, tp)
+      el = ElTerminal (FaScalar (fromRational wt)) in
+  mkRule (TmFactorRatio wt tm tp) (vtp : xs)
+    [Edge [] el,
+     Edge (xs ++ [vtp]) (ElNonterminal tm)]
+    (xs ++ [vtp])
+
 term2fgg g (TmLet x xtm xtp tm tp) =
   term2fgg g xtm >>= \ xtmxs ->
   term2fgg (ctxtAddLocal g x xtp) tm >>= \ tmxs ->

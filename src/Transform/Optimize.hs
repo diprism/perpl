@@ -82,6 +82,11 @@ liftAmb (TmFactorNat wt tm tp) =
       tms' = [TmFactorNat wt atm tp | atm <- tms]
   in
     joinAmbs tms' tp
+liftAmb (TmFactorRatio wt tm tp) =
+  let tms = splitAmbs (liftAmb tm)
+      tms' = [TmFactorRatio wt atm tp | atm <- tms]
+  in
+    joinAmbs tms' tp
 liftAmb (TmProd am as)
   | am == Multiplicative =
     let as' = [[(atm', atp) | atm' <- splitAmbs (liftAmb atm)] | (atm, atp) <- as] in
@@ -121,6 +126,7 @@ liftFail' (TmAmb tms tp) =
     if null tms' then Nothing else pure (joinAmbs tms' tp)
 liftFail' (TmFactorDouble wt tm tp) = pure (TmFactorDouble wt) <*> liftFail' tm <*> pure tp
 liftFail' (TmFactorNat wt tm tp) = pure (TmFactorNat wt) <*> liftFail' tm <*> pure tp
+liftFail' (TmFactorRatio wt tm tp) = pure (TmFactorRatio wt) <*> liftFail' tm <*> pure tp
 liftFail' (TmProd am as)
   | am == Multiplicative =
     pure (TmProd am) <*> mapArgsM liftFail' as
@@ -177,6 +183,7 @@ safe2sub g x xtm tm =
     noDefsSamps (TmAmb tms tp) = False
     noDefsSamps (TmFactorDouble wt tm tp) = False
     noDefsSamps (TmFactorNat wt tm tp) = False
+    noDefsSamps (TmFactorRatio wt tm tp) = False
     noDefsSamps (TmProd am as) = all (noDefsSamps . fst) as
     noDefsSamps (TmElimAdditive tm n i p tm' tp) = noDefsSamps tm && noDefsSamps tm'
     noDefsSamps (TmElimMultiplicative tm ps tm' tp) = noDefsSamps tm && noDefsSamps tm'
@@ -195,6 +202,7 @@ optimizeTerm g (TmLet x xtm xtp tm tp) =
     else TmLet x xtm' xtp tm' tp
 optimizeTerm g (TmFactorDouble wt tm tp) = TmFactorDouble wt (optimizeTerm g tm) tp
 optimizeTerm g (TmFactorNat wt tm tp) = TmFactorNat wt (optimizeTerm g tm) tp
+optimizeTerm g (TmFactorRatio wt tm tp) = TmFactorRatio wt (optimizeTerm g tm) tp
 optimizeTerm g (TmLam x tp tm tp') =
   TmLam x tp (optimizeTerm (ctxtAddLocal g x tp) tm) tp'
 optimizeTerm g (TmApp tm1 tm2 tp2 tp) =

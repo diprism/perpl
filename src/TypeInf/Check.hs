@@ -381,6 +381,9 @@ infer' (UsFactorDouble wt tm) =
 infer' (UsFactorNat wt tm) =
   infer tm >>= \ tm' -> return (TmFactorNat wt tm' (typeof tm'))
 
+infer' (UsFactorRatio wt tm) =
+  infer tm >>= \ tm' -> return (TmFactorRatio wt tm' (typeof tm'))
+
 infer' (UsFail tp) =
   annTp tp >>= \ tp' ->
   return (TmAmb [] tp')
@@ -426,12 +429,6 @@ infer' (UsEqs tms) =
   -- Constraint: itp is positive
   constrain (Positive itp) >>
   return (TmEqs tms')
-
-infer' (UsDouble d) =
-  return (TmVarG GlCtor (TmN (show d)) [] [] [] tpDouble)
-
-infer' (UsRatio r) =
-  return (TmVarG GlCtor (TmN (show r)) [] [] [] tpRatio)
 
 inferCase :: CaseUs -> Ctor -> CheckM Case
 inferCase (CaseUs x xs tm) (Ctor x' ps) =

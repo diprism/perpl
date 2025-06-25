@@ -86,6 +86,7 @@ data UsTm =
   | UsAmb [UsTm]                           -- amb tm1 tm2 ... tmn
   | UsFactorDouble Double UsTm             -- factor wt in tm (if wt is not a natural number)
   | UsFactorNat Int UsTm                   -- factor wt in tm (if wt is a natural number)
+  | UsFactorRatio Rational UsTm            -- factor wt in tm (if wt is a rational number)
   | UsFail Type                            -- fail : tp
   | UsProd AddMult [UsTm]                  -- (tm1, ..., tmn)/<tm1, ..., tmn>
   | UsElimMultiplicative UsTm [TmVar] UsTm -- let (x,y,z) = tm1 in tm2
@@ -93,8 +94,6 @@ data UsTm =
   | UsTmBool Bool                          -- True / False
   | UsIf UsTm UsTm UsTm                    -- if tm1 then tm2 else tm3
   | UsEqs [UsTm]                           -- tm1 == tm2 == ...
-  | UsDouble Double
-  | UsRatio Rational
   deriving (Eq, Ord)
 
 data Global = GlDefine | GlExtern | GlCtor
@@ -112,6 +111,7 @@ data Term =
   | TmAmb [Term] Type                             -- amb tm1 tm2 ... tmn : tp
   | TmFactorDouble Double Term Type               -- factor wt in tm : tp (if wt is not a natural number)
   | TmFactorNat Int Term Type                     -- factor wt in tm : tp (if wt is a natural number)
+  | TmFactorRatio Rational Term Type              -- factor wt in tm : tp (if wt is a rational number)
   | TmProd AddMult [Arg]                          -- (tm1 : tp1, tm2 : tp2, ..., tmn : tpn) / <...>
   | TmElimMultiplicative Term [Param] Term Type   -- let (x:X,y:Y,z:Z) = tm1 in tm2 : tp
   | TmElimAdditive Term Int Int Param Term Type   -- let <_..,y:Y,_..> = tm1 in tm2 : tp

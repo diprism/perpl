@@ -212,6 +212,11 @@ affLin (TmFactorNat wt tm tp) =
   affLin tm >>= \ tm' ->
   let tp' = affLinTp tp in
   return (TmFactorNat wt tm' tp')
+affLin (TmFactorRatio wt tm tp) =
+  -- L(factor wt in tm: tp) => factor wt in L(tm): L(tp)
+  affLin tm >>= \ tm' ->
+  let tp' = affLinTp tp in
+  return (TmFactorRatio wt tm' tp')
 affLin (TmProd am as)
   | am == Additive =
     -- L(<tm1, tm2, ..., tmn>) => <L*(tm1), L*(tm2), ..., L*(tmn), L*(unit)>,

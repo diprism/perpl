@@ -155,7 +155,13 @@ parseNat :: ParseM Int
 parseNat = parsePeek >>= \ t -> case t of
   TkNat n -> parseEat >> return n
   _ -> parseErr "Expected a natural number here"
-  
+
+-- Parses a rational number
+parseRatio :: ParseM Rational
+parseRatio = parsePeek >>= \ t -> case t of
+  TkRatio r -> parseEat >> return r
+  _ -> parseErr "Expected a rational number here"
+
 {-
 
 TERM1 ::=
@@ -207,6 +213,7 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
 -- factor wt
   [TkFactor, TkDouble x] -> parseEat *> pure UsFactorDouble <*> parseDouble <* parseDrop TkIn <*> parseTerm1
   [TkFactor, TkNat x] -> parseEat *> pure UsFactorNat <*> parseNat <* parseDrop TkIn <*> parseTerm1
+  [TkFactor, TkRatio x] -> parseEat *> pure UsFactorRatio <*> parseRatio <* parseDrop TkIn <*> parseTerm1
   _ -> parseTerm2
 
 
@@ -295,8 +302,6 @@ parseTerm5 = parsePeek >>= \ t -> case t of
         TkRangle -> pure (UsProd Additive [])
         _ -> pure (UsProd Additive) <*> (parseTerm1 >>= \ tm -> parseDelim parseTerm1 TkComma [tm])) <* parseDrop TkRangle
   TkNat n -> parseEat *> pure (unpackNat n)
-  TkDouble d -> parseEat *> pure (UsDouble d)
-  TkRatio r -> parseEat *> pure (UsRatio r)
   TkFail -> parseEat *> pure (UsFail NoTp)
   _ -> parseErr "couldn't parse a term here; perhaps add parentheses?"
 

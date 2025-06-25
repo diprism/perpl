@@ -27,6 +27,7 @@ collectUnfolds rtp (TmCase tm (y, _, _) cs tp) =
 collectUnfolds rtp (TmAmb tms tp) = concatMap (collectUnfolds rtp) tms
 collectUnfolds rtp (TmFactorDouble wt tm tp) = collectUnfolds rtp tm
 collectUnfolds rtp (TmFactorNat wt tm tp) = collectUnfolds rtp tm
+collectUnfolds rtp (TmFactorRatio wt tm tp) = collectUnfolds rtp tm
 collectUnfolds rtp (TmProd am as) = concatMap (\ (atm, atp) -> collectUnfolds rtp atm) as
 collectUnfolds rtp (TmElimMultiplicative tm ps tm' tp) = collectUnfolds rtp tm ++ collectUnfolds rtp tm'
 collectUnfolds rtp (TmElimAdditive tm n i p tm' tp) = collectUnfolds rtp tm ++ collectUnfolds rtp tm'
@@ -47,6 +48,7 @@ collectFolds rtp (TmCase tm y cs tp) = collectFolds rtp tm ++ concatMap (\ (Case
 collectFolds rtp (TmAmb tms tp) = concatMap (collectFolds rtp) tms
 collectFolds rtp (TmFactorDouble wt tm tp) = collectFolds rtp tm
 collectFolds rtp (TmFactorNat wt tm tp) = collectFolds rtp tm
+collectFolds rtp (TmFactorRatio wt tm tp) = collectFolds rtp tm
 collectFolds rtp (TmProd am as) = concatMap (\ (atm, atp) -> collectFolds rtp atm) as
 collectFolds rtp (TmElimMultiplicative tm ps tm' tp) = collectFolds rtp tm ++ collectFolds rtp tm'
 collectFolds rtp (TmElimAdditive tm n i p tm' tp) = collectFolds rtp tm ++ collectFolds rtp tm'
@@ -206,6 +208,8 @@ disentangleTerm rtp cases = h where
     pure (TmFactorDouble wt) <*> h tm <*> pure tp
   h (TmFactorNat wt tm tp) =
     pure (TmFactorNat wt) <*> h tm <*> pure tp
+  h (TmFactorRatio wt tm tp) =
+    pure (TmFactorRatio wt) <*> h tm <*> pure tp
   h (TmProd am as) =
     pure (TmProd am) <*> mapArgsM h as
   h (TmElimAdditive tm n i p tm' tp) =
@@ -249,6 +253,7 @@ defoldTerm rtp = h where
   h (TmAmb tms tp) = pure TmAmb <*> mapM h tms <*> pure tp
   h (TmFactorDouble wt tm tp) = pure (TmFactorDouble wt) <*> h tm <*> pure tp
   h (TmFactorNat wt tm tp) = pure (TmFactorNat wt) <*> h tm <*> pure tp
+  h (TmFactorRatio wt tm tp) = pure (TmFactorRatio wt) <*> h tm <*> pure tp
   h (TmProd am as) =
     pure (TmProd am) <*> mapArgsM h as
   h (TmElimAdditive tm n i p tm' tp) =
@@ -330,6 +335,7 @@ derefunTerm dr g rtp = fst . h where
       TmAmb (fsts tms') tp'
   h' (TmFactorDouble wt tm tp) = let (tm', tp') = h tm in TmFactorDouble wt tm' tp'
   h' (TmFactorNat wt tm tp) = let (tm', tp') = h tm in TmFactorNat wt tm' tp'
+  h' (TmFactorRatio wt tm tp) = let (tm', tp') = h tm in TmFactorRatio wt tm' tp'
   h' (TmProd am as) =
     TmProd am [h tm | (tm, _) <- as]
   h' (TmElimMultiplicative tm ps tm' tp) =
