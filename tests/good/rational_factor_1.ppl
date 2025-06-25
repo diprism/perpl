@@ -1,0 +1,17 @@
+-- similar to the natural numbers example, but with rational numbers versus doubles
+
+define not = \ a. if a then False else True;
+
+define even = \n. case n of
+  | Zero -> True
+  | Succ n' -> not (even n');
+
+define plus = \m. \n. case m of
+  | Zero -> n
+  | Succ m' -> Succ (plus m' n);
+
+-- Generates a random natural number from an exponential distribution
+define random = amb (factor 1/2 in Zero) (factor 1/2 in Succ random);
+
+even (plus random random)
+-- correct: [0.444, 0.555]

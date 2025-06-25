@@ -9,7 +9,7 @@ my_errs=()
 
 for file in \
     examples/{bool,dyck,extinction,fsm,list,nat,parser,pattern1,pattern2,pda,penney,reverse,stairs,tree,von_neumann,von_neumann_pair}.ppl \
-    tests/good/{amb,fail,sample,products,type_parameter_{nonrecursive,unused,different,swap},{zero,one,discard}_add_prod,datatype_containing_type_application,partial_application{,_recursive},{amb,factor}_lambda_{0,1,2},function_polymorphism,infinite_fails,case_lambda,discard_prods,forall_positive_unused_type_parameter,shadow_local_over_{ctor,datatype},tm_var_name,define_func_lhs,global_name_shadowing,syntax_types,rec_compare_{0,1,2},answer_{function,recursive,amp},nat_num_{0,1,2,3,4,5,6}}.ppl
+    tests/good/{amb,fail,sample,products,type_parameter_{nonrecursive,unused,different,swap},{zero,one,discard}_add_prod,datatype_containing_type_application,partial_application{,_recursive},{amb,factor}_lambda_{0,1,2},function_polymorphism,infinite_fails,case_lambda,discard_prods,forall_positive_unused_type_parameter,shadow_local_over_{ctor,datatype},tm_var_name,define_func_lhs,global_name_shadowing,syntax_types,rec_compare_{0,1,2},answer_{function,recursive,amp},nat_num_{0,1,2,3,4,5,6},rational_factor_{0,1,2}}.ppl
 do
     printf '%-40s' "Compiling ${file}... "
     my_err=$(./perplc $file -o /dev/null 2>&1 > /dev/null)

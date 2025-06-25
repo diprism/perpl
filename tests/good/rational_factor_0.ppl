@@ -1,0 +1,11 @@
+-- similar to the extinction example, but with rational numbers versus doubles
+-- probability of extinction of a (patronymic) surname if each man has zero or two sons
+
+-- False = 0 sons, True = 2 sons
+define p: Bool = amb (factor 1/10 in False) (factor 9/10 in True);
+
+define extinct =
+  if p then (let u1 = extinct in let u2 = extinct in ()) else ();
+
+extinct
+-- correct: [0.109]

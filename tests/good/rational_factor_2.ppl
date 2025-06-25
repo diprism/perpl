@@ -1,0 +1,25 @@
+-- similar to the parser example, but with rational numbers versus doubles
+-- Parse a string using a weighted context-free grammar
+
+data Terminal = A;
+data Nonterminal = S;
+data RHS = Unary Terminal | Binary Nonterminal Nonterminal;
+data String = Nil | Cons Terminal String;
+
+define production: Nonterminal -> RHS = \x.
+  case x of S -> amb (factor 1/5 in Binary S S) (factor 4/5 in Unary A);
+
+define gen: Nonterminal -> String -> String = \x: Nonterminal. \acc: String.
+  case production x of
+    | Unary a -> Cons a acc
+    | Binary y z -> gen y (gen z acc);
+
+define equal: String -> String -> Bool = \xs: String. \ys: String.
+  case xs of
+    | Nil -> (case ys of Nil -> True | Cons _ _ -> False)
+    | Cons x xs -> (case ys of
+      | Nil -> False
+      | Cons y ys -> if x == y then equal xs ys else False);
+
+equal (gen S Nil) (Cons A (Cons A (Cons A Nil)))
+-- correct: [0.95904, 0.04096]
