@@ -139,12 +139,16 @@ parseVarsCommas close allow0 allow1 = parsePeeks 2 >>= \ ts -> case ts of
 parseCase :: ParseM CaseUs
 parseCase = parsePeek >>= \ t -> case t of
   TkNat 0 -> parseEat *> pure (CaseUs tmZeroName . map TmV) <*> parseVars <* parseDrop TkArr <*> parseTerm1
-  TkNat n -> parseEat *> (
+  TkNat 1 -> parseEat *> (
     parsePeeks 2 >>= \ j -> case j of
-      [TkAdd, TkVar c] -> parseEat *> parseEat *> pure (CaseUs (TmN (show (UsApp (UsApp (UsVar (tmNameToVar tmAddName)) (unpackNat n)) ((UsVar (TmV c)))))) . map TmV) <*> parseVars
-      _ -> parseEat *> pure (CaseUs (TmN (show (unpackNat n))) . map TmV) <*> parseVars
-    ) <* parseDrop TkArr <*> parseTerm1
-  
+      [TkAdd, TkVar c] -> do
+        parseEat
+        parseEat
+        pure (CaseUs (tmSuccName) . map TmV) <*> parseVars
+      _ -> parseErr "Only 1+x is allowed, nothing else of the form 1(blank)(blank)"
+    ) <* parseDrop TkArr <*> do
+      x <- parseTerm1
+      pure (UsApp (UsApp (UsVar (tmNameToVar tmAddName)) (unpackNat 1)) x)
   TkVar c -> parseEat *> (
     parsePeeks 2 >>= \ i -> case i of
       -- if we see + 1, eat the +, eat the TkNat, eat the 1, then eval the variable's value+1

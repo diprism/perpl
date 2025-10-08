@@ -188,14 +188,8 @@ tmTrue = TmVarG GlCtor tmTrueName [] [] [] tpBool
 tmFalse :: Term
 tmFalse = TmVarG GlCtor tmFalseName [] [] [] tpBool
 
--- this is how we hide stuff with the _,
--- add should be hidden, like if a user makes a function called add the computer shouldnt freak out and be like theres already an add function
--- like hide ours (+) or we could call it _Add
--- maybe do that then we coudl use it like (+) 3 4  and then syntactic sugar can do 3 + 4
-
 tmAddName :: TmName
 tmAddName = TmN "_Add"
--- recall TpArr Type Type -- function tp1 -> tp2
 tpAdd :: Type
 tpAdd = TpArr tpNat tpNat
 
