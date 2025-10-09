@@ -6,7 +6,7 @@ import Data.String (IsString(fromString))
 
 {- The program goes through three stages:
 
-1. The parser produces a user-level program (UsProgs, UsTm, UsTp).
+1. The parser produces a user-level program (UsProgs, UsTm).
 2. Type inference turns it into a scheme-ified program (SProgs, Term, Type).
 3. Monomorphization turns into an elaborated program (Progs, Term, Type). -}
 
@@ -87,7 +87,7 @@ data UsTm =
   | UsFactorDouble Double UsTm             -- factor wt in tm (if wt is not a natural number)
   | UsFactorNat Int UsTm                   -- factor wt in tm (if wt is a natural number)
   | UsFactorRatio Rational UsTm            -- factor wt in tm (if wt is a rational number)
-  | UsFail                                 -- fail : tp
+  | UsFail Type                            -- fail : tp
   | UsProd AddMult [UsTm]                  -- (tm1, ..., tmn)/<tm1, ..., tmn>
   | UsElimMultiplicative UsTm [TmVar] UsTm -- let (x,y,z) = tm1 in tm2
   | UsElimAdditive UsTm Int Int TmVar UsTm -- let <_,y,_> = tm1 in tm2
