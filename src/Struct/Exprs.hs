@@ -116,7 +116,6 @@ data Term =
   | TmElimMultiplicative Term [Param] Term Type   -- let (x:X,y:Y,z:Z) = tm1 in tm2 : tp
   | TmElimAdditive Term Int Int Param Term Type   -- let <_..,y:Y,_..> = tm1 in tm2 : tp
   | TmEqs [Term]                                  -- tm1 == tm2 == ...
-  | TmFail
   deriving (Eq, Ord)
 
 data AddMult = Additive | Multiplicative

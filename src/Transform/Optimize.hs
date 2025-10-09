@@ -103,7 +103,6 @@ liftAmb (TmElimMultiplicative ptm ps tm tp) =
 liftAmb (TmEqs tms) =
   let tms' = [splitAmbs (liftAmb tm) | tm <- tms] in
     joinAmbs (map TmEqs (kronall tms')) tpBool
-liftAmb TmFail = TmFail
 
 liftFail'' :: (Term, Maybe Term) -> Term
 liftFail'' (tm, Nothing) = TmAmb [] (typeof tm)
@@ -140,8 +139,6 @@ liftFail' (TmElimMultiplicative tm ps tm' tp) =
   pure TmElimMultiplicative <*> liftFail' tm <*> pure ps <*> liftFail' tm' <*> pure tp
 liftFail' (TmEqs tms) =
   pure TmEqs <*> mapM liftFail' tms
-liftFail' TmFail =
-  pure TmFail
 
 -- If a term inevitably fails, just replace it with fail.
 -- For example, (sample fail : tp1 -> tp2) tm1 is the same
@@ -191,7 +188,6 @@ safe2sub g x xtm tm =
     noDefsSamps (TmElimAdditive tm n i p tm' tp) = noDefsSamps tm && noDefsSamps tm'
     noDefsSamps (TmElimMultiplicative tm ps tm' tp) = noDefsSamps tm && noDefsSamps tm'
     noDefsSamps (TmEqs tms) = all noDefsSamps tms
-    noDefsSamps TmFail = False
 
 -- Applies various optimizations to a term
 optimizeTerm :: Ctxt -> Term -> Term
@@ -253,8 +249,6 @@ optimizeTerm g (TmElimMultiplicative tm ps tm' tp) =
   TmElimMultiplicative (optimizeTerm g tm) ps (optimizeTerm (ctxtAddArgs g ps) tm') tp
 optimizeTerm g (TmEqs tms) =
   TmEqs [optimizeTerm g tm | tm <- tms]
-optimizeTerm g TmFail =
-  TmFail
 
 -- Applies various optimizations to a list of args
 optimizeArgs :: Ctxt -> [Arg] -> [Arg]

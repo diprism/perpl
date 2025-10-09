@@ -16,7 +16,7 @@ toUsTm (TmApp tm1 tm2 _ _) = UsApp (toUsTm tm1) (toUsTm tm2)
 toUsTm (TmLet x xtm xtp tm tp) = UsLet x (toUsTm xtm) (toUsTm tm)
 toUsTm (TmCase tm (TpN "Bool", [], []) [Case (TmN "False") [] elsetm, Case (TmN "True") [] thentm] tp) = UsIf (toUsTm tm) (toUsTm thentm) (toUsTm elsetm)
 toUsTm (TmCase tm _ cs _) = UsCase (toUsTm tm) (map toCaseUs cs)
-toUsTm (TmAmb [] tp) = UsFail
+toUsTm (TmAmb [] tp) = UsFail tp
 toUsTm (TmAmb tms tp) = UsAmb [toUsTm tm | tm <- tms]
 toUsTm (TmFactorDouble wt tm tp) = UsFactorDouble wt (toUsTm tm)
 toUsTm (TmFactorNat wt tm tp) = UsFactorNat wt (toUsTm tm)
@@ -42,6 +42,7 @@ toUsProgs (Progs ps tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 {- Show Instances -}
 
 showTpAnn :: Type -> String
+showTpAnn NoTp = ""
 showTpAnn tp = " : " ++ show tp
 
 amParens :: AddMult -> (String, String)
@@ -81,7 +82,7 @@ instance Show UsTm where
   showsPrec p (UsIf tm1 tm2 tm3) = showParen (p > 1) (showString "if " . shows tm1 . showString " then " . shows tm2 . showString " else " . showsPrec (if p == 1 then 1 else 0) tm3)
   showsPrec p (UsCase tm cs) = showParen (p > 0) (showString "case " . shows tm . showString " of " . delimitWith " | " (map (showsPrec 1) cs))
   showsPrec p (UsAmb tms) = showParen (p > 9) (delimitWith " " (showString "amb" : map (showsPrec 11) tms))
-  showsPrec p UsFail = showParen (p > 1) (showString "fail")
+  showsPrec p (UsFail tp) = showParen (p > 1) (showString "fail")
   showsPrec _ (UsProd am tms) = let (l, r) = amParens am in showString l . delimitWith ", " (map shows tms) . showString r
   showsPrec _ (UsTmBool b) = showString (if b then "True" else "False")
   showsPrec p (UsEqs tms) = showParen (p > 4) (delimitWith " == " (map (showsPrec 5) tms))
@@ -94,6 +95,7 @@ instance Show Type where
   showsPrec p (TpData y tgs as) = showParen (p > 10) (delimitWith " " (shows y : map (showsPrec 11) tgs ++ map (showsPrec 11) as))
   showsPrec p (TpArr tp1 tp2) = showParen (p > 0) (showsPrec 1 tp1 . showString " -> " . shows tp2)
   showsPrec _ (TpProd am tps) = let (l, r) = amParens am in showString l . delimitWith ", " (map shows tps) . showString r
+  showsPrec _ NoTp = id
 
 instance Show UsProg where
   show (UsProgDefine x tm tp) = "define " ++ show x ++ showTpAnn tp ++ " = " ++ show tm ++ ";"

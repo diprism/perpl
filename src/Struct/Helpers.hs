@@ -21,7 +21,6 @@ typeof (TmProd am as) = TpProd am (snds as)
 typeof (TmElimMultiplicative tm ps    tm' tp) = tp
 typeof (TmElimAdditive       tm n i p tm' tp) = tp
 typeof (TmEqs tms) = tpBool
-typeof TmFail = NoTp
 
 -- Sorts cases according to the order they are appear in the datatype definition
 -- This allows you to do case tm of C2->... | C1->..., which then gets translated to
@@ -213,7 +212,7 @@ additionGenerator :: UsTm -> UsTm -> UsTm
 additionGenerator (UsVar val1) (UsVar val2) = UsLam val1 tpNat
   (UsLam val2 tpNat (UsCase (UsVar val1) [CaseUs (TmN "Zero") [] (UsVar val2),
                                           CaseUs (TmN "Succ") [TmV "m'"] (UsApp (UsVar (TmV "Succ")) (UsApp (UsApp (UsVar (tmNameToVar tmAddName)) (UsVar (TmV "m'"))) (UsVar val2)))]))
-additionGenerator _ _ = UsFail
+additionGenerator _ _ = UsFail NoTp
 
 -- also take a stab at the paper
 -- and look at the issues
