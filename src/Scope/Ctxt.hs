@@ -13,7 +13,6 @@ data CtTerm =
 
 data CtType =
   CtData [Tag] [TpVar] [Ctor] -- tag params, type params, ctors
-  -- CtTypeVar -- not currently used
   deriving Show
 
 data Ctxt = Ctxt { tpNames :: Map TpName CtType

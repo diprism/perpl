@@ -35,7 +35,6 @@ toUsProg (ProgExtern x ps tp) = UsProgExtern x (joinArrows ps tp)
 toUsProg (ProgData y cs) = UsProgData y [] cs
 
 toUsProgs :: Progs -> UsProgs
---toUsProgs (Progs (ProgData "_Unit_" [unit] : ProgData "Bool" [fctor, tctor] : ps) tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 toUsProgs (Progs ps tm) = UsProgs (map toUsProg ps) (toUsTm tm)
 
 

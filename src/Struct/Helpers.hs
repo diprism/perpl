@@ -166,7 +166,6 @@ mapProgsM f (Progs ps end) =
   pure Progs <*> mapM (mapProgM f) ps <*> f end
 
 -- Built-in datatypes
-
 tpZeroName :: TpName
 tpZeroName = TpN "_Zero"
 tpZero :: Type
@@ -188,14 +187,8 @@ tmTrue = TmVarG GlCtor tmTrueName [] [] [] tpBool
 tmFalse :: Term
 tmFalse = TmVarG GlCtor tmFalseName [] [] [] tpBool
 
--- this is how we hide stuff with the _,
--- add should be hidden, like if a user makes a function called add the computer shouldnt freak out and be like theres already an add function
--- like hide ours (+) or we could call it _Add
--- maybe do that then we coudl use it like (+) 3 4  and then syntactic sugar can do 3 + 4
-
 tmAddName :: TmName
 tmAddName = TmN "_Add"
--- recall TpArr Type Type -- function tp1 -> tp2
 tpAdd :: Type
 tpAdd = TpArr tpNat tpNat
 
@@ -213,47 +206,6 @@ additionGenerator (UsVar val1) (UsVar val2) = UsLam val1 tpNat
   (UsLam val2 tpNat (UsCase (UsVar val1) [CaseUs (TmN "Zero") [] (UsVar val2),
                                           CaseUs (TmN "Succ") [TmV "m'"] (UsApp (UsVar (TmV "Succ")) (UsApp (UsApp (UsVar (tmNameToVar tmAddName)) (UsVar (TmV "m'"))) (UsVar val2)))]))
 additionGenerator _ _ = UsFail NoTp
-
--- also take a stab at the paper
--- and look at the issues
-
--- also PERPL was faster than kiss kit that was the quantum simluator thing
-
--- so for regular terms there are sm limits to what we can make them, like we cannot subtract or multiply, etc.
--- but factor weights are not limited! Hashtag should we make + in factor weights work, or sqrt(2)/2 work
-{-
-so rn we have case n of
-  Zero -> blabla
-  Succ n' -> blabla
-
-could we do case n of
-  0 -> ...
-  n' +1 -> ...
-
-he says if I want something nice and easy to work one this could be great!
-that may open the doors to people wanting to do a case n' + 2 (that opens a can of worms, let's not :D), or 1 + n' (we both think so yes, lets not be sticklers)
-
-feel free to look thru the issues! he thinks i am at the point that i can probs solve a few :D
-some are easy or hard, some are mysterious, take a look!
-
-he also opened up one to compiling to PyTorch, he says that would be a rly big project hmmmmm
-
-in the extern with recursive type, issue number 123, it wants a function u_Nat that takes the NatF ptr kinda thing that is pointing at the natural number data structure (which is recursive) and it moves hte ptr
-this is the block that creates the NatF extern data type
-this is related to the second-oldest issue, about regex example
-
-Interesting Issues
-#128 Syntactic Sugar for Natural Numbers (nats in switch cases WIP so far)
-#98 Binding Patterns
-  #85 Lexically Distinguish Type Variables is related
-#79 Suggested Cleanups (UsProgs, SProgs, Progs)
-
-Also Side Note on Grad School Thoughts
-- Theory Type A (combinatorics, computational geometry)
-- Theory Type B (logic, languages)
-I think I might prefer Type B?? Maybe??
-
--}
 
 builtins :: [UsProg]
 builtins = [

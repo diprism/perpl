@@ -87,17 +87,6 @@ insertVar x x' y g = let (old, g') = Map.insertLookupWithKey (const const) x y g
                      in (g', Map.insert x (fromMaybe x' old))
 
 instance Var TmVar where
-{-
-  member   y g = trace (show y ++ flag mv ++ show vs ++ "\n" ++
-                        show y ++ flag mn ++ show ns)
-                       (mv || mn)
-    where vs = tmVars g
-          ns = tmNames g
-          mv = y `Map.member` vs
-          mn = tmVarToName y `Set.member` ns
-          flag True  = " ∈ "
-          flag False = " ∉ "
--}
   member   y g = y `Map.member` tmVars g || tmVarToName y `Set.member` tmNames g
   insert x y g = let (g', f) = insertVar x (Rename x) (Rename y) (tmVars g)
                  in (g{tmVars = g'}, \s -> s{tmVars = f (tmVars s)})
@@ -341,8 +330,6 @@ instance Substitutable UsTm where
     freeVars tm
   freeVars (UsFail tp) =
     mempty
---  freeVars (UsElimAmp tm o) =
---    freeVars tm
   freeVars (UsProd am tms) =
     freeVars tms
   freeVars (UsElimMultiplicative tm xs tm') =

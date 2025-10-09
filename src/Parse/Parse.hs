@@ -208,10 +208,7 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
         tm' <- parseTerm1
         return (UsElimAdditive tm (length xs) i (TmV x) tm')
       _ -> parseErr "Expected exactly one non-underscore variable"
--- let x = term [: type] in term
-  -- eat the TkLet, call pure (UsLet . TmV) on the x, then parse that, then drop the '='
   [TkLet, _] -> parseEat *> pure (UsLet . TmV) <*> parseVar <* parseDrop TkEq
-             -- after that, call pt1 on the first term, drop the 'in', call pt1 on the second term
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- factor wt
   [TkFactor, TkDouble x] -> parseEat *> pure UsFactorDouble <*> parseDouble <* parseDrop TkIn <*> parseTerm1
@@ -281,9 +278,7 @@ TERM4P ::=
 parseTerm4p :: ParseM UsTm
 parseTerm4p = parseTerm5 >>= \ tm1 ->
   parsePeek >>= \ t -> case t of
-    -- if see +, eat its token, parse the second term, then sum it with the first term and return that sum as a ParseM UsTm
-    TkAdd -> parseEat *> parseTerm4p >>= \ tm2 -> pure (UsApp (UsApp (UsVar (tmNameToVar tmAddName)) tm1) tm2) -- aka UsApp (UsApp tmAddName tm1) tm2
-    -- aka apply add to tm1, then, whatever that gives you, apply that to tm2
+    TkAdd -> parseEat *> parseTerm4p >>= \ tm2 -> pure (UsApp (UsApp (UsVar (tmNameToVar tmAddName)) tm1) tm2)
     _ -> parseTermApp tm1
 
 -- Parse an application spine

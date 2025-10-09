@@ -41,7 +41,6 @@ isAff x tm = Map.findWithDefault 0 x (countOccs tm) <= 1
     countOccs (UsFactorNat wt tm) = countOccs tm
     countOccs (UsFactorRatio wt tm) = countOccs tm
     countOccs (UsFail tp) = Map.empty
---    countOccs (UsElimAmp tm o) = countOccs tm
     countOccs (UsProd am tms) = Map.unionsWith (if am == Additive then max else (+)) (map countOccs tms)
     countOccs (UsElimMultiplicative tm xs tm') = Map.unionWith (+) (countOccs tm) (foldr Map.delete (countOccs tm') xs)
     countOccs (UsElimAdditive tm n i x tm') = Map.unionWith (+) (countOccs tm) (Map.delete x (countOccs tm'))

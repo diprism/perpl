@@ -120,7 +120,6 @@ term2fgg g (TmVarG gv x [] [] as tp) =
                             Just cs = ctxtLookupType g y
                             Just ci = findIndex (\ (Ctor x' _) -> x' == x) cs in
                           ElTerminal (FaCtor cs ci)
-                      --GlExtern -> error "Impossible case"
   in
     mkRule (TmVarG gv x [] [] as tp) (vy : ps ++ concat xss)
       (Edge (ps ++ [vy]) el :
