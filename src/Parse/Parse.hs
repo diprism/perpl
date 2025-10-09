@@ -208,6 +208,7 @@ parseTerm1 = parsePeeks 2 >>= \ t1t2 -> case t1t2 of
         tm' <- parseTerm1
         return (UsElimAdditive tm (length xs) i (TmV x) tm')
       _ -> parseErr "Expected exactly one non-underscore variable"
+-- let x = term [: type] in term
   [TkLet, _] -> parseEat *> pure (UsLet . TmV) <*> parseVar <* parseDrop TkEq
              <*> parseTerm1 <* parseDrop TkIn <*> parseTerm1
 -- factor wt

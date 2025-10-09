@@ -81,7 +81,7 @@ instance Show UsTm where
   showsPrec p (UsIf tm1 tm2 tm3) = showParen (p > 1) (showString "if " . shows tm1 . showString " then " . shows tm2 . showString " else " . showsPrec (if p == 1 then 1 else 0) tm3)
   showsPrec p (UsCase tm cs) = showParen (p > 0) (showString "case " . shows tm . showString " of " . delimitWith " | " (map (showsPrec 1) cs))
   showsPrec p (UsAmb tms) = showParen (p > 9) (delimitWith " " (showString "amb" : map (showsPrec 11) tms))
-  showsPrec p (UsFail tp) = showParen (p > 1) (showString "fail")
+  showsPrec p (UsFail tp) = showParen (tp /= NoTp && p > 1) (showString "fail" . showString (showTpAnn tp))
   showsPrec _ (UsProd am tms) = let (l, r) = amParens am in showString l . delimitWith ", " (map shows tms) . showString r
   showsPrec _ (UsTmBool b) = showString (if b then "True" else "False")
   showsPrec p (UsEqs tms) = showParen (p > 4) (delimitWith " == " (map (showsPrec 5) tms))
