@@ -138,13 +138,17 @@ parseVarsCommas close allow0 allow1 = parsePeeks 2 >>= \ ts -> case ts of
 -- Parse a branch of a case expression.
 parseCase :: ParseM CaseUs
 parseCase = parsePeek >>= \ t -> case t of
+  -- stage 1 is 0, 1+m, and m+1
+  -- stage 2 is Succ(Zero), Succ(Succ(m)), m+2, 2+m, 1+m+1, Cons x (Cons y Nil), NOT m+n for that is too far
   TkNat 0 -> parseEat *> pure (CaseUs tmZeroName . map TmV) <*> parseVars <* parseDrop TkArr <*> parseTerm1
   TkNat 1 -> parseEat *> (
     parsePeeks 2 >>= \ j -> case j of
       [TkAdd, TkVar c] -> do
         parseEat
         parseEat
-        pure (CaseUs (tmSuccName) . map TmV) <*> parseVars
+        -- pure (CaseUs (tmSuccName) . map TmV) <*> parseVars
+        pure (CaseUs (tmSuccVarName c) . map TmV) <*> parseVars
+        -- for 1+m like the tmName should be Succ m, like tmSuccName of m
       _ -> parseErr "Only 1+x is allowed, nothing else of the form 1(blank)(blank)"
     ) <* parseDrop TkArr <*> do
       x <- parseTerm1
