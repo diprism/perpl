@@ -1,0 +1,11 @@
+-- tests the x+1 case
+
+define eq = \m. \n. case m of
+  | 0 -> (case n of
+    | 0 -> True
+    | y+1 -> False)
+  | x+1 -> (case n of
+    | 0 -> False
+    | y+1 -> eq x y);
+
+eq 3 4

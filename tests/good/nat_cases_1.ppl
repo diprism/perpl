@@ -1,0 +1,11 @@
+-- tests the 1+x case AND this working on top of addition in the function call
+
+define eq = \m. \n. case m of
+  | 0 -> (case n of
+    | 0 -> True
+    | 1+y -> False)
+  | 1+x -> (case n of
+    | 0 -> False
+    | 1+y -> eq x y);
+
+eq (2+2) 4

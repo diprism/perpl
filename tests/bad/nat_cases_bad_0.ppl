@@ -1,0 +1,11 @@
+-- tests that only 1+x works (nothing else can follow 1)
+
+define eq = \m. \n. case m of
+  | 0 -> (case n of
+    | 0 -> True
+    | 1+y -> False)
+  | 1 -> (case n of
+    | 0 -> False
+    | 1+y -> eq x y);
+
+eq 3 5
