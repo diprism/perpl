@@ -199,8 +199,6 @@ tmZeroName :: TmName
 tmZeroName = TmN "Zero"
 tmSuccName :: TmName
 tmSuccName = TmN "Succ"
-tmSuccVarName :: String -> TmName
-tmSuccVarName n = TmN ("Succ " ++ n)
 tpNat :: Type
 tpNat = TpData tpNatName [] []
 
