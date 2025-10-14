@@ -147,11 +147,8 @@ parseCase = parsePeek >>= \ t -> case t of
         parseEat
         parseEat
         pure (CaseUs tmSuccName [TmV n])
-        -- for 1+m like the tmName should be Succ m, like tmSuccName of m
       _ -> parseErr "Cases must be of the form <constructor> <var>*, 0, 1+<var>, or <var>+1 only"
-    ) <* parseDrop TkArr <*> do
-      x <- parseTerm1
-      pure (UsApp (UsApp (UsVar (tmNameToVar tmAddName)) (unpackNat 1)) x)
+    ) <* parseDrop TkArr <*> parseTerm1
   TkVar x -> parseEat *> (
     parsePeeks 2 >>= \ i -> case i of
       -- if we see + 1, eat the +, eat the TkNat, eat the 1, then eval the variable's value+1
@@ -159,7 +156,6 @@ parseCase = parsePeek >>= \ t -> case t of
       -- if we don't see a + 1, treat as a normal variable
       _ -> pure (CaseUs (TmN x) . map TmV) <*> parseVars
    ) <* parseDrop TkArr <*> parseTerm1
-    -- it's like the c would be "Succ" and then we would parseVars on the m' or n' or whatever the variable is
   _ -> parseErr "expecting a case"
 
 -- Parse one or more branches of a case expression.
