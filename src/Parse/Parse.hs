@@ -141,7 +141,10 @@ parseCase = parsePeek >>= \ t -> case t of
   TkNat 0 -> parseEat *> pure (CaseUs tmZeroName . map TmV) <*> parseVars <* parseDrop TkArr <*> parseTerm1
   TkNat 1 -> parseEat *> (
     parsePeeks 2 >>= \ j -> case j of
-      [TkAdd, TkVar n] -> parseEat *> parseEat *> pure (CaseUs tmSuccName [TmV n])
+      [TkAdd, TkVar n] -> do
+        parseEat
+        parseEat
+        pure (CaseUs tmSuccName [TmV n])
       _ -> parseErr "Cases must be of the form <constructor> <var>*, 0, 1+<var>, or <var>+1 only"
     ) <* parseDrop TkArr <*> parseTerm1
   TkVar x -> parseEat *> (
