@@ -6,7 +6,7 @@ import System.Environment (getArgs, getProgName)
 import System.IO (hPutStr, hPutStrLn, stdout, stderr, openFile, IOMode(..), hGetContents, hFlush)
 import Struct.Lib (TpName(TpN), Progs, progBuiltins)
 import Parse.Lib (parse)
-import TypeInf.Lib (infer)
+import TypeInf.Lib (infer, desugar)
 import Compile.Lib (compileFile)
 import Transform.Monomorphize (monomorphizeFile)
 import Transform.DR (elimRecTypes, DeRe(..))
@@ -131,6 +131,8 @@ processContents (CmdArgs ifn ofn t m e dr l o z p si) s =
   >>= alphaRenameProgs ctxtAddUsProgs
   -- Add Bool, True, False
   >>= Right . progBuiltins
+  --  De-sugar any nesting (in lambda's, let's, case's)
+  >>= desugar
   -- Type check the file (:: UsProgs -> Progs)
   >>= infer
   >>= if not t then return . show else (\ x -> (Right . monomorphizeFile) x

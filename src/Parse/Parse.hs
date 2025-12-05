@@ -18,6 +18,7 @@ module Parse.Parse where
 import Parse.Lex
 import Struct.Lib
 import Util.Helpers (enumerate)
+import Debug.Trace ( trace )
 
 -- Throws a parser error message (s) at a certain position (p)
 parseErr' p s = Left (p, s)
@@ -154,6 +155,17 @@ parseCase = parsePeek >>= \ t -> case t of
       -- if we don't see a + 1, treat as a normal variable
       _ -> pure (CaseUs (TmN x) . map TmV) <*> parseVars
    ) <* parseDrop TkArr <*> parseTerm1
+  TkParenL -> do
+      parseEat
+      parsePeek >>= \ n1 -> case n1 of
+        TkVar "Nil" -> do
+          n2 <- parsePeek
+          trace ("n1 is " ++ show n1 ++ ", n2 is " ++ show n2) parseErr "Nil found"
+        TkVar "Cons" -> do
+          n2 <- parsePeek
+          trace ("n1 is " ++ show n1 ++ "n2" ++ show n2) parseErr "Cons found"
+        _ -> parseErr "Strange tuple"
+      parseErr "We found a ("
   _ -> parseErr "expecting a case"
 
 -- Parse one or more branches of a case expression.

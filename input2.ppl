@@ -1,0 +1,11 @@
+
+data List a = Nil | Cons a (List a );
+define not = \ a. if a then False else True;
+
+define even = \ls. case ls of
+	| Nil -> True
+    | Cons x y -> case y of
+                    | Nil -> False
+                    | Cons y1 y2 -> even y2;
+
+even (Cons 0 (Cons 1 (Cons 3 Nil)));

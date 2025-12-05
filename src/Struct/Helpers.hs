@@ -201,6 +201,17 @@ tmSuccName = TmN "Succ"
 tpNat :: Type
 tpNat = TpData tpNatName [] []
 
+{-
+tpListName :: TpName
+tpListName = TpN "List"
+tmNilName :: TmName
+tmNilName = TmN "Nil"
+tmConsName :: TmName
+tmConsName = TmN "Cons"
+tpList :: Type
+tpList = TpData tpListName [] []
+-}
+
 additionGenerator :: UsTm -> UsTm -> UsTm
 additionGenerator (UsVar val1) (UsVar val2) = UsLam val1 tpNat
   (UsLam val2 tpNat (UsCase (UsVar val1) [CaseUs (TmN "Zero") [] (UsVar val2),
@@ -212,6 +223,7 @@ builtins = [
   UsProgData tpZeroName [] [],
   UsProgData tpBoolName [] [Ctor tmFalseName [], Ctor tmTrueName []],
   UsProgData tpNatName [] [Ctor tmZeroName [], Ctor tmSuccName [tpNat]],
+  --UsProgData tpListName [] [Ctor tmNilName [], Ctor tmConsName [tpList]],
   UsProgDefine tmAddName (additionGenerator (UsVar (TmV "m")) (UsVar (TmV "n"))) (TpArr tpNat tpAdd)
   ]
 

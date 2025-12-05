@@ -3,7 +3,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad (zipWithM_)
 import Control.Monad.RWS.Lazy
-import Control.Monad.Except
+import Control.Monad.Except ( MonadError(throwError), runExcept )
 import TypeInf.Check
 import Util.Helpers
 import Util.Graph (scc, SCC(..))

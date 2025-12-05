@@ -1,0 +1,33 @@
+data Symbol = A | B;
+data String = Nil | Cons Symbol String;
+
+define ins = \y. factor 0.5 in ();
+define del = \x. factor 0.5 in ();
+define sub = \x. \y. factor 0.5 in ();
+
+define distance = \xs. \ys.
+    case (xs, ys) of
+        (Nil, Nil) -> ()
+        (Cons x xs, Nil) -> let () = del x in distance xs Nil
+        (Nil, Cons y ys) -> let () = ins y in distance Nil ys
+        (Cons x xs', Cons y ys') -> amb (let () = del x in distance xs' ys)
+                                        (let () = ins y in distance xs ys')
+                                        (let () = sub x y in distance xs' ys')
+
+distance (Cons A (Cons B Nil)) (Cons B (Cons A Nil))
+
+{- One Idea from Prof. Chiang:
+case (xs, ys) of
+    ...
+    (Cons x xs', Cons _ _) -> let () = del x in distance xs' ys
+    (Cons _ _, Cons y ys') -> let () = ins y in distance xs ys'
+    (Cons x xs', Cons y ys') -> let () = sub x y in distance xs' ys'
+-}
+
+{- One Idea from ccshan:
+define distance = \xs. \ys.
+  amb (case (xs,ys) of (Nil, Nil) -> ())
+      (case (xs,ys) of (Cons x xs', _) -> let () = del x in distance xs' ys)
+      (case (xs,ys) of (_, Cons y ys') -> let () = ins y in distance xs ys')
+      (case (xs,ys) of (Cons x xs', Cons y ys') -> let () = sub x y in distance xs' ys')
+-}
